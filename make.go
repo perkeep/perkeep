@@ -184,7 +184,7 @@ func main() {
 	}
 
 	cmd := exec.Command("go", args...)
-	cmd.Env = cleanGoEnv()
+	cmd.Env = goEnv()
 	if *static {
 		cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
 	}
@@ -215,7 +215,7 @@ func main() {
 
 func actualBinDir() string {
 	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
-	cmd.Env = cleanGoEnv()
+	cmd.Env = goEnv()
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
@@ -441,56 +441,25 @@ func envPair(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
-// TODO(mpl): we probably can get rid of cleanGoEnv now that "last in wins" for
-// duplicates in Env.
-
-// cleanGoEnv returns a copy of the current environment with any variable listed
-// in others removed. Also, when cross-compiling, it removes GOBIN and sets GOOS
-// and GOARCH, and GOARM as needed.
-func cleanGoEnv(others ...string) (clean []string) {
-	excl := make([]string, len(others))
-	for i, v := range others {
-		excl[i] = v + "="
-	}
-
-Env:
-	for _, env := range os.Environ() {
-		for _, v := range excl {
-			if strings.HasPrefix(env, v) {
-				continue Env
-			}
-		}
-		// remove GOBIN if we're cross-compiling
-		if strings.HasPrefix(env, "GOBIN=") &&
-			(*buildOS != runtime.GOOS || *buildARCH != runtime.GOARCH) {
-			continue
-		}
-		// We skip these two as well, otherwise they'd take precedence over the
-		// ones appended below.
-		if *buildOS != runtime.GOOS && strings.HasPrefix(env, "GOOS=") {
-			continue
-		}
-		if *buildARCH != runtime.GOARCH && strings.HasPrefix(env, "GOARCH=") {
-			continue
-		}
-		// If we're building for ARM (regardless of cross-compiling or not), we reset GOARM
-		if *buildARCH == "arm" && strings.HasPrefix(env, "GOARM=") {
-			continue
-		}
-
-		clean = append(clean, env)
-	}
+func goEnv() (ret []string) {
+	ret = slices.Clone(os.Environ())
+	var cross bool
 	if *buildOS != runtime.GOOS {
-		clean = append(clean, envPair("GOOS", *buildOS))
+		ret = append(ret, envPair("GOOS", *buildOS))
+		cross = true
 	}
 	if *buildARCH != runtime.GOARCH {
-		clean = append(clean, envPair("GOARCH", *buildARCH))
+		ret = append(ret, envPair("GOARCH", *buildARCH))
+		cross = true
+	}
+	if cross {
+		ret = append(ret, envPair("GOBIN", ""))
 	}
 	// If we're building for ARM (regardless of cross-compiling or not), we reset GOARM
 	if *buildARCH == "arm" {
-		clean = append(clean, envPair("GOARM", *buildARM))
+		ret = append(ret, envPair("GOARM", *buildARM))
 	}
-	return
+	return ret
 }
 
 // fullSrcPath returns the full path concatenation
@@ -590,7 +559,7 @@ func verifyPerkeepRoot() {
 	// we can't rely on perkeep.org/cmd/pk with modules on as we have no assurance
 	// the current dir is $GOPATH/src/perkeep.org, so we use ./cmd/pk instead.
 	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "./cmd/pk")
-	if os.Getenv("GO111MODULE") == "off" || *buildPublisherUI {
+	if *buildPublisherUI {
 		// if we're building the webUI we need to be in "legacy" GOPATH mode, so in
 		// $GOPATH/src/perkeep.org
 		if err := validateDirInGOPATH(pkRoot); err != nil {
@@ -644,7 +613,7 @@ func validateDirInGOPATH(dir string) error {
 }
 
 const (
-	goVersionMinor = 16
+	goVersionMinor = 21
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
@@ -690,24 +659,6 @@ func verifyGoVersion() {
 	if minorVersion < goVersionMinor {
 		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
-
-}
-
-// hostExeName returns the executable name
-// for s on the currently running host OS.
-func hostExeName(s string) string {
-	if runtime.GOOS == "windows" {
-		return s + ".exe"
-	}
-	return s
-}
-
-// copied from pkg/osutil/paths.go
-func homeDir() string {
-	if runtime.GOOS == "windows" {
-		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
-	}
-	return os.Getenv("HOME")
 }
 
 func failIfCamlistoreOrgDir() {
