@@ -1,5 +1,4 @@
 //go:build nocgo
-// +build nocgo
 
 /*
 Copyright 2016 The Perkeep Authors.

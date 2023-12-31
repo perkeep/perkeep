@@ -1,5 +1,4 @@
 //go:build cgo
-// +build cgo
 
 /*
 Copyright 2015 The Perkeep Authors

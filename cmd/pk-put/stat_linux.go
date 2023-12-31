@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 // TODO: move this to somewhere generic in osutil; use it for all
 // posix-y operation systems?  Or rather, don't clean bad fields, but
 // provide a portable way to extract all good fields.
