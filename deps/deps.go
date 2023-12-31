@@ -6,9 +6,5 @@
 package deps
 
 import (
-	_ "github.com/goplusjs/gopherjs"       // UI
-	_ "github.com/goplusjs/gopherjs/js"    // UI
-	_ "honnef.co/go/js/dom"                // UI
 	_ "honnef.co/go/tools/cmd/staticcheck" // Lint
-	_ "myitcv.io/react/cmd/reactGen"       // UI
 )
