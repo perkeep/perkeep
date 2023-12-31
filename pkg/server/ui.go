@@ -173,19 +173,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 	if ui.sourceRoot == "" {
 		ui.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
-		if uistatic.IsAppEngine {
-			if _, err = os.Stat(filepath.Join(uistatic.GaeSourceRoot,
-				filepath.FromSlash("server/perkeepd/ui/index.html"))); err != nil {
-				hint := fmt.Sprintf("\"sourceRoot\" was not specified in the config,"+
-					" and the default sourceRoot dir %v does not exist or does not contain"+
-					" \"server/perkeepd/ui/index.html\". devcam appengine can do that for you.",
-					uistatic.GaeSourceRoot)
-				log.Print(hint)
-				return nil, errors.New("no sourceRoot found; UI not available")
-			}
-			log.Printf("Using the default \"%v\" as the sourceRoot for AppEngine", uistatic.GaeSourceRoot)
-			ui.sourceRoot = uistatic.GaeSourceRoot
-		}
 		if ui.sourceRoot == "" {
 			files, err := uistatic.Files.ReadDir(".")
 			if err != nil {

@@ -23,7 +23,5 @@ package main // import "perkeep.org/app/publisher"
 
 import "embed"
 
-// TODO(mpl): appengine case
-
 //go:embed *.js *.css *.html *.png
 var Files embed.FS

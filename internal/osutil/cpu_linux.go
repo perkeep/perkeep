@@ -1,6 +1,3 @@
-//go:build linux && !appengine
-// +build linux,!appengine
-
 /*
 Copyright 2013 The Perkeep Authors
 

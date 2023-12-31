@@ -1,6 +1,4 @@
-//go:build !appengine && (linux || darwin || freebsd || netbsd || openbsd || solaris)
-// +build !appengine
-// +build linux darwin freebsd netbsd openbsd solaris
+//go:build linux || darwin || freebsd || netbsd || openbsd || solaris
 
 /*
 Copyright 2012 The Perkeep Authors.

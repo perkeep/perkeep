@@ -1,6 +1,3 @@
-//go:build darwin && !appengine
-// +build darwin,!appengine
-
 package schema
 
 import (

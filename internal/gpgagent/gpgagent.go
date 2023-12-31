@@ -1,6 +1,3 @@
-//go:build !appengine
-// +build !appengine
-
 /*
 Copyright 2011 The Perkeep Authors
 

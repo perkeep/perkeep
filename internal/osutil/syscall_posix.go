@@ -1,5 +1,4 @@
-//go:build !windows && !appengine && !solaris
-// +build !windows,!appengine,!solaris
+//go:build !windows && !solaris
 
 /*
 Copyright 2013 The Perkeep Authors.

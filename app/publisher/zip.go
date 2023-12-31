@@ -243,8 +243,6 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	blobFiles := renameDuplicates(bf)
 
-	// TODO(mpl): streaming directly won't work on appengine if the size goes
-	// over 32 MB. Deal with that.
 	h := rw.Header()
 	h.Set("Content-Type", "application/zip")
 	filename := zh.filename

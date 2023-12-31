@@ -1,5 +1,4 @@
-//go:build (linux && !appengine) || darwin || freebsd
-// +build linux,!appengine darwin freebsd
+//go:build linux || darwin || freebsd
 
 /*
 Copyright 2013 The Perkeep Authors
