@@ -22,7 +22,6 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
-	github.com/miekg/dns v1.1.57
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/pkg/sftp v1.13.6
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
@@ -111,6 +110,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/sdnotify v1.0.0 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
+	github.com/miekg/dns v1.1.57 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

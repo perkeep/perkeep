@@ -411,7 +411,6 @@ func handlerTypeWantsAuth(handlerType string) bool {
 type Config struct {
 	jconf jsonconfig.Obj // low-level JSON config
 
-	camliNetIP string // optional
 	httpsCert  string // optional
 	httpsKey   string // optional
 	https      bool
@@ -441,11 +440,6 @@ func (c *Config) UIPath() string {
 	}
 	return c.uiPath
 }
-
-// CamliNetIP returns the optional IP address that this server can be
-// reached out.  If set in the config, the server will request a DNS
-// subdomain name from the Perkeep camlistore.net DNS server.
-func (c *Config) CamliNetIP() string { return c.camliNetIP }
 
 // BaseURL returns the optional URL prefix listening the root of this server.
 // It does not end in a trailing slash.
@@ -577,7 +571,6 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 // readFields reads the low-level jsonconfig fields using the jsonconfig package
 // and copies them into c. This marks them as known fields before a future call to InstallerHandlers
 func (c *Config) readFields() error {
-	c.camliNetIP = c.jconf.OptionalString("camliNetIP", "")
 	c.listenAddr = c.jconf.OptionalString("listen", "")
 	c.baseURL = strings.TrimSuffix(c.jconf.OptionalString("baseURL", ""), "/")
 	c.httpsCert = c.jconf.OptionalString("httpsCert", "")
