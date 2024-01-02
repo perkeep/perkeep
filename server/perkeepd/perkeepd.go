@@ -302,15 +302,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 
 // listen discovers the listen address, base URL, and hostname that the ws is
 // going to use, sets up the TLS configuration, and starts listening.
-//
-// If camliNetIP is configured, it also prepares for the GPG
-// challenge, to register/acquire a name in the camlistore.net domain.
 func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
-	camliNetIP := config.CamliNetIP()
-	if camliNetIP != "" {
-		return listenForCamliNet(ws, config)
-	}
-
 	baseURL = config.BaseURL()
 
 	// Prefer the --listen flag value. Otherwise use the config value.
@@ -435,11 +427,6 @@ func main() {
 		exitf("Error starting webserver: %v", err)
 	}
 
-	challengeClient, err := registerDNSChallengeHandler(ws, config)
-	if err != nil {
-		exitf("Error registering challenge client with Perkeep muxer: %v", err)
-	}
-
 	config.SetReindex(*flagReindex)
 	config.SetKeepGoing(*flagKeepGoing)
 
@@ -452,11 +439,6 @@ func main() {
 
 	go ws.Serve()
 
-	if challengeClient != nil {
-		if err := requestHostName(challengeClient); err != nil {
-			exitf("Could not register on camlistore.net: %v", err)
-		}
-	}
 	if env.OnGCE() {
 		gce.FixUserDataForPerkeepRename()
 	}

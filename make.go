@@ -52,7 +52,6 @@ var (
 	buildARM     = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 	website      = flag.Bool("website", false, "Just build the website.")
-	camnetdns    = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static       = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
 	offline      = flag.Bool("offline", false, "Do not fetch the JS code for the web UI from perkeep.org. If not rebuilding the web UI, just trust the files on disk (if they exist).")
 )
@@ -71,10 +70,6 @@ func main() {
 		if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_FORCE_OSARCH")); !ok {
 			log.Fatalf("You're trying to build a 32-bit binary for a Mac. That is almost always a mistake.\nTo do it anyway, set env CAMLI_FORCE_OSARCH=1 and run again.\n")
 		}
-	}
-
-	if *website && *camnetdns {
-		log.Fatal("-camnetdns and -website are mutually exclusive")
 	}
 
 	failIfCamlistoreOrgDir()
@@ -114,20 +109,13 @@ func main() {
 		if *website {
 			log.Fatal("--targets and --website are mutually exclusive")
 		}
-		if *camnetdns {
-			log.Fatal("--targets and --camnetdns are mutually exclusive")
-		}
 		if t := strings.Split(*targets, ","); len(t) != 0 {
 			targs = t
 		}
 	}
-	if *website || *camnetdns {
+	if *website {
 		buildAll = false
-		if *website {
-			targs = []string{"perkeep.org/website/pk-web"}
-		} else if *camnetdns {
-			targs = []string{"perkeep.org/server/camnetdns"}
-		}
+		targs = []string{"perkeep.org/website/pk-web"}
 	}
 
 	tags := []string{"purego"} // for cznic/zappy

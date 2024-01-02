@@ -28,15 +28,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 )
 
-// For getting a name in camlistore.net
 const (
-	// CamliNetDNS is the hostname of the camlistore.net DNS server.
-	CamliNetDNS = "camnetdns.camlistore.org"
-	// CamliNetDomain is the camlistore.net domain name. It is relevant to
-	// Perkeep, because a deployment through the Perkeep on Google Cloud launcher
-	// automatically offers a subdomain name in this domain to any instance.
-	CamliNetDomain = "camlistore.net"
-
 	// useDBNamesConfig is a sentinel value for DBUnique to indicate that we want the
 	// low-level configuration generator to keep on using the old DBNames
 	// style configuration for database names.
@@ -83,7 +75,6 @@ func DefaultEnvConfig() (*Config, error) {
 		ShareHandler:       true,
 	}
 
-	externalIP, _ := metadata.ExternalIP()
 	hostName, _ := metadata.InstanceAttributeValue("camlistore-hostname")
 	// If they specified a hostname (previously common with old pk-deploy), then:
 	// if it looks like an FQDN, perkeepd is going to rely on Let's
@@ -93,11 +84,11 @@ func DefaultEnvConfig() (*Config, error) {
 	// exactly as if the instance had no hostname, so that it registers its hostname/IP
 	// with the camlistore.net DNS server (possibly needlessly, if the instance IP has
 	// not changed) again.
-	if hostName != "" && !strings.HasSuffix(hostName, CamliNetDomain) {
+	if hostName != "" && !strings.HasSuffix(hostName, "camlistore.net") {
 		highConf.BaseURL = fmt.Sprintf("https://%s", hostName)
 		highConf.Listen = "0.0.0.0:443"
 	} else {
-		highConf.CamliNetIP = externalIP
+		panic("unsupported legacy configuration using camlistore.net is no longer supported")
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".

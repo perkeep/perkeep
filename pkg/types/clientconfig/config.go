@@ -101,23 +101,13 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		return missingConfig(param)
 	}
 
-	var listen, baseURL string
-	camliNetIP := serverConfig.OptionalString("camliNetIP", "")
-	if camliNetIP != "" {
-		listen = ":443"
-		// TODO(mpl): move the camliNetDomain const from perkeepd.go
-		// to somewhere importable, so we can use it here. but later.
-		camliNetDomain := "camlistore.net"
-		baseURL = fmt.Sprintf("https://%s.%s/", keyID, camliNetDomain)
-	} else {
-		listen = serverConfig.OptionalString("listen", "")
-		baseURL = serverConfig.OptionalString("baseURL", "")
-		if listen == "" {
-			listen = baseURL
-		}
-		if listen == "" {
-			return nil, errors.New("required value for 'listen' or 'baseURL' not found")
-		}
+	listen := serverConfig.OptionalString("listen", "")
+	baseURL := serverConfig.OptionalString("baseURL", "")
+	if listen == "" {
+		listen = baseURL
+	}
+	if listen == "" {
+		return nil, errors.New("required value for 'listen' or 'baseURL' not found")
 	}
 
 	https := serverConfig.OptionalBool("https", false)
