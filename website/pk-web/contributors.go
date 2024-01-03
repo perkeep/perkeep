@@ -75,7 +75,7 @@ func parseLine(l string) (name, email string, commits int, err error) {
 
 func gitShortlog() *exec.Cmd {
 	if *shortLogFile != "" {
-		return exec.Command("/bin/bash", "-c", "cat", *shortLogFile)
+		return exec.Command("cat", *shortLogFile)
 	}
 	return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
 }
@@ -136,9 +136,11 @@ func genContribPage() ([]byte, error) {
 	// Add URLs and roles
 	for email, m := range urlsMap {
 		a := byEmail[email]
-		if a != nil {
-			a.add(&m)
+		if a == nil {
+			log.Printf("skipping email %q", email)
+			continue
 		}
+		a.add(&m)
 		if len(m.Names) > 0 {
 			a.Names = []string{m.Names[0]}
 		}

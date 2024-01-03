@@ -1,0 +1,22 @@
+app = "perkeep-website"
+
+[build]
+dockerfile = "Dockerfile.website"
+  
+[deploy]
+strategy = "immediate"
+
+[[services]]
+  internal_port = 31798
+  protocol = "tcp"
+
+[[services.ports]]
+  handlers = ["http"]
+  port = 80
+  force_https = true  # optional
+
+[[services.ports]]
+  handlers = ["tls", "http"]
+  port = "443"
+ 
+              

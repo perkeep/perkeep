@@ -1,0 +1,34 @@
+FROM golang:1.21-bookworm AS build
+
+WORKDIR /go
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl netbase wget git 
+
+WORKDIR /perkeep
+ADD go.mod .
+ADD go.sum .
+
+RUN go version && go mod download
+
+ADD . .
+
+#RUN git fetch --unshallow || true
+
+RUN git log | git shortlog -sen > /perkeep-gitstats.txt
+
+RUN go build -o /bin/pk-web ./website/pk-web
+#RUN go build -o /bin/perkeepd ./server/perkeepd
+
+FROM debian:bookworm
+
+COPY --from=build /bin/pk-web /bin/pk-web
+#COPY --from=build /bin/perkeepd /bin/perkeepd
+COPY --from=build /perkeep-gitstats.txt /perkeep-gitstats.txt
+
+ADD website /var/perkeep/website
+ADD doc /var/perkeep/doc
+ADD pkg /var/perkeep/pkg
+ADD cmd /var/perkeep/cmd
+ADD server /var/perkeep/server
+
+CMD ["/bin/pk-web", "--root=/var/perkeep/website", "--gitlog-file=/perkeep-gitstats.txt"]

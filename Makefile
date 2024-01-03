@@ -23,3 +23,12 @@ dockerbuilddev:
 
 dockerpushdev: dockerbuilddev
 	docker push gcr.io/perkeep-containers/perkeep-dev-$(USER):latest
+
+webbuild:
+	docker build -t registry.fly.io/perkeep-website -f Dockerfile.website .
+
+web-push-prod:
+	flyctl deploy -a perkeep-website
+
+web-push-staging:
+	flyctl deploy -a perkeep-staging
