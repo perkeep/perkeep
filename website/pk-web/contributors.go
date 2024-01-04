@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
-
-	"perkeep.org/internal/osutil"
 )
 
 var urlsMap = map[string]author{
@@ -77,30 +74,10 @@ func parseLine(l string) (name, email string, commits int, err error) {
 }
 
 func gitShortlog() *exec.Cmd {
-	if !*gitContainer {
-		return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
+	if *shortLogFile != "" {
+		return exec.Command("/bin/bash", "-c", "cat", *shortLogFile)
 	}
-	args := []string{"run", "--rm"}
-	if inProd {
-		args = append(args,
-			"-v", "/var/camweb:/var/camweb",
-			"--workdir="+prodSrcDir,
-		)
-	} else {
-		hostRoot, err := osutil.GoPackagePath(prodDomain)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("Using bind root of %q", hostRoot)
-		args = append(args,
-			"-v", hostRoot+":"+prodSrcDir,
-			"--workdir="+prodSrcDir,
-		)
-	}
-	args = append(args, "camlistore/git", "/bin/bash", "-c", "git log | git shortlog -sen")
-	cmd := exec.Command("docker", args...)
-	cmd.Stderr = os.Stderr
-	return cmd
+	return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
 }
 
 func genContribPage() ([]byte, error) {
