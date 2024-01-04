@@ -18,8 +18,6 @@ package main // import "perkeep.org/website/pk-web"
 
 import (
 	"bytes"
-	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -39,19 +37,11 @@ import (
 	txttemplate "text/template"
 	"time"
 
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/types/camtypes"
 
-	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/logging"
-	"cloud.google.com/go/storage"
-	"github.com/mailgun/mailgun-go"
 	"github.com/russross/blackfriday"
-	"go4.org/writerutil"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -63,37 +53,21 @@ const (
 var h1TitlePattern = regexp.MustCompile(`<h1[^>]*>([^<]+)</h1>`)
 
 var (
-	httpAddr    = flag.String("http", defaultAddr, "HTTP address. If using Let's Encrypt, this server needs to be able to answer the http-01 challenge on port 80.")
-	httpsAddr   = flag.String("https", "", "HTTPS address")
-	root        = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
-	logDir      = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
-	logStdout   = flag.Bool("logstdout", true, "Whether to log to stdout")
-	tlsCertFile = flag.String("tlscert", "", "TLS cert file")
-	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
-	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
-	devMode     = flag.Bool("dev", false, "in dev mode")
-	flagVersion = flag.Bool("version", false, "show version")
-
-	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
-	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
-	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
-	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
-
-	adminEmail = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
-)
-
-const (
-	stagingInstName = "camweb-staging" // name of the GCE instance when testing
-	stagingHostname = "staging.camlistore.net"
+	httpAddr     = flag.String("http", defaultAddr, "HTTP address. If using Let's Encrypt, this server needs to be able to answer the http-01 challenge on port 80.")
+	httpsAddr    = flag.String("https", "", "HTTPS address")
+	root         = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
+	logDir       = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
+	logStdout    = flag.Bool("logstdout", true, "Whether to log to stdout")
+	tlsCertFile  = flag.String("tlscert", "", "TLS cert file")
+	tlsKeyFile   = flag.String("tlskey", "", "TLS private key file")
+	alsoRun      = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
+	flagVersion  = flag.Bool("version", false, "show version")
+	adminEmail   = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
+	shortLogFile = flag.String("gitlog-file", "", "If non-empty, the path to the `git log | git shortlog -sen output` to use. If empty, it's run as needed.")
 )
 
 var (
 	inProd bool
-	// inStaging is whether this instance is the staging server. This should only be true
-	// if inProd is also true - they are not mutually exclusive; staging is still prod -
-	// because we want to test the same code paths as in production. The code then runs
-	// on another GCE instance, and on the stagingHostname host.
-	inStaging bool
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -462,10 +436,6 @@ func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" || host == "camlistore.org" ||
 		host == "www."+prodDomain || (inProd && r.TLS == nil) {
-		if inStaging {
-			http.Redirect(rw, r, "https://"+stagingHostname+r.URL.RequestURI(), http.StatusFound)
-			return
-		}
 		http.Redirect(rw, r, "https://"+prodDomain+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
@@ -493,126 +463,28 @@ func runAsChild(res string) {
 	}()
 }
 
-func checkInProduction() bool {
-	if !metadata.OnGCE() {
-		return false
-	}
-	proj, _ := metadata.ProjectID()
-	inst, _ := metadata.InstanceName()
-	log.Printf("Running on GCE: %v / %v", proj, inst)
-	prod := proj == "camlistore-website" && inst == "camweb" || inst == stagingInstName
-	inStaging = prod && inst == stagingInstName
-	return prod
-}
-
-const (
-	prodSrcDir     = "/var/camweb/src/" + prodDomain
-	prodLECacheDir = "/var/le/letsencrypt.cache"
-)
-
-func setProdFlags() {
-	inProd = checkInProduction()
-	if !inProd {
-		return
-	}
-	if *devMode {
-		log.Fatal("can't use dev mode in production")
-	}
-	log.Printf("Running in production; configuring prod flags & containers")
-	*httpAddr = ":80"
-	*httpsAddr = ":443"
-	// TODO(mpl): investigate why this proxying does not seem to be working (we end up on https://camlistore.org).
-	buildbotBackend = "https://travis-ci.org/perkeep/perkeep"
-	buildbotHost = "build.perkeep.org"
-	*gceLogName = "camweb-access-log"
-	if inStaging {
-		*gceLogName += "-staging"
-	}
-	*root = filepath.Join(prodSrcDir, "website")
-	*gitContainer = true
-
-	*adminEmail = "mathieu.lonjaret@gmail.com" // for let's encrypt
-	*emailsTo = "camlistore-commits@googlegroups.com"
-	*mailgunCfgFile = "mailgun-config.json"
-	if inStaging {
-		// in staging, keep emailsTo so we get in the loop that does the
-		// git pull and refreshes the content, but no mailgunCfgFile so
-		// we don't actually try to send any e-mail.
-		*mailgunCfgFile = ""
-	}
-
-	os.RemoveAll(prodSrcDir)
-	if err := os.MkdirAll(prodSrcDir, 0755); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("fetching git docker image...")
-	getDockerImage("camlistore/git", "docker-git.tar.gz")
-	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
-
-	log.Printf("cloning perkeep git tree...")
-	branch := "master"
-	if inStaging {
-		// We work off the staging branch, so we stay in control of the
-		// website contents, regardless of which commits are landing on the
-		// master branch in the meantime.
-		branch = "staging"
-	}
-	cloneArgs := []string{
-		"run",
-		"--rm",
-		"-v", "/var/camweb:/var/camweb",
-		"camlistore/git",
-		"git", "clone", "-b", branch, "https://github.com/perkeep/perkeep.git", prodSrcDir,
-	}
-	out, err := exec.Command("docker", cloneArgs...).CombinedOutput()
-	if err != nil {
-		log.Fatalf("git clone: %v, %s", err, out)
-	}
-	os.Chdir(*root)
-	log.Printf("Starting.")
-	sendStartingEmail()
-}
-
-func randHex(n int) string {
-	buf := make([]byte, n/2+1)
-	rand.Read(buf)
-	return fmt.Sprintf("%x", buf)[:n]
-}
-
-func removeContainer(name string) {
-	if err := exec.Command("docker", "kill", name).Run(); err == nil {
-		// It was actually running.
-		log.Printf("Killed old %q container.", name)
-	}
-	if err := exec.Command("docker", "rm", name).Run(); err == nil {
-		// Always try to remove, in case we end up with a stale,
-		// non-running one (which has happened in the past).
-		log.Printf("Removed old %q container.", name)
-	}
-}
-
 // runDemoBlobServerContainer runs the demo blobserver as name in a docker
 // container. It is not run in daemon mode, so it never returns if successful.
 func runDemoBlobServerContainer(name string) error {
-	removeContainer(name)
-	cmd := exec.Command("docker", "run",
-		"--rm",
-		"--name="+name,
-		"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
-		"-e", "CAMLI_PASSWORD="+randHex(20),
-		"-v", pkSrcDir()+":"+prodSrcDir,
-		"--net=host",
-		"--workdir="+prodSrcDir,
-		"camlistore/demoblobserver",
-		"camlistored",
-		"--openbrowser=false",
-		"--listen=:3179",
-		"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
-	stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
-	}
+	// removeContainer(name)
+	// cmd := exec.Command("docker", "run",
+	// 	"--rm",
+	// 	"--name="+name,
+	// 	"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
+	// 	"-e", "CAMLI_PASSWORD="+randHex(20),
+	// 	"-v", pkSrcDir()+":"+prodSrcDir,
+	// 	"--net=host",
+	// 	"--workdir="+prodSrcDir,
+	// 	"camlistore/demoblobserver",
+	// 	"camlistored",
+	// 	"--openbrowser=false",
+	// 	"--listen=:3179",
+	// 	"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
+	// stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
+	// cmd.Stderr = stderr
+	// if err := cmd.Run(); err != nil {
+	// 	return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+	// }
 	return nil
 }
 
@@ -635,79 +507,6 @@ func runDemoBlobserverLoop() {
 	}
 }
 
-func sendStartingEmail() {
-	if *mailgunCfgFile == "" {
-		return
-	}
-	contentRev, err := exec.Command("docker", "run",
-		"--rm",
-		"-v", "/var/camweb:/var/camweb",
-		"-w", prodSrcDir,
-		"camlistore/git",
-		"/bin/bash", "-c",
-		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
-
-	cfg, err := mailgunCfgFromGCS()
-	if err != nil {
-		log.Printf("Failed to get mailgun config: %v", err)
-		return
-	}
-	mailGun = mailgun.NewMailgun(cfg.Domain, cfg.APIKey, cfg.PublicAPIKey)
-	contents := `Perkeep website starting with binary ` + buildinfo.Summary() + ` and content at git rev ` + string(contentRev)
-	m := mailGun.NewMessage(
-		"noreply@perkeep.org (Perkeep Website)",
-		"Perkeep camweb restarting",
-		contents,
-		"brad@danga.com",
-		"mathieu.lonjaret@gmail.com",
-	)
-	if _, _, err := mailGun.Send(m); err != nil {
-		log.Printf("Failed to send camweb startup e-mail: %v", err)
-	}
-}
-
-func getDockerImage(tag, file string) {
-	have, err := exec.Command("docker", "inspect", tag).Output()
-	if err == nil && len(have) > 0 {
-		return // we have it.
-	}
-	url := "https://storage.googleapis.com/" + prodBucket + "/" + file
-	err = exec.Command("/bin/bash", "-c", "curl --silent "+url+" | docker load").Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// httpClient returns an http Client suitable for Google Cloud Storage or Google Cloud
-// Logging calls with the projID project ID.
-func httpClient(projID string) *http.Client {
-	if *gceJWTFile == "" {
-		log.Fatal("Cannot initialize an authorized http Client without --gce_jwt_file")
-	}
-	jsonSlurp, err := os.ReadFile(*gceJWTFile)
-	if err != nil {
-		log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-	}
-	jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.WriteScope)
-	if err != nil {
-		log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-	}
-	return jwtConf.Client(context.Background())
-}
-
-// projectID returns the GCE project ID used for running this camweb on GCE
-// and/or for logging on Google Cloud Logging, if any.
-func projectID() string {
-	if *gceProjectID != "" {
-		return *gceProjectID
-	}
-	projID, err := metadata.ProjectID()
-	if projID == "" || err != nil {
-		log.Fatalf("GCE project ID needed but --gce_project_id not specified (and not running on GCE); metadata error: %v", err)
-	}
-	return projID
-}
-
 func main() {
 	flag.Parse()
 	if *flagVersion {
@@ -715,7 +514,6 @@ func main() {
 			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
-	setProdFlags()
 
 	if *root == "" {
 		var err error
@@ -778,30 +576,6 @@ func main() {
 	if *logDir != "" || *logStdout {
 		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
 	}
-	if *gceLogName != "" {
-		projID := projectID()
-		var hc *http.Client
-		if !metadata.OnGCE() {
-			hc = httpClient(projID)
-		}
-		ctx := context.Background()
-		var logc *logging.Client
-		if metadata.OnGCE() {
-			logc, err = logging.NewClient(ctx, projID)
-		} else {
-			logc, err = logging.NewClient(ctx, projID, option.WithHTTPClient(hc))
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := logc.Ping(ctx); err != nil {
-			log.Fatalf("Failed to ping Google Cloud Logging: %v", err)
-		}
-		handler = NewLoggingHandler(handler, gceLogger{logc.Logger(*gceLogName)})
-	}
-
-	emailErr := make(chan error)
-	startEmailCommitLoop(emailErr)
 
 	if *alsoRun != "" {
 		runAsChild(*alsoRun)
@@ -822,8 +596,6 @@ func main() {
 	}()
 
 	select {
-	case err := <-emailErr:
-		log.Fatalf("Error sending emails: %v", err)
 	case err := <-httpsErr:
 		log.Fatalf("Error serving HTTPS: %v", err)
 	}
@@ -874,13 +646,9 @@ func serve(httpServer *http.Server, onHTTPError func(error)) error {
 		}
 		hostPolicy = autocert.HostWhitelist(host)
 	} else {
-		if inStaging {
-			hostPolicy = autocert.HostWhitelist(stagingHostname)
-		} else {
-			hostPolicy = autocert.HostWhitelist(prodDomain, "www."+prodDomain,
-				"www.camlistore.org", "camlistore.org")
-		}
-		cacheDir = autocert.DirCache(prodLECacheDir)
+		hostPolicy = autocert.HostWhitelist(prodDomain, "www."+prodDomain,
+			"www.camlistore.org", "camlistore.org")
+		cacheDir = autocert.DirCache("/var/le/letsencrypt.cache")
 	}
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
@@ -915,23 +683,6 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	return tc, nil
-}
-
-func fromGCS(filename string) ([]byte, error) {
-	ctx := context.Background()
-	sc, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	slurp := func(key string) ([]byte, error) {
-		rc, err := sc.Bucket(prodBucket).Object(key).NewReader(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
-		}
-		defer rc.Close()
-		return io.ReadAll(rc)
-	}
-	return slurp(filename)
 }
 
 var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)
@@ -1046,15 +797,4 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 		title:   errString,
 		content: contents,
 	})
-}
-
-func pkSrcDir() string {
-	if inProd {
-		return prodSrcDir
-	}
-	dir, err := osutil.GoPackagePath(prodDomain)
-	if err != nil {
-		log.Fatalf("Failed to find the root of the %s source code via osutil.GoPackagePath: %v", prodDomain, err)
-	}
-	return dir
 }
