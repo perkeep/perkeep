@@ -22,9 +22,3 @@
 
 [![Linux Test Status](https://github.com/perkeep/perkeep/workflows/tests/linux/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/linux)
 [![Windows Test Status](https://github.com/perkeep/perkeep/workflows/tests/windows/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/windows)
-
-### Code of Conduct
-
-Please note that this project uses a
-[Contributor Code of Conduct](https://opensource.google.com/conduct/).
-By participating in this project you agree to abide by its terms.
