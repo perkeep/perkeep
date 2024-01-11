@@ -19,6 +19,7 @@ package schema
 import (
 	"bufio"
 	"os"
+	"os/user"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,6 +95,36 @@ func cachedId(name string, m map[string]intBool, fn func(string) (int, bool)) (i
 	return id, ok
 }
 
+// lookupMu must be held.
+func lookupUserToId(name string) (uid int, ok bool) {
+	u, err := user.Lookup(name)
+	if err == nil {
+		uid, err := strconv.Atoi(u.Uid)
+		if err == nil {
+			return uid, true
+		}
+	}
+	return
+}
+
+// lookupMu must be held.
+func lookupUserid(id int) string {
+	u, err := user.LookupId(strconv.Itoa(id))
+	if err == nil {
+		return u.Username
+	}
+	if _, ok := err.(user.UnknownUserIdError); ok {
+		return ""
+	}
+	if parsedPasswd {
+		return ""
+	}
+	parsedPasswd = true
+	populateMap(uidName, nil, "/etc/passwd")
+	return uidName[id]
+}
+
+// lookupMu must be held.
 func lookupGroupToId(group string) (gid int, ok bool) {
 	if !parsedGroups {
 		lookupGroupId(0) // force them to be loaded
@@ -102,7 +133,7 @@ func lookupGroupToId(group string) (gid int, ok bool) {
 	return intb.int, intb.bool
 }
 
-// lookupMu is held
+// lookupMu must be held.
 func lookupGroupId(id int) string {
 	if parsedGroups {
 		return ""
