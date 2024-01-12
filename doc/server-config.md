@@ -52,7 +52,13 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   doing.
 
 * `listen`: The port (like "80" or ":80") or IP & port (like "10.0.0.2:8080")
-  to listen for HTTP(s) connections on.
+  to listen for HTTP(s) connections on. Alternatively, the value
+  can be `tailscale` or `tailscale:ARG` to run only on a Tailscale
+  network (tailnet). In that case, the optional `ARG` can be either
+  a directory in which to store the state (if it contains a slash)
+  or else just the name of an instance, in which case the state
+  directory is placed in `~/.config/tsnet-NAME`. The default name
+  is `perkeep`.
 
 * `shareHandler`: if true, the server's sharing functionality is enabled,
   letting your friends have access to any content you've specifically shared.
