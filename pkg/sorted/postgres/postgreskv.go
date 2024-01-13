@@ -70,9 +70,9 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		return nil, err
 	}
 
-	for _, tableSql := range SQLCreateTables() {
-		if _, err := db.Exec(tableSql); err != nil {
-			return nil, fmt.Errorf("error creating table with %q: %v", tableSql, err)
+	for _, tableSQL := range SQLCreateTables() {
+		if _, err := db.Exec(tableSQL); err != nil {
+			return nil, fmt.Errorf("error creating table with %q: %v", tableSQL, err)
 		}
 	}
 	for _, statement := range SQLDefineReplace() {

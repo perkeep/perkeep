@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
 	"testing"
 
 	"perkeep.org/pkg/blob"
@@ -121,7 +120,7 @@ var readTests = []readTest{
 }
 
 func skipBytes(fr *FileReader, skipBytes uint64) uint64 {
-	oldOff, err := fr.Seek(0, os.SEEK_CUR)
+	oldOff, err := fr.Seek(0, io.SeekCurrent)
 	if err != nil {
 		panic("Failed to seek")
 	}
@@ -129,7 +128,7 @@ func skipBytes(fr *FileReader, skipBytes uint64) uint64 {
 	if int64(skipBytes) > remain {
 		skipBytes = uint64(remain)
 	}
-	newOff, err := fr.Seek(int64(skipBytes), os.SEEK_CUR)
+	newOff, err := fr.Seek(int64(skipBytes), io.SeekCurrent)
 	if err != nil {
 		panic("Failed to seek")
 	}

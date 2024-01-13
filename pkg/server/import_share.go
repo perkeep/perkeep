@@ -219,7 +219,6 @@ func (si *shareImporter) importAssembled(ctx context.Context) {
 	si.mu.Lock()
 	si.br = br
 	si.mu.Unlock()
-	return
 }
 
 // isAssembled reports whether si.shareURL is of a shared assembled file.

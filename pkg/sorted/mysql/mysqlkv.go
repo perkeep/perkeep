@@ -127,7 +127,7 @@ func (kv *keyValue) finalize() error {
 	}
 	if version != requiredSchemaVersion {
 		if version == 20 && requiredSchemaVersion == 21 {
-			fmt.Fprintf(os.Stderr, fixSchema20to21)
+			fmt.Fprint(os.Stderr, fixSchema20to21)
 		}
 		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out

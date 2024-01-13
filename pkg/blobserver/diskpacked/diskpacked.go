@@ -258,7 +258,7 @@ func (s *storage) openForWrite(n int) error {
 	openFdsVar.Add(s.root, 1)
 	debug.Printf("diskpacked: opened for write %q", fn)
 
-	s.size, err = f.Seek(0, os.SEEK_END)
+	s.size, err = f.Seek(0, io.SeekEnd)
 	if err != nil {
 		f.Close()
 		l.Close()

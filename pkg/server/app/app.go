@@ -137,7 +137,7 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("error reading master query: %v", err), 500)
 		return
 	}
-	var masterQuery search.SearchQuery = *(sq)
+	masterQuery := *sq
 	masterQuery.Describe = masterQuery.Describe.Clone()
 	sr, err := a.sh.Query(r.Context(), sq)
 	if err != nil {

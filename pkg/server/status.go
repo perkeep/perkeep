@@ -313,7 +313,7 @@ func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request)
 		err := ah.Quit()
 		if err != nil {
 			msg := fmt.Sprintf("Not restarting: couldn't interrupt app %s: %v", ah.ProgramName(), err)
-			log.Printf(msg)
+			log.Print(msg)
 			http.Error(rw, msg, http.StatusInternalServerError)
 			return
 		}

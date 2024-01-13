@@ -379,7 +379,7 @@ func (fr *FileReader) readerForOffset(ctx context.Context, off int64) (io.ReadCl
 	}
 	offRemain += int64(p0.Offset)
 	if offRemain > 0 {
-		newPos, err := rsc.Seek(offRemain, os.SEEK_SET)
+		newPos, err := rsc.Seek(offRemain, io.SeekStart)
 		if err != nil {
 			return nil, err
 		}

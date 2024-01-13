@@ -121,7 +121,12 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 							i = 3 // none of the above
 						}
 						if 0 <= i && i < len(synopses) && synopses[i] == "" {
-							synopses[i] = doc.Synopsis(file.Doc.Text())
+							// TODO: build a real package? This works for now to appease
+							// staticcheck deprecation warnings avbout Go 1.20 removing
+							// doc.Synopsis. Instead, just do what doc.Synopsis does itself
+							// and use a zero value. It works except for HTML/links in the synopsis.
+							var pkg doc.Package
+							synopses[i] = pkg.Synopsis(file.Doc.Text())
 						}
 					}
 				}
@@ -202,24 +207,24 @@ func newDirectory(root string, maxDepth int) *Directory {
 	return b.newDirTree(token.NewFileSet(), root, d.Name(), 0)
 }
 
-func (dir *Directory) walk(c chan<- *Directory, skipRoot bool) {
-	if dir != nil {
+func (d *Directory) walk(ch chan<- *Directory, skipRoot bool) {
+	if d != nil {
 		if !skipRoot {
-			c <- dir
+			ch <- d
 		}
-		for _, d := range dir.Dirs {
-			d.walk(c, false)
+		for _, c := range d.Dirs {
+			c.walk(ch, false)
 		}
 	}
 }
 
-func (dir *Directory) iter(skipRoot bool) <-chan *Directory {
-	c := make(chan *Directory)
+func (d *Directory) iter(skipRoot bool) <-chan *Directory {
+	ch := make(chan *Directory)
 	go func() {
-		dir.walk(c, skipRoot)
-		close(c)
+		defer close(ch)
+		d.walk(ch, skipRoot)
 	}()
-	return c
+	return ch
 }
 
 // DirEntry describes a directory entry. The Depth and Height values
@@ -240,7 +245,8 @@ type DirList struct {
 
 // listing creates a (linear) directory listing from a directory tree.
 // If skipRoot is set, the root directory itself is excluded from the list.
-func (root *Directory) listing(skipRoot bool) *DirList {
+func (d *Directory) listing(skipRoot bool) *DirList {
+	root := d
 	if root == nil {
 		return nil
 	}

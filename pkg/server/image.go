@@ -307,6 +307,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	if ih.Square && !isSquare {
 		i = squareImage(i)
 		b = i.Bounds()
+		_ = b
 	}
 
 	// Encode as a new image

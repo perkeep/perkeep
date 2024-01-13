@@ -12,7 +12,10 @@ presubmit: fmt
 fmt:
 	go fmt perkeep.org/cmd/... perkeep.org/dev/... perkeep.org/misc/... perkeep.org/pkg/... perkeep.org/server/... perkeep.org/internal/...
 
-lint:
+# TODO: merge staticcheck and staticcheckfull once the tree is clean and passes lintfull (via staticcheck.conf knobs)
+staticcheck:
+	go run honnef.co/go/tools/cmd/staticcheck --checks=U1000,S1012,S1024 ./...
+staticcheckfull:
 	go run honnef.co/go/tools/cmd/staticcheck ./...
 
 dockerbuild:

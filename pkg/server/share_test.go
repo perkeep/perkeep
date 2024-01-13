@@ -423,5 +423,5 @@ func TestHandleShareDeletion(t *testing.T) {
 	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, shareRef, linkRef), shareDeleted)
 
 	// Test we can't even get the share itself anymore, just in case.
-	st.testGet(fmt.Sprintf("%s", shareRef), shareDeleted)
+	st.testGet(shareRef.String(), shareDeleted)
 }

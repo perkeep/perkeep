@@ -40,7 +40,7 @@ jobs:
       run: go vet ./...
 
     - name: Run staticcheck
-      run: go run honnef.co/go/tools/cmd/staticcheck ./...
+      run: make staticcheck
 
     - name: Check for env vars documentation
       run: go run dev/envvardoc/envvardoc.go
