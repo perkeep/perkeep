@@ -1049,10 +1049,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 				return true
 			}
 			if !wantAround || foundAround {
-				if len(res.Blobs) == q.Limit {
-					return false
-				}
-				return true
+				return len(res.Blobs) != q.Limit
 			}
 			if q.Around == meta.Ref {
 				foundAround = true
@@ -1925,7 +1922,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, err
 		}
 		matches := false
-		for parent, _ := range parents {
+		for parent := range parents {
 			meta, err := s.blobMeta(ctx, parent)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -2209,7 +2206,7 @@ func (c *DirConstraint) hasMatchingChild(ctx context.Context, s *search, childre
 	matcher func(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error)) (bool, error) {
 	// TODO(mpl): See if we're guaranteed to be CPU-bound (i.e. all resources are in
 	// corpus), and if not, add some concurrency to spread costly index lookups.
-	for child, _ := range children {
+	for child := range children {
 		meta, err := s.blobMeta(ctx, child)
 		if err != nil {
 			if os.IsNotExist(err) {

@@ -25,6 +25,7 @@ import (
 	"go/ast"
 	"go/build"
 	"go/doc"
+	"go/doc/comment"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -88,29 +89,29 @@ var godocFmap = template.FuncMap{
 
 	// formatting of AST nodes
 	"node":         nodeFunc,
-	"node_html":    node_htmlFunc,
-	"comment_html": comment_htmlFunc,
+	"node_html":    nodeHTMLFunc,
+	"comment_html": commentHTMLFunc,
 	//"comment_text": comment_textFunc,
 
 	// support for URL attributes
 	"srcLink":     srcLinkFunc,
-	"posLink_url": posLink_urlFunc,
+	"posLink_url": posLinkURLFunc,
 
 	// formatting of Examples
-	"example_html":   example_htmlFunc,
-	"example_name":   example_nameFunc,
-	"example_suffix": example_suffixFunc,
+	"example_html":   exampleHTMLFunc,
+	"example_name":   exampleNameFunc,
+	"example_suffix": exampleSuffixFunc,
 }
 
-func example_htmlFunc(funcName string, examples []*doc.Example, fset *token.FileSet) string {
+func exampleHTMLFunc(funcName string, examples []*doc.Example, fset *token.FileSet) string {
 	return ""
 }
 
-func example_nameFunc(s string) string {
+func exampleNameFunc(s string) string {
 	return ""
 }
 
-func example_suffixFunc(name string) string {
+func exampleSuffixFunc(name string) string {
 	return ""
 }
 
@@ -157,7 +158,7 @@ func nodeFunc(node interface{}, fset *token.FileSet) string {
 	return buf.String()
 }
 
-func node_htmlFunc(node interface{}, fset *token.FileSet) string {
+func nodeHTMLFunc(node interface{}, fset *token.FileSet) string {
 	var buf1 bytes.Buffer
 	writeNode(&buf1, fset, node)
 	var buf2 bytes.Buffer
@@ -165,15 +166,14 @@ func node_htmlFunc(node interface{}, fset *token.FileSet) string {
 	return buf2.String()
 }
 
-func comment_htmlFunc(comment string) string {
-	var buf bytes.Buffer
-	// TODO(gri) Provide list of words (e.g. function parameters)
-	//           to be emphasized by ToHTML.
-	doc.ToHTML(&buf, comment, nil) // does html-escaping
-	return buf.String()
+func commentHTMLFunc(commentStr string) string {
+	p := new(doc.Package).Parser()
+	d := p.Parse(commentStr)
+	pr := new(comment.Printer)
+	return string(pr.HTML(d))
 }
 
-func posLink_urlFunc(node ast.Node, fset *token.FileSet) string {
+func posLinkURLFunc(node ast.Node, fset *token.FileSet) string {
 	var relpath string
 	var line int
 	var low, high int // selection
@@ -222,8 +222,7 @@ func srcLinkFunc(s string) string {
 }
 
 func (pi *PageInfo) populateDirs(diskPath string, depth int) {
-	var dir *Directory
-	dir = newDirectory(diskPath, depth)
+	dir := newDirectory(diskPath, depth)
 	pi.Dirs = dir.listing(true)
 	pi.DirTime = time.Now()
 }

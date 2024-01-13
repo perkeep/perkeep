@@ -595,10 +595,7 @@ func main() {
 		})
 	}()
 
-	select {
-	case err := <-httpsErr:
-		log.Fatalf("Error serving HTTPS: %v", err)
-	}
+	log.Fatalf("Error serving HTTPS: %v", <-httpsErr)
 }
 
 // serve starts listening and serving for HTTP, and for HTTPS if it applies.

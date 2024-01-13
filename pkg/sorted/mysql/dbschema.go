@@ -28,6 +28,9 @@ func SchemaVersion() int {
 	return requiredSchemaVersion
 }
 
+// SQLCreateTables is the MySQL schema for the tables used by the
+// the indexer.
+//
 // Note: using character set "binary", as any knowledge
 // of character set encodings is handled by higher layers.
 // At this layer we're just obeying the IndexStorage interface,

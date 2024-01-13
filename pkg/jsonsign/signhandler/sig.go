@@ -101,6 +101,9 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	}
 
 	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx := context.Background() // TODO: 15 second or global-configurable start-up limit?
 
@@ -240,7 +243,6 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 	badReq := func(s string) {
 		http.Error(rw, s, http.StatusBadRequest)
 		log.Printf("bad request: %s", s)
-		return
 	}
 
 	jsonStr := req.FormValue("json")
