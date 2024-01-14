@@ -126,11 +126,11 @@ var (
 // testSigner returns the signer, as well as its armored public key, from
 // pkg/jsonsign/testdata/test-secring.gpg
 func testSigner() *schema.Signer {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		panic(fmt.Sprintf("error looking up perkeep.org's location in $GOPATH: %v", err))
+		panic(fmt.Sprintf("source root folder not found: %v", err))
 	}
-	ent, err := jsonsign.EntityFromSecring(indextest.KeyID, filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg"))
+	ent, err := jsonsign.EntityFromSecring(indextest.KeyID, filepath.Join(srcRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg"))
 	if err != nil {
 		panic(err)
 	}
@@ -624,12 +624,12 @@ func initTests() []handlerTest {
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
-				camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+				srcRoot, err := osutil.PkSourceRoot()
 				if err != nil {
-					panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+					panic(fmt.Sprintf("source root folder not found: %v", err))
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
-					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+					fileName := filepath.Join(srcRoot, "pkg", "index", "indextest", "testdata", file)
 					contents, err := os.ReadFile(fileName)
 					if err != nil {
 						panic(err)
@@ -696,12 +696,12 @@ func initTests() []handlerTest {
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
-				camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+				srcRoot, err := osutil.PkSourceRoot()
 				if err != nil {
-					panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+					panic(fmt.Sprintf("source root folder not found: %v", err))
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
-					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+					fileName := filepath.Join(srcRoot, "pkg", "index", "indextest", "testdata", file)
 					contents, err := os.ReadFile(fileName)
 					if err != nil {
 						panic(err)

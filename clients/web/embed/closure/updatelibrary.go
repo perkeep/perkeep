@@ -63,11 +63,11 @@ func init() {
 // dependencies generated for the UI js files, and compiles the list of
 // js files from the closure lib required for the UI.
 func fileList() ([]string, error) {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatalf("source root folder not found: %v", err)
 	}
-	uiDir := filepath.Join(camliRootPath, "server", "perkeepd", "ui")
+	uiDir := filepath.Join(srcRoot, "server", "perkeepd", "ui")
 	closureDepsFile := filepath.Join(closureGitDir, "closure", "goog", "deps.js")
 
 	f, err := os.Open(closureDepsFile)
@@ -269,12 +269,12 @@ func cpToDestDir() {
 // we should clone or update in closureGitDir (depending on
 // if a .git dir was found).
 func setup() string {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatalf("source root folder not found: %v", err)
 	}
-	destDir = filepath.Join(camliRootPath, "vendor", "embed", "closure", "lib")
-	closureGitDir = filepath.Join(camliRootPath, "tmp", "closure-lib")
+	destDir = filepath.Join(srcRoot, "vendor", "embed", "closure", "lib")
+	closureGitDir = filepath.Join(srcRoot, "tmp", "closure-lib")
 	op := "update"
 	_, err = os.Stat(closureGitDir)
 	if err != nil {

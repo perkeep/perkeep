@@ -145,11 +145,11 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 	))
 
 	uploadFile := func(file string) blob.Ref {
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			t.Fatalf("looking up perkeep.org location in $GOPATH: %v", err)
+			t.Fatalf("source root folder not found: %v", err)
 		}
-		fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+		fileName := filepath.Join(srcRoot, "pkg", "search", "testdata", file)
 		contents, err := os.ReadFile(fileName)
 		if err != nil {
 			t.Fatal(err)

@@ -292,11 +292,11 @@ func main() {
 	flag.Parse()
 	checkFlags()
 
-	camDir, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
 		log.Fatalf("Error looking up perkeep.org dir: %v", err)
 	}
-	dockDir = filepath.Join(camDir, "misc", "docker")
+	dockDir = filepath.Join(srcRoot, "misc", "docker")
 
 	if *asCamlistore {
 		serverImage = "camlistore/server"

@@ -47,11 +47,11 @@ func main() {
 		log.Fatal("Didn't find 'java' in $PATH. The Java Runtime Environment is needed to run the closure compiler.\n")
 	}
 
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatalf("source root folder not found: %v", err)
 	}
-	destDir := filepath.Join(camliRootPath, "tmp", "closure-compiler")
+	destDir := filepath.Join(srcRoot, "tmp", "closure-compiler")
 	// check if compiler already exists
 	jarFile := filepath.Join(destDir, "compiler.jar")
 	_, err = os.Stat(jarFile)

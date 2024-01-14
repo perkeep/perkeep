@@ -271,11 +271,11 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 // NewIndexDeps returns an IndexDeps helper for populating and working
 // with the provided index for tests.
 func NewIndexDeps(index *index.Index) *IndexDeps {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		log.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+		log.Fatalf("source root folder not found: %v", err)
 	}
-	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
+	secretRingFile := filepath.Join(srcRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 
 	id := &IndexDeps{
 		Index:            index,
@@ -331,13 +331,13 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// TODO(bradfitz): add EXIF tests here, once that stuff is ready.
 	if false {
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			t.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+			t.Fatalf("source root folder not found: %v", err)
 		}
 		for i := 1; i <= 8; i++ {
 			fileBase := fmt.Sprintf("f%d-exif.jpg", i)
-			fileName := filepath.Join(camliRootPath, "pkg", "images", "testdata", fileBase)
+			fileName := filepath.Join(srcRoot, "pkg", "images", "testdata", fileBase)
 			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
@@ -349,12 +349,12 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// Upload some files.
 	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, nanExifWholeRef, mediaFileRef, mediaWholeRef, heicEXIFWholeRef blob.Ref
 	{
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			t.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+			t.Fatalf("source root folder not found: %v", err)
 		}
 		uploadFile := func(file string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
-			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+			fileName := filepath.Join(srcRoot, "pkg", "index", "indextest", "testdata", file)
 			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
