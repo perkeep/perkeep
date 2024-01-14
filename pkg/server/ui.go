@@ -179,9 +179,9 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 				return nil, fmt.Errorf("Could not read static files: %v", err)
 			}
 			if len(files) == 0 {
-				ui.sourceRoot, err = osutil.GoPackagePath("perkeep.org")
+				ui.sourceRoot, err = osutil.PkSourceRoot()
 				if err != nil {
-					log.Printf("Warning: server not compiled with linked-in UI resources (HTML, JS, CSS), and perkeep.org not found in GOPATH.")
+					log.Printf("Warning: server not compiled with linked-in UI resources (HTML, JS, CSS), and source root folder not found: %v", err)
 				} else {
 					log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", ui.sourceRoot)
 				}
@@ -628,7 +628,8 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 }
 
 // serveFromDiskOrStatic matches rx against req's path and serves the match either from disk (if non-nil) or from static (embedded in the binary).
-func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Request, rx *regexp.Regexp, disk http.Handler, static fs.FS) {
+func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Request, rx *regexp.Regexp,
+	disk http.Handler, static fs.FS) {
 	suffix := httputil.PathSuffix(req)
 	m := rx.FindStringSubmatch(suffix)
 	if m == nil {

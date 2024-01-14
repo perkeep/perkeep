@@ -372,11 +372,11 @@ type keyStuff struct {
 }
 
 func doKeyStuff(b *testing.B) keyStuff {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
-		b.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+		b.Fatalf("source root folder not found: %v", err)
 	}
-	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
+	secretRingFile := filepath.Join(srcRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsBNBEzgoVsBCAC/56aEJ9BNIGV9FVP+WzenTAkg12k86YqlwJVAB/VwdMlyXxvi

@@ -64,7 +64,7 @@ var (
 )
 
 var (
-	pkDir      string
+	srcRoot    string
 	releaseDir string
 	workDir    string
 	goVersion  string
@@ -105,11 +105,11 @@ func main() {
 	checkFlags()
 
 	var err error
-	pkDir, err = osutil.GoPackagePath("perkeep.org")
+	srcRoot, err = osutil.PkSourceRoot()
 	if err != nil {
 		log.Fatalf("Error looking up perkeep.org dir: %v", err)
 	}
-	releaseDir = filepath.Join(pkDir, "misc", "release")
+	releaseDir = filepath.Join(srcRoot, "misc", "release")
 
 	workDir, err = os.MkdirTemp("", "pk-build_release")
 	if err != nil {
@@ -669,7 +669,7 @@ func genReleasePage(releaseData *ReleaseData) error {
 		return fmt.Errorf("could not execute template: %v", err)
 	}
 
-	releaseDocDir := filepath.Join(pkDir, filepath.FromSlash("doc/release"))
+	releaseDocDir := filepath.Join(srcRoot, filepath.FromSlash("doc/release"))
 	if err := os.MkdirAll(releaseDocDir, 0755); err != nil {
 		return err
 	}

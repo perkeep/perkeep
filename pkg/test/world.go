@@ -56,21 +56,6 @@ type World struct {
 	serverErr error
 }
 
-// pkSourceRoot returns the root of the source tree, or an error.
-func pkSourceRoot() (string, error) {
-	root, err := osutil.GoModPackagePath()
-	if err == nil {
-		return root, nil
-	}
-	err = fmt.Errorf("could not found go.mod, trying GOPATH: %w", err)
-	root, errp := osutil.GoPackagePath("perkeep.org")
-	if errors.Is(errp, os.ErrNotExist) {
-		return "", fmt.Errorf("directory \"perkeep.org\" not found under GOPATH/src; "+
-			"can't run Perkeep integration tests: %v", errors.Join(err, errp))
-	}
-	return root, nil
-}
-
 // NewWorld returns a new test world.
 // It uses the GOPATH (explicit or implicit) to find the "perkeep.org" root.
 func NewWorld() (*World, error) {
@@ -81,7 +66,7 @@ func NewWorld() (*World, error) {
 // This cfg is the server config relative to pkg/test/testdata.
 // It uses the GOPATH (explicit or implicit) to find the "perkeep.org" root.
 func WorldFromConfig(cfg string) (*World, error) {
-	root, err := pkSourceRoot()
+	root, err := osutil.PkSourceRoot()
 	if err != nil {
 		return nil, err
 	}

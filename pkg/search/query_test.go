@@ -594,12 +594,12 @@ func TestQueryPermanodeLocation(t *testing.T) {
 		id.SetAttribute(p5, "longitude", "2.0")
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+			panic(fmt.Sprintf("source root folder not found: %v", err))
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
-			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			fileName := filepath.Join(srcRoot, "pkg", "search", "testdata", file)
 			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
@@ -630,12 +630,12 @@ func TestQueryFileLocation(t *testing.T) {
 		id := qt.id
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+			panic(fmt.Sprintf("source root folder not found: %v", err))
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
-			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			fileName := filepath.Join(srcRoot, "pkg", "search", "testdata", file)
 			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
@@ -2032,12 +2032,12 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		id := qt.id
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+		srcRoot, err := osutil.PkSourceRoot()
 		if err != nil {
-			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+			panic(fmt.Sprintf("source root folder not found: %v", err))
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
-			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			fileName := filepath.Join(srcRoot, "pkg", "search", "testdata", file)
 			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
