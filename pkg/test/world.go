@@ -44,7 +44,7 @@ import (
 // pk-put, pk-get, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
-	srcRoot string // typically $GOPATH[0]/src/perkeep.org
+	srcRoot string // typically $GOPATH[0]/src/perkeep.org or just the root dir where go.mod is
 	config  string // server config file relative to pkg/test/testdata
 	tempDir string
 	gobin   string // where the World installs and finds binaries
@@ -58,9 +58,15 @@ type World struct {
 
 // pkSourceRoot returns the root of the source tree, or an error.
 func pkSourceRoot() (string, error) {
-	root, err := osutil.GoPackagePath("perkeep.org")
-	if err == os.ErrNotExist {
-		return "", errors.New("directory \"perkeep.org\" not found under GOPATH/src; can't run Perkeep integration tests")
+	root, err := osutil.GoModPackagePath()
+	if err == nil {
+		return root, nil
+	}
+	err = fmt.Errorf("could not found go.mod, trying GOPATH: %w", err)
+	root, errp := osutil.GoPackagePath("perkeep.org")
+	if errors.Is(errp, os.ErrNotExist) {
+		return "", fmt.Errorf("directory \"perkeep.org\" not found under GOPATH/src; "+
+			"can't run Perkeep integration tests: %v", errors.Join(err, errp))
 	}
 	return root, nil
 }

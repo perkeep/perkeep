@@ -376,6 +376,30 @@ func GoPackagePath(pkg string) (path string, err error) {
 	return path, os.ErrNotExist
 }
 
+// GoModPackagePath return the absolute path for the go.mod file without "go.mod" suffix.
+func GoModPackagePath() (string, error) {
+	gmp := os.Getenv("GOMOD")
+	if gmp == "" {
+		cmd := exec.Command("go", "env", "GOMOD")
+		out, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("could not run 'go env GOMOD': %v, %s", err, out)
+		}
+		gmp = strings.TrimSuffix(strings.TrimSpace(string(out)), "go.mod")
+		if gmp == "" {
+			return "", os.ErrNotExist
+		}
+	}
+	fi, err := os.Stat(gmp)
+	if err != nil {
+		return "", err
+	}
+	if !fi.IsDir() {
+		return "", fmt.Errorf("%s is not a directory: %w", gmp, os.ErrNotExist)
+	}
+	return gmp, nil
+}
+
 func failInTests() {
 	if buildinfo.TestingLinked() {
 		panic("Unexpected non-hermetic use of host configuration during testing. (alternatively: the 'testing' package got accidentally linked in)")
