@@ -94,7 +94,7 @@ func whoamiType(c *client.Client, s *schema.Signer) error {
 	if ent == nil {
 		return errors.New("no identity")
 	}
-	fmt.Println(fmt.Sprintf("%T", ent.PrivateKey.PrivateKey))
+	fmt.Printf("%T\n", ent.PrivateKey.PrivateKey)
 	return nil
 }
 

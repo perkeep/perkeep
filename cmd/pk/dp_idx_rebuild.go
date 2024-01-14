@@ -73,7 +73,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	low := cfg.LowLevelJSONConfig()
+	low := cfg.LowLevelJSONConfig() //lint:ignore SA1019 we use it
 	prefixes, ok := low["prefixes"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
