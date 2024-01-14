@@ -19,6 +19,8 @@ TODO(steve.armstrong): Until app/scanningcabinet/handler.go handleUiFile()
 properly manages Content-Type, be sure to update it whenever adding a new
 file type to the pattern below.
 */
+
+// Package ui contains the embedded JS/CSS assets for the scanningcabinet app.
 package ui // import "perkeep.org/app/scanningcabinet/ui"
 
 import "embed"

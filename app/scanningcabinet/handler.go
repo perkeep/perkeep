@@ -300,7 +300,6 @@ func baseURL(r *http.Request) string {
 func (h *handler) handleUploadURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	fmt.Fprintf(w, "%supload", baseURL(r))
-	return
 }
 
 func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -455,7 +454,6 @@ func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
 		ih.MaxHeight = resized
 	}
 	ih.ServeHTTP(w, r, mediaObject.contentRef)
-	return
 }
 
 func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {

@@ -500,6 +500,4 @@ func main() {
 	}
 
 	scan()
-
-	return
 }

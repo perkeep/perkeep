@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -151,8 +152,9 @@ func (h *handler) describeScan(b *search.DescribedBlob) (mediaObject, error) {
 	if documentRef != "" {
 		var ok bool
 		document, ok = blob.Parse(documentRef)
-		if ok {
+		if !ok {
 			// TODO(mpl): more to be done here ? Do we ever want to display something about the document of a scan ?
+			log.Printf("warning: failed to parse document ref %q", documentRef)
 		}
 	}
 	content, ok := blob.Parse(attrs.Get("camliContent"))
