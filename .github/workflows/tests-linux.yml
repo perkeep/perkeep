@@ -15,18 +15,19 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-go@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
 
+    - uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
     - name: Install fuse
       run: sudo apt-get install --yes fuse3
-
-    - name: Symlink source into GOPATH for devcam
-      run: |
-        mkdir $(go env GOPATH)/src
-        ln -s $(pwd) $(go env GOPATH)/src/perkeep.org
 
     - name: Build and test
       run: |
