@@ -28,6 +28,7 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 var scopeURLs = []string{drive.DriveReadonlyScope}
@@ -50,7 +51,7 @@ const (
 // The permission ID becomes the "userID" (AcctAttrUserID) value on the
 // account's "importerAccount" permanode.
 func getUser(ctx context.Context, client *http.Client) (*drive.User, error) {
-	srv, err := drive.New(client)
+	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +76,8 @@ type downloader struct {
 //
 // The client must be authenticated for drive.DrivePhotosReadonlyScope
 // ("https://www.googleapis.com/auth/drive.photos.readonly")..
-func newDownloader(client *http.Client) (*downloader, error) {
-	srv, err := drive.New(client)
+func newDownloader(ctx context.Context, client *http.Client) (*downloader, error) {
+	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, err
 	}
