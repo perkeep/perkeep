@@ -76,6 +76,6 @@ func TestImportRootPageHTML(t *testing.T) {
 	r := httptest.NewRequest("GET", "/importer/", nil)
 	h.serveImportersRoot(w, r)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "dummy1") {
-		t.Errorf("Got %d response with header %v, body %s", w.Code, w.HeaderMap, w.Body.String())
+		t.Errorf("Got %d response with header %v, body %s", w.Code, w.Result().Header, w.Body.String())
 	}
 }

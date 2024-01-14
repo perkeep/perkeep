@@ -94,7 +94,7 @@ func testServeBlobContents(t *testing.T, contents, wantType string) {
 	if rr.Code != 200 {
 		t.Errorf("Response code = %d; want 200", rr.Code)
 	}
-	if g, w := rr.HeaderMap.Get("Content-Type"), wantType; g != w {
+	if g, w := rr.Result().Header.Get("Content-Type"), wantType; g != w {
 		t.Errorf("Content-Type = %q; want %q", g, w)
 	}
 	if rr.Body.String() != contents {

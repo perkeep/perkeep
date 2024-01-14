@@ -76,7 +76,7 @@ func maybeSetupGoogleCloudLogging() io.Closer {
 	}
 	ctx := context.Background()
 	logc, err := logging.NewClient(ctx,
-		flagGCEProjectID, option.WithServiceAccountFile(flagGCEJWTFile))
+		flagGCEProjectID, option.WithCredentialsFile(flagGCEJWTFile))
 	if err != nil {
 		exitf("Error creating GCL client: %v", err)
 	}

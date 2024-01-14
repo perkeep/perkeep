@@ -27,6 +27,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
@@ -45,7 +46,8 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 		return "", fmt.Errorf("Failed to lookup GCE project ID: %v", err)
 	}
 
-	admin, _ := sqladmin.New(oauth2.NewClient(context.Background(), google.ComputeTokenSource("")))
+	ctx := context.TODO()
+	admin, _ := sqladmin.NewService(ctx, option.WithHTTPClient(oauth2.NewClient(ctx, google.ComputeTokenSource(""))))
 	listRes, err := admin.Instances.List(proj).Do()
 	if err != nil {
 		return "", fmt.Errorf("error enumerating Cloud SQL instances: %v", err)
