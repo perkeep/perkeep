@@ -116,9 +116,6 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 	if err != nil {
 		log.Fatalf("Could not decode have cache binary value for %v: %v", br, err)
 	}
-	if val < 0 {
-		log.Fatalf("Error decoding have cache binary value for %v: size=%d", br, val)
-	}
 	cachelog.Printf("have cache HIT on %v", br)
 	return uint32(val), true
 }
@@ -127,11 +124,8 @@ func (c *KvHaveCache) NoteBlobExists(br blob.Ref, size uint32) {
 	if !br.Valid() {
 		return
 	}
-	if size < 0 {
-		log.Fatalf("Got a negative blob size to note in have cache for %v", br)
-	}
 	binBr, _ := br.MarshalBinary()
-	binVal := []byte(strconv.Itoa(int(size)))
+	binVal := fmt.Appendf(nil, "%d", size)
 	cachelog.Printf("Adding to have cache %v: %q", br, binVal)
 	if err := c.db.Put(binBr, binVal, nil); err != nil {
 		log.Fatalf("Could not write %v in have cache: %v", br, err)
@@ -181,6 +175,9 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 		Permanode: withPermanode,
 	}
 	binKey, err := cacheKey.marshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("marshaling cache key: %w", err)
+	}
 	binVal, err := c.db.Get(binKey, nil)
 	if err != nil {
 		if err == leveldb.ErrNotFound {

@@ -83,7 +83,7 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 		if err != nil {
 			return fmt.Errorf("Error parsing time %q; expecting time of form %q", c.sigTime, format)
 		}
-		permaNode, err = up.UploadPlannedPermanode(ctxbg, c.key, sigTime)
+		permaNode, err = up.UploadPlannedPermanode(ctxbg, c.key, sigTime) //lint:ignore SA4006 used by handleResult below
 	}
 	if handleResult("permanode", permaNode, err) != nil {
 		return err
@@ -95,9 +95,8 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 	}
 	if c.tag != "" {
 		tags := strings.Split(c.tag, ",")
-		m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 		for _, tag := range tags {
-			m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+			m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 			put, err := up.UploadAndSignBlob(ctxbg, m)
 			handleResult("claim-permanode-tag", put, err)
 		}

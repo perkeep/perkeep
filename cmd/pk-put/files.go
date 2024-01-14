@@ -379,6 +379,8 @@ func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult,
 	}
 	bb := schema.NewCommonFileMap(n.fullPath, fi)
 	switch {
+	default:
+		return nil, fmt.Errorf("pk-put.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case mode&os.ModeSymlink != 0:
 		// TODO(bradfitz): use VFS here; not os.Readlink
 		target, err := os.Readlink(n.fullPath)
@@ -393,8 +395,6 @@ func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult,
 		bb.SetType(schema.TypeSocket)
 	case mode&os.ModeNamedPipe != 0: // fifo
 		bb.SetType(schema.TypeFIFO)
-	default:
-		return nil, fmt.Errorf("pk-put.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case fi.IsDir():
 		ss, err := n.directoryStaticSet()
 		if err != nil {

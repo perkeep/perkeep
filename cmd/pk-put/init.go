@@ -66,7 +66,7 @@ func (c *initCmd) Usage() {
 	for _, v := range c.usageExamples() {
 		usage += v + "\n"
 	}
-	fmt.Fprintf(cmdmain.Stderr, usage)
+	fmt.Fprint(cmdmain.Stderr, usage)
 }
 
 func (c *initCmd) usageExamples() []string {
