@@ -49,7 +49,7 @@ const debug = false
 var ctxbg = context.Background()
 
 func TestStorage(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		s := &storage{
 			small: new(test.Fetcher),
 			large: new(test.Fetcher),
@@ -57,12 +57,12 @@ func TestStorage(t *testing.T) {
 			log:   test.NewLogger(t, "blobpacked: "),
 		}
 		s.init()
-		return s, func() {}
+		return s
 	})
 }
 
 func TestStorageNoSmallSubfetch(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		s := &storage{
 			// We need to hide SubFetcher, to test *storage's SubFetch, as it delegates
 			// to the underlying SubFetcher, if small implements that interface.
@@ -72,7 +72,7 @@ func TestStorageNoSmallSubfetch(t *testing.T) {
 			log:   test.NewLogger(t, "blobpacked: "),
 		}
 		s.init()
-		return s, func() {}
+		return s
 	})
 }
 

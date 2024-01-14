@@ -131,7 +131,7 @@ func testStorage(t *testing.T, bucketDir string) {
 	bucketWithDir := path.Join(*bucket, bucketDir)
 
 	storagetest.TestOpt(t, storagetest.Opts{
-		New: func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+		New: func(t *testing.T) blobserver.Storage {
 			sto, err := newFromConfig(nil, jsonconfig.Obj{
 				"bucket": bucketWithDir,
 				"auth": map[string]interface{}{
@@ -203,7 +203,8 @@ func testStorage(t *testing.T, bucketDir string) {
 				}
 			}
 			clearBucket(true)()
-			return sto, clearBucket(false)
+			t.Cleanup(clearBucket(false))
+			return sto
 		},
 	})
 }

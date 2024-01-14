@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/test/dockertest"
 )
 
-func newMongoSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
+func newMongoSorted(t *testing.T) sorted.KeyValue {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupMongoContainer(t)
 
@@ -41,15 +41,15 @@ func newMongoSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
-	return kv, func() {
+	t.Cleanup(func() {
 		kv.Close()
 		containerID.KillRemove(t)
-	}
+	})
+	return kv
 }
 
 func TestSorted_Mongo(t *testing.T) {
-	kv, cleanup := newMongoSorted(t)
-	defer cleanup()
+	kv := newMongoSorted(t)
 	kvtest.TestSorted(t, kv)
 }
 

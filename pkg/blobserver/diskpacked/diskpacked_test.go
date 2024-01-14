@@ -40,17 +40,17 @@ import (
 
 var ctxbg = context.Background()
 
-func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+func newTempDiskpacked(t *testing.T) blobserver.Storage {
 	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{})
 }
 
-func newTempDiskpackedMemory(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+func newTempDiskpackedMemory(t *testing.T) blobserver.Storage {
 	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{
 		"type": "memory",
 	})
 }
 
-func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blobserver.Storage, cleanup func()) {
+func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) blobserver.Storage {
 	restoreLogging := test.TLog(t)
 	dir, err := os.MkdirTemp("", "diskpacked-test")
 	if err != nil {
@@ -61,7 +61,7 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blo
 	if err != nil {
 		t.Fatalf("newStorage: %v", err)
 	}
-	return s, func() {
+	t.Cleanup(func() {
 		s.Close()
 		if env.IsDebug() {
 			t.Logf("CAMLI_DEBUG set, skipping cleanup of dir %q", dir)
@@ -69,7 +69,8 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blo
 			os.RemoveAll(dir)
 		}
 		restoreLogging()
-	}
+	})
+	return s
 }
 
 func TestDiskpacked(t *testing.T) {
@@ -81,8 +82,7 @@ func TestDiskpackedAltIndex(t *testing.T) {
 }
 
 func TestDoubleReceive(t *testing.T) {
-	sto, cleanup := newTempDiskpacked(t)
-	defer cleanup()
+	sto := newTempDiskpacked(t)
 
 	size := func(n int) int64 {
 		path := sto.(*storage).filename(n)
@@ -120,8 +120,7 @@ func TestDoubleReceive(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	ctx := context.Background()
-	sto, cleanup := newTempDiskpacked(t)
-	defer cleanup()
+	sto := newTempDiskpacked(t)
 
 	var (
 		A = &test.Blob{Contents: "some small blob"}
@@ -204,8 +203,7 @@ func TestDelete(t *testing.T) {
 var errDummy = errors.New("dummy fail")
 
 func TestDoubleReceiveFailingIndex(t *testing.T) {
-	sto, cleanup := newTempDiskpacked(t)
-	defer cleanup()
+	sto := newTempDiskpacked(t)
 
 	sto.(*storage).index = &failingIndex{KeyValue: sto.(*storage).index}
 
@@ -308,8 +306,7 @@ func TestClose(t *testing.T) {
 	}
 
 	fd0 := fds()
-	sto, cleanup := newTempDiskpackedMemory(t)
-	defer cleanup()
+	sto := newTempDiskpackedMemory(t)
 	fd1 := fds()
 
 	s := sto.(*storage)

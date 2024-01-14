@@ -43,7 +43,7 @@ func TestAzureStorage(t *testing.T) {
 	if !strings.HasPrefix(*container, "camlistore-") || !strings.HasSuffix(*container, "-test") {
 		t.Fatalf("bogus container name %q; must begin with 'camlistore-' and end in '-test'", *container)
 	}
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		sto, err := newFromConfig(nil, jsonconfig.Obj{
 			"azure_account":    *account,
 			"azure_access_key": *secret,
@@ -67,6 +67,7 @@ func TestAzureStorage(t *testing.T) {
 			}
 		}
 		clearContainer()
-		return sto, clearContainer
+		t.Cleanup(clearContainer)
+		return sto
 	})
 }

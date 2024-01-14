@@ -205,8 +205,7 @@ func TestStreamSkipRemovedBlobs(t *testing.T) {
 	// an indexed storage but they do not use the index to stream
 	// (nor should they use it). The streaming in this test is
 	// done by reading the underlying diskpacks.
-	s, cleanup := newTempDiskpacked(t)
-	defer cleanup()
+	s := newTempDiskpacked(t)
 
 	uploadTestBlobs(t, s, testPack1)
 

@@ -53,8 +53,8 @@ func newTestStorage(t *testing.T) *testStorage {
 }
 
 func TestShardBasic(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-		return newTestStorage(t).sto, nil
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return newTestStorage(t).sto
 	})
 }
 

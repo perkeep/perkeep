@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/test/dockertest"
 )
 
-func newPostgresSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
+func newPostgresSorted(t *testing.T) sorted.KeyValue {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
 
@@ -44,15 +44,15 @@ func newPostgresSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
-	return kv, func() {
+	t.Cleanup(func() {
 		kv.Close()
 		containerID.KillRemove(t)
-	}
+	})
+	return kv
 }
 
 func TestSorted_Postgres(t *testing.T) {
-	kv, clean := newPostgresSorted(t)
-	defer clean()
+	kv := newPostgresSorted(t)
 	kvtest.TestSorted(t, kv)
 }
 

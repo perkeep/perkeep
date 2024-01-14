@@ -42,9 +42,9 @@ func newNamespace(t *testing.T, ld *test.Loader) *nsto {
 }
 
 func TestStorageTest(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		ld := test.NewLoader()
-		return newNamespace(t, ld), func() {}
+		return newNamespace(t, ld)
 	})
 }
 

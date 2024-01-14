@@ -1456,6 +1456,7 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 // MustNew wraps index.New and fails with a Fatal error on t if New
 // returns an error.
 func MustNew(t *testing.T, s sorted.KeyValue) *index.Index {
+	t.Helper()
 	ix, err := index.New(s)
 	if err != nil {
 		t.Fatalf("Error creating index: %v", err)

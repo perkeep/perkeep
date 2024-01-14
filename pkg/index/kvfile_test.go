@@ -18,7 +18,6 @@ package index_test
 
 import (
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"perkeep.org/pkg/index"
@@ -29,42 +28,28 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-func newKvfileSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
+func newKvfileSorted(t *testing.T) sorted.KeyValue {
 	td := t.TempDir()
 	kv, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return kv, func() {
-		kv.Close()
-	}
+	t.Cleanup(func() { kv.Close() })
+	return kv
 }
 
 func TestSorted_Kvfile(t *testing.T) {
-	kv, cleanup := newKvfileSorted(t)
-	defer cleanup()
+	kv := newKvfileSorted(t)
 	kvtest.TestSorted(t, kv)
 }
 
 func indexTest(t *testing.T,
-	sortedGenfn func(t *testing.T) (sorted.KeyValue, func()),
+	sortedGenfn func(t *testing.T) sorted.KeyValue,
 	tfn func(*testing.T, func() *index.Index)) {
 	defer test.TLog(t)()
-	var (
-		mu       sync.Mutex // guards cleanups
-		cleanups []func()
-	)
-	defer func() {
-		mu.Lock() // never unlocked
-		for _, fn := range cleanups {
-			fn()
-		}
-	}()
+
 	makeIndex := func() *index.Index {
-		s, cleanup := sortedGenfn(t)
-		mu.Lock()
-		cleanups = append(cleanups, cleanup)
-		mu.Unlock()
+		s := sortedGenfn(t)
 		return indextest.MustNew(t, s)
 	}
 	tfn(t, makeIndex)

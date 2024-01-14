@@ -36,7 +36,7 @@ func newUnion(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *unionStorag
 }
 
 func TestStorageTest(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		ld := test.NewLoader()
 		s1, _ := ld.GetStorage("/good-schema/")
 		s2, _ := ld.GetStorage("/good-other/")
@@ -50,7 +50,7 @@ func TestStorageTest(t *testing.T) {
 			"read":   "/union/",
 			"remove": "/replica-all/",
 		})
-		return cnd, func() {}
+		return cnd
 	})
 }
 func newCond(t *testing.T, ld *test.Loader, config jsonconfig.Obj) blobserver.Storage {

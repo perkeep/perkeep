@@ -88,8 +88,8 @@ func newTestStorage() *testStorage {
 
 func TestStorage(t *testing.T) {
 	storagetest.TestOpt(t, storagetest.Opts{
-		New: func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-			return newTestStorage().sto, func() {}
+		New: func(t *testing.T) blobserver.Storage {
+			return newTestStorage().sto
 		},
 	})
 }
