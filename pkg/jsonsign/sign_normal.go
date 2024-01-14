@@ -22,7 +22,7 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"perkeep.org/internal/gpgagent"
 	"perkeep.org/internal/pinentry"
 )

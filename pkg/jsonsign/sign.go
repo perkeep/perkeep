@@ -27,12 +27,11 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"go4.org/wkfs"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
-
-	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 type EntityFetcher interface {
