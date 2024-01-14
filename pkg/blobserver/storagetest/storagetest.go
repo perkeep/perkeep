@@ -37,9 +37,8 @@ import (
 )
 
 type Opts struct {
-	// New is required and must return the storage server to test, along with a func to
-	// clean it up. The cleanup may be nil.
-	New func(*testing.T) (sto blobserver.Storage, cleanup func())
+	// New is required and must return the storage server to test.
+	New func(*testing.T) blobserver.Storage
 
 	// Retries specifies how long to wait to retry after each failure
 	// that may be an eventual consistency issue (enumerate, stat), etc.
@@ -48,7 +47,7 @@ type Opts struct {
 	SkipEnum bool // for when EnumerateBlobs is not implemented
 }
 
-func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup func())) {
+func Test(t *testing.T, fn func(*testing.T) blobserver.Storage) {
 	TestOpt(t, Opts{New: fn})
 }
 
@@ -59,16 +58,7 @@ type run struct {
 }
 
 func TestOpt(t *testing.T, opt Opts) {
-	sto, cleanup := opt.New(t)
-	defer func() {
-		if t.Failed() {
-			t.Logf("test %T FAILED, skipping cleanup!", sto)
-		} else {
-			if cleanup != nil {
-				cleanup()
-			}
-		}
-	}()
+	sto := opt.New(t)
 	r := &run{
 		t:   t,
 		opt: opt,

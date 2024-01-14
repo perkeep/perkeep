@@ -105,7 +105,7 @@ func TestStorage(t *testing.T) {
 	}
 
 	storagetest.TestOpt(t, storagetest.Opts{
-		New: func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+		New: func(t *testing.T) blobserver.Storage {
 			sto, err := newFromConfig(nil, jsonconfig.Obj{
 				"parent_id": *parentId,
 				"auth": map[string]interface{}{
@@ -123,7 +123,8 @@ func TestStorage(t *testing.T) {
 			clearDirectory := func() {
 				log.Printf("WARNING: no cleanup in %v directory was done.", *parentId)
 			}
-			return sto, clearDirectory
+			t.Cleanup(clearDirectory)
+			return sto
 		},
 		SkipEnum: true,
 	})

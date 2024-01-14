@@ -26,20 +26,18 @@ import (
 	"perkeep.org/pkg/sorted/leveldb"
 )
 
-func newLevelDBSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
+func newLevelDBSorted(t *testing.T) sorted.KeyValue {
 	td := t.TempDir()
 	kv, err := leveldb.NewStorage(filepath.Join(td, "leveldb"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return kv, func() {
-		kv.Close()
-	}
+	t.Cleanup(func() { kv.Close() })
+	return kv
 }
 
 func TestSorted_LevelDB(t *testing.T) {
-	kv, cleanup := newLevelDBSorted(t)
-	defer cleanup()
+	kv := newLevelDBSorted(t)
 	kvtest.TestSorted(t, kv)
 }
 

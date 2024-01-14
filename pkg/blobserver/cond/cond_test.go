@@ -54,7 +54,7 @@ func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.Sized
 }
 
 func TestStorageTest(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		ld := test.NewLoader()
 		s1, _ := ld.GetStorage("/good-schema/")
 		s2, _ := ld.GetStorage("/good-other/")
@@ -68,7 +68,7 @@ func TestStorageTest(t *testing.T) {
 			"read":   "/replica-all/",
 			"remove": "/replica-all/",
 		})
-		return sto, func() {}
+		return sto
 	})
 }
 

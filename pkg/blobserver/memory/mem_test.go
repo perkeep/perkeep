@@ -28,8 +28,8 @@ import (
 
 // TestMemoryStorage tests against an in-memory blobserver.
 func TestMemoryStorage(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
-		return &memory.Storage{}, func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return &memory.Storage{}
 	})
 }
 

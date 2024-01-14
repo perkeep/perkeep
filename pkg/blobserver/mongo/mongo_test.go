@@ -41,7 +41,7 @@ func TestMongoStorage(t *testing.T) {
 		t.Fatalf("mongo.NewMongoStorage = %v", err)
 	}
 
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
-		return sto, func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return sto
 	})
 }

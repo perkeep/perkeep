@@ -97,10 +97,9 @@ func TestReceiveOneGoodOneFail(t *testing.T) {
 }
 
 func TestReplica(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-		sto = newReplica(t, map[string]interface{}{
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return newReplica(t, map[string]interface{}{
 			"backends": []interface{}{"/good-1/", "/good-2/"},
 		})
-		return sto, func() {}
 	})
 }

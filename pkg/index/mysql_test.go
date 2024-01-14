@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/test/dockertest"
 )
 
-func newMySQLSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
+func newMySQLSorted(t *testing.T) sorted.KeyValue {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
 
@@ -43,15 +43,16 @@ func newMySQLSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
-	return kv, func() {
+	t.Cleanup(func() {
 		kv.Close()
 		containerID.KillRemove(t)
-	}
+
+	})
+	return kv
 }
 
 func TestSorted_MySQL(t *testing.T) {
-	kv, clean := newMySQLSorted(t)
-	defer clean()
+	kv := newMySQLSorted(t)
 	kvtest.TestSorted(t, kv)
 }
 

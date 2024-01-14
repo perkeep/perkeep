@@ -53,12 +53,13 @@ func testSFTPServer(t *testing.T, root string, handleConn func(net.Conn) error) 
 			}
 		}
 	}()
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		sto, err := NewStorage(ln.Addr().String(), root, &ssh.ClientConfig{User: "RAWSFTPNOSSH"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return sto, func() { ln.Close() }
+		t.Cleanup(func() { ln.Close() })
+		return sto
 	})
 }
 
@@ -96,7 +97,7 @@ func TestStorage_Manual(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		conf := make(map[string]interface{})
 		if err := json.Unmarshal(jconf, &conf); err != nil {
 			t.Fatalf("Error parsing JSON file %s: %v", sftpTestAuthFile, err)
@@ -147,6 +148,7 @@ func TestStorage_Manual(t *testing.T) {
 			}
 		}
 		clean()
-		return s, clean
+		t.Cleanup(clean)
+		return s
 	})
 }

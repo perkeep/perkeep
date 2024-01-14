@@ -25,7 +25,7 @@ import (
 )
 
 func TestFetcher(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-		return new(test.Fetcher), func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return new(test.Fetcher)
 	})
 }

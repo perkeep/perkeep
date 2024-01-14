@@ -143,8 +143,9 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 }
 
 func TestLocaldisk(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		ds := NewStorage(t)
-		return ds, func() { cleanUp(ds) }
+		t.Cleanup(func() { cleanUp(ds) })
+		return ds
 	})
 }

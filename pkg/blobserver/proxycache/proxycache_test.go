@@ -117,12 +117,13 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 
 func TestProxyCache(t *testing.T) {
 	px, ds := NewProxiedDisk(t)
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
-		return px, func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return px
 	})
 	px.origin = memory.NewCache(0)
-	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
-		return px, func() { cleanUp(ds) }
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		t.Cleanup(func() { cleanUp(ds) })
+		return px
 	})
 }
 

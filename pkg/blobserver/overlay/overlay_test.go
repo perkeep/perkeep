@@ -56,11 +56,11 @@ func newOverlayWithLower(t *testing.T, withDel bool) (sto, lower blobserver.Stor
 }
 
 func TestStorageTest(t *testing.T) {
-	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
-		return newOverlay(t, true), func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return newOverlay(t, true)
 	})
-	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
-		return newOverlay(t, false), func() {}
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return newOverlay(t, false)
 	})
 }
 
