@@ -27,11 +27,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/camerrors"
-
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 const sigSeparator = `,"camliSig":"`
