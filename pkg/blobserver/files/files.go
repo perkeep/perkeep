@@ -98,7 +98,7 @@ type Storage struct {
 
 // SetNewFileGate sets a gate (counting semaphore) on the number of new files
 // that may be opened for writing at a time.
-func (s *Storage) SetNewFileGate(g *syncutil.Gate) { s.tmpFileGate = g }
+func (ds *Storage) SetNewFileGate(g *syncutil.Gate) { ds.tmpFileGate = g }
 
 func NewStorage(fs VFS, root string) *Storage {
 	return &Storage{

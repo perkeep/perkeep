@@ -729,8 +729,8 @@ func committers() (map[string]string, error) {
 			committerByName[name] = email
 			continue
 		}
-		c1, _ := commitCountByEmail[firstEmail]
-		c2, _ := commitCountByEmail[email]
+		c1 := commitCountByEmail[firstEmail]
+		c2 := commitCountByEmail[email]
 		if c1 < c2 {
 			delete(committers, firstEmail)
 		} else {

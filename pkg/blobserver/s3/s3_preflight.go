@@ -182,7 +182,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 func endpointIsOfficial(endpoint string) (bool, string, error) {
 	for _, partition := range endpoints.DefaultPartitions() {
 		for _, region := range partition.Regions() {
-			s3Endpoint, err := region.ResolveEndpoint(endpoints.S3ServiceID)
+			s3Endpoint, err := region.ResolveEndpoint(endpoints.S3ServiceID) //lint:ignore SA1019 TODO fix this and caller
 			if err != nil {
 				// S3 isn't available in this region yet; unlikely to ever happen
 				continue

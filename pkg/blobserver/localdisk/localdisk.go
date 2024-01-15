@@ -188,7 +188,7 @@ func (ds *DiskStorage) checkFS() (ret error) {
 	if err != nil {
 		return fmt.Errorf("localdisk check: unable to read from %s, err=%v", tempfile, err)
 	}
-	if bytes.Compare(out, data) != 0 {
+	if !bytes.Equal(out, data) {
 		return fmt.Errorf("localdisk check: tempfile contents didn't match, got=%q", out)
 	}
 	if _, err := os.Lstat(filename); !os.IsNotExist(err) {

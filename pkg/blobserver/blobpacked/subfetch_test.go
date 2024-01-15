@@ -49,7 +49,7 @@ func TestCapOffsetLength(t *testing.T) {
 		if gotErr != tt.wantErr || gotLen != tt.wantLen {
 			var want string
 			if tt.wantErr {
-				want = fmt.Sprintf("some error")
+				want = "some error"
 			} else {
 				want = fmt.Sprintf("length %d, no error", tt.wantLen)
 			}

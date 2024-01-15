@@ -201,9 +201,7 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 	// TODO(mpl): it would be nice to TrimPrefix the pwd from each file to get a shorter output.
 	// However, since git sets the pwd to GIT_DIR before running the pre-commit hook, we lost
 	// the actual pwd from when we ran `git commit`, so no dice so far.
-	for _, file := range indexFiles {
-		args = append(args, file)
-	}
+	args = append(args, indexFiles...)
 
 	if c.verbose {
 		fmt.Fprintln(cmdmain.Stderr, commandString("gofmt", args))

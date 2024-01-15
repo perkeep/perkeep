@@ -155,7 +155,7 @@ func setCamdevVarsFor(e *Env, altkey bool) {
 }
 
 func (e *Env) wipeCacheDir() {
-	cacheDir, _ := e.m["CAMLI_CACHE_DIR"]
+	cacheDir := e.m["CAMLI_CACHE_DIR"]
 	if cacheDir == "" {
 		log.Fatal("Could not wipe cache dir, CAMLI_CACHE_DIR not defined")
 	}
