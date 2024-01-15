@@ -189,19 +189,17 @@ func (p *parser) parseOrRHS(lhs *Constraint) (c *Constraint, err error) {
 }
 
 func (p *parser) parseAnd() (c *Constraint, err error) {
-	for {
-		c, err = p.parseOperand()
-		if err != nil {
-			return
-		}
-		switch p.peek().typ {
-		case tokenAnd:
-			p.next()
-		case tokenOr, tokenClose, tokenEOF:
-			return
-		}
-		return p.parseAndRHS(c)
+	c, err = p.parseOperand()
+	if err != nil {
+		return
 	}
+	switch p.peek().typ {
+	case tokenAnd:
+		p.next()
+	case tokenOr, tokenClose, tokenEOF:
+		return
+	}
+	return p.parseAndRHS(c)
 }
 
 func (p *parser) parseAndRHS(lhs *Constraint) (c *Constraint, err error) {
@@ -322,7 +320,7 @@ func (p *parser) parseAtom() (*Constraint, error) {
 	}
 	t := faultToken()
 	err = newParseExpError(fmt.Sprintf("Unknown search predicate: %q", t.val), t)
-	log.Printf(err.Error())
+	log.Printf("parsing search expression atom: %v", err)
 	return nil, err
 }
 

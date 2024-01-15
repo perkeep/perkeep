@@ -34,15 +34,15 @@ func ExportSetExpandLocationHook(val bool) { expandLocationHook = val }
 
 func ExportBufferedConst() int { return buffered }
 
-func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
-	return s.plannedQuery(nil)
+func (q *SearchQuery) ExportPlannedQuery() *SearchQuery {
+	return q.plannedQuery(nil)
 }
 
 var SortName = sortName
 
-func (s *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob.Ref,
+func (h *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob.Ref,
 	at time.Time) (camtypes.Location, error) {
-	return s.lh.PermanodeLocation(ctx, permaNode, at, s.owner)
+	return h.lh.PermanodeLocation(ctx, permaNode, at, h.owner)
 }
 
 func ExportBestByLocation(res *SearchResult, loc map[blob.Ref]camtypes.Location, limit int) {

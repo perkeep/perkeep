@@ -951,11 +951,11 @@ func evalSearchInput(in string) (*Constraint, error) {
 }
 
 // getNamed displays the search expression or constraint json for the requested alias.
-func (sh *Handler) getNamed(ctx context.Context, name string) (string, error) {
-	if sh.fetcher == nil {
+func (h *Handler) getNamed(ctx context.Context, name string) (string, error) {
+	if h.fetcher == nil {
 		return "", fmt.Errorf("GetNamed functionality not available")
 	}
-	sr, err := sh.Query(ctx, NamedSearch(name))
+	sr, err := h.Query(ctx, NamedSearch(name))
 	if err != nil {
 		return "", err
 	}
@@ -970,7 +970,7 @@ func (sh *Handler) getNamed(ctx context.Context, name string) (string, error) {
 		return "", fmt.Errorf("Invalid blob ref: %s", substRefS)
 	}
 
-	reader, _, err := sh.fetcher.Fetch(ctx, br)
+	reader, _, err := h.fetcher.Fetch(ctx, br)
 	if err != nil {
 		return "", err
 	}

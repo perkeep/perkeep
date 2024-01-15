@@ -307,7 +307,7 @@ var upgrader = websocket.Upgrader{
 	// uses a default origin check policy
 }
 
-func (sh *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
 	ws, err := upgrader.Upgrade(rw, req, nil)
 	if _, ok := err.(websocket.HandshakeError); ok {
 		http.Error(rw, "Not a websocket handshake", http.StatusBadRequest)
@@ -319,10 +319,10 @@ func (sh *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
 	c := &wsConn{
 		ws:      ws,
 		send:    make(chan []byte, 256),
-		sh:      sh,
+		sh:      h,
 		queries: make(map[string]*watchedQuery),
 	}
-	sh.wsHub.register <- c
+	h.wsHub.register <- c
 	go c.writePump()
 	c.readPump()
 }

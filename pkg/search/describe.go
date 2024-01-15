@@ -39,13 +39,13 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
-func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var dr DescribeRequest
 	dr.fromHTTP(req)
 	ctx := context.TODO()
 
-	res, err := sh.Describe(ctx, &dr)
+	res, err := h.Describe(ctx, &dr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -57,16 +57,16 @@ const verboseDescribe = false
 
 // Describe returns a response for the given describe request. It acquires RLock
 // on the Handler's index.
-func (sh *Handler) Describe(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+func (h *Handler) Describe(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
+	h.index.RLock()
+	defer h.index.RUnlock()
 
-	return sh.DescribeLocked(ctx, dr)
+	return h.DescribeLocked(ctx, dr)
 }
 
 // DescribeLocked returns a response for the given describe request. It is the
 // caller's responsibility to lock the search handler's index.
-func (sh *Handler) DescribeLocked(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
+func (h *Handler) DescribeLocked(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
 	if verboseDescribe {
 		t0 := time.Now()
 		defer func() {
@@ -78,7 +78,7 @@ func (sh *Handler) DescribeLocked(ctx context.Context, dr *DescribeRequest) (dre
 			log.Printf("Described %d blobs in %v", num, td)
 		}()
 	}
-	sh.initDescribeRequest(dr)
+	h.initDescribeRequest(dr)
 	if dr.BlobRef.Valid() {
 		dr.StartDescribe(ctx, dr.BlobRef, dr.depth())
 	}
@@ -516,17 +516,17 @@ func (dp *DescribedPermanode) IsContainer() bool {
 // NewDescribeRequest returns a new DescribeRequest holding the state
 // of blobs and their summarized descriptions.  Use DescribeBlob
 // one or more times before calling Result.
-func (sh *Handler) NewDescribeRequest() *DescribeRequest {
+func (h *Handler) NewDescribeRequest() *DescribeRequest {
 	dr := new(DescribeRequest)
-	sh.initDescribeRequest(dr)
+	h.initDescribeRequest(dr)
 	return dr
 }
 
-func (sh *Handler) initDescribeRequest(req *DescribeRequest) {
+func (h *Handler) initDescribeRequest(req *DescribeRequest) {
 	if req.sh != nil {
 		panic("already initialized")
 	}
-	req.sh = sh
+	req.sh = h
 	req.m = make(MetaMap)
 	req.errs = make(map[string]error)
 	req.wg = new(sync.WaitGroup)
