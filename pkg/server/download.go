@@ -594,10 +594,10 @@ func (dh *DownloadHandler) zipFile(ctx context.Context, parentPath string, br bl
 		filename = filepath.Join(parentPath, fi.name)
 	}
 	zh := &zip.FileHeader{
-		Name:   filename,
-		Method: zip.Store,
+		Name:     filename,
+		Method:   zip.Store,
+		Modified: fi.modtime.UTC(),
 	}
-	zh.SetModTime(fi.modtime)
 	zh.SetMode(fi.mode)
 	zfh, err := zw.CreateHeader(zh)
 	if err != nil {
