@@ -254,11 +254,10 @@ func cleanServer(server string) (string, error) {
 		return "", fmt.Errorf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
 	}
 	// Remove trailing slash if provided.
-	if strings.HasSuffix(server, "/") {
-		server = server[0 : len(server)-1]
-	}
+	server = strings.TrimSuffix(server, "/")
+
 	// Default to "https://" when not specified
-	if !strings.HasPrefix(server, "http") && !strings.HasPrefix(server, "https") {
+	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
 		server = "https://" + server
 	}
 	return server, nil
