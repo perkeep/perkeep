@@ -167,7 +167,7 @@ func (a *Handler) refreshDomainBlobs() error {
 	if a.masterQuery == nil {
 		return errors.New("no master query")
 	}
-	var sq search.SearchQuery = *(a.masterQuery)
+	sq := *(a.masterQuery)
 	sq.Describe = sq.Describe.Clone()
 	sr, err := a.sh.Query(context.TODO(), &sq)
 	if err != nil {

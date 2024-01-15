@@ -104,13 +104,13 @@ var tmpl = template.Must(template.New("root").Parse(`
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 func (im *imp) AccountSetupHTML(host *importer.Host) string {
-	return fmt.Sprintf(`
+	return `
 <h1>Configuring Plaid</h1>
 <p>Signup for a developer account on <a href='https://dashboard.plaid.com/signup'>Plaid dashboard</a>
 <p>After following signup steps and verifying your email, get your developer credentials
 (under "Send your first request"), and copy your client ID and secret above.
 <p>
-`)
+`
 }
 
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
