@@ -93,9 +93,6 @@
 				"serverListen": ":3179"
 			}
 		},
-		"/setup/": {
-			"handler": "setup"
-		},
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {

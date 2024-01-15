@@ -103,9 +103,6 @@
 				"slurpToMemory": true
 			}
 		},
-		"/setup/": {
-			"handler": "setup"
-		},
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {

@@ -368,12 +368,6 @@ func TestInstallHandlers(t *testing.T) {
 		},
 
 		{
-			prefix:        "/setup/",
-			handlerType:   reflect.TypeOf(&server.SetupHandler{}),
-			prefixWrapped: true,
-		},
-
-		{
 			prefix:      "/bs/camli/",
 			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
 		},
