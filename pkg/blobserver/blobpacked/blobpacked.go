@@ -1340,7 +1340,9 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
-	fh.SetModTime(pk.fr.ModTime())
+	if m := pk.fr.ModTime(); !m.IsZero() {
+		fh.SetModTime(m)
+	}
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
 	check(err)
