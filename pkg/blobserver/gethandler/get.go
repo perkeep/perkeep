@@ -84,7 +84,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 	rw.Header().Set("Content-Type", "application/octet-stream")
 	rw.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, immutable", int(HTTP_CACHE_DURATION.Seconds())))
 
-	var content io.ReadSeeker = readerutil.NewFakeSeeker(rc, int64(size))
+	var content = readerutil.NewFakeSeeker(rc, int64(size))
 	rangeHeader := req.Header.Get("Range") != ""
 	const small = 32 << 10
 	var b *blob.Blob

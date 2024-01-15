@@ -228,6 +228,9 @@ func init() {
 	}
 	defer r.Close()
 	testIm, err = png.Decode(r)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func fillTestImage(im image.Image) {

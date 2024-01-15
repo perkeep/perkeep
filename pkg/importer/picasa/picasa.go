@@ -324,6 +324,9 @@ func (r *run) importAlbums(ctx context.Context) error {
 		return fmt.Errorf("importAlbums: error listing albums: %v", err)
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
+	if err != nil {
+		return fmt.Errorf("getting picasa top-level Albums node: %w", err)
+	}
 	for _, album := range albums {
 		select {
 		case <-ctx.Done():

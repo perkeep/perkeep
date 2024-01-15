@@ -244,9 +244,8 @@ func (c *Client) ListBlobs(ctx context.Context, container string, maxResults int
 			return nil, err
 		}
 
-		for _, it := range bres.Blobs.Blob {
-			blobs = append(blobs, it)
-		}
+		blobs = append(blobs, bres.Blobs.Blob...)
+
 		if bres.NextMarker == "" {
 			// No more blobs to list
 			break

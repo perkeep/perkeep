@@ -222,8 +222,8 @@ type OAuthURIs struct {
 
 // NewOAuthClient returns an oauth Client configured with uris and the
 // credentials obtained from ctx.
-func (ctx *SetupContext) NewOAuthClient(uris OAuthURIs) (*oauth.Client, error) {
-	clientID, secret, err := ctx.Credentials()
+func (sc *SetupContext) NewOAuthClient(uris OAuthURIs) (*oauth.Client, error) {
+	clientID, secret, err := sc.Credentials()
 	if err != nil {
 		return nil, err
 	}

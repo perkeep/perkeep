@@ -74,6 +74,7 @@ func StatBlobsParallelHelper(ctx context.Context, blobs []blob.Ref, fn func(blob
 	var fnMu sync.Mutex // serializes calls to fn
 
 	var wg syncutil.Group
+Blobs:
 	for i := range blobs {
 		gate.Start()
 		b := blobs[i]
@@ -81,7 +82,7 @@ func StatBlobsParallelHelper(ctx context.Context, blobs []blob.Ref, fn func(blob
 		select {
 		case <-ctx.Done():
 			// If a previous failed, stop.
-			break
+			break Blobs
 		default:
 		}
 

@@ -1162,7 +1162,7 @@ func (c *Corpus) PermanodeTime(pn blob.Ref) (t time.Time, ok bool) {
 	var fi camtypes.FileInfo
 	ccRef, ccTime, ok := c.pnCamliContent(pn)
 	if ok {
-		fi, _ = c.files[ccRef]
+		fi = c.files[ccRef]
 	}
 	if fi.Time != nil {
 		return time.Time(*fi.Time), true

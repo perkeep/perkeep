@@ -68,9 +68,7 @@ func RestartProcess(arg ...string) error {
 	var args []string
 	if len(arg) > 0 {
 		args = append(args, os.Args[0])
-		for _, v := range arg {
-			args = append(args, v)
-		}
+		args = append(args, arg...)
 	} else {
 		args = os.Args
 	}

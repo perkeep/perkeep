@@ -66,7 +66,7 @@ func handleEnumerateBlobs(rw http.ResponseWriter, req *http.Request, storage blo
 		waitSeconds, _ = strconv.Atoi(formValueMaxWaitSec)
 		if waitSeconds != 0 && formValueAfter != "" {
 			rw.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(rw, errMsgMaxWaitSecWithAfter)
+			fmt.Fprint(rw, errMsgMaxWaitSecWithAfter)
 			return
 		}
 		switch {

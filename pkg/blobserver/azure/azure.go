@@ -57,8 +57,8 @@ type azureStorage struct {
 	cache       *memory.Storage // or nil for no cache
 }
 
-func (s *azureStorage) String() string {
-	return fmt.Sprintf("\"azure\" blob storage at host %q, container %q", s.hostname, s.container)
+func (sto *azureStorage) String() string {
+	return fmt.Sprintf("\"azure\" blob storage at host %q, container %q", sto.hostname, sto.container)
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {

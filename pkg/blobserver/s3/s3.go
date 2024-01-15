@@ -82,11 +82,11 @@ type s3Storage struct {
 	hostname string
 }
 
-func (s *s3Storage) String() string {
-	if s.dirPrefix != "" {
-		return fmt.Sprintf("\"S3\" blob storage at host %q, bucket %q, directory %q", s.hostname, s.bucket, s.dirPrefix)
+func (sto *s3Storage) String() string {
+	if sto.dirPrefix != "" {
+		return fmt.Sprintf("\"S3\" blob storage at host %q, bucket %q, directory %q", sto.hostname, sto.bucket, sto.dirPrefix)
 	}
-	return fmt.Sprintf("\"S3\" blob storage at host %q, bucket %q", s.hostname, s.bucket)
+	return fmt.Sprintf("\"S3\" blob storage at host %q, bucket %q", sto.hostname, sto.bucket)
 }
 
 func newFromConfig(l blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
@@ -116,7 +116,10 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		httpClient.Transport = transport
 		s3Cfg.WithHTTPClient(&httpClient)
 	}
-	awsSession := session.New(s3Cfg)
+	awsSession, err := session.NewSession(s3Cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	bucket := config.RequiredString("bucket")
 	var dirPrefix string
