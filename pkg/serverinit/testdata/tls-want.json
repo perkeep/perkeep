@@ -92,9 +92,6 @@
 				"serverListen": "1.2.3.4:443"
 			}
 		},
-		"/setup/": {
-			"handler": "setup"
-		},
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {

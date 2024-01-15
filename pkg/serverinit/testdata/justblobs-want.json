@@ -29,9 +29,6 @@
 		"/help/": {
 			"handler": "help"
 		},
-		"/setup/": {
-			"handler": "setup"
-		},
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {

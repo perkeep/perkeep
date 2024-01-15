@@ -849,7 +849,6 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		})
 	}
 	b.addPrefix("/", "root", rootArgs)
-	b.addPrefix("/setup/", "setup", nil)
 	b.addPrefix("/status/", "status", nil)
 	b.addPrefix("/help/", "help", nil)
 
