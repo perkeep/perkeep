@@ -45,10 +45,10 @@ type memKeys struct {
 	db *memdb.DB
 }
 
-func (s *memKeys) Wipe() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.db = memdb.New(comparer.DefaultComparer, 128)
+func (mk *memKeys) Wipe() error {
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	mk.db = memdb.New(comparer.DefaultComparer, 128)
 	return nil
 }
 
