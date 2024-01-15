@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 
 	"go4.org/syncutil"
 
@@ -154,7 +153,6 @@ func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEnt
 		up = len(sts)
 	} else {
 		if n > (len(sts) - dr.current) {
-			err = io.EOF
 			up = len(sts)
 		}
 	}

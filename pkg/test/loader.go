@@ -25,11 +25,15 @@ import (
 	"perkeep.org/pkg/blobserver"
 )
 
-// NewLoader
+// NewLoader returns a new Loader.
 func NewLoader() *Loader {
 	return &Loader{}
 }
 
+// Loader is a test implementation of blobserver.Loader.
+//
+// Its zero value is ready for use, but callers empirically (historically) have
+// used the NewLoader constructor, despite it being kinda useless.
 type Loader struct {
 	mu  sync.Mutex
 	sto map[string]blobserver.Storage

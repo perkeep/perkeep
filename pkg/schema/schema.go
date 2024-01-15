@@ -612,9 +612,7 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 		subss := ss.SetStaticSetMembers(members[i*perSubset : (i+1)*perSubset])
 		subsets = append(subsets, ss.Blob())
 		allSubsets = append(allSubsets, ss.Blob())
-		for _, v := range subss {
-			allSubsets = append(allSubsets, v)
-		}
+		allSubsets = append(allSubsets, subss...)
 	}
 
 	// Deal with the rest (of the euclidean division)

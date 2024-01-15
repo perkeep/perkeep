@@ -229,10 +229,10 @@ func atomTitle(t *atom.Text) string {
 	if t == nil {
 		return ""
 	}
-	if t.Type == "html" {
-		// see: https://github.com/mjibson/goread/blob/59aec794f3ef87b36c1bac029438c33a6aa6d8d3/utils.go#L533
-		//return html.UnescapeString(sanitizer.StripTags(t.Body))
-	}
+	// if t.Type == "html" {
+	//   see: https://github.com/mjibson/goread/blob/59aec794f3ef87b36c1bac029438c33a6aa6d8d3/utils.go#L533
+	//   return html.UnescapeString(sanitizer.StripTags(t.Body))
+	// }
 	return textTitle(t.Body)
 }
 

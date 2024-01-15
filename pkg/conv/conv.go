@@ -42,7 +42,7 @@ func ParseFields(v []byte, dst ...interface{}) error {
 		case *blob.Ref:
 			br, ok := blob.ParseBytes(thisv)
 			if !ok {
-
+				return fmt.Errorf("invalid blobref %q", thisv)
 			}
 			*dv = br
 		case *uint32:

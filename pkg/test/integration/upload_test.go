@@ -57,7 +57,7 @@ func TestUploadFile(t *testing.T) {
 	testUploadFile(t, c, f, false)
 	testUploadFile(t, c, f, true)
 
-	f.modTime.Add(time.Hour)
+	f.modTime = f.modTime.Add(time.Hour)
 	testUploadFile(t, c, f, true)
 
 	f.name = "baz.txt"
