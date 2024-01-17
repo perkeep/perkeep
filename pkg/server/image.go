@@ -399,8 +399,8 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 
 	h := rw.Header()
 	if !disableThumbCache {
-		h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
-		h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+		h.Set("Expires", time.Now().UTC().Add(oneYear).Format(http.TimeFormat))
+		h.Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		h.Set("Etag", strconv.Quote(etag))
 	}
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
