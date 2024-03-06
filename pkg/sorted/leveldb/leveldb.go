@@ -95,17 +95,7 @@ type kvis struct {
 }
 
 func (is *kvis) Get(key string) (string, error) {
-	val, err := is.db.Get([]byte(key), is.readOpts)
-	if err != nil {
-		if err == leveldb.ErrNotFound {
-			return "", sorted.ErrNotFound
-		}
-		return "", err
-	}
-	if val == nil {
-		return "", sorted.ErrNotFound
-	}
-	return string(val), nil
+	return getCommon(is.db, is.readOpts, key)
 }
 
 func (is *kvis) Set(key, value string) error {
@@ -121,22 +111,7 @@ func (is *kvis) Delete(key string) error {
 }
 
 func (is *kvis) Find(start, end string) sorted.Iterator {
-	var startB, endB []byte
-	// A nil Range.Start is treated as a key before all keys in the DB.
-	if start != "" {
-		startB = []byte(start)
-	}
-	// A nil Range.Limit is treated as a key after all keys in the DB.
-	if end != "" {
-		endB = []byte(end)
-	}
-	it := &iter{
-		it: is.db.NewIterator(
-			&util.Range{Start: startB, Limit: endB},
-			is.readOpts,
-		),
-	}
-	return it
+	return findCommon(is.db, is.readOpts, start, end)
 }
 
 func (is *kvis) Wipe() error {
@@ -154,6 +129,90 @@ func (is *kvis) Wipe() error {
 	}
 	is.db = db
 	return nil
+}
+
+func (is *kvis) BeginReadTx() sorted.ReadTransaction {
+	snapshot, err := is.db.GetSnapshot()
+	return &lvsnapshot{
+		snapshot: snapshot,
+		readOpts: is.readOpts,
+		err:      err,
+	}
+}
+
+type lvsnapshot struct {
+	snapshot *leveldb.Snapshot
+	readOpts *opt.ReadOptions
+	err      error
+}
+
+func (s *lvsnapshot) Get(key string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return getCommon(s.snapshot, s.readOpts, key)
+}
+
+func (s *lvsnapshot) Find(start, end string) sorted.Iterator {
+	if s.err != nil {
+		return errIter{err: s.err}
+	}
+	return findCommon(s.snapshot, s.readOpts, start, end)
+}
+
+// An errIter is a dummy iterator that conceptually has errored. We need
+// this because the Find() method of sorted.KeyValue doesn't provide a way
+// to return an error, but an lvsnapshot may be in an errored state.
+type errIter struct {
+	err error
+}
+
+func (errIter) Next() bool         { return false }
+func (errIter) Key() string        { return "" }
+func (errIter) KeyBytes() []byte   { return nil }
+func (errIter) Value() string      { return "" }
+func (errIter) ValueBytes() []byte { return nil }
+
+func (e errIter) Close() error {
+	return e.err
+}
+
+func (s *lvsnapshot) Close() error {
+	s.snapshot.Release()
+	return nil
+}
+
+func getCommon(r leveldb.Reader, readOpts *opt.ReadOptions, key string) (string, error) {
+	val, err := r.Get([]byte(key), readOpts)
+	if err != nil {
+		if err == leveldb.ErrNotFound {
+			return "", sorted.ErrNotFound
+		}
+		return "", err
+	}
+	if val == nil {
+		return "", sorted.ErrNotFound
+	}
+	return string(val), nil
+}
+
+func findCommon(r leveldb.Reader, readOpts *opt.ReadOptions, start, end string) sorted.Iterator {
+	var startB, endB []byte
+	// A nil Range.Start is treated as a key before all keys in the DB.
+	if start != "" {
+		startB = []byte(start)
+	}
+	// A nil Range.Limit is treated as a key after all keys in the DB.
+	if end != "" {
+		endB = []byte(end)
+	}
+	it := &iter{
+		it: r.NewIterator(
+			&util.Range{Start: startB, Limit: endB},
+			readOpts,
+		),
+	}
+	return it
 }
 
 func (is *kvis) BeginBatch() sorted.BatchMutation {
