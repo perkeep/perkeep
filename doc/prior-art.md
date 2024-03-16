@@ -17,7 +17,7 @@
     pioneered the idea of recursive content-addressable file systems.
 
 * [Monotone](http://www.monotone.ca/)'s "Certificates" are similar to Perkeep
-  claims. (See [terminology](terms.md#claims))
+  claims. (See [terminology](terms#claim))
 
 Probably more, though.  Contributions to this list are welcome!
 

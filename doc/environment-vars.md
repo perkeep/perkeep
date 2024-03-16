@@ -36,12 +36,10 @@ and
 `PERKEEP_CACHE_DIR` (string)
 or
 `CAMLI_CACHE_DIR` (string)
-: Path used by [pkg/osutil](/pkg/osutil) to override operating system specific
-  cache directory.
+: Path used by `internal/osutil` to override operating system specific cache directory.
 
 `CAMLI_CONFIG_DIR` (string)
-: Path used by pkg/osutil to override operating system specific configuration
-  directory.
+: Path used by `internal/osutil` to override operating system specific configuration directory.
 
 `CAMLI_DBNAME` (string)
 : Backend specific data source name (DSN).
@@ -85,7 +83,7 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 
 `CAMLI_INCLUDE_PATH` (string)
 : Path to search for files.
-  Referenced in [pkg/osutil](/pkg/osutil) and used indirectly by
+  Referenced in `internal/osutil` and used indirectly by
   [go4.org/jsonconfig.ConfigParser](http://go4.org/jsonconfig#ConfigParser) to search for
   files mentioned in configurations.  This is used as a last resort after first
   checking the current directory and the Perkeep config directory. It should
@@ -162,7 +160,7 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   without forcing a global reindexing.
 
 `CAMLI_VAR_DIR` (string)
-: Path used by [pkg/osutil](/pkg/osutil) to override operating system specific
+: Path used by `internal/osutil` to override operating system specific
   application storage directory. Generally unused.
 
 `CAMLI_S3_FAIL_PERCENT` (int)
@@ -189,7 +187,7 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : Used by [pkg/client](/pkg/client) to enable additional logging.
 
 `CAMLI_DEBUG_IMAGES` (bool)
-: Enable extra debugging in [pkg/images](/pkg/images) when decoding images.
+: Enable extra debugging in `internal/images` when decoding images.
   Used by indexers.
 
 `CAMLI_SHA1_ENABLED` (bool)
