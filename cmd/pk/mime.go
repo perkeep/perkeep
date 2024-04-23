@@ -29,6 +29,7 @@ func showMIME(file string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer f.Close()
 	mime, _ := magic.MIMETypeFromReader(f)
 	fmt.Println(mime)
 }
