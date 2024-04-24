@@ -324,7 +324,7 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 
 	h := w.Header()
 	h.Set("Content-Length", fmt.Sprint(fi.size))
-	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
+	h.Set("Expires", time.Now().UTC().Add(oneYear).Format(http.TimeFormat))
 	if packed {
 		h.Set("X-Camlistore-Packed", "1")
 	}
