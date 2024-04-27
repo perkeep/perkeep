@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	. "perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/test"
 )
