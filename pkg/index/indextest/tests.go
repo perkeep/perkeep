@@ -1327,7 +1327,7 @@ func checkStat(idx *index.Index, want []blob.SizedRef) error {
 		need[sb.Ref] = true
 	}
 
-	input := make([]blob.Ref, len(want))
+	input := make([]blob.Ref, 0, len(want))
 	for _, sbr := range want {
 		input = append(input, sbr.Ref)
 	}
