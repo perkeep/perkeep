@@ -75,7 +75,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 		}
 	}
 	if decodeErr != nil {
-		return fmt.Errorf("failed to parse remove response: %v", err)
+		return fmt.Errorf("failed to parse remove response: %v", decodeErr)
 	}
 	for _, br := range remResp.Removed {
 		delete(needsDelete, br)
