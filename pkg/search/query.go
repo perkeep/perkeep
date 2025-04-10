@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -603,8 +604,15 @@ type StringConstraint struct {
 	HasSuffix       string         `json:"hasSuffix,omitempty"`
 	ByteLength      *IntConstraint `json:"byteLength,omitempty"` // length in bytes (not chars)
 	CaseInsensitive bool           `json:"caseInsensitive,omitempty"`
-
 	// TODO: CharLength (assume UTF-8)
+
+	// Matches the regular expression. Syntax is as described by the regexp
+	// package.
+	Regexp string `json:"regexp"`
+
+	// Compiled version of Regexp; done on first use. We still need to store the
+	// original string so we can marshal it as json.
+	regexp *regexp.Regexp
 }
 
 // stringCompareFunc contains a function to get a value from a StringConstraint and a second function to compare it
@@ -636,6 +644,17 @@ func (c *StringConstraint) stringMatches(s string) bool {
 	}
 	if c.ByteLength != nil && !c.ByteLength.intMatches(int64(len(s))) {
 		return false
+	}
+	if c.Regexp != "" && c.regexp == nil {
+		re, err := regexp.Compile(c.Regexp)
+		if err != nil {
+			log.Printf("Failed to parse regexp %q: %v", c.Regexp, err)
+			return false
+		}
+		c.regexp = re
+	}
+	if c.regexp != nil {
+		return c.regexp.MatchString(s)
 	}
 
 	funcs := stringConstraintFuncs
