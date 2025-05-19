@@ -244,7 +244,7 @@ func cloudflareFetch(ctx context.Context, url string) (*http.Response, error) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:138.0) Gecko/20100101 Firefox/138.0")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
+	// req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	req.Header.Set("Sec-GPC", "1")
 	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("Upgrade-Insecure-Requests", "1")
