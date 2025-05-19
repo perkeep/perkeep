@@ -913,12 +913,16 @@ func (x *Index) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNod
 }
 
 func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
+	const sep = "|"
 	const nKeyPart = 5
 	const nValPart = 4
+	if strings.Count(k, sep) < nKeyPart-1 || strings.Count(v, sep) < nValPart-1 {
+		return
+	}
 	var keya [nKeyPart]string
 	var vala [nValPart]string
-	keyPart := strutil.AppendSplitN(keya[:0], k, "|", -1)
-	valPart := strutil.AppendSplitN(vala[:0], v, "|", -1)
+	keyPart := strutil.AppendSplitN(keya[:0], k, sep, -1)
+	valPart := strutil.AppendSplitN(vala[:0], v, sep, -1)
 	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
 		return
 	}
@@ -934,7 +938,7 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 	if !ok {
 		return
 	}
-	date, err := time.Parse(time.RFC3339, keyPart[3])
+	date, err := time.Parse(time.RFC3339, string(keyPart[3]))
 	if err != nil {
 		return
 	}
@@ -946,6 +950,65 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 		Type:      urld(valPart[0]),
 		Attr:      urld(valPart[1]),
 		Value:     urld(valPart[2]),
+	}, true
+}
+
+func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
+	sep := []byte{'|'}
+	const nKeyPart = 5
+	const nValPart = 4
+	if bytes.Count(k, sep) < nKeyPart-1 || bytes.Count(v, sep) < nValPart-1 {
+		return
+	}
+	var keya [nKeyPart][]byte
+	var vala [nValPart][]byte
+	appendSplitN := func(dst [][]byte, p, sep []byte, n int) [][]byte {
+		for {
+			pre, post, ok := bytes.Cut(p, sep)
+			if !ok {
+				dst = append(dst, p)
+				break
+			}
+			dst = append(dst, pre)
+			p = post
+		}
+		return dst
+	}
+	keyPart := appendSplitN(keya[:0], k, sep, -1)
+	valPart := appendSplitN(vala[:0], v, sep, -1)
+	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
+		return
+	}
+	signerRef, ok := blobParse(valPart[3])
+	if !ok {
+		return
+	}
+	permaNode, ok := blobParse(keyPart[1])
+	if !ok {
+		return
+	}
+	claimRef, ok := blobParse(keyPart[4])
+	if !ok {
+		return
+	}
+	date, err := time.Parse(time.RFC3339, string(keyPart[3]))
+	if err != nil {
+		return
+	}
+	var buf strings.Builder
+	urldBytes := func(p []byte) string {
+		buf.Reset()
+		buf.Write(p)
+		return urld(buf.String())
+	}
+	return camtypes.Claim{
+		BlobRef:   claimRef,
+		Signer:    signerRef,
+		Permanode: permaNode,
+		Date:      date,
+		Type:      urldBytes(valPart[0]),
+		Attr:      urldBytes(valPart[1]),
+		Value:     urldBytes(valPart[2]),
 	}, true
 }
 
