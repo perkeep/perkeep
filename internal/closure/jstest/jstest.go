@@ -127,6 +127,6 @@ func TestCwd(t *testing.T) {
 	c := exec.Command("mocha", "-r", bootstrap, "-r", depsFile, filepath.Join(path, "*test.js"))
 	b, err := c.CombinedOutput()
 	if err != nil {
-		t.Fatalf(string(b))
+		t.Fatalf("mocha failed: %v\n%s", err, string(b))
 	}
 }

@@ -294,7 +294,7 @@ func (h *shareHandler) serveHTTP(rw http.ResponseWriter, req *http.Request) erro
 	if se, ok := err.(*shareError); ok {
 		switch se.response {
 		case badRequest:
-			httputil.BadRequestError(rw, err.Error())
+			httputil.BadRequestError(rw, "%s", err)
 		case unauthorizedRequest:
 			if h.log {
 				log.Print(err)

@@ -358,11 +358,11 @@ func testCompareWithResized(t *testing.T, resizeMethod string) {
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Image comparison for original image vs image resized with `+resizeMethod+`</title>
+    <title>Image comparison for original image vs image resized with %s</title>
   </head>
   <body style="background-color: grey">
 <table>
-`)
+`, resizeMethod)
 	}
 	for i, im1 := range images1 {
 		im2 := images2[i]

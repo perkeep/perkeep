@@ -186,7 +186,7 @@ func (a *Handler) refreshDomainBlobs() error {
 // back to the client.
 func (a *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		camhttputil.BadRequestError(w, camhttputil.InvalidMethodError{}.Error())
+		camhttputil.BadRequestError(w, "Invalid method %s", r.Method)
 		return
 	}
 	if a.sh == nil {

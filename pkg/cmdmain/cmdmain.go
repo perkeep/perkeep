@@ -205,13 +205,10 @@ Modes:%s
 		Errorf("%s", modes[i])
 	}
 
-	Errorf(`
-For mode-specific help:
+	Errorf("\nFor mode-specific help:\n\n  ")
+	Errorf("%s <mode> -help\n", cmdName)
 
-  ` + cmdName + ` <mode> -help
-
-Global options:
-`)
+	Errorf("\nGlobal options:\n")
 	flag.PrintDefaults()
 	Exit(1)
 }

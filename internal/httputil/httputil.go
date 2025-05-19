@@ -76,7 +76,7 @@ func ReturnJSON(rw http.ResponseWriter, data interface{}) {
 func ReturnJSONCode(rw http.ResponseWriter, code int, data interface{}) {
 	js, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		BadRequestError(rw, fmt.Sprintf("JSON serialization error: %v", err))
+		BadRequestError(rw, "JSON serialization error: %v", err)
 		return
 	}
 	rw.Header().Set("Content-Type", "text/javascript")

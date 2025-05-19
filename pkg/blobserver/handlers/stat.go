@@ -74,7 +74,7 @@ func handleStat(rw http.ResponseWriter, req *http.Request, storage blobserver.Bl
 		}
 		ref, ok := blob.Parse(value)
 		if !ok {
-			httputil.BadRequestError(rw, "Bogus blobref for key "+key)
+			httputil.BadRequestError(rw, "Bogus blobref for key %s", key)
 			return
 		}
 		needStat[ref] = true
