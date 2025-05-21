@@ -125,7 +125,7 @@ func TestEmptyPasswords(t *testing.T) {
 
 		auth, err := newUserPassAuth(test.config)
 		if err != nil {
-			t.Errorf(err.Error())
+			t.Errorf("newUserPassAuth(%q) = error %v; want nil", test.config, err)
 			continue
 		}
 		SetMode(auth)

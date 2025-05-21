@@ -320,7 +320,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 }
 
 func (w *World) ServerBaseURL() string {
-	return fmt.Sprintf("http://" + w.addr)
+	return fmt.Sprintf("http://%s", w.addr)
 }
 
 var theWorld *World

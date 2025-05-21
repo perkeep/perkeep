@@ -65,8 +65,7 @@ func handleRemove(w http.ResponseWriter, r *http.Request, storage blobserver.Sto
 	for {
 		n++
 		if n > maxRemovesPerRequest {
-			httputil.BadRequestError(w,
-				fmt.Sprintf("Too many removes in this request; max is %d", maxRemovesPerRequest))
+			httputil.BadRequestError(w, "Too many removes in this request; max is %d", maxRemovesPerRequest)
 			return
 		}
 		key := fmt.Sprintf("blob%v", n)
@@ -76,7 +75,7 @@ func handleRemove(w http.ResponseWriter, r *http.Request, storage blobserver.Sto
 		}
 		ref, ok := blob.Parse(value)
 		if !ok {
-			httputil.BadRequestError(w, "Bogus blobref for key "+key)
+			httputil.BadRequestError(w, "Bogus blobref for key %s", key)
 			return
 		}
 		toRemove = append(toRemove, ref)

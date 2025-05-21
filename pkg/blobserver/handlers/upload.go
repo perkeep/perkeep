@@ -182,8 +182,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
-		httputil.BadRequestError(rw, fmt.Sprintf(
-			"Expected multipart/form-data POST request; %v", err))
+		httputil.BadRequestError(rw, "Expected multipart/form-data POST request; %v", err)
 		return
 	}
 
