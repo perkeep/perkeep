@@ -18,6 +18,8 @@ package files
 
 import (
 	"os"
+
+	"perkeep.org/internal/robustio"
 )
 
 // OSFS returns an implementation of VFS interface using the host filesystem.
@@ -29,28 +31,22 @@ func OSFS() VFS {
 // the host filesystem.
 type osFS struct{}
 
-func (osFS) Remove(path string) error                     { return os.Remove(path) }
-func (osFS) RemoveDir(path string) error                  { return os.Remove(path) }
-func (osFS) Stat(path string) (os.FileInfo, error)        { return os.Stat(path) }
-func (osFS) Lstat(path string) (os.FileInfo, error)       { return os.Lstat(path) }
-func (osFS) Open(path string) (ReadableFile, error)       { return os.Open(path) }
-func (osFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
+func (osFS) Remove(path string) error {
+	return robustio.Remove(path)
+}
+func (osFS) RemoveDir(path string) error {
+	return robustio.Remove(path)
+}
 
 func (osFS) Rename(oldname, newname string) error {
-	err := os.Rename(oldname, newname)
-	if err != nil {
-		err = mapRenameError(err, oldname, newname)
-	}
-	return err
+	return robustio.Rename(oldname, newname)
 }
 
-func (osFS) TempFile(dir, prefix string) (WritableFile, error) {
-	f, err := os.CreateTemp(dir, prefix)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
+func (osFS) Stat(path string) (os.FileInfo, error)             { return os.Stat(path) }
+func (osFS) Lstat(path string) (os.FileInfo, error)            { return os.Lstat(path) }
+func (osFS) Open(path string) (ReadableFile, error)            { return os.Open(path) }
+func (osFS) MkdirAll(path string, perm os.FileMode) error      { return os.MkdirAll(path, perm) }
+func (osFS) TempFile(dir, prefix string) (WritableFile, error) { return os.CreateTemp(dir, prefix) }
 
 func (osFS) ReadDirNames(dir string) ([]string, error) {
 	d, err := os.Open(dir)
