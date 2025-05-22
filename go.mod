@@ -11,27 +11,27 @@ require (
 	github.com/aws/aws-sdk-go v1.44.51
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
-	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
+	github.com/go-sql-driver/mysql v1.9.2
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00
 	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
-	github.com/gorilla/websocket v1.4.2
+	github.com/gorilla/websocket v1.5.3
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
-	github.com/lib/pq v1.10.2
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
-	github.com/pkg/sftp v1.13.6
+	github.com/pkg/sftp v1.13.9
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20230225012048-214862532bf5
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.38.0
 	golang.org/x/image v0.14.0
-	golang.org/x/net v0.35.0
+	golang.org/x/net v0.40.0
 	golang.org/x/oauth2 v0.15.0
-	golang.org/x/sync v0.11.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/sync v0.14.0
+	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.126.0
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
@@ -48,7 +48,7 @@ require (
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
 	cloud.google.com/go/longrunning v0.4.1 // indirect
-	filippo.io/edwards25519 v1.0.0 // indirect
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
@@ -130,8 +130,8 @@ require (
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
