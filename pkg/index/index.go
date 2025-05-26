@@ -914,8 +914,7 @@ func (x *Index) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNod
 
 func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
 	const sep = "|"
-	const nKeyPart = 5
-	const nValPart = 4
+	const nKeyPart, nValPart = 5, 4
 	if strings.Count(k, sep) < nKeyPart-1 || strings.Count(v, sep) < nValPart-1 {
 		return
 	}
@@ -955,8 +954,7 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 
 func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
 	sep := []byte{'|'}
-	const nKeyPart = 5
-	const nValPart = 4
+	const nKeyPart, nValPart = 5, 4
 	if bytes.Count(k, sep) < nKeyPart-1 || bytes.Count(v, sep) < nValPart-1 {
 		return
 	}
