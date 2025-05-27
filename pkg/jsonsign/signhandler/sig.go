@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"go4.org/jsonconfig"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
@@ -35,9 +37,6 @@ import (
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
-
-	"go4.org/jsonconfig"
-	"golang.org/x/crypto/openpgp"
 )
 
 const maxJSONLength = 1024 * 1024

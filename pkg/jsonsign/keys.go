@@ -25,12 +25,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"perkeep.org/internal/osutil"
-
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	"perkeep.org/internal/osutil"
 )
 
 const publicKeyMaxSize = 256 * 1024
