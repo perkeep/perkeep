@@ -19,6 +19,7 @@ package allimporters // import "perkeep.org/pkg/importer/allimporters"
 
 import (
 	"perkeep.org/pkg/importer"
+	_ "perkeep.org/pkg/importer/bluesky"
 	_ "perkeep.org/pkg/importer/dummy"
 	_ "perkeep.org/pkg/importer/feed"
 	_ "perkeep.org/pkg/importer/flickr"
