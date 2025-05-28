@@ -416,12 +416,31 @@ func TestDecodeHEIC_WithJPEGInHeader(t *testing.T) {
 	}
 	defer f.Close()
 
-	conf, err := DecodeConfig(f)
+	conf, err := DecodeConfig("image/heic", f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := fmt.Sprintf("Width:%d Height:%d Format:%v HEIC:%d bytes", conf.Width, conf.Height, conf.Format, len(conf.HEICEXIF))
 	want := "Width:6302 Height:3912 Format:heic HEIC:1046 bytes"
+	if got != want {
+		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
+	}
+}
+
+func TestDecodeSVG(t *testing.T) {
+	filename := filepath.Join("testdata", "heap.svg")
+	f, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	conf, err := DecodeConfig("image/svg+xml", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmt.Sprintf("Width:%d Height:%d Format:%v", conf.Width, conf.Height, conf.Format)
+	want := "Width:500 Height:600 Format:svg"
 	if got != want {
 		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
 	}
