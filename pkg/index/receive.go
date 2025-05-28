@@ -523,7 +523,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	if imageBuf != nil {
 		var conf images.Config
 		decodeConfig := func(r filePrefixReader) error {
-			conf, err = images.DecodeConfig(r)
+			conf, err = images.DecodeConfig(mimeType, r)
 			return err
 		}
 		if err := readPrefixOrFile(imageBuf.Bytes, fetcher, b, decodeConfig); err == nil {
