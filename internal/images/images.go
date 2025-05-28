@@ -18,6 +18,7 @@ package images // import "perkeep.org/internal/images"
 
 import (
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"image"
@@ -32,12 +33,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	_ "image/gif"
 	_ "image/png"
 
 	"perkeep.org/internal/images/fastjpeg"
 	"perkeep.org/internal/images/resize"
+	"perkeep.org/internal/magic"
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
@@ -52,6 +56,7 @@ import (
 	// tiff package must be imported after any image packages that decode
 	// tiff-like formats, i.e. CR2 or DNG
 	_ "golang.org/x/image/tiff"
+	_ "golang.org/x/image/webp"
 )
 
 var ErrHEIC = errors.New("HEIC decoding not implemented yet")
@@ -386,6 +391,84 @@ func decodeHEIFConfig(rat io.ReaderAt) (image.Config, error) {
 	}, nil
 }
 
+// parseLeadingNumber strips any unit suffix and converts the leading
+// number to float64.  Returns ok=false if it can’t.
+func parseLeadingNumber(s string) (v float64, ok bool) {
+	s = strings.TrimSpace(s)
+	i := 0
+
+	for _, r := range s {
+		if r >= utf8.RuneSelf {
+			break
+		}
+
+		if unicode.IsDigit(r) || r == '+' || r == '-' || r == '.' {
+			i++
+		} else {
+			break
+		}
+	}
+
+	if i == 0 {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(s[:i], 64)
+	return n, err == nil
+}
+
+// dimsFromSVG reads XML tokens from SVG file r until it can compute
+// the dimensions of the image (in "abstract user units").
+func dimsFromSVG(r io.Reader) (w, h float64, err error) {
+	dec := xml.NewDecoder(r)
+	dec.Strict = false
+
+	for {
+		tok, errTok := dec.Token()
+		if errTok != nil {
+			if errTok == io.EOF {
+				return 0, 0, errors.New("no <svg> element found")
+			}
+			return 0, 0, errTok
+		}
+
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "svg" {
+			continue // not the root <svg> yet
+		}
+
+		var widthAttr, heightAttr, viewBoxAttr string
+		for _, a := range se.Attr {
+			switch a.Name.Local {
+			case "width":
+				widthAttr = a.Value
+			case "height":
+				heightAttr = a.Value
+			case "viewBox":
+				viewBoxAttr = a.Value
+			}
+		}
+
+		// Try width & height first
+		if w, ok := parseLeadingNumber(widthAttr); ok {
+			if h, ok := parseLeadingNumber(heightAttr); ok {
+				return w, h, nil
+			}
+		}
+
+		// Fallback: viewBox="minX minY width height"
+		fields := strings.Fields(viewBoxAttr)
+		if len(fields) == 4 {
+			if w, ok := parseLeadingNumber(fields[2]); ok {
+				if h, ok := parseLeadingNumber(fields[3]); ok {
+					return w, h, nil
+				}
+			}
+		}
+
+		return 0, 0, errors.New("could not determine dimensions")
+	}
+}
+
 // DecodeConfig returns the image Config similarly to
 // the standard library's image.DecodeConfig with the
 // addition that it also checks for an EXIF orientation,
@@ -400,6 +483,34 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		if debug {
 			log.Printf("internal/images: DecodeConfig failed after reading %d bytes: %v", buf.Len(), err)
 		}
+
+		br := bytes.NewReader(buf.Bytes())
+		mimeType, _ := magic.MIMETypeFromReader(br)
+		if mimeType == "" {
+			if debug {
+				log.Printf("internal/images: magic.MIMETypeFromReader failed")
+			}
+
+			return Config{}, err
+		}
+
+		if mimeType == "image/svg+xml" {
+			br := io.MultiReader(bytes.NewReader(buf.Bytes()), r)
+			w, h, err := dimsFromSVG(br)
+			if err != nil {
+				return Config{}, err
+			}
+			return Config{
+				Format: "svg",
+				Width:  int(w),
+				Height: int(h),
+			}, nil
+		}
+
+		if debug {
+			log.Printf("internal/images: unknown mimeType: %s", mimeType)
+		}
+
 		return Config{}, err
 	}
 	c := Config{

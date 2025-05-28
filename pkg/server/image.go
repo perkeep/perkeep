@@ -338,10 +338,12 @@ var singleResize singleflight.Group
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	ctx := req.Context()
+
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", http.StatusBadRequest)
 		return
 	}
+
 	mw, mh := ih.MaxWidth, ih.MaxHeight
 	if mw == 0 || mh == 0 || mw > search.MaxImageSize || mh > search.MaxImageSize {
 		http.Error(rw, "bogus dimensions", http.StatusBadRequest)
@@ -349,7 +351,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	key := cacheKey(file.String(), mw, mh)
-	etag := blob.RefFromString(key).String()[5:]
+	_, etag, _ := strings.Cut(blob.RefFromString(key).String(), "-")
 	inm := req.Header.Get("If-None-Match")
 	if inm != "" {
 		if strings.Trim(inm, `"`) == etag {
@@ -365,12 +367,46 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		}
 	}
 
+	res, err := ih.Search.Describe(ctx, &search.DescribeRequest{
+		BlobRef: file,
+		Depth:   1,
+	})
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	db, ok := res.Meta[file.String()]
+	if !ok {
+		http.Error(rw, "blob meta not found", http.StatusInternalServerError)
+		return
+	}
+
+	if db.File.MIMEType == "image/svg+xml" {
+		fr, err := schema.NewFileReader(ctx, ih.Fetcher, file)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer fr.Close()
+
+		h := rw.Header()
+		if !disableThumbCache {
+			h.Set("Expires", time.Now().UTC().Add(oneYear).Format(http.TimeFormat))
+			h.Set("Etag", strconv.Quote(etag))
+		}
+		h.Set("Content-Type", db.File.MIMEType)
+
+		http.ServeContent(rw, req, file.String(), time.Now(), fr)
+		return
+	}
+
 	var imageData []byte
-	format := ""
+
 	cacheHit := false
 	if ih.ThumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
-		format = ih.scaledCached(ctx, &buf, file)
+		format := ih.scaledCached(ctx, &buf, file)
 		if format != "" {
 			cacheHit = true
 			imageData = buf.Bytes()
@@ -388,7 +424,6 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		}
 		im := imi.(*formatAndImage)
 		imageData = im.image
-		format = im.format
 		if ih.ThumbMeta != nil {
 			err := ih.cacheScaled(ctx, imageData, key)
 			if err != nil {
@@ -403,7 +438,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		h.Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		h.Set("Etag", strconv.Quote(etag))
 	}
-	h.Set("Content-Type", imageContentTypeOfFormat(format))
+	h.Set("Content-Type", db.File.MIMEType)
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))
 	imageBytesServedVar.Add(int64(size))
@@ -425,11 +460,4 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			return
 		}
 	}
-}
-
-func imageContentTypeOfFormat(format string) string {
-	if format == "jpeg" {
-		return "image/jpeg"
-	}
-	return "image/png"
 }

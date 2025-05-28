@@ -130,6 +130,9 @@ var matchTable = []matchEntry{
 	// iOS HEIC images
 	{fn: isHEIC, mtype: "image/heic"},
 
+	// SVG
+	{fn: isSVG, mtype: "image/svg+xml"},
+
 	// TODO(bradfitz): popular audio & video formats at least
 }
 
@@ -333,4 +336,18 @@ func isHEIC(prefix []byte) bool {
 		return false
 	}
 	return true
+}
+
+func isSVG(prefix []byte) bool {
+	p := bytes.TrimLeft(prefix, " \t\r\n")
+
+	if bytes.HasPrefix(p, []byte("<svg")) {
+		return true
+	}
+
+	if bytes.HasPrefix(p, []byte("<?xml")) && bytes.Contains(p, []byte("<svg")) {
+		return true
+	}
+
+	return false
 }
