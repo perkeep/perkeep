@@ -118,7 +118,7 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 	if err != nil {
 		t.Fatalf("Reindexing after writing pack files: %v", err)
 	}
-	s, err = newStorage(dir, 0, nil)
+	s, err = newStorage(dir, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
