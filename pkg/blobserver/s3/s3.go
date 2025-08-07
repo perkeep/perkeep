@@ -48,6 +48,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	sdkConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"go4.org/fault"
 	"go4.org/jsonconfig"
 )
@@ -97,34 +98,32 @@ func newFromConfig(l blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 // This is used for unit tests.
 func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, transport http.RoundTripper) (blobserver.Storage, error) {
 	hostname := config.OptionalString("hostname", "")
+	if hostname == "http://localhost" {
+		return nil, errors.New(hostname)
+	}
 	region := config.OptionalString("aws_region", "us-east-1")
 
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
-	s3Cfg, err := sdkConfig.LoadDefaultConfig(context.TODO())
+	awsCfg, err := sdkConfig.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		return nil, err
 	}
-	s3Cfg.Credentials = aws.NewCredentialsCache(
-		aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
-			return credentials.NewStaticCredentials(
-				config.RequiredString("aws_access_key"),
-				config.RequiredString("aws_secret_access_key"),
-				"",
-			), nil
-		}))
-
-	if hostname != "" {
-		s3Cfg.BaseEndpoint = aws.String(hostname)
+	{
+		key := config.RequiredString("aws_access_key")
+		secret := config.RequiredString("aws_secret_access_key")
+		awsCfg.Credentials = aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     key,
+				SecretAccessKey: secret,
+			}, nil
+		})
 	}
-	s3Cfg.WithRegion(region)
+	svc := s3New(awsCfg, region, hostname)
+
 	if transport != nil {
 		httpClient := *http.DefaultClient
 		httpClient.Transport = transport
-		s3Cfg.WithHTTPClient(&httpClient)
-	}
-	awsSession, err := config.LoadDefaultConfig(ctx, s3Cfg)
-	if err != nil {
-		return nil, err
+		awsCfg.HTTPClient = &httpClient
 	}
 
 	bucket := config.RequiredString("bucket")
@@ -137,29 +136,12 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		dirPrefix += "/"
 	}
 
-	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	ctx := context.TODO() // TODO: 5 min timeout or something?
-	if !skipStartupCheck {
-		info, err := normalizeBucketLocation(ctx, awsSession, hostname, bucket, region)
-		if err != nil {
-			return nil, err
-		}
-		awsSession.Config.WithRegion(info.region)
-		awsSession.Config.WithEndpoint(info.endpoint)
-		if !info.isAWS {
-			awsSession.Config.WithS3ForcePathStyle(true)
-		}
-	} else {
-		// safer default if we can't determine more info
-		awsSession.Config.WithS3ForcePathStyle(true)
-	}
-
 	sto := &s3Storage{
-		client:    s3.New(awsSession),
+		client:    svc,
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
 		hostname:  hostname,
@@ -185,9 +167,5 @@ func isNotFound(err error) bool {
 		return false
 	}
 	var nsk *types.NoSuchKey
-	return errors.As(err, &nsk) ||
-		// Check 'NotFound' as well because it's returned for some requests, even
-		// though the API model doesn't include it (hence why there isn't an
-		// 's3.ErrCodeNotFound' for comparison)
-		errors.Is(err, types.ErrNotFound)
+	return errors.As(err, &nsk)
 }

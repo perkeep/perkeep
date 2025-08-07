@@ -124,6 +124,8 @@ func TestS3WriteFiles(t *testing.T) {
 }
 
 func testStorage(t *testing.T, bucketDir string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if *bucket == "" || *key == "" || *secret == "" {
 		t.Skip("Skipping test because at least one of -s3_key, -s3_secret, or -s3_bucket flags has not been provided.")
 	}
@@ -153,7 +155,7 @@ func testStorage(t *testing.T, bucketDir string) {
 				if err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
-				if _, err := sto.(*s3Storage).client.PutObject(&s3.PutObjectInput{
+				if _, err := sto.(*s3Storage).client.PutObject(ctx, &s3.PutObjectInput{
 					Bucket: &sto.(*s3Storage).bucket,
 					Key:    aws.String(key),
 					Body:   strings.NewReader(key),
@@ -179,13 +181,13 @@ func testStorage(t *testing.T, bucketDir string) {
 				if bucketWithDir != *bucket {
 					// checking that "a" and "c" at the root were left untouched.
 					for _, key := range []string{"a", "c"} {
-						if _, err := sto.(*s3Storage).client.GetObject(&s3.GetObjectInput{
+						if _, err := sto.(*s3Storage).client.GetObject(ctx, &s3.GetObjectInput{
 							Bucket: &sto.(*s3Storage).bucket,
 							Key:    aws.String(key),
 						}); err != nil {
 							t.Fatalf("could not find object %s after tests: %v", key, err)
 						}
-						if _, err := sto.(*s3Storage).client.DeleteObject(&s3.DeleteObjectInput{
+						if _, err := sto.(*s3Storage).client.DeleteObject(ctx, &s3.DeleteObjectInput{
 							Bucket: &sto.(*s3Storage).bucket,
 							Key:    aws.String(key),
 						}); err != nil {

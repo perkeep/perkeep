@@ -45,7 +45,7 @@ func (sto *s3Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length 
 }
 
 func (sto *s3Storage) fetch(ctx context.Context, br blob.Ref, objRange *string) (rc io.ReadCloser, size uint32, err error) {
-	resp, err := sto.client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+	resp, err := sto.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &sto.bucket,
 		Key:    aws.String(sto.dirPrefix + br.String()),
 		Range:  objRange,

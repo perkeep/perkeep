@@ -33,7 +33,7 @@ const s3MaxKeys = 1000
 
 var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
-func (sto *s3Storage) MaxEnumerate() int { return 1000 }
+func (sto *s3Storage) MaxEnumerate() int { return s3MaxKeys }
 
 func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (retErr error) {
 	defer close(dest)
@@ -41,45 +41,50 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 		return
 	}
 
-	var maxKeys *int64
+	var maxKeys *int32
 	if limit < s3MaxKeys {
-		maxKeys = aws.Int64(int64(limit))
+		maxKeys = aws.Int32(int32(limit))
 	}
 
 	keysGotten := 0
 
-	err := sto.client.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
+	out, err := sto.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:     &sto.bucket,
 		StartAfter: aws.String(sto.dirPrefix + after),
 		MaxKeys:    maxKeys,
 		Prefix:     &sto.dirPrefix,
-	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, obj := range page.Contents {
-			dir, file := path.Split(*obj.Key)
-			if dir != sto.dirPrefix {
-				continue
-			}
-			if file == after {
-				continue
-			}
-			br, ok := blob.Parse(file)
-			if !ok {
-				retErr = fmt.Errorf("non-Perkeep object named %q found in %v s3 bucket", file, sto.bucket)
-				return false
-			}
-			select {
-			case dest <- blob.SizedRef{Ref: br, Size: uint32(*obj.Size)}:
-			case <-ctx.Done():
-				retErr = ctx.Err()
-				return false
-			}
-			keysGotten++
-			if keysGotten >= limit {
-				return false
-			}
-		}
-		return true
 	})
+	if err != nil {
+		return err
+	}
+Loop:
+	for _, obj := range out.Contents {
+		dir, file := path.Split(*obj.Key)
+		if dir != sto.dirPrefix {
+			continue
+		}
+		if file == after {
+			continue
+		}
+		br, ok := blob.Parse(file)
+		if !ok {
+			retErr = fmt.Errorf("non-Perkeep object named %q found in %v s3 bucket", file, sto.bucket)
+			// return false
+			// break
+		}
+		select {
+		case dest <- blob.SizedRef{Ref: br, Size: uint32(*obj.Size)}:
+		case <-ctx.Done():
+			retErr = ctx.Err()
+			// return false
+			break Loop
+		}
+		keysGotten++
+		if keysGotten >= limit {
+			// return false
+			break
+		}
+	}
 	if err == nil {
 		err = retErr
 	}
