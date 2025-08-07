@@ -40,6 +40,9 @@ func (res s3EPResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointP
 	return res.Resolver.ResolveEndpoint(ctx, params)
 }
 
+// s3New create a new *s3.Client form config.
+//
+// Help: https://docs.aws.amazon.com/pdfs/sdk-for-go/v2/developer-guide/aws-sdk-go-v2-dg.pdf
 func s3New(cfg aws.Config, region, endpoint string) *s3.Client {
 	var ep s3.EndpointParameters
 	ep.ForcePathStyle = aws.Bool(true)
