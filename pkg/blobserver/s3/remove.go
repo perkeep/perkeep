@@ -19,9 +19,9 @@ package s3
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"perkeep.org/pkg/blob"
 )
 
@@ -29,16 +29,19 @@ import (
 const maxDeleteBatch = 1000
 
 func (sto *s3Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	toDelete := make([]s3manager.BatchDeleteObject, 0, len(blobs))
+	toDelete := s3.DeleteObjectsInput{
+		Bucket: &sto.bucket,
+	}
+	toDelete := make([]*s3.DeleteObjectInput, 0, len(blobs))
 	for _, blob := range blobs {
-		toDelete = append(toDelete, s3manager.BatchDeleteObject{
-			Object: &s3.DeleteObjectInput{
-				Bucket: &sto.bucket,
-				Key:    aws.String(sto.dirPrefix + blob.String()),
-			},
-		})
+		toDelete = append(toDelete, &s3.DeleteObjectInput{
+			Bucket: &sto.bucket,
+			Key:    aws.String(sto.dirPrefix + blob.String()),
+		},
+		)
 	}
 
+	outputs, err := sto.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{})
 	batchDeleter := s3manager.NewBatchDeleteWithClient(sto.client)
 	batchDeleter.BatchSize = maxDeleteBatch
 

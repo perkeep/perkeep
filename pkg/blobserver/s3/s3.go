@@ -35,6 +35,7 @@ package s3 // import "perkeep.org/pkg/blobserver/s3"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -44,12 +45,9 @@ import (
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/blobserver/proxycache"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	sdkConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go4.org/fault"
 	"go4.org/jsonconfig"
 )
@@ -67,7 +65,7 @@ var (
 )
 
 type s3Storage struct {
-	client s3iface.S3API
+	client *s3.Client
 	bucket string
 	// optional "directory" where the blobs are stored, instead of at the root of the bucket.
 	// S3 is actually flat, which in effect just means that all the objects should have this
@@ -102,13 +100,21 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 	region := config.OptionalString("aws_region", "us-east-1")
 
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
-	s3Cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(
-		config.RequiredString("aws_access_key"),
-		config.RequiredString("aws_secret_access_key"),
-		"",
-	))
+	s3Cfg, err := sdkConfig.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+	s3Cfg.Credentials = aws.NewCredentialsCache(
+		aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
+			return credentials.NewStaticCredentials(
+				config.RequiredString("aws_access_key"),
+				config.RequiredString("aws_secret_access_key"),
+				"",
+			), nil
+		}))
+
 	if hostname != "" {
-		s3Cfg.WithEndpoint(hostname)
+		s3Cfg.BaseEndpoint = aws.String(hostname)
 	}
 	s3Cfg.WithRegion(region)
 	if transport != nil {
@@ -116,7 +122,7 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		httpClient.Transport = transport
 		s3Cfg.WithHTTPClient(&httpClient)
 	}
-	awsSession, err := session.NewSession(s3Cfg)
+	awsSession, err := config.LoadDefaultConfig(ctx, s3Cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +184,10 @@ func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	if aerr, ok := err.(awserr.Error); ok {
-		return aerr.Code() == s3.ErrCodeNoSuchKey ||
-			// Check 'NotFound' as well because it's returned for some requests, even
-			// though the API model doesn't include it (hence why there isn't an
-			// 's3.ErrCodeNotFound' for comparison)
-			aerr.Code() == "NotFound"
-	}
-	return false
+	var nsk *types.NoSuchKey
+	return errors.As(err, &nsk) ||
+		// Check 'NotFound' as well because it's returned for some requests, even
+		// though the API model doesn't include it (hence why there isn't an
+		// 's3.ErrCodeNotFound' for comparison)
+		errors.Is(err, types.ErrNotFound)
 }
