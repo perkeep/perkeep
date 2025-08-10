@@ -26,8 +26,7 @@ Example low-level config:
 	       "bucket": "foo",
 	       "aws_region": "us-east-1",
 	       "aws_access_key": "...",
-	       "aws_secret_access_key": "...",
-	       "skipStartupCheck": false
+	       "aws_secret_access_key": "..."
 	     }
 	},
 */
@@ -35,6 +34,7 @@ package s3 // import "perkeep.org/pkg/blobserver/s3"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -44,12 +44,10 @@ import (
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/blobserver/proxycache"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	sdkConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"go4.org/fault"
 	"go4.org/jsonconfig"
 )
@@ -67,7 +65,7 @@ var (
 )
 
 type s3Storage struct {
-	client s3iface.S3API
+	client *s3.Client
 	bucket string
 	// optional "directory" where the blobs are stored, instead of at the root of the bucket.
 	// S3 is actually flat, which in effect just means that all the objects should have this
@@ -99,26 +97,34 @@ func newFromConfig(l blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 // This is used for unit tests.
 func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, transport http.RoundTripper) (blobserver.Storage, error) {
 	hostname := config.OptionalString("hostname", "")
+	if hostname == "http://localhost" {
+		return nil, errors.New(hostname)
+	}
 	region := config.OptionalString("aws_region", "us-east-1")
 
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
-	s3Cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(
-		config.RequiredString("aws_access_key"),
-		config.RequiredString("aws_secret_access_key"),
-		"",
-	))
-	if hostname != "" {
-		s3Cfg.WithEndpoint(hostname)
+	_ = config.OptionalBool("skipStartupCheck", false)
+	awsCfg, err := sdkConfig.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return nil, err
 	}
-	s3Cfg.WithRegion(region)
+	{
+		key := config.RequiredString("aws_access_key")
+		secret := config.RequiredString("aws_secret_access_key")
+		awsCfg.Credentials = aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
+			// fmt.Printf("Credentials: %s/%s\n", key, secret)
+			return aws.Credentials{
+				AccessKeyID:     key,
+				SecretAccessKey: secret,
+			}, nil
+		})
+	}
+	svc := s3New(awsCfg, region, hostname)
+
 	if transport != nil {
 		httpClient := *http.DefaultClient
 		httpClient.Transport = transport
-		s3Cfg.WithHTTPClient(&httpClient)
-	}
-	awsSession, err := session.NewSession(s3Cfg)
-	if err != nil {
-		return nil, err
+		awsCfg.HTTPClient = &httpClient
 	}
 
 	bucket := config.RequiredString("bucket")
@@ -131,29 +137,12 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		dirPrefix += "/"
 	}
 
-	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	ctx := context.TODO() // TODO: 5 min timeout or something?
-	if !skipStartupCheck {
-		info, err := normalizeBucketLocation(ctx, awsSession, hostname, bucket, region)
-		if err != nil {
-			return nil, err
-		}
-		awsSession.Config.WithRegion(info.region)
-		awsSession.Config.WithEndpoint(info.endpoint)
-		if !info.isAWS {
-			awsSession.Config.WithS3ForcePathStyle(true)
-		}
-	} else {
-		// safer default if we can't determine more info
-		awsSession.Config.WithS3ForcePathStyle(true)
-	}
-
 	sto := &s3Storage{
-		client:    s3.New(awsSession),
+		client:    svc,
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
 		hostname:  hostname,
@@ -178,12 +167,6 @@ func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	if aerr, ok := err.(awserr.Error); ok {
-		return aerr.Code() == s3.ErrCodeNoSuchKey ||
-			// Check 'NotFound' as well because it's returned for some requests, even
-			// though the API model doesn't include it (hence why there isn't an
-			// 's3.ErrCodeNotFound' for comparison)
-			aerr.Code() == "NotFound"
-	}
-	return false
+	var nsk *types.NoSuchKey
+	return errors.As(err, &nsk)
 }

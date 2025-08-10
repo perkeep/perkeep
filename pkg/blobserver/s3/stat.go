@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 
@@ -36,7 +36,7 @@ func (sto *s3Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(b
 	}
 
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		resp, err := sto.client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+		resp, err := sto.client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: &sto.bucket,
 			Key:    aws.String(sto.dirPrefix + br.String()),
 		})

@@ -20,8 +20,9 @@ import (
 	"context"
 	"io"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go4.org/readerutil"
 	"perkeep.org/pkg/blob"
 )
@@ -53,9 +54,9 @@ func (sto *s3Storage) ReceiveBlob(ctx context.Context, b blob.Ref, source io.Rea
 }
 
 func (sto *s3Storage) doUpload(ctx context.Context, b blob.Ref, r io.Reader) error {
-	uploader := s3manager.NewUploaderWithClient(sto.client)
+	uploader := s3manager.NewUploader(sto.client)
 
-	_, err := uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: &sto.bucket,
 		Key:    aws.String(sto.dirPrefix + b.String()),
 		Body:   r,
