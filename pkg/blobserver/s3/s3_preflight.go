@@ -18,6 +18,9 @@ package s3
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -25,19 +28,32 @@ import (
 )
 
 type s3EPResolver struct {
-	Resolver   s3.EndpointResolverV2
-	Parameters *s3.EndpointParameters
+	Endpoint string
+	endpoint smithyendpoints.Endpoint
 }
 
 // ResolveEndpoint attempts to resolve the endpoint with the provided options,
 // returning the endpoint if found. Otherwise an error is returned.
-func (res s3EPResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (
+func (res *s3EPResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (
 	smithyendpoints.Endpoint, error,
 ) {
-	if res.Parameters != nil {
-		params = *res.Parameters
+	if res.Endpoint != "" {
+		if res.endpoint.URI.Host == "" {
+			if u, err := url.Parse(res.Endpoint); err != nil {
+				return smithyendpoints.Endpoint{}, fmt.Errorf("parse %s: %w", res.Endpoint, err)
+
+			} else {
+				res.endpoint.URI = *u
+			}
+		}
+		if b := aws.ToString(params.Bucket); b != "" {
+			e := res.endpoint
+			e.URI = *e.URI.JoinPath(b)
+			return e, nil
+		}
+		return res.endpoint, nil
 	}
-	return res.Resolver.ResolveEndpoint(ctx, params)
+	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
 }
 
 // s3New create a new *s3.Client form config.
@@ -45,14 +61,21 @@ func (res s3EPResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointP
 // Help: https://docs.aws.amazon.com/pdfs/sdk-for-go/v2/developer-guide/aws-sdk-go-v2-dg.pdf
 func s3New(cfg aws.Config, region, endpoint string) *s3.Client {
 	var ep s3.EndpointParameters
-	ep.ForcePathStyle = aws.Bool(true)
 	if endpoint != "" {
-		ep.Endpoint = aws.String(endpoint)
+		if !strings.Contains(endpoint, "://") {
+			endpoint = "https://" + endpoint
+		}
 	}
 	if region != "" {
 		ep.Region = aws.String(region)
 	}
 	ep = ep.WithDefaults()
 
-	return s3.NewFromConfig(cfg, s3.WithEndpointResolverV2(s3EPResolver{Resolver: s3.NewDefaultEndpointResolverV2(), Parameters: &ep}))
+	return s3.NewFromConfig(cfg,
+		s3.WithEndpointResolverV2(&s3EPResolver{Endpoint: endpoint}),
+		// https://github.com/aws/aws-sdk-go-v2/issues/3020#issuecomment-2689117647
+		func(o *s3.Options) {
+			o.DisableLogOutputChecksumValidationSkipped = true
+		},
+	)
 }

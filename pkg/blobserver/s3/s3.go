@@ -26,8 +26,7 @@ Example low-level config:
 	       "bucket": "foo",
 	       "aws_region": "us-east-1",
 	       "aws_access_key": "...",
-	       "aws_secret_access_key": "...",
-	       "skipStartupCheck": false
+	       "aws_secret_access_key": "..."
 	     }
 	},
 */
@@ -104,6 +103,7 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 	region := config.OptionalString("aws_region", "us-east-1")
 
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
+	_ = config.OptionalBool("skipStartupCheck", false)
 	awsCfg, err := sdkConfig.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		return nil, err
@@ -112,6 +112,7 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		key := config.RequiredString("aws_access_key")
 		secret := config.RequiredString("aws_secret_access_key")
 		awsCfg.Credentials = aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
+			// fmt.Printf("Credentials: %s/%s\n", key, secret)
 			return aws.Credentials{
 				AccessKeyID:     key,
 				SecretAccessKey: secret,
