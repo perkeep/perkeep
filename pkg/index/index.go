@@ -122,7 +122,7 @@ type Owner struct {
 func NewOwner(keyID string, ref blob.Ref) *Owner {
 	return &Owner{
 		keyID:       []string{keyID},
-		blobByKeyID: map[string]SignerRefSet{keyID: SignerRefSet{ref.String()}},
+		blobByKeyID: map[string]SignerRefSet{keyID: {ref.String()}},
 	}
 }
 

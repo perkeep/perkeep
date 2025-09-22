@@ -454,9 +454,9 @@ func TestReadDirs(t *testing.T) {
 
 	// small directory, no splitting needed.
 	testReadDir(t, []*test.Blob{
-		&test.Blob{Contents: "AAAAAaaaaa"},
-		&test.Blob{Contents: "BBBBBbbbbb"},
-		&test.Blob{Contents: "CCCCCccccc"},
+		{Contents: "AAAAAaaaaa"},
+		{Contents: "BBBBBbbbbb"},
+		{Contents: "CCCCCccccc"},
 	})
 
 	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.
