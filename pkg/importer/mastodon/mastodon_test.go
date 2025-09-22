@@ -34,10 +34,10 @@ type testPost struct {
 }
 
 var expectedPosts = map[string]testPost{
-	"https://example.com/d0264031-3c1b-42dd-87a5-e0c3b75eec70": testPost{
+	"https://example.com/d0264031-3c1b-42dd-87a5-e0c3b75eec70": {
 		content: "MULTIPLE<br /><br />LINES<br /><br />OF<br /><br />TEXT",
 	},
-	"https://example.com/objects/bf8712b8-6268-4a8c-acaf-99966a5cd9eb": testPost{
+	"https://example.com/objects/bf8712b8-6268-4a8c-acaf-99966a5cd9eb": {
 		content:     "A status with a spoiler text.",
 		spoilerText: "I'm the spoiler text.",
 	},
