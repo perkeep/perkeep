@@ -21,6 +21,7 @@ package netutil // import "perkeep.org/internal/netutil"
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -33,11 +34,14 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
 	ErrNotFound      = errors.New("netutil: connection not found")
 	ErrUnsupportedOS = errors.New("netutil: not implemented on this operating system")
+
+	cmdTimeout = 1 * time.Second
 )
 
 // ConnUserid returns the uid that owns the given localhost connection.
@@ -153,7 +157,11 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 	if _, err = exec.LookPath("lsof"); err != nil {
 		return
 	}
-	cmd := exec.Command("lsof",
+
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "lsof",
 		"-b", // avoid system calls that could block
 		"-w", // and don't warn about cases where -b fails
 		"-n", // don't resolve network names
@@ -162,17 +170,11 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 		//"-a",  // AND the following together:
 		// "-u", strconv.Itoa(uid)  // just this uid
 		"-itcp") // we only care about TCP connections
-	stdout, err := cmd.StdoutPipe()
+	stdout, err := stdoutPipe(cmd)
 	if err != nil {
-		return
+		return -1, err
 	}
-	defer cmd.Wait()
-	defer stdout.Close()
-	err = cmd.Start()
-	if err != nil {
-		return
-	}
-	defer cmd.Process.Kill()
+
 	br := bufio.NewReader(stdout)
 	for {
 		line, err := br.ReadSlice('\n')
@@ -198,20 +200,34 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 }
 
 func uidFromSockstat(lip net.IP, lport int, rip net.IP, rport int) (int, error) {
-	cmd := exec.Command("sockstat", "-Ptcp")
-	stdout, err := cmd.StdoutPipe()
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sockstat", "-Ptcp")
+	stdout, err := stdoutPipe(cmd)
 	if err != nil {
 		return -1, err
 	}
-	defer cmd.Wait()
-	defer stdout.Close()
-	err = cmd.Start()
-	if err != nil {
-		return -1, err
-	}
-	defer cmd.Process.Kill()
 
 	return uidFromSockstatReader(lip, lport, rip, rport, stdout)
+}
+
+func stdoutPipe(cmd *exec.Cmd) (io.ReadCloser, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	return stdout, nil
 }
 
 func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (int, error) {
