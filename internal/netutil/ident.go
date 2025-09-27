@@ -41,7 +41,7 @@ var (
 )
 
 // ConnUserid returns the uid that owns the given localhost connection.
-// The returned error is ErrNotFound if the connection wasn't found.
+// If the connection is not found, it returns ErrNotFound.
 func ConnUserid(conn net.Conn) (uid int, err error) {
 	return AddrPairUserid(conn.LocalAddr(), conn.RemoteAddr())
 }
@@ -73,19 +73,18 @@ func HostPortToIP(hostport string, ctx *net.TCPAddr) (hostaddr *net.TCPAddr, err
 
 // AddrPairUserid returns the local userid who owns the TCP connection
 // given by the local and remote ip:port (lipport and ripport,
-// respectively).  Returns ErrNotFound for the error if the TCP connection
-// isn't found.
+// respectively). If the TCP connection is not found, it returns ErrNotFound.
 func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 	lAddr, lOk := local.(*net.TCPAddr)
 	rAddr, rOk := remote.(*net.TCPAddr)
 	if !(lOk && rOk) {
-		return -1, fmt.Errorf("netutil: Could not convert Addr to TCPAddr")
+		return 0, fmt.Errorf("netutil: Could not convert Addr to TCPAddr")
 	}
 
 	localv4 := (lAddr.IP.To4() != nil)
 	remotev4 := (rAddr.IP.To4() != nil)
 	if localv4 != remotev4 {
-		return -1, fmt.Errorf("netutil: address pairs of different families; localv4=%v, remotev4=%v",
+		return 0, fmt.Errorf("netutil: address pairs of different families; localv4=%v, remotev4=%v",
 			localv4, remotev4)
 	}
 
@@ -101,7 +100,7 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 		}
 		f, err := os.Open(file)
 		if err != nil {
-			return -1, fmt.Errorf("Error opening %s: %v", file, err)
+			return 0, fmt.Errorf("Error opening %s: %v", file, err)
 		}
 		defer f.Close()
 		return uidFromProcReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
@@ -140,19 +139,19 @@ func uidFromUsernameFn(username string) (uid int, err error) {
 		return uid, nil
 	}
 	u, err := user.Lookup(username)
-	if err == nil {
-		uid, err := strconv.Atoi(u.Uid)
-		return uid, err
+	if err != nil {
+		return 0, err
 	}
-	return 0, err
+	return strconv.Atoi(u.Uid)
 }
 
 func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
 	seek := fmt.Sprintf("%s:%d->%s:%d", maybeBrackets(lip), lport, maybeBrackets(rip), rport)
 	seekb := []byte(seek)
-	if _, err = exec.LookPath("lsof"); err != nil {
-		return
+	if _, err := exec.LookPath("lsof"); err != nil {
+		return 0, err
 	}
+
 	cmd := exec.Command("lsof",
 		"-b", // avoid system calls that could block
 		"-w", // and don't warn about cases where -b fails
@@ -162,25 +161,29 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 		//"-a",  // AND the following together:
 		// "-u", strconv.Itoa(uid)  // just this uid
 		"-itcp") // we only care about TCP connections
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return
+		return 0, err
 	}
-	defer cmd.Wait()
-	defer stdout.Close()
-	err = cmd.Start()
-	if err != nil {
-		return
+	if err := cmd.Start(); err != nil {
+		return 0, err
 	}
-	defer cmd.Process.Kill()
+
+	defer func() {
+		if werr := cmd.Wait(); werr != nil && err == nil {
+			err = werr
+		}
+	}()
+
 	br := bufio.NewReader(stdout)
 	for {
 		line, err := br.ReadSlice('\n')
 		if err == io.EOF {
-			break
+			return 0, ErrNotFound
 		}
 		if err != nil {
-			return -1, err
+			return 0, err
 		}
 		if !bytes.Contains(line, seekb) {
 			continue
@@ -190,35 +193,35 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 		if len(f) < 8 {
 			continue
 		}
-		username := string(f[2])
-		return uidFromUsername(username)
+		return uidFromUsername(string(f[2]))
 	}
-	return -1, ErrNotFound
-
 }
 
-func uidFromSockstat(lip net.IP, lport int, rip net.IP, rport int) (int, error) {
+func uidFromSockstat(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
 	cmd := exec.Command("sockstat", "-Ptcp")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
-	defer cmd.Wait()
-	defer stdout.Close()
-	err = cmd.Start()
-	if err != nil {
-		return -1, err
+
+	if err := cmd.Start(); err != nil {
+		return 0, err
 	}
-	defer cmd.Process.Kill()
+
+	defer func() {
+		if werr := cmd.Wait(); werr != nil && err == nil {
+			err = werr
+		}
+	}()
 
 	return uidFromSockstatReader(lip, lport, rip, rport, stdout)
 }
 
-func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (int, error) {
+func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
 	pat, err := regexp.Compile(fmt.Sprintf(`^([^ ]+).*%s:%d *%s:%d$`,
 		lip.String(), lport, rip.String(), rport))
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -230,10 +233,10 @@ func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Re
 	}
 
 	if err := scanner.Err(); err != nil {
-		return -1, err
+		return 0, err
 	}
 
-	return -1, ErrNotFound
+	return 0, ErrNotFound
 }
 
 func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
@@ -259,7 +262,7 @@ func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
-			return -1, ErrNotFound
+			return 0, ErrNotFound
 		}
 		parts := strings.Fields(strings.TrimSpace(line))
 		if len(parts) < 8 {
@@ -267,8 +270,7 @@ func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader
 		}
 		// log.Printf("parts[1] = %q; localHex = %q", parts[1], localHex)
 		if parts[1] == localHex && parts[2] == remoteHex {
-			uid, err = strconv.Atoi(parts[7])
-			return uid, err
+			return strconv.Atoi(parts[7])
 		}
 	}
 }
