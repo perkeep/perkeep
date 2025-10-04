@@ -27,7 +27,7 @@ require (
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20230225012048-214862532bf5
 	golang.org/x/crypto v0.38.0
-	golang.org/x/image v0.14.0
+	golang.org/x/image v0.18.0
 	golang.org/x/net v0.40.0
 	golang.org/x/oauth2 v0.15.0
 	golang.org/x/sync v0.14.0
