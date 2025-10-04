@@ -75,8 +75,14 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
 	check(cmd.Start())
-	defer cmd.Wait()
+
+	defer func() {
+		if werr := cmd.Wait(); werr != nil && outerr == nil {
+			outerr = werr
+		}
+	}()
 	defer stdin.Close()
+
 	br := bufio.NewReader(stdout)
 	lineb, _, err := br.ReadLine()
 	if err != nil {
@@ -133,7 +139,7 @@ func runPass(bin string, args ...string) error {
 	return nil
 }
 
-func (r *Request) getPINNaïve() (string, error) {
+func (r *Request) getPINNaïve() (pin string, outerr error) {
 	stty, err := exec.LookPath("stty")
 	if err != nil {
 		return "", errors.New("no pinentry or stty found")
@@ -141,7 +147,11 @@ func (r *Request) getPINNaïve() (string, error) {
 	if err := runPass(stty, "-echo"); err != nil {
 		return "", err
 	}
-	defer runPass(stty, "echo")
+	defer func() {
+		if err := runPass(stty, "echo"); err != nil && outerr == nil {
+			outerr = err
+		}
+	}()
 
 	if r.Desc != "" {
 		fmt.Printf("%s\n\n", r.Desc)
