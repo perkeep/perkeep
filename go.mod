@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	bazil.org/fuse v0.0.0-20230120002735-62a210ff1fd5
-	cloud.google.com/go/compute/metadata v0.2.3
+	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/logging v1.7.0
 	cloud.google.com/go/storage v1.29.0
 	filippo.io/age v1.2.1
@@ -29,7 +29,7 @@ require (
 	golang.org/x/crypto v0.38.0
 	golang.org/x/image v0.18.0
 	golang.org/x/net v0.40.0
-	golang.org/x/oauth2 v0.15.0
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.5.0
@@ -45,7 +45,6 @@ require (
 
 require (
 	cloud.google.com/go v0.110.2 // indirect
-	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
 	cloud.google.com/go/longrunning v0.4.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
