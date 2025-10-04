@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/logging v1.7.0
 	cloud.google.com/go/storage v1.29.0
-	filippo.io/age v1.1.1
+	filippo.io/age v1.2.1
 	github.com/aws/aws-sdk-go v1.44.51
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
