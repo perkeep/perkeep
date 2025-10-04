@@ -102,7 +102,10 @@ func CamliVarDir() (string, error) {
 	newName := camliVarDirOf("perkeep")
 
 	if fi, err := os.Lstat(oldName); err == nil && fi.IsDir() && oldName != newName {
-		n := numRegularFilesUnder(oldName)
+		n, err := numRegularFilesUnder(oldName)
+		if err != nil {
+			return "", fmt.Errorf("error enumerating old directory %s: %w", oldName, err)
+		}
 		if n == 0 {
 			log.Printf("removing old, empty var directory %s", oldName)
 			os.RemoveAll(oldName)
@@ -113,14 +116,17 @@ func CamliVarDir() (string, error) {
 	return newName, nil
 }
 
-func numRegularFilesUnder(dir string) (n int) {
-	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+func numRegularFilesUnder(dir string) (n int, err error) {
+	err = filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if fi != nil && fi.Mode().IsRegular() {
 			n++
 		}
 		return nil
 	})
-	return
+	return n, err
 }
 
 func camliVarDirOf(name string) string {
@@ -171,7 +177,10 @@ func perkeepConfigDir() (string, error) {
 	oldName := configDirNamed("camlistore")
 	newName := configDirNamed("perkeep")
 	if fi, err := os.Lstat(oldName); err == nil && fi.IsDir() && oldName != newName {
-		n := numRegularFilesUnder(oldName)
+		n, err := numRegularFilesUnder(oldName)
+		if err != nil {
+			return "", fmt.Errorf("error enumerating old directory %s: %w", oldName, err)
+		}
 		if n == 0 {
 			log.Printf("removing old, empty config dir %s", oldName)
 			os.RemoveAll(oldName)
