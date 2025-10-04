@@ -392,7 +392,10 @@ var sysExec func(argv0 string, argv []string, envv []string) (err error)
 // for it to finish.
 func runExec(bin string, args []string, e *env) error {
 	if sysExec != nil {
-		sysExec(bin, append([]string{filepath.Base(bin)}, args...), e.flat())
+		err := sysExec(bin, append([]string{filepath.Base(bin)}, args...), e.flat())
+		if err != nil {
+			return err
+		}
 	}
 
 	cmd := exec.Command(bin, args...)
