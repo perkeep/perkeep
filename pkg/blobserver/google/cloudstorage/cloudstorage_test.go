@@ -41,7 +41,7 @@ import (
 )
 
 var (
-	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"camtool googinit --type=cloud\" to generate the auth parameters.")
+	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"pk googinit --type=cloud\" to generate the auth parameters.")
 	bucket       = flag.String("bucket", "", "Bucket name to use for testing. If empty, and --config blank too, testing is skipped. The bucket must be empty.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")

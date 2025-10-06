@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"camtool googinit --type=drive\" to generate the auth parameters.")
+	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"pk googinit --type=drive\" to generate the auth parameters.")
 	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", and --config blank too, testing is skipped.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")

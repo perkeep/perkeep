@@ -216,7 +216,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 			if is4To5SchemaBump(schemaVersion) {
 				return idx, errMissingWholeRef
 			}
-			tip = "Run 'perkeepd --reindex' (it might take awhile, but shows status). Alternative: 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
+			tip = "Run 'perkeepd --reindex' (it might take awhile, but shows status). Alternative: 'pk dbinit' (or just delete the file for a file based index), and then 'pk sync --all'"
 		}
 		return nil, fmt.Errorf("index schema version is %d; required one is %d. You need to reindex. %s",
 			schemaVersion, requiredSchemaVersion, tip)

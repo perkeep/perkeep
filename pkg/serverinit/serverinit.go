@@ -407,7 +407,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 //
 // TODO(bradfitz): document and/or link to the low-level format; for
 // now you can see the high-level config format at https://perkeep.org/pkg/types/serverconfig/#Config
-// and the the low-level format by running "camtool dumpconfig".
+// and the the low-level format by running "pk dumpconfig".
 type Config struct {
 	jconf jsonconfig.Obj // low-level JSON config
 

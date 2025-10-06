@@ -472,7 +472,7 @@ func (zm zipMetaInfo) rowValue(offset uint64) string {
 	return fmt.Sprintf("%d %v %d %d %d", zm.zipSize, zm.wholeRef, zm.wholeSize, offset, zm.dataSize)
 }
 
-// TODO(mpl): add client command to call reindex on an "offline" blobpacked. camtool packblobs -reindex maybe?
+// TODO(mpl): add client command to call reindex on an "offline" blobpacked. pk packblobs -reindex maybe?
 
 // fileName returns the name of the (possibly partial) first file in zipRef
 // (i.e. the actual data). It returns a zipOpenError if there was any problem

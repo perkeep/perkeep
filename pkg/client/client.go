@@ -994,7 +994,7 @@ func (c *Client) condDiscovery() error {
 }
 
 // DiscoveryDoc returns the server's JSON discovery document.
-// This method exists purely for the "camtool discovery" command.
+// This method exists purely for the "pk discovery" command.
 // Clients shouldn't have to parse this themselves.
 func (c *Client) DiscoveryDoc(ctx context.Context) (io.Reader, error) {
 	res, err := c.discoveryResp(ctx)
