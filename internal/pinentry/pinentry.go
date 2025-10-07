@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -59,7 +60,14 @@ func check(err error) {
 
 func (r *Request) GetPIN() (pin string, outerr error) {
 	defer catch(&outerr)
-	bin, err := exec.LookPath("pinentry")
+	var bin string
+	var err error
+	if runtime.GOOS == "darwin" {
+		bin, err = exec.LookPath("pinentry-mac")
+	}
+	if err != nil || bin == "" {
+		bin, err = exec.LookPath("pinentry")
+	}
 	if err != nil {
 		return r.getPINNaïve()
 	}
