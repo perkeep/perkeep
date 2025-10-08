@@ -199,6 +199,7 @@ func init() {
 // HostConfig holds the parameters to set up a Host.
 type HostConfig struct {
 	BaseURL      string
+	RequireHTTPS bool
 	Prefix       string                  // URL prefix for the importer handler
 	Target       blobserver.StatReceiver // storage for the imported object blobs
 	BlobSource   blob.Fetcher            // for additional resources, such as twitter zip file
@@ -216,6 +217,7 @@ type HostConfig struct {
 func NewHost(hc HostConfig) (*Host, error) {
 	h := &Host{
 		baseURL:      hc.BaseURL,
+		requireHTTPS: hc.RequireHTTPS,
 		importerBase: hc.BaseURL + hc.Prefix,
 		imp:          make(map[string]*importer),
 	}
@@ -290,6 +292,13 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	authType := cfg.OptionalString("auth", "")
+	// TODO(radkat): I could hide it inside the auth package and make AuthMode interface has such a method.
+	// That would require adding auth import here though.
+	if authType == "tailscale" {
+		hc.RequireHTTPS = false
+	}
+
 	hc.ClientId = ClientId
 	hc.ClientSecret = ClientSecret
 	host, err := NewHost(hc)
@@ -402,6 +411,7 @@ type Host struct {
 	importers    []string // sorted; e.g. dummy flickr foursquare picasa twitter
 	imp          map[string]*importer
 	baseURL      string
+	requireHTTPS bool
 	importerBase string
 	target       blobserver.StatReceiver
 	blobSource   blob.Fetcher // e.g. twitter reading zip file
@@ -846,8 +856,11 @@ func (im *importer) ShowClientAuthEditForm() bool {
 	return im.props.NeedsAPIKey
 }
 
-func (im *importer) InsecureForm() bool {
-	return !strings.HasPrefix(im.host.ImporterBaseURL(), "https://")
+func (im *importer) SecureForm() bool {
+	if im.host.requireHTTPS {
+		return strings.HasPrefix(im.host.ImporterBaseURL(), "https://")
+	}
+	return true
 }
 
 func (im *importer) CanAddNewAccount() bool {

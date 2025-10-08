@@ -128,7 +128,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
 </ul>
 
 {{if .Importer.ShowClientAuthEditForm}}
-	{{if .Importer.InsecureForm}}
+	{{if not .Importer.SecureForm}}
 	<h1 style="color:red;">This page is not served securely (no https). Proceed at your own risk.</h1>
 	{{end}}
     <h1>Client ID &amp; Client Secret</h1>
