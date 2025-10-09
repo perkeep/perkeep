@@ -29,7 +29,7 @@ func init() {
 
 func memUnix() int64 {
 	var ru syscall.Rusage
-	syscall.Getrusage(0, &ru)
+	syscall.Getrusage(0, &ru) // nolint:errcheck
 	if runtime.GOOS == "linux" {
 		// in KB
 		return int64(ru.Maxrss) << 10
