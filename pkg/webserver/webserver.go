@@ -41,9 +41,13 @@ import (
 	"golang.org/x/net/http2"
 	"perkeep.org/pkg/webserver/listen"
 	"tailscale.com/tsnet"
+	"tailscale.com/util/ctxkey"
 )
 
 const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
+
+// TailscaleCtxKey is the context key for whether the server is running in Tailscale tsnet mode.
+var TailscaleCtxKey = ctxkey.New("tailscale", false)
 
 type Server struct {
 	mux       *http.ServeMux
@@ -339,6 +343,11 @@ func (s *Server) Serve() {
 
 	srv := &http.Server{
 		Handler: s,
+		BaseContext: func(ln net.Listener) context.Context {
+			ctx := context.Background()
+			ctx = TailscaleCtxKey.WithValue(ctx, s.tsnetServer != nil)
+			return ctx
+		},
 	}
 	// TODO: allow configuring src.ErrorLog (and plumb through to
 	// Google Cloud Logging when run on GCE, eventually)

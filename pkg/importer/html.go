@@ -27,7 +27,7 @@ import (
 	"perkeep.org/pkg/blob"
 )
 
-func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data interface{}) {
+func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data any) {
 	tmplName := strings.TrimPrefix(fmt.Sprintf("%T", data), "importer.")
 	var buf bytes.Buffer
 	err := h.tmpl.ExecuteTemplate(&buf, tmplName, data)
@@ -54,9 +54,10 @@ type importerPage struct {
 }
 
 type importerBody struct {
-	Host      *Host
-	Importer  *importer
-	SetupHelp template.HTML
+	Host                       *Host
+	Importer                   *importer
+	ShowSecureTransportWarning bool
+	SetupHelp                  template.HTML
 }
 
 type acctPage struct {
@@ -128,7 +129,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
 </ul>
 
 {{if .Importer.ShowClientAuthEditForm}}
-	{{if .Importer.InsecureForm}}
+	{{if .ShowSecureTransportWarning}}
 	<h1 style="color:red;">This page is not served securely (no https). Proceed at your own risk.</h1>
 	{{end}}
     <h1>Client ID &amp; Client Secret</h1>

@@ -40,6 +40,7 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/pkg/webserver"
 
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -592,12 +593,16 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 		setup = setuper.AccountSetupHTML(h)
 	}
 
+	isTailscale := webserver.TailscaleCtxKey.Value(r.Context())
+	isTLS := r.TLS != nil
+
 	h.execTemplate(w, r, importerPage{
 		Title: "Importer - " + imp.Name(),
 		Body: importerBody{
-			Host:      h,
-			Importer:  imp,
-			SetupHelp: template.HTML(setup),
+			Host:                       h,
+			ShowSecureTransportWarning: !isTailscale && !isTLS,
+			Importer:                   imp,
+			SetupHelp:                  template.HTML(setup),
 		},
 	})
 }
@@ -844,10 +849,6 @@ func (im *importer) ShowClientAuthEditForm() bool {
 		return false
 	}
 	return im.props.NeedsAPIKey
-}
-
-func (im *importer) InsecureForm() bool {
-	return !strings.HasPrefix(im.host.ImporterBaseURL(), "https://")
 }
 
 func (im *importer) CanAddNewAccount() bool {
