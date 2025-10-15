@@ -101,7 +101,7 @@ func getMultipartOverhead() int64 {
 		part, _ := w.CreateFormFile("0", "0")
 
 		dummyContents := []byte("0")
-		part.Write(dummyContents)
+		part.Write(dummyContents) //nolint:errcheck
 
 		w.Close()
 		multipartOverhead = int64(b.Len()) - 3 // remove what was added
@@ -139,7 +139,10 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
 	if resp.StatusCode != 200 {
 		c.printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
-		io.Copy(os.Stderr, resp.Body)
+		_, err := io.Copy(os.Stderr, resp.Body)
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("after %s request, HTTP response code is %d; no JSON to parse", requestName, resp.StatusCode)
 	}
 	jmap := make(map[string]interface{})
@@ -524,7 +527,10 @@ func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Build
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
 	}
-	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
+	err = fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
+	if err != nil {
+		return blob.Ref{}, fmt.Errorf("could not populate file map for wholeRef %q: %v", wholeRef, err)
+	}
 	json, err := fileMap.JSON()
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)

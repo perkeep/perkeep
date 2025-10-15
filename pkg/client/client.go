@@ -236,7 +236,10 @@ func (c *Client) NewPathClient(path string) (*Client, error) {
 		return nil, err
 	}
 	pc.authMode = c.authMode
-	pc.discoOnce.Do(noop)
+	err = pc.discoOnce.Do(noop)
+	if err != nil {
+		return nil, err
+	}
 	return pc, nil
 }
 
@@ -437,8 +440,14 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	if err != nil {
 		return nil, blob.Ref{}, err
 	}
-	c.discoOnce.Do(noop)
-	c.prefixOnce.Do(noop)
+	err = c.discoOnce.Do(noop)
+	if err != nil {
+		return nil, blob.Ref{}, err
+	}
+	err = c.prefixOnce.Do(noop)
+	if err != nil {
+		return nil, blob.Ref{}, err
+	}
 	c.prefixv = m[1]
 	c.isSharePrefix = true
 	c.authMode = auth.None{}
@@ -1219,7 +1228,10 @@ func (c *Client) expect2XX(req *http.Request) (*http.Response, error) {
 	res, err := c.doReqGated(req)
 	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
 		buf := new(bytes.Buffer)
-		io.CopyN(buf, res.Body, 1<<20)
+		_, err := io.CopyN(buf, res.Body, 1<<20)
+		if err != nil {
+			return res, err
+		}
 		res.Body.Close()
 		return res, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, req.URL.String(), buf.String())
 	}
