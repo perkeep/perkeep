@@ -130,10 +130,16 @@ func (r *run) importFeed() error {
 	}
 	itemsNode := r.RootNode()
 	if accountNode.Attr("title") == "" {
-		accountNode.SetAttr("title", fmt.Sprintf("%s Feed", feed.Title))
+		err := accountNode.SetAttr("title", fmt.Sprintf("%s Feed", feed.Title))
+		if err != nil {
+			return err
+		}
 	}
 	if itemsNode.Attr("title") == "" {
-		itemsNode.SetAttr("title", fmt.Sprintf("%s Items", feed.Title))
+		err := itemsNode.SetAttr("title", fmt.Sprintf("%s Items", feed.Title))
+		if err != nil {
+			return err
+		}
 	}
 	for _, item := range feed.Items {
 		if err := r.importItem(itemsNode, item); err != nil {
