@@ -431,7 +431,7 @@ func RefFromHash(h hash.Hash) Ref {
 // recommended hash function.
 func RefFromString(s string) Ref {
 	h := NewHash()
-	io.WriteString(h, s)
+	io.WriteString(h, s) //nolint:errcheck
 	return RefFromHash(h)
 }
 
