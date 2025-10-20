@@ -192,7 +192,7 @@ func (c *Collector) Collect(ctx context.Context) (err error) {
 		return nil
 	})
 	if err := sweeper.Err(); err != nil {
-		return fmt.Errorf("Sweep failure: %v", err)
+		return fmt.Errorf("sweep failure: %v", err)
 	}
 	return nil
 }
