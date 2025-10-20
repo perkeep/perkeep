@@ -244,7 +244,7 @@ var setCommandLineOutput func(io.Writer) // or nil if before Go 1.2
 // PrintLicenses prints all the licences registered by go4.org/legal for this program.
 func PrintLicenses() {
 	for _, text := range legal.Licenses() {
-		fmt.Fprintln(Stderr, text)
+		fmt.Fprintln(Stderr, text) //nolint:errcheck
 	}
 }
 
@@ -264,7 +264,7 @@ func Main() {
 
 	args := flag.Args()
 	if *FlagVersion {
-		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Summary())
+		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Summary()) //nolint:errcheck
 		return
 	}
 	if *FlagHelp {
@@ -367,13 +367,13 @@ func shiftFlags(mode string) []string {
 
 // Errorf prints to Stderr, regardless of FlagVerbose.
 func Errorf(format string, args ...interface{}) {
-	fmt.Fprintf(Stderr, format, args...)
+	fmt.Fprintf(Stderr, format, args...) //nolint:errcheck
 }
 
 // Printf prints to Stderr if FlagVerbose, and is silent otherwise.
 func Printf(format string, args ...interface{}) {
 	if *FlagVerbose {
-		fmt.Fprintf(Stderr, format, args...)
+		fmt.Fprintf(Stderr, format, args...) //nolint:errcheck
 	}
 }
 
