@@ -35,7 +35,7 @@ func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data any) {
 		http.Error(w, fmt.Sprintf("Error executing template %q: %v", tmplName, err), 500)
 		return
 	}
-	w.Write(buf.Bytes())
+	w.Write(buf.Bytes()) // nolint:errcheck
 }
 
 type importersRootPage struct {
