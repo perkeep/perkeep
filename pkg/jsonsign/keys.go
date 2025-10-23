@@ -28,9 +28,10 @@ import (
 	"perkeep.org/internal/osutil"
 
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	// #1727 tracks the proper fix.
+	"golang.org/x/crypto/openpgp"        // nolint:staticcheck
+	"golang.org/x/crypto/openpgp/armor"  // nolint:staticcheck
+	"golang.org/x/crypto/openpgp/packet" // nolint:staticcheck
 )
 
 const publicKeyMaxSize = 256 * 1024
@@ -54,32 +55,36 @@ func fingerprintString(pubKey *packet.PublicKey) string {
 	return fmt.Sprintf("%X", pubKey.Fingerprint)
 }
 
-func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
-	defer reader.Close()
+func openArmoredPublicKeyFile(reader io.ReadCloser) (pk *packet.PublicKey, err error) {
+	defer func() {
+		if cerr := reader.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	var lr = io.LimitReader(reader, publicKeyMaxSize)
 	block, _ := armor.Decode(lr)
 	if block == nil {
-		return nil, errors.New("Couldn't find PGP block in public key file")
+		return nil, errors.New("couldn't find PGP block in public key file")
 	}
 	if block.Type != "PGP PUBLIC KEY BLOCK" {
 		return nil, errors.New("invalid public key blob")
 	}
 	p, err := packet.Read(block.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid public key blob: %v", err)
+		return nil, fmt.Errorf("invalid public key blob: %w", err)
 	}
 
 	pk, ok := p.(*packet.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("Invalid public key blob; not a public key packet")
+		return nil, fmt.Errorf("invalid public key blob; not a public key packet")
 	}
 	return pk, nil
 }
 
 // EntityFromSecring returns the openpgp Entity from keyFile that matches keyID.
 // If empty, keyFile defaults to osutil.SecretRingFile().
-func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
+func EntityFromSecring(keyID, keyFile string) (entity *openpgp.Entity, err error) {
 	if keyID == "" {
 		return nil, errors.New("empty keyID passed to EntityFromSecring")
 	}
@@ -91,13 +96,16 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: failed to open keyring: %v", err)
 	}
-	defer secring.Close()
+	defer func() {
+		if cerr := secring.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	el, err := readKeyRing(secring)
 	if err != nil {
 		return nil, fmt.Errorf("readKeyRing of %q: %v", keyFile, err)
 	}
-	var entity *openpgp.Entity
 	for _, e := range el {
 		pk := e.PrivateKey
 		if pk == nil || (keyID != fmt.Sprintf("%X", pk.Fingerprint) &&
@@ -133,7 +141,10 @@ func ArmoredPublicKey(entity *openpgp.Entity) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	wc.Close()
+	err = wc.Close()
+	if err != nil {
+		return "", fmt.Errorf("error closing armor writer: %w", err)
+	}
 	if !bytes.HasSuffix(buf.Bytes(), newlineBytes) {
 		buf.WriteString("\n")
 	}
@@ -176,15 +187,19 @@ func readKeyRing(r io.Reader) (openpgp.EntityList, error) {
 func KeyIdFromRing(secRing string) (keyID string, err error) {
 	f, err := wkfs.Open(secRing)
 	if err != nil {
-		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
+		return "", fmt.Errorf("could not open secret ring file %v: %w", secRing, err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	el, err := readKeyRing(f)
 	if err != nil {
-		return "", fmt.Errorf("Could not read secret ring file %s: %v", secRing, err)
+		return "", fmt.Errorf("could not read secret ring file %s: %w", secRing, err)
 	}
 	if len(el) != 1 {
-		return "", fmt.Errorf("Secret ring file %v contained %d identities; expected 1", secRing, len(el))
+		return "", fmt.Errorf("secret ring file %v contained %d identities; expected 1", secRing, len(el))
 	}
 	ent := el[0]
 	return ent.PrimaryKey.KeyIdString(), nil
@@ -207,11 +222,13 @@ func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	}
 	err = WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
 	if err != nil {
-		f.Close()
-		return "", fmt.Errorf("Could not write new key ring to %s: %v", secRing, err)
+		if cerr := f.Close(); cerr != nil {
+			err = fmt.Errorf("%w: %w", err, cerr)
+		}
+		return "", fmt.Errorf("could not write new key ring to %s: %w", secRing, err)
 	}
 	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("Could not close %v: %v", secRing, err)
+		return "", fmt.Errorf("could not close %v: %w", secRing, err)
 	}
 	return ent.PrimaryKey.KeyIdString(), nil
 }

@@ -22,7 +22,8 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/crypto/openpgp"
+	// #1727 tracks the proper fix.
+	"golang.org/x/crypto/openpgp" // nolint:staticcheck
 	"perkeep.org/internal/gpgagent"
 	"perkeep.org/internal/pinentry"
 )
@@ -38,7 +39,11 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 	case gpgagent.ErrNoAgent:
 		fmt.Fprintf(os.Stderr, "Note: gpg-agent not found; resorting to on-demand password entry.\n")
 	case nil:
-		defer conn.Close()
+		defer func() {
+			if cerr := conn.Close(); err == nil {
+				err = cerr
+			}
+		}()
 		req := &gpgagent.PassphraseRequest{
 			CacheKey: "camli:jsonsign:" + pubk.KeyIdShortString(),
 			Prompt:   "Passphrase",
@@ -52,7 +57,10 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 					return nil
 				}
 				req.Error = "Passphrase failed to decrypt: " + err.Error()
-				conn.RemoveFromCache(req.CacheKey)
+				err = conn.RemoveFromCache(req.CacheKey)
+				if err != nil {
+					return fmt.Errorf("jsonsign: failed to remove passphrase from cache: %w", err)
+				}
 				continue
 			}
 			if err == gpgagent.ErrCancel {

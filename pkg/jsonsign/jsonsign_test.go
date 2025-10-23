@@ -24,7 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/crypto/openpgp"
+	// #1727 tracks the proper fix.
+	"golang.org/x/crypto/openpgp" // nolint:staticcheck
 	. "perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/test"
 )
