@@ -214,7 +214,10 @@ func TestReaderSeekStress(t *testing.T) {
 			t.Errorf("  differences start at offset %d:\n    got: %s\n   want: %s\n", off, summary(got), summary(want))
 			break
 		}
-		fr.Close()
+		err = fr.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -282,7 +285,10 @@ func TestReaderEfficiency(t *testing.T) {
 			break
 		}
 	}
-	fr.Close()
+	err = fr.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	blobsFetched, bytesFetched := sto.Stats()
 	if blobsFetched != int64(numBlobs) {
 		t.Errorf("Fetched %d blobs; want %d", blobsFetched, numBlobs)
@@ -335,7 +341,7 @@ func TestReaderForeachChunk(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("Error fetching blobref of chunk %+v: %v", p, err)
 		}
-		defer rc.Close()
+		defer rc.Close() // nolint:errcheck
 		totSize += p.Size
 		if uint64(size) != p.Size {
 			return fmt.Errorf("fetched size %d doesn't match expected for chunk %+v", size, p)
