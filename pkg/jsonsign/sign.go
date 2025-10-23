@@ -31,8 +31,9 @@ import (
 	"perkeep.org/pkg/blob"
 
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
+	// #1727 tracks the proper fix.
+	"golang.org/x/crypto/openpgp"        // nolint:staticcheck
+	"golang.org/x/crypto/openpgp/packet" // nolint:staticcheck
 )
 
 type EntityFetcher interface {
@@ -78,12 +79,16 @@ func (ce *CachingEntityFetcher) FetchEntity(fingerprint string) (*openpgp.Entity
 	return e, err
 }
 
-func (fe *FileEntityFetcher) FetchEntity(fingerprint string) (*openpgp.Entity, error) {
+func (fe *FileEntityFetcher) FetchEntity(fingerprint string) (entity *openpgp.Entity, err error) {
 	f, err := wkfs.Open(fe.File)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	el, err := readKeyRing(f)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: readKeyRing of %q: %v", fe.File, err)
@@ -164,9 +169,12 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 	}
 
 	pubk, err := openArmoredPublicKeyFile(pubkeyReader)
-	pubkeyReader.Close()
 	if err != nil {
 		return execfail(fmt.Sprintf("failed to parse public key from blobref %s: %v", signerBlob.String(), err))
+	}
+	err = pubkeyReader.Close()
+	if err != nil {
+		return "", fmt.Errorf("failed to close public key reader: %w", err)
 	}
 
 	// This check should be redundant if the above JSON parse succeeded, but
@@ -187,7 +195,10 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		if err != nil {
 			return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
 		}
-		secring.Close() // just opened to see if it's readable
+		err = secring.Close() // just opened to see if it's readable
+		if err != nil {
+			return "", fmt.Errorf("jsonsign: failed to close secret ring file: %w", err)
+		}
 		entityFetcher = &FileEntityFetcher{File: file}
 	}
 	signer, err := entityFetcher.FetchEntity(fingerprintString(pubk))
@@ -214,7 +225,7 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		return execfail("Failed to parse signature from gpg.")
 	}
 	inner := output[index1+2 : index2]
-	signature := strings.Replace(inner, "\n", "", -1)
+	signature := strings.ReplaceAll(inner, "\n", "")
 
 	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJSON, signature), nil
 }

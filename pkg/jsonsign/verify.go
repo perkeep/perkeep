@@ -30,8 +30,9 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/camerrors"
 
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	// #1727 tracks the proper fix.
+	"golang.org/x/crypto/openpgp/armor"  // nolint:staticcheck
+	"golang.org/x/crypto/openpgp/packet" // nolint:staticcheck
 )
 
 const sigSeparator = `,"camliSig":"`
@@ -138,7 +139,7 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 	return true
 }
 
-func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
+func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) (err error) {
 	reader, _, err := vr.fetcher.Fetch(ctx, vr.CamliSigner)
 	if err != nil {
 		if err == os.ErrNotExist {
@@ -147,7 +148,11 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
 		return err
 	}
-	defer reader.Close()
+	defer func() {
+		if cerr := reader.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
 		return fmt.Errorf("error opening public key file: %v", err)
