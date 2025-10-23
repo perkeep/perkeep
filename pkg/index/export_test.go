@@ -53,7 +53,7 @@ func (c *Corpus) SetClaims(pn blob.Ref, claims []*camtypes.Claim) {
 	pm := &PermanodeMeta{
 		Claims: claims,
 	}
-	pm.restoreInvariants(c.keyId)
+	pm.restoreInvariants(c.keyId) // nolint:errcheck
 	c.permanodes[pn] = pm
 }
 
