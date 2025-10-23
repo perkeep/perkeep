@@ -530,8 +530,8 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("io.TempFile(): %v", err)
 	}
-	defer os.Remove(fd.Name())
-	defer fd.Close()
+	defer os.Remove(fd.Name()) // nolint:errcheck
+	defer fd.Close()           // nolint:errcheck
 
 	fi, err := os.Lstat(fd.Name())
 	if err != nil {
@@ -681,10 +681,13 @@ func TestTimezoneEXIFCorrection(t *testing.T) {
 		}
 		// Hide *os.File type from FileTime, so it can't use modtime:
 		tm, err := FileTime(struct{ io.ReaderAt }{f})
-		f.Close()
 		if err != nil {
 			t.Errorf("%s: %v", tt.file, err)
 			continue
+		}
+		err = f.Close()
+		if err != nil {
+			t.Fatal(err)
 		}
 		if got := tm.String(); got != tt.want {
 			t.Errorf("%s: time = %q; want %q", tt.file, got, tt.want)

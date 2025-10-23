@@ -151,7 +151,7 @@ func populateMap(m map[int]string, nameMap map[string]intBool, file string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer f.Close() // nolint:errcheck
 	bufr := bufio.NewReader(f)
 	for {
 		line, err := bufr.ReadString('\n')

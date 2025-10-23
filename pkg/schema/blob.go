@@ -316,7 +316,7 @@ type StaticSymlink struct {
 // non-empty. Otherwise it returns the contents of symlinkTargetBytes
 // concatenated as a string.
 func (sl StaticSymlink) SymlinkTargetString() string {
-	return sl.StaticFile.b.ss.SymlinkTargetString()
+	return sl.b.ss.SymlinkTargetString()
 }
 
 // AsStaticSymlink returns the StaticFile as a StaticSymlink if the
@@ -432,7 +432,7 @@ func (bb *Builder) Blob() *Blob {
 		panic(err)
 	}
 	h := blob.NewHash()
-	io.WriteString(h, json)
+	_, _ = io.WriteString(h, json) // these writes can't fail.
 	return &Blob{
 		str: json,
 		ss:  ss,
