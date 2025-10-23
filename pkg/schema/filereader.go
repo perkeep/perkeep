@@ -67,7 +67,7 @@ var _ interface {
 // schema blob.
 //
 // The caller should call Close on the FileReader when done reading.
-func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, error) {
+func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.Ref) (fr *FileReader, err error) {
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still
 	//                 named FileReader, but can also read a "bytes" schema.
 	if !fileBlobRef.Valid() {
@@ -77,7 +77,11 @@ func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.R
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %w", err)
 	}
-	defer rc.Close()
+	defer func() {
+		if cerr := rc.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	ss, err := parseSuperset(rc)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %w", err)
@@ -86,7 +90,7 @@ func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.R
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: expected \"file\" or \"bytes\" schema blob, got %q", ss.Type)
 	}
-	fr, err := ss.NewFileReader(fetcher)
+	fr, err = ss.NewFileReader(fetcher)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: creating FileReader for %s: %w", fileBlobRef, err)
 	}
@@ -132,6 +136,7 @@ func (fr *FileReader) LoadAllChunks() {
 
 func (fr *FileReader) loadAllChunksSync(ctx context.Context) {
 	gate := syncutil.NewGate(20) // num readahead chunk loads at a time
+	// nolint:errcheck
 	fr.ForeachChunk(ctx, func(_ []blob.Ref, p BytesPart) error {
 		if !p.BlobRef.Valid() {
 			return nil
@@ -180,13 +185,14 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	want := len(p)
 	for len(p) > 0 && err == nil {
-		rc, err := fr.readerForOffset(context.TODO(), offset)
+		var rc io.ReadCloser
+		rc, err = fr.readerForOffset(context.TODO(), offset)
 		if err != nil {
 			return n, err
 		}
 		var n1 int
 		n1, err = io.ReadFull(rc, p)
-		rc.Close()
+		rc.Close() // nolint:errcheck
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			err = nil
 		}
@@ -275,7 +281,7 @@ func (fr *FileReader) getBlob(ctx context.Context, br blob.Ref) (*blob.Blob, err
 	return blob, nil
 }
 
-func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (*superset, error) {
+func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (ss *superset, err error) {
 	if root := fr.rootReader(); root != fr {
 		return root.getSuperset(ctx, br)
 	}
@@ -291,7 +297,11 @@ func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (*superset, 
 		if err != nil {
 			return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %w", err)
 		}
-		defer rc.Close()
+		defer func() {
+			if cerr := rc.Close(); err == nil {
+				err = cerr
+			}
+		}()
 		ss, err = parseSuperset(rc)
 		if err != nil {
 			return nil, err
