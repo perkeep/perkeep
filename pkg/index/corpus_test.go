@@ -348,10 +348,13 @@ func testDeletePermanodes(t *testing.T,
 	// because bar is already marked as deleted.
 	want := []blob.Ref{foopn, bazpn}
 	var got []camtypes.BlobMeta
-	enumFunc(c, func(m camtypes.BlobMeta) bool {
+	err = enumFunc(c, func(m camtypes.BlobMeta) bool {
 		got = append(got, m)
 		return true
 	})
+	if err != nil {
+		t.Fatalf("error enumerating permanodes: %v", err)
+	}
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -372,10 +375,13 @@ func testDeletePermanodes(t *testing.T,
 	delbaz := idxd.Delete(bazpn)
 	want = []blob.Ref{foopn}
 	got = got[:0]
-	enumFunc(c, func(m camtypes.BlobMeta) bool {
+	err = enumFunc(c, func(m camtypes.BlobMeta) bool {
 		got = append(got, m)
 		return true
 	})
+	if err != nil {
+		t.Fatalf("error enumerating permanodes: %v", err)
+	}
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -387,10 +393,13 @@ func testDeletePermanodes(t *testing.T,
 	idxd.Delete(delbaz)
 	want = []blob.Ref{foopn, bazpn}
 	got = got[:0]
-	enumFunc(c, func(m camtypes.BlobMeta) bool {
+	err = enumFunc(c, func(m camtypes.BlobMeta) bool {
 		got = append(got, m)
 		return true
 	})
+	if err != nil {
+		t.Fatalf("error enumerating permanodes: %v", err)
+	}
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -467,10 +476,13 @@ func testEnumerateOrder(t *testing.T,
 		want = []blob.Ref{foopn, barpn}
 	}
 	var got []camtypes.BlobMeta
-	enumFunc(c, func(m camtypes.BlobMeta) bool {
+	err = enumFunc(c, func(m camtypes.BlobMeta) bool {
 		got = append(got, m)
 		return true
 	})
+	if err != nil {
+		t.Fatalf("error enumerating permanodes: %v", err)
+	}
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -526,9 +538,14 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	go func() {
 		for i := 0; i < 10; i++ {
 			idx.RLock()
-			enumFunc(c, func(m camtypes.BlobMeta) bool {
+			err = enumFunc(c, func(m camtypes.BlobMeta) bool {
 				return true
 			})
+			if err != nil {
+				// TODO(radkat): does this actually make sense here?
+				// t.Fatalf("error enumerating permanodes: %v", err)
+				fmt.Printf("error enumerating permanodes: %v", err)
+			}
 			idx.RUnlock()
 		}
 		donec <- struct{}{}

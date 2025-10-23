@@ -44,7 +44,7 @@ func newMySQLSorted(t *testing.T) sorted.KeyValue {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		kv.Close()
+		kv.Close() // nolint:errcheck
 		containerID.KillRemove(t)
 
 	})

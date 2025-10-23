@@ -204,7 +204,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 		// New index.
 		err := idx.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 		if err != nil {
-			return nil, fmt.Errorf("Could not write index schema version %q: %v", requiredSchemaVersion, err)
+			return nil, fmt.Errorf("could not write index schema version %q: %v", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
@@ -222,10 +222,10 @@ func New(s sorted.KeyValue) (*Index, error) {
 			schemaVersion, requiredSchemaVersion, tip)
 	}
 	if err := idx.initDeletesCache(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's deletes cache: %v", err)
+		return nil, fmt.Errorf("could not initialize index's deletes cache: %v", err)
 	}
 	if err := idx.initNeededMaps(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
+		return nil, fmt.Errorf("could not initialize index's missing blob maps: %v", err)
 	}
 	return idx, nil
 }
@@ -282,7 +282,13 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	mutations := make(map[string]string)
 	keyPrefix := keyFileInfo.name + "|"
 	it = x.queryPrefix(keyFileInfo)
-	defer it.Close()
+
+	defer func() {
+		if cerr := it.Close(); err == nil {
+			err = cerr
+		}
+	}()
+
 	var valA [3]string
 	for it.Next() {
 		select {
@@ -385,7 +391,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		// TODO: maybe we don't want to do that automatically. Brad says
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
-			ix.Close()
+			if cerr := ix.Close(); cerr != nil {
+				// append the error to the original error
+				err = fmt.Errorf("%v: %v", err, cerr)
+			}
 			return nil, fmt.Errorf("could not fix missing wholeRef entries: %v", err)
 		}
 		ix, err = New(kv)
@@ -697,7 +706,7 @@ func (x *Index) initDeletesCache() (err error) {
 	for it.Next() {
 		cl, ok := kvDeleted(it.Key())
 		if !ok {
-			return fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
+			return fmt.Errorf("bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
 		}
 		targetDeletions := append(x.deletes.m[cl.Target],
 			deletion{
@@ -1757,12 +1766,12 @@ func (x *Index) initNeededMaps() (err error) {
 		pair := key[len("missing|"):]
 		pipe := bytes.IndexByte(pair, '|')
 		if pipe < 0 {
-			return fmt.Errorf("Bogus missing key %q", key)
+			return fmt.Errorf("bogus missing key %q", key)
 		}
 		have, ok1 := blob.ParseBytes(pair[:pipe])
 		missing, ok2 := blob.ParseBytes(pair[pipe+1:])
 		if !ok1 || !ok2 {
-			return fmt.Errorf("Bogus missing key %q", key)
+			return fmt.Errorf("bogus missing key %q", key)
 		}
 		x.noteNeededMemory(have, missing)
 	}

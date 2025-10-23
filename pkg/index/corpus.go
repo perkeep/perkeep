@@ -485,7 +485,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
 	if err := c.initDeletes(s); err != nil {
-		return fmt.Errorf("Could not populate the corpus deletes: %v", err)
+		return fmt.Errorf("could not populate the corpus deletes: %v", err)
 	}
 
 	if logCorpusStats {
@@ -516,7 +516,7 @@ func (c *Corpus) initDeletes(s sorted.KeyValue) (err error) {
 	for it.Next() {
 		cl, ok := kvDeleted(it.Key())
 		if !ok {
-			return fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
+			return fmt.Errorf("bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
 		}
 		targetDeletions := append(c.deletes[cl.Target],
 			deletion{
@@ -618,7 +618,7 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 	}
 	for _, cl := range mm.deletes {
 		if err := c.updateDeletes(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("could not update the deletes cache after deletion from %v: %v", cl, err)
 		}
 	}
 	return nil
@@ -631,7 +631,7 @@ func (c *Corpus) updateDeletes(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("could not get date of delete claim %v: %v", deleteClaim, err)
 	}
 	del := deletion{
 		deleter: c.br(deleter.BlobRef()),

@@ -173,7 +173,11 @@ func TestIndexerTestsCompleteness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cwd.Close()
+	defer func() {
+		if err := cwd.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	files, err := cwd.Readdir(-1)
 	if err != nil {
 		t.Fatal(err)
@@ -215,7 +219,10 @@ func testMergeFileInfoRow(t *testing.T, wholeRef string) {
 		value += "|" + wholeRef
 		want.WholeRef = blob.MustParse(wholeRef)
 	}
-	c.Exp_mergeFileInfoRow("fileinfo|sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428", value)
+	err := c.Exp_mergeFileInfoRow("fileinfo|sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428", value)
+	if err != nil {
+		t.Fatal(err)
+	}
 	fi := c.Exp_files(blob.MustParse("sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428"))
 	if !reflect.DeepEqual(want, fi) {
 		t.Errorf("Got %+v; want %+v", fi, want)
@@ -235,10 +242,22 @@ func TestInitNeededMaps(t *testing.T) {
 	s := sorted.NewMemoryKeyValue()
 
 	// Start unknowning that the data chunks are all gone:
-	s.Set("schemaversion", fmt.Sprint(index.Exp_schemaVersion()))
-	s.Set(index.Exp_missingKey(fileBlobRef, chunk1ref), "1")
-	s.Set(index.Exp_missingKey(fileBlobRef, chunk2ref), "1")
-	s.Set(index.Exp_missingKey(fileBlobRef, chunk3ref), "1")
+	err := s.Set("schemaversion", fmt.Sprint(index.Exp_schemaVersion()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = s.Set(index.Exp_missingKey(fileBlobRef, chunk1ref), "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = s.Set(index.Exp_missingKey(fileBlobRef, chunk2ref), "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = s.Set(index.Exp_missingKey(fileBlobRef, chunk3ref), "1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Add fileBlob to the blobSource, so the out-of-order indexing can
 	// succeed when the chunk3ref is finally added to the index. We technically
 	// don't need to do that for this unit test, but that's one less log
@@ -581,12 +600,16 @@ func TestIndexingPermanodeMissingPubkey(t *testing.T) {
 	}
 }
 
-func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error {
+func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) (err error) {
 	rc, _, err := src.Fetch(ctxbg, br)
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer func() {
+		if cerr := rc.Close(); cerr != nil {
+			err = fmt.Errorf("%w: %w", err, cerr)
+		}
+	}()
 	_, err = dst.ReceiveBlob(ctxbg, br, rc)
 	return err
 }
