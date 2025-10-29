@@ -19,6 +19,7 @@ package swarm // import "perkeep.org/pkg/importer/swarm"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -79,6 +80,8 @@ func init() {
 
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
+var ErrPaymentRequired = errors.New("payment required for API calls")
+
 type imp struct {
 	mu           sync.Mutex          // guards following
 	imageFileRef map[string]blob.Ref // url to file schema blob
@@ -93,6 +96,7 @@ func (*imp) Properties() importer.Properties {
 		SupportsIncremental:   true,
 		NeedsAPIKey:           true,
 		PermanodeImporterType: "foursquare", // old brand name
+		HasSomePaidAPI:        true,
 	}
 }
 
@@ -228,6 +232,13 @@ func (r *run) importCheckins() error {
 	offset := 0
 	continueRequests := true
 
+	if r.RunContext.UsePaidAPI() {
+		log.Printf("swarm: importing photos will be done via paid API")
+	} else {
+		log.Printf("swarm: will skip importing photos via paid API")
+	}
+
+	var sawPaidErr bool
 	for continueRequests {
 		resp := checkinsList{}
 		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
@@ -282,10 +293,18 @@ func (r *run) importCheckins() error {
 				sawOldItem = true
 			}
 
-			err = r.importPhotos(placeNode, dup)
-			if err != nil {
-				r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
-				continue
+			if r.RunContext.UsePaidAPI() && !sawPaidErr {
+				err = r.importPhotos(placeNode, dup)
+				if err != nil {
+					isPaidErr := errors.Is(err, ErrPaymentRequired)
+					if isPaidErr {
+						sawPaidErr = true
+						r.errorf("Foursquare importer: error importing photos: API calls require payment: %v", err)
+					} else {
+						r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
+					}
+					continue
+				}
 			}
 		}
 		if sawOldItem && r.incremental {
@@ -528,7 +547,13 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", requestURL, res.Status)
+		errStr := fmt.Sprintf("Get request on %s failed with: %s", requestURL, res.Status)
+		switch res.StatusCode {
+		case http.StatusPaymentRequired:
+			return nil, fmt.Errorf("%s: %w", errStr, ErrPaymentRequired)
+		default:
+			return nil, errors.New(errStr)
+		}
 	}
 	return res, nil
 }
