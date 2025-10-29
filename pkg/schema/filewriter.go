@@ -95,12 +95,13 @@ func WriteFileMap(ctx context.Context, bs blobserver.StatReceiver, file *Builder
 
 func serverHasBlob(ctx context.Context, bs blobserver.BlobStatter, br blob.Ref) (have bool, err error) {
 	_, err = blobserver.StatBlob(ctx, bs, br)
-	if err == nil {
-		have = true
-	} else if err == os.ErrNotExist {
-		err = nil
+	switch err {
+	case nil:
+		return true, nil
+	case os.ErrNotExist:
+		return false, nil
 	}
-	return
+	return false, err
 }
 
 type span struct {

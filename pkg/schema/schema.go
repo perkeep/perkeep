@@ -539,13 +539,17 @@ func (d *defaultStatHasher) Lstat(fileName string) (os.FileInfo, error) {
 	return os.Lstat(fileName)
 }
 
-func (d *defaultStatHasher) Hash(fileName string) (blob.Ref, error) {
+func (d *defaultStatHasher) Hash(fileName string) (br blob.Ref, err error) {
 	h := blob.NewHash()
 	file, err := os.Open(fileName)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	_, err = io.Copy(h, file)
 	if err != nil {
 		return blob.Ref{}, err
@@ -847,7 +851,7 @@ func populateClaimMap(m map[string]interface{}, cp *claimParam) {
 	default:
 		m["permaNode"] = cp.permanode.String()
 		m["attribute"] = cp.attribute
-		if !(cp.claimType == DelAttributeClaim && cp.value == "") {
+		if cp.claimType != DelAttributeClaim || cp.value != "" {
 			m["value"] = cp.value
 		}
 	}
@@ -992,7 +996,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 		if osf, ok := f.(*os.File); ok {
 			fi, err := osf.Stat()
 			if err != nil {
-				return ct, fmt.Errorf("Failed to find a modtime: stat: %w", err)
+				return ct, fmt.Errorf("failed to find a modtime: stat: %w", err)
 			}
 			return fi.ModTime(), nil
 		}

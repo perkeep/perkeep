@@ -62,12 +62,12 @@ func (b *Blob) NewDirReader(ctx context.Context, fetcher blob.Fetcher) (*DirRead
 
 func (ss *superset) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 	if ss.Type != "directory" {
-		return nil, fmt.Errorf("Superset not of type \"directory\"")
+		return nil, fmt.Errorf("superset not of type \"directory\"")
 	}
 	return &DirReader{fetcher: fetcher, ss: ss}, nil
 }
 
-func (ss *superset) setFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blobRef blob.Ref) error {
+func (ss *superset) setFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blobRef blob.Ref) (err error) {
 	if !blobRef.Valid() {
 		return errors.New("schema/dirreader: blobref invalid")
 	}
@@ -76,7 +76,7 @@ func (ss *superset) setFromBlobRef(ctx context.Context, fetcher blob.Fetcher, bl
 	if err != nil {
 		return fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", blobRef, err)
 	}
-	defer rc.Close()
+	defer rc.Close() // nolint:errcheck
 	if err := json.NewDecoder(rc).Decode(ss); err != nil {
 		return fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", blobRef, err)
 	}
@@ -100,12 +100,16 @@ func (dr *DirReader) StaticSet(ctx context.Context) ([]blob.Ref, error) {
 	return dr.staticSet, nil
 }
 
-func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetcher) ([]blob.Ref, error) {
+func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetcher) (members []blob.Ref, err error) {
 	rsc, _, err := fetcher.Fetch(ctx, staticSetBlobref)
 	if err != nil {
 		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
-	defer rsc.Close()
+	defer func() {
+		if cerr := rsc.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	ss, err := parseSuperset(rsc)
 	if err != nil {
 		return nil, fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", staticSetBlobref, err)
@@ -113,7 +117,6 @@ func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetc
 	if ss.Type != "static-set" {
 		return nil, fmt.Errorf("schema/dirreader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
 	}
-	var members []blob.Ref
 	if len(ss.Members) > 0 {
 		// We have fileRefs or dirRefs in ss.Members, so we are either in the static-set
 		// of a small directory, or one of the "leaf" subsets of a large directory spread.
