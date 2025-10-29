@@ -32,7 +32,7 @@ func newLevelDBSorted(t *testing.T) sorted.KeyValue {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { kv.Close() })
+	t.Cleanup(func() { kv.Close() }) // nolint:errcheck
 	return kv
 }
 

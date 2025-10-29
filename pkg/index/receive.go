@@ -106,16 +106,18 @@ func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
 	return nl
 }
 
-func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
+func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) (err error) {
 	rc, _, err := ix.blobSource.Fetch(ctx, br)
 	if err != nil {
 		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
 	}
-	defer rc.Close()
-	if _, err := blobserver.Receive(ctx, ix, br, rc); err != nil {
-		return err
-	}
-	return nil
+	defer func() {
+		if cerr := rc.Close(); err == nil {
+			err = cerr
+		}
+	}()
+	_, err = blobserver.Receive(ctx, ix, br, rc)
+	return err
 }
 
 // indexReadyBlobs indexes blobs that have been recently marked as ready to be
@@ -307,7 +309,7 @@ func (ix *Index) commit(mm *mutationMap) error {
 	}
 	for _, cl := range mm.deletes {
 		if err := ix.updateDeletesCache(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("could not update the deletes cache after deletion from %v: %v", cl, err)
 		}
 	}
 	return nil
@@ -472,7 +474,7 @@ func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn fu
 		fr, err = b.NewFileReader(fetcher)
 		if err == nil {
 			err = fn(fr)
-			fr.Close()
+			fr.Close() // nolint:errcheck
 		}
 	}
 	return err
@@ -498,7 +500,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	if err != nil {
 		return err
 	}
-	defer fr.Close()
+	defer fr.Close() // nolint:errcheck
 	mimeType, mr := magic.MIMETypeFromReader(fr)
 	if mimeType == "" {
 		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
@@ -845,7 +847,7 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 			}
 			return errMissingDep
 		}
-		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %v", target, err))
+		log.Print(fmt.Errorf("could not get mime type of target blob %v: %v", target, err))
 		return nil
 	}
 
@@ -948,7 +950,7 @@ func (ix *Index) updateDeletesCache(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("could not get date of delete claim %v: %v", deleteClaim, err)
 	}
 	targetDeletions := append(ix.deletes.m[target],
 		deletion{
