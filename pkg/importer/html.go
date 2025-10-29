@@ -66,13 +66,14 @@ type acctPage struct {
 }
 
 type acctBody struct {
-	Acct       *importerAcct
-	AcctType   string
-	Running    bool
-	LastStatus string
-	StartedAgo time.Duration // or zero if !Running
-	LastAgo    time.Duration // non-zero if previous run && !Running
-	LastError  string
+	Acct           *importerAcct
+	AcctType       string
+	Running        bool
+	LastStatus     string
+	StartedAgo     time.Duration // or zero if !Running
+	LastAgo        time.Duration // non-zero if previous run && !Running
+	LastError      string
+	HasSomePaidAPI bool
 }
 
 var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
@@ -185,6 +186,13 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
         <li>Previous run: {{.LastAgo}} ago{{if .LastError}}: {{.LastError}}{{else}} (success){{end}}</li>
      {{end}}
    {{end}}
+  {{if .HasSomePaidAPI}}
+    <form method='post' style='display: inline'>
+        <input type='hidden' name='mode' value='togglepaidapi'>
+        <input type='checkbox' name='usePaidAPI' {{if .Acct.UsePaidAPI}}checked{{end}} onchange='this.form.submit()'>
+          <label>Use Paid API</label>
+      </form>
+  {{end}}
 </ul>
 
 {{if .Acct.IsAccountReady}}

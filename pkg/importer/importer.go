@@ -124,6 +124,13 @@ type Properties struct {
 	// For example, this is "foursquare" for "swarm", so "swarm" shows
 	// in the UI and URLs, but it's "foursquare" in permanodes.
 	PermanodeImporterType string
+
+	// HasSomePaidAPI specifies whether this service has part of
+	// its API requiring payment or quota for optional bits of data
+	// (such as Swarm venue photos).
+	// Whether or not to use such paid API(s) is determined for each
+	// run of each importer's account by the user.
+	HasSomePaidAPI bool
 }
 
 // LongPoller is optionally implemented by importers which can long
@@ -340,6 +347,11 @@ type RunContext struct {
 
 	mu           sync.Mutex // guards following
 	lastProgress *ProgressMessage
+}
+
+// UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
+func (rc *RunContext) UsePaidAPI() bool {
+	return rc.ia.UsePaidAPI()
 }
 
 // Context returns the run's context. It is always non-nil.
@@ -1132,6 +1144,7 @@ type importerAcct struct {
 	lastRunErr   error
 	lastRunStart time.Time
 	lastRunDone  time.Time
+	usePaidAPI   bool // whether to use the paid API(s) when retrieving data
 }
 
 func (ia *importerAcct) String() string {
@@ -1188,6 +1201,11 @@ func (ia *importerAcct) RefreshInterval() time.Duration {
 	return d
 }
 
+// UsePaidAPI reports whether the importer is going to use the paid API(s) when retrieving data.
+func (ia *importerAcct) UsePaidAPI() bool {
+	return ia.usePaidAPI
+}
+
 func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		ia.serveHTTPPost(w, r)
@@ -1199,6 +1217,11 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Acct:     ia,
 		AcctType: fmt.Sprintf("%T", ia.im.impl),
 	}
+
+	if ia.im.props.HasSomePaidAPI {
+		body.HasSomePaidAPI = true
+	}
+
 	if run := ia.current; run != nil {
 		body.Running = true
 		body.StartedAgo = time.Since(ia.lastRunStart)
@@ -1241,6 +1264,8 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+	case "togglepaidapi":
+		ia.usePaidAPI = r.FormValue("usePaidAPI") == "on"
 	case "delete":
 		ia.stop() // can't hurt
 		if err := ia.delete(); err != nil {
