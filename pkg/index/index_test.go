@@ -181,7 +181,7 @@ func TestIndexerTestsCompleteness(t *testing.T) {
 
 	for _, file := range files {
 		name := file.Name()
-		if file.IsDir() || strings.HasPrefix(name, ".") {
+		if file.IsDir() || strings.HasPrefix(name, ".") || name == "index_internal_test.go" {
 			continue
 		}
 		if err := hasAllRequiredTests(name, t); err != nil {

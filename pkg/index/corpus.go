@@ -685,8 +685,7 @@ func (c *Corpus) mergeSignerKeyIdRow(k, v []byte) error {
 }
 
 func (c *Corpus) mergeClaimRow(k, v []byte) error {
-	// TODO: update kvClaim to take []byte instead of string
-	cl, ok := kvClaim(string(k), string(v), c.blobParse)
+	cl, ok := kvClaimBytes(k, v, c.blobParse)
 	if !ok || !cl.Permanode.Valid() {
 		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
@@ -904,14 +903,14 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 // TODO: investigate / file bugs.
 const useBlobParseCache = false
 
-func (c *Corpus) blobParse(v string) (br blob.Ref, ok bool) {
+func (c *Corpus) blobParse(v []byte) (br blob.Ref, ok bool) {
 	if useBlobParseCache {
-		br, ok = c.brOfStr[v]
+		br, ok = c.brOfStr[string(v)]
 		if ok {
 			return
 		}
 	}
-	return blob.Parse(v)
+	return blob.ParseBytes(v)
 }
 
 // str returns s, interned.
