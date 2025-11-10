@@ -8,10 +8,7 @@ name: "tests/linux"
 
 jobs:
   test:
-    strategy:
-      matrix:
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+    runs-on: linux-16cpu
 
     steps:
     - uses: actions/checkout@v4
