@@ -4,9 +4,9 @@
 
 FROM golang:1.25 AS pkbuild
 
-MAINTAINER Perkeep Authors <perkeep@googlegroups.com>
+LABEL maintainer="Perkeep Authors perkeep@googlegroups.com"
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /go/src/perkeep.org
 
@@ -21,8 +21,8 @@ RUN go run make.go -v
 
 FROM debian:trixie-slim
 
-ENV HOME /home/keepy
-ENV PATH /home/keepy/bin:$PATH
+ENV HOME=/home/keepy
+ENV PATH=/home/keepy/bin:$PATH
 
 RUN apt-get update && apt-get install -y imagemagick libjpeg-turbo-progs && rm -rf /var/lib/apt/lists/*
 
