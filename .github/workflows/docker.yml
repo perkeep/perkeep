@@ -1,0 +1,70 @@
+name: Docker
+
+on:
+  push:
+    # push events will publish a new image, so only trigger on main branch or semver tags.
+    branches: ["master"]
+    tags: ["v*"]
+  pull_request:
+    # Run the workflow on pull_request events to ensure we can still build the image.
+    # We only publish the image on push events (see if statements in steps below).
+    branches: ["master"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: ${{ github.workflow }}-$${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        if: github.event_name == 'push'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+
+      # Sign the Docker image
+      - name: Install cosign
+        if: github.event_name == 'push'
+        uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 #v3.2.0
+      - name: Sign the published Docker image
+        if: github.event_name == 'push'
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build-and-push.outputs.digest }}
