@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: linux-16cpu
     permissions:
       contents: read
       packages: write
