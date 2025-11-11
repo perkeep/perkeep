@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build ${{ matrix.GOOS }}-${{ matrix.GOARCH }}${{ matrix.GOARM && format('-arm{0}', matrix.GOARM) || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        GOOS: [linux, windows] # TODO: darwin (requires notarization dance, but Apple's failing to let me make a new iCloud account now)
+        GOARCH: [amd64, arm64]
+        GOARM: [""]
+        include:
+          - GOOS: linux
+            GOARCH: arm
+            GOARM: 7
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: build (unix)
+        if: matrix.GOOS != 'windows'
+        env:
+          GOOS: ${{ matrix.GOOS }}
+          GOARCH: ${{ matrix.GOARCH }}
+          GOARM: ${{ matrix.GOARM }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euxo pipefail
+          go build -ldflags "-extldflags -static" -o pk        ./cmd/pk
+          go build -ldflags "-extldflags -static" -o pk-get    ./cmd/pk-get
+          go build -ldflags "-extldflags -static" -o pk-put    ./cmd/pk-put
+          go build -ldflags "-extldflags -static" -o perkeepd  ./server/perkeepd
+          # build pk-mount only for non-windows
+          go build -ldflags "-extldflags -static" -o pk-mount  ./cmd/pk-mount
+
+      # Build Windows
+      - name: build (windows)
+        if: matrix.GOOS == 'windows'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euxo pipefail
+          GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk.exe       ./cmd/pk
+          GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk-get.exe   ./cmd/pk-get
+          GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk-put.exe   ./cmd/pk-put
+          GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o perkeepd.exe ./server/perkeepd
+
+      # Package
+      - name: package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          suffix="${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
+          if [[ -n "${{ matrix.GOARM }}" ]]; then
+            suffix="${suffix}-arm${{ matrix.GOARM }}"
+          fi
+
+          if [[ "${{ matrix.GOOS }}" == "windows" ]]; then
+            archive="perkeep-${suffix}.zip"
+            zip -9 "$archive" pk.exe pk-get.exe pk-put.exe perkeepd.exe
+          else
+            archive="perkeep-${suffix}.tar.gz"
+            tar -czf "$archive" pk pk-get pk-put perkeepd pk-mount
+          fi
+
+          echo "ARCHIVE_NAME=$archive" >> "$GITHUB_ENV"
+
+      - name: upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }}
+          path: ${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+
+  release:
+    name: create GitHub Release and upload assets
+    runs-on: ubuntu-24.04
+    needs: [build]
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }} # e.g. "v1.2.3"
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/*/*.tar.gz
+            dist/*/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

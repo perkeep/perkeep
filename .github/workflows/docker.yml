@@ -49,10 +49,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            # exact git tag (e.g., v1.2.3)
+            type=ref,event=tag
 
       - name: Build and push Docker image
         id: build-and-push
