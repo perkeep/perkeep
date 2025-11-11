@@ -1,6 +1,6 @@
 # Download Perkeep
 
-The latest release is [0.11 ("Seattle")](/doc/release/0.11), released 2020-11-11.
+The latest release is [0.12 ("Toronto")](https://github.com/perkeep/perkeep/releases/tag/v0.12), released 2025-11-11.
 
 Or, using the latest code from git:
 
@@ -12,12 +12,16 @@ If you have downloaded one of the binary archives (for Darwin, Linux, or
 Windows), skip this section.
 
 [Download and install Go](http://golang.org/doc/install) if you don't
-have that installed already. As of revision
-[cb96bb8bd3](https://github.com/perkeep/perkeep/commit/cb96bb8bd32ce5f1a882b6d06a869a1a1925c57d),
-Perkeep requires [Go 1.19 or newer](https://golang.org/dl/).
+have that installed already. Perkeep requires [Go 1.25 or newer](https://golang.org/dl/).
 
     $ cd perkeep.org
     $ go run make.go
+
+## Download
+
+Binaries are available at https://github.com/perkeep/perkeep/releases/tag/v0.12 for Linux and Windows. (macOS binaries are omitted from this release due to signing + notarization requirements by macOS which we haven't set up automation for yet)
+
+Containers are available at https://github.com/perkeep/perkeep/pkgs/container/perkeep
 
 ## Getting started
 
@@ -40,18 +44,11 @@ test environment from their production instance and to simplify common
 development tasks. If you have questions, you can ask the [mailing
 list](https://groups.google.com/group/camlistore).
 
-## Mobile
-
-The project also has an Android app to upload your files (mainly photos) to a
-Perkeep instance. The official build is on
-[Google Play](https://play.google.com/store/apps/details?id=org.camlistore).
-A [debug version](https://storage.googleapis.com/camlistore-release/android/app-debug.apk)
-is regularly built and uploaded.
-
 ## Release Notes
 
 Previous release notes:
 
+-   [0.11 ("Seattle")](/doc/release/0.11), 2020-11-11
 -   [0.10 ("Bellingham")](/doc/release/0.10), 2018-05-02
 -   [2017-05-05](docs/release/monthly/2017-05-05.html)
 -   [2017-03-01](docs/release/monthly/2017-03-01.html)
