@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1271,10 +1272,8 @@ func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) 
 			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
 		}
 		sig := hashutil.SHA256Prefix(certs[0].Raw)
-		for _, v := range trustedCerts {
-			if v == sig {
-				return conn, nil
-			}
+		if slices.Contains(trustedCerts, sig) {
+			return conn, nil
 		}
 		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}
@@ -1344,10 +1343,8 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
 		}
 		sig := hashutil.SHA256Prefix(certs[0].Raw)
-		for _, v := range trustedCerts {
-			if v == sig {
-				return conn, nil
-			}
+		if slices.Contains(trustedCerts, sig) {
+			return conn, nil
 		}
 		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}
