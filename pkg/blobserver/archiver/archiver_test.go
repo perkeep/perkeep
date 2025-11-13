@@ -55,7 +55,7 @@ func TestArchiver(t *testing.T) {
 		return errors.New("Store shouldn't be called")
 	}
 	a.MinZipSize = 400 // empirically: the zip will be 416 bytes
-	if err := a.RunOnce(ctxbg); err != ErrSourceTooSmall {
+	if err := a.RunOnce(ctxbg); !errors.Is(err, ErrSourceTooSmall) {
 		t.Fatalf("RunOnce with just Hello = %v; want ErrSourceTooSmall", err)
 	}
 

@@ -243,7 +243,7 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		log.Printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
 	}
 	if err != nil {
-		if err != errMissingDep {
+		if !errors.Is(err, errMissingDep) {
 			return blob.SizedRef{}, err
 		}
 		fetcher.mu.Lock()

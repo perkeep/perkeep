@@ -153,7 +153,7 @@ func (sto *overlayStorage) isDeleted(br blob.Ref) bool {
 		return true
 	}
 
-	if err != sorted.ErrNotFound {
+	if !errors.Is(err, sorted.ErrNotFound) {
 		log.Printf("overlayStorage error accessing deleted: %v", err)
 	}
 
@@ -168,7 +168,7 @@ func (sto *overlayStorage) Fetch(ctx context.Context, br blob.Ref) (file io.Read
 	}
 
 	file, size, err = sto.upper.Fetch(ctx, br)
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		return file, size, err
 	}
 

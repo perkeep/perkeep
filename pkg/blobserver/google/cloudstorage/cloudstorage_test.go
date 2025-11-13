@@ -150,7 +150,7 @@ func testStorage(t *testing.T, bucketDir string) {
 			ctx := context.Background()
 			stor := sto.(*Storage)
 			it := stor.client.Bucket(stor.bucket).Objects(ctx, nil)
-			if _, err := it.Next(); err != iterator.Done {
+			if _, err := it.Next(); !errors.Is(err, iterator.Done) {
 				if err == nil {
 					t.Fatalf("Refusing to run test: bucket %v is not empty", *bucket)
 				}

@@ -65,7 +65,7 @@ func TestPrompt(t *testing.T) {
 
 	req.NoAsk = true
 	s3, err := conn.GetPassphrase(req)
-	if err != ErrNoData {
+	if !errors.Is(err, ErrNoData) {
 		t.Errorf("after remove from cache, expected gpgagent.ErrNoData, got %q, %v", s3, err)
 	}
 
@@ -75,7 +75,7 @@ func TestPrompt(t *testing.T) {
 		Prompt:   "cancel!",
 		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Now().UnixNano()),
 	})
-	if err != ErrCancel {
+	if !errors.Is(err, ErrCancel) {
 		t.Errorf("expected cancel, got %q, %v", s4, err)
 	}
 }

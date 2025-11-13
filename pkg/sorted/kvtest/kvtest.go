@@ -43,7 +43,7 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	if v, err := kv.Get("foo"); err != nil || v != "bar" {
 		t.Errorf("get(foo) = %q, %v; want bar", v, err)
 	}
-	if v, err := kv.Get("NOT_EXIST"); err != sorted.ErrNotFound {
+	if v, err := kv.Get("NOT_EXIST"); !errors.Is(err, sorted.ErrNotFound) {
 		t.Errorf("get(NOT_EXIST) = %q, %v; want error sorted.ErrNotFound", v, err)
 	}
 	for i := 0; i < 2; i++ {
@@ -111,7 +111,7 @@ func testDeletePartialNotFoundBatch(t *testing.T, kv sorted.KeyValue) {
 	if err := kv.CommitBatch(b); err != nil {
 		t.Fatalf("Batch deletion with one non existing key returned an error: %v", err)
 	}
-	if val, err := kv.Get(butIExistKey); err != sorted.ErrNotFound || val != "" {
+	if val, err := kv.Get(butIExistKey); !errors.Is(err, sorted.ErrNotFound) || val != "" {
 		t.Fatalf("Key %q should have been batch deleted", butIExistKey)
 	}
 }

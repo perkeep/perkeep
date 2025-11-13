@@ -140,7 +140,7 @@ func TestMIMETypeFromReader(t *testing.T) {
 	if string(slurp) != "<html>foobar" {
 		t.Errorf("read = %q; want %q", slurp, content)
 	}
-	if err != someErr {
+	if !errors.Is(err, someErr) {
 		t.Errorf("read error = %v; want %v", err, someErr)
 	}
 }

@@ -132,7 +132,7 @@ func TestUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 2); err != ErrDjpegNotFound {
+	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 2); !errors.Is(err, ErrDjpegNotFound) {
 		t.Errorf("Wanted ErrDjpegNotFound, got %v", err)
 	}
 }

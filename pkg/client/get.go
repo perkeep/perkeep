@@ -141,7 +141,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 
 	var buf bytes.Buffer
 	if err := c.UpdateShareChain(b, io.TeeReader(reader, &buf)); err != nil {
-		if err != ErrNotSharing {
+		if !errors.Is(err, ErrNotSharing) {
 			return nil, 0, err
 		}
 	}

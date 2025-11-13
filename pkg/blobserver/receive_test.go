@@ -64,7 +64,7 @@ func TestReceiveCorrupt(t *testing.T) {
 	br := blob.RefFromBytes(data)
 	data[0] = 'X' // corrupt it
 	_, err := blobserver.Receive(ctxbg, sto, br, bytes.NewReader(data))
-	if err != blobserver.ErrCorruptBlob {
+	if !errors.Is(err, blobserver.ErrCorruptBlob) {
 		t.Errorf("Receive = %v; want ErrCorruptBlob", err)
 	}
 	if len(sto.BlobrefStrings()) > 0 {

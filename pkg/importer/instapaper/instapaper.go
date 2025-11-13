@@ -400,7 +400,7 @@ func (r *run) importBookmark(parent *importer.Object, b *bookmark, folder string
 		func() (*importer.Object, error) {
 			found, err := r.findExistingBookmark(fmt.Sprint(b.BookmarkId))
 			if err != nil {
-				if err != os.ErrNotExist {
+				if !errors.Is(err, os.ErrNotExist) {
 					return nil, fmt.Errorf("searching for node with %v %v: %w", attrBookmarkId, b.BookmarkId, err)
 				}
 				return r.Host.NewObject()

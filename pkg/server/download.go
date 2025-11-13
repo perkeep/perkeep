@@ -388,7 +388,7 @@ func isText(rs io.ReadSeeker) (ok bool, err error) {
 	}()
 	var buf bytes.Buffer
 	if _, err := io.CopyN(&buf, rs, 1e6); err != nil {
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			return false, err
 		}
 	}

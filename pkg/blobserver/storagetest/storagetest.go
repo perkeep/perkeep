@@ -241,7 +241,7 @@ func (r *run) testSubFetcher() {
 			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)
 			continue
 		}
-		if err != blob.ErrNegativeSubFetch && err != blob.ErrOutOfRangeOffsetSubFetch {
+		if !errors.Is(err, blob.ErrNegativeSubFetch) && !errors.Is(err, blob.ErrOutOfRangeOffsetSubFetch) {
 			t.Errorf("Unexpected error fetching with off=%d limit=%d: %v", tt.off, tt.limit, err)
 		}
 	}

@@ -1226,7 +1226,7 @@ func (pk *packer) pack(ctx context.Context) error {
 	if err == nil {
 		// Nil error means there was some knowledge of this wholeref.
 		return fmt.Errorf("already have wholeref %v packed; not packing again", pk.wholeRef)
-	} else if err != sorted.ErrNotFound {
+	} else if !errors.Is(err, sorted.ErrNotFound) {
 		return err
 	}
 

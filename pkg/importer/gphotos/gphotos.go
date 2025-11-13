@@ -448,7 +448,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph *phot
 		wholeRef := blob.RefFromHash(h)
 		pn, attrs, err := findExistingPermanode(r.Context(), r.Host.Searcher(), wholeRef)
 		if err != nil {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				return nil, fmt.Errorf("could not look for permanode with %v as camliContent: %w", fileRefStr, err)
 			}
 			return r.Host.NewObject()

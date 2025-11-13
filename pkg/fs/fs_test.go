@@ -880,7 +880,7 @@ func shortenString(v string) string {
 func ignoringEINTR(fn func() error) error {
 	for {
 		err := fn()
-		if err != syscall.EINTR {
+		if !errors.Is(err, syscall.EINTR) {
 			return err
 		}
 	}

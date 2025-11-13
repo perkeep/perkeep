@@ -1761,7 +1761,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 		l, err := s.h.lh.PermanodeLocation(ctx, br, c.At, s.h.owner)
 		if c.Location != nil {
 			if err != nil {
-				if err != os.ErrNotExist {
+				if !errors.Is(err, os.ErrNotExist) {
 					log.Printf("PermanodeLocation(ref %s): %v", br, err)
 				}
 				return false, nil

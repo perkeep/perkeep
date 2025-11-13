@@ -147,7 +147,7 @@ func TestThumbnailGenerateTimeout(t *testing.T) {
 	service := NewService(sleepyThumbnailer{}, time.Duration(time.Millisecond), 5)
 	err := service.Generate(ref, io.Discard, store)
 
-	if err != errTimeout {
+	if !errors.Is(err, errTimeout) {
 		t.Errorf("expected to timeout: %v", err)
 	}
 }

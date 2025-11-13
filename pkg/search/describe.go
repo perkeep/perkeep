@@ -766,7 +766,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.lh.PermanodeLocation(ctx, br, at, dr.sh.owner); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("PermanodeLocation(permanode %s): %v", br, err)
 			}
 		}
@@ -797,7 +797,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.index.GetFileLocation(ctx, br); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("index.GetFileLocation(file %s): %v", br, err)
 			}
 		}
