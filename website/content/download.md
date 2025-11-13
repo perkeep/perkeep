@@ -48,6 +48,7 @@ list](https://groups.google.com/group/camlistore).
 
 Previous release notes:
 
+-   [0.12 ("Toronto")](/doc/release/0.12), 2025-11-11
 -   [0.11 ("Seattle")](/doc/release/0.11), 2020-11-11
 -   [0.10 ("Bellingham")](/doc/release/0.10), 2018-05-02
 -   [2017-05-05](docs/release/monthly/2017-05-05.html)
