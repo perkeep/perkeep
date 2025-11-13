@@ -353,7 +353,7 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 
 	userData, err := metadata.InstanceAttributeValue(metadataKey)
 	if err != nil {
-		var nde metadat.NotDefinedError
+		var nde metadata.NotDefinedError
 		if !errors.As(err, &nde) {
 			return false, fmt.Errorf("error getting existing user-data: %w", err)
 		}

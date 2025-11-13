@@ -18,9 +18,11 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"go4.org/syncutil"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 )

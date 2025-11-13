@@ -31,6 +31,7 @@ package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"

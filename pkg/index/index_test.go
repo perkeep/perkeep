@@ -18,6 +18,7 @@ package index_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"

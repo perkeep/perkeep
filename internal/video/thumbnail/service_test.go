@@ -19,6 +19,7 @@ package thumbnail
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/url"
 	"os"

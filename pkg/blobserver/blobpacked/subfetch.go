@@ -18,6 +18,7 @@ package blobpacked
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"perkeep.org/pkg/blob"

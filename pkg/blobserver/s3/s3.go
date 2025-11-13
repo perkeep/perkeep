@@ -35,6 +35,7 @@ package s3 // import "perkeep.org/pkg/blobserver/s3"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"

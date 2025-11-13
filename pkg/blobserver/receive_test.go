@@ -19,6 +19,7 @@ package blobserver_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 

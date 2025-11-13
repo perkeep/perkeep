@@ -25,6 +25,7 @@ package namespace // import "perkeep.org/pkg/blobserver/namespace"
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -32,6 +33,7 @@ import (
 	"strconv"
 
 	"go4.org/jsonconfig"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"

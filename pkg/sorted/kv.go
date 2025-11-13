@@ -243,7 +243,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 			if err := cfg.Validate(); err != nil {
 				return nil, err
 			}
-			we.Msg = fmt.Sprintf("error from %q KeyValue: %w", typ, err)
+			we.Msg = fmt.Sprintf("error from %q KeyValue: %v", typ, err)
 			return s, we
 		}
 	}

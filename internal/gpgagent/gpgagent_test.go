@@ -17,6 +17,7 @@ limitations under the License.
 package gpgagent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"testing"

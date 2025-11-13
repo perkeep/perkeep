@@ -18,6 +18,7 @@ package schema
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"os/user"
 	"strconv"

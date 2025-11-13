@@ -18,6 +18,7 @@ package swarm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"

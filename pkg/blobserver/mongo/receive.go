@@ -18,6 +18,7 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"perkeep.org/pkg/blob"

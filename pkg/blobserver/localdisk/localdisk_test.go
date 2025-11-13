@@ -18,6 +18,7 @@ package localdisk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"

@@ -4,6 +4,7 @@ package main // import "perkeep.org/dev/envvardoc"
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"

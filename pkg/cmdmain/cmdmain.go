@@ -19,6 +19,7 @@ limitations under the License.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"

@@ -19,6 +19,7 @@ package cloudstorage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"log"

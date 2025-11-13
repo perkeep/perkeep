@@ -37,6 +37,7 @@ package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -44,6 +45,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+
 	"perkeep.org/internal/lru"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"

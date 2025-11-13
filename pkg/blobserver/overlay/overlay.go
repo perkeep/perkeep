@@ -41,6 +41,7 @@ package overlay // import "perkeep.org/pkg/blobserver/overlay"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -48,6 +49,7 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"

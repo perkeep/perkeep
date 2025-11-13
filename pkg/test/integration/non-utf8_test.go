@@ -19,6 +19,7 @@ package integration
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"

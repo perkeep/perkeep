@@ -18,10 +18,12 @@ package mongo
 
 import (
 	"context"
+	"errors"
 
 	"go4.org/syncutil"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+
 	"perkeep.org/pkg/blob"
 )
 

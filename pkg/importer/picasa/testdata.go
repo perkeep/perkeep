@@ -18,6 +18,7 @@ package picasa
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"

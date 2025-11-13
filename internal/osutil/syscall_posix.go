@@ -19,6 +19,7 @@ limitations under the License.
 package osutil
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"

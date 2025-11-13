@@ -18,6 +18,7 @@ package proxycache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"

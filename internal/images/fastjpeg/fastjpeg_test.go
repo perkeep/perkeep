@@ -18,6 +18,7 @@ package fastjpeg
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/jpeg"
 	"os"

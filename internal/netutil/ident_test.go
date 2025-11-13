@@ -17,6 +17,7 @@ limitations under the License.
 package netutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"

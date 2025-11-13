@@ -17,11 +17,13 @@ limitations under the License.
 package server
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
 	"go4.org/types"
+
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"

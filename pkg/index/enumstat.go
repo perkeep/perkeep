@@ -18,6 +18,7 @@ package index
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"

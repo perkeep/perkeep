@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
 	"perkeep.org/pkg/schema"
 )
 

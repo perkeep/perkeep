@@ -18,6 +18,7 @@ limitations under the License.
 package kvtest // import "perkeep.org/pkg/sorted/kvtest"
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 	"time"
