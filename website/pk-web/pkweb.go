@@ -153,8 +153,8 @@ type pageParams struct {
 
 // pageTmplData is the template data passed to page.html.
 type pageTmplData struct {
-	Title    string
-	Subtitle string
+	Title    template.HTML
+	Subtitle template.HTML
 	Content  template.HTML
 
 	// For the "go-import" meta header:
@@ -178,8 +178,8 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
 	if err := pageHTML.ExecuteTemplate(w, "page", &pageTmplData{
-		Title:            title,
-		Subtitle:         subtitle,
+		Title:            template.HTML(title),
+		Subtitle:         template.HTML(subtitle),
 		Content:          template.HTML(content),
 		GoImportDomain:   domain,
 		GoImportUpstream: upstream,
