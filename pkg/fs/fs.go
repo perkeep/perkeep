@@ -22,6 +22,7 @@ package fs // import "perkeep.org/pkg/fs"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"

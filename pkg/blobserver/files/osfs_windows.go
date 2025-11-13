@@ -17,6 +17,7 @@ limitations under the License.
 package files
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
