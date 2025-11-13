@@ -237,7 +237,7 @@ func (kv *keyValue) ping() error {
 // version is found it returns (0, nil), as the table should be considered empty.
 func (kv *keyValue) SchemaVersion() (version int, err error) {
 	err = kv.db.QueryRow("SELECT value FROM " + kv.KeyValue.TablePrefix + "meta WHERE metakey='version'").Scan(&version)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
 	return

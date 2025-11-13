@@ -1865,7 +1865,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(ctx context.Context, s *se
 			return false, nil
 		}
 		meta, err := s.blobMeta(ctx, br)
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		if err != nil {
@@ -1885,7 +1885,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 		return false, nil
 	}
 	fi, err := s.fileInfo(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
@@ -1915,7 +1915,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 	}
 	if pc := c.ParentDir; pc != nil {
 		parents, err := s.parentDirs(ctx, br)
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		if err != nil {
@@ -2097,7 +2097,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 		}
 	}
 	fi, err := s.fileInfo(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
@@ -2108,7 +2108,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	}
 	if pc := c.ParentDir; pc != nil {
 		parents, err := s.parentDirs(ctx, br)
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		if err != nil {

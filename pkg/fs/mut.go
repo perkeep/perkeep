@@ -782,7 +782,7 @@ func (h *mutFileHandle) Read(ctx context.Context, req *fuse.ReadRequest, res *fu
 
 	buf := make([]byte, toRead)
 	n, err := h.tmp.ReadAt(buf, req.Offset)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		err = nil
 	}
 	if err != nil {

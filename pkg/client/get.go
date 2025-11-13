@@ -131,7 +131,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 		}
 		if err == nil {
 			panic("unexpected")
-		} else if err == io.EOF {
+		} else if errors.Is(err, io.EOF) {
 			size = uint32(n)
 			reader, closer = &buf, types.NopCloser
 		} else {

@@ -378,7 +378,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		}
 
 		err = osutil.Mkfifo(name, 0600)
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			log.Printf("Skipping FIFO %s: Unsupported filetype", name)
 			return nil
 		}
@@ -412,7 +412,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		}
 
 		err = osutil.Mksocket(name)
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			log.Printf("Skipping socket %s: Unsupported filetype", name)
 			return nil
 		}

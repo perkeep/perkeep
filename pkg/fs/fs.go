@@ -223,7 +223,7 @@ func (nr *nodeReader) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse
 	}
 	buf := make([]byte, size)
 	n, err := nr.fr.ReadAt(buf, req.Offset)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		err = nil
 	}
 	if err != nil {

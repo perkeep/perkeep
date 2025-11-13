@@ -140,7 +140,7 @@ func fetchCamliSrc() {
 	var prefix string
 	for {
 		h, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		check(err)

@@ -738,7 +738,7 @@ func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 
 func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth int) {
 	meta, err := dr.sh.index.GetBlobMeta(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 	if err != nil {

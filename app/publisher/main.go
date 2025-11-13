@@ -698,7 +698,7 @@ func (pr *publishRequest) serveHTTP() {
 	}
 
 	if err := pr.findSubject(); err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			http.NotFound(pr.rw, pr.req)
 			return
 		}

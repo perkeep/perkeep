@@ -696,7 +696,7 @@ func testPack(t *testing.T,
 	if err := blobserver.EnumerateAll(ctx, logical, func(sb blob.SizedRef) error {
 		logBlobs++
 		v, err := pt.sto.meta.Get(blobMetaPrefix + sb.Ref.String())
-		if err == sorted.ErrNotFound && pt.okayNoMeta[sb.Ref] {
+		if errors.Is(err, sorted.ErrNotFound) && pt.okayNoMeta[sb.Ref] {
 			return nil
 		}
 		if err != nil {

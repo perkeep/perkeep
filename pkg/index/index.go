@@ -381,7 +381,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	// TODO(mpl): next time we need to do another fix, make a new error
 	// type that lets us apply the needed fix depending on its value or
 	// something. For now just one value/fix.
-	if err == errMissingWholeRef {
+	if errors.Is(err, errMissingWholeRef) {
 		// TODO: maybe we don't want to do that automatically. Brad says
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
@@ -654,7 +654,7 @@ func closeIterator(it sorted.Iterator, perr *error) {
 func (x *Index) schemaVersion() int {
 	schemaVersionStr, err := x.s.Get(keySchemaVersion.name)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			return 0
 		}
 		panic(fmt.Sprintf("Could not get index schema version: %v", err))
@@ -803,7 +803,7 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 	defer close(dest)
 
 	keyId, err := x.KeyId(ctx, owner)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		x.logf("no recent permanodes because keyId for owner %v not found", owner)
 		return nil
 	}
@@ -956,7 +956,7 @@ func (x *Index) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta
 	}
 	key := "meta:" + br.String()
 	meta, err := x.s.Get(key)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -1019,7 +1019,7 @@ func (x *Index) signerRefs(ctx context.Context, keyID string) (SignerRefSet, err
 
 func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {
 	keyId, err := x.KeyId(ctx, signer)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return blob.Ref{}, os.ErrNotExist
 	}
 	if err != nil {
@@ -1053,7 +1053,7 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 	}
 
 	keyId, err := x.KeyId(ctx, request.Signer)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
@@ -1139,7 +1139,7 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(ctx, signer)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			err = nil
 		}
 		return
@@ -1226,7 +1226,7 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(ctx, signer)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			err = nil
 		}
 		return
@@ -1387,7 +1387,7 @@ func (x *Index) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Fil
 	go x.loadKey(tkey, &tv, &terr, wg)
 	wg.Wait()
 
-	if ierr == sorted.ErrNotFound {
+	if errors.Is(ierr, sorted.ErrNotFound) {
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	if ierr != nil {
@@ -1460,7 +1460,7 @@ func (x *Index) GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Im
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
 	v, err := x.s.Get(key)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -1728,7 +1728,7 @@ func (x *Index) EnumerateBlobMeta(ctx context.Context, fn func(camtypes.BlobMeta
 			return nil
 		}
 	})
-	if err == errStopIteration {
+	if errors.Is(err, errStopIteration) {
 		err = nil
 	}
 	return err

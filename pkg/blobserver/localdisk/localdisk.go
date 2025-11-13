@@ -123,7 +123,7 @@ func New(root string) (*DiskStorage, error) {
 	}
 	ul, err := osutil.MaxFD()
 	if err != nil {
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			// Do not set the gate on Windows, since we don't know the ulimit.
 			return ds, nil
 		}

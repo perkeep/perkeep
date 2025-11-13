@@ -86,7 +86,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 		n++
 		fileRef := sr.Blob
 		rc, _, err := looseClient.Fetch(ctxbg, fileRef)
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("%d/%d: %v already done\n", n, total, fileRef)
 			continue
 		}

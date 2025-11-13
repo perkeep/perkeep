@@ -106,7 +106,7 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 	binBr, _ := br.MarshalBinary()
 	binVal, err := c.db.Get(binBr, nil)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			cachelog.Printf("have cache MISS on %v", br)
 			return
 		}
@@ -180,7 +180,7 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 	}
 	binVal, err := c.db.Get(binKey, nil)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			cachelog.Printf("stat cache MISS on %q", binKey)
 			return nil, errCacheMiss
 		}

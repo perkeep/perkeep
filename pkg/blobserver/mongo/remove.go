@@ -36,7 +36,7 @@ func (m *mongoStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error 
 		wg.Go(func() error {
 			defer removeGate.Done()
 			err := m.c.Remove(bson.M{"key": blob.String()})
-			if err == mgo.ErrNotFound {
+			if errors.Is(err, mgo.ErrNotFound) {
 				return nil
 			}
 			return err

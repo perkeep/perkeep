@@ -75,7 +75,7 @@ func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
 			return
 		}
 		_, err := blobserver.Receive(ctx, storage, br, req.Body)
-		if err == blobserver.ErrCorruptBlob {
+		if errors.Is(err, blobserver.ErrCorruptBlob) {
 			httputil.BadRequestError(rw, "data doesn't match declared digest")
 			return
 		}
@@ -197,7 +197,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 	for {
 		mimePart, err := multipart.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

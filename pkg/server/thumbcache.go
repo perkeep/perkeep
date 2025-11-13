@@ -59,7 +59,7 @@ func (m *ThumbMeta) Get(key string) (blob.Ref, error) {
 	}
 	if m.kv != nil {
 		v, err := m.kv.Get(key)
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			return br, errCacheMiss
 		}
 		if err != nil {

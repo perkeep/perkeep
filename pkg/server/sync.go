@@ -222,7 +222,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 
 func (sh *SyncHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	_, h, err := hl.FindHandlerByType("root")
-	if err == blobserver.ErrHandlerTypeNotFound {
+	if errors.Is(err, blobserver.ErrHandlerTypeNotFound) {
 		// It's optional. We register ourselves if it's there.
 		return nil
 	}
@@ -877,7 +877,7 @@ func (sh *SyncHandler) startValidatePrefix(ctx context.Context, pfx string, doDe
 				return ctx.Err()
 			}
 		})
-		if err == errNotPrefix {
+		if errors.Is(err, errNotPrefix) {
 			err = nil
 		}
 		if err != nil {

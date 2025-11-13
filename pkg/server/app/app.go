@@ -122,7 +122,7 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	if refresh, _ := strconv.ParseBool(r.FormValue("refresh")); refresh {
 		if err := a.refreshDomainBlobs(); err != nil {
-			if err == errRefreshSuppress {
+			if errors.Is(err, errRefreshSuppress) {
 				http.Error(w, "too many refresh requests", http.StatusTooManyRequests)
 			} else {
 				http.Error(w, fmt.Sprintf("%v", err), 500)

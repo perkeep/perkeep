@@ -840,7 +840,7 @@ func (m *meta) isPacked() bool { return m.largeRef.Valid() }
 // if not found, err == nil.
 func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 	v, err := s.meta.Get(blobMetaPrefix + br.String())
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return meta{}, nil
 	}
 	if err != nil {

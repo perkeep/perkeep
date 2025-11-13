@@ -97,7 +97,7 @@ type kvis struct {
 func (is *kvis) Get(key string) (string, error) {
 	val, err := is.db.Get([]byte(key), is.readOpts)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			return "", sorted.ErrNotFound
 		}
 		return "", err

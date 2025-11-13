@@ -603,7 +603,7 @@ func listDownloads() (*ReleaseData, error) {
 	objIt := stoClient.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: objPrefix})
 	for {
 		attrs, err := objIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -627,7 +627,7 @@ func listDownloads() (*ReleaseData, error) {
 	objIt = stoClient.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: objPrefix})
 	for {
 		attrs, err := objIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

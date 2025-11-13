@@ -126,7 +126,7 @@ func TestArchiverStress(t *testing.T) {
 	}
 	for {
 		err := a.RunOnce(ctxbg)
-		if err == ErrSourceTooSmall {
+		if errors.Is(err, ErrSourceTooSmall) {
 			break
 		}
 		if err != nil {

@@ -218,7 +218,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 			if path = strings.TrimSpace(path); path != "" {
 				tu.Enqueue(path)
 			}
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				android.PreExit()
 				os.Exit(0)
 			}

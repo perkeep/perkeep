@@ -321,7 +321,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	cr := countingReader{}
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -426,7 +426,7 @@ func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
 
 	mediaObject, err := h.fetchScan(scanRef)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			http.Error(w, fmt.Sprintf("%v not found", scanRef), http.StatusNotFound)
 			return
 		}

@@ -370,7 +370,7 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 		return nil, err
 	}
 	var haveVal string
-	if err == errMissingDep {
+	if errors.Is(err, errMissingDep) {
 		haveVal = fmt.Sprintf("%d", sniffer.Size())
 	} else {
 		haveVal = fmt.Sprintf("%d|indexed", sniffer.Size())
@@ -414,7 +414,7 @@ type missTrackFetcher struct {
 
 func (f *missTrackFetcher) Fetch(ctx context.Context, br blob.Ref) (blob io.ReadCloser, size uint32, err error) {
 	blob, size, err = f.fetcher.Fetch(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.missing = append(f.missing, br)
@@ -467,7 +467,7 @@ type filePrefixReader interface {
 func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn func(filePrefixReader) error) (err error) {
 	pr := bytes.NewReader(prefix)
 	err = fn(pr)
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		var fr *schema.FileReader
 		fr, err = b.NewFileReader(fetcher)
 		if err == nil {
@@ -839,7 +839,7 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	}
 	meta, err := ix.GetBlobMeta(ctx, target)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			if err := ix.noteNeeded(br, target); err != nil {
 				return fmt.Errorf("could not note that delete claim %v depends on %v: %w", br, target, err)
 			}

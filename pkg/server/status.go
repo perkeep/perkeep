@@ -70,7 +70,7 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 
 func (sh *StatusHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	_, h, err := hl.FindHandlerByType("search")
-	if err == blobserver.ErrHandlerTypeNotFound {
+	if errors.Is(err, blobserver.ErrHandlerTypeNotFound) {
 		return nil
 	}
 	if err != nil {

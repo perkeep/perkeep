@@ -179,7 +179,7 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 	br := bufio.NewReader(stdout)
 	for {
 		line, err := br.ReadSlice('\n')
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return 0, ErrNotFound
 		}
 		if err != nil {

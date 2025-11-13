@@ -223,7 +223,7 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 
 	offset := int64(0)
 	rc, wholeSize, err := wf.OpenWholeRef(fi.WholeRef, offset)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return fileInfo{whyNot: "WholeRefFetcher returned ErrNotexist"}, false
 	}
 	if wholeSize != fi.Size {

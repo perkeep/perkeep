@@ -254,7 +254,7 @@ func (it *iter) Next() bool {
 	it.skey, it.sval = nil, nil
 	var err error
 	it.key, it.val, err = it.enum.Next()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		it.err = nil
 		return it.end()
 	}

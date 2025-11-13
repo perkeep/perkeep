@@ -54,7 +54,7 @@ func mksocket(path string) error {
 func maxFD() (uint64, error) {
 	var rlim syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim); err != nil {
-		if err == syscall.ENOSYS {
+		if errors.Is(err, syscall.ENOSYS) {
 			// syscall.Getrlimit() not implemented in ARMv5, and it returns this string
 			return 0, ErrNotSupported
 		}

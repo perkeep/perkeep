@@ -274,7 +274,7 @@ func find(kv *KeyValue, qobj queryObject, start, end string) *iter {
 // Common logic for KeyValue.Get and batchTx.Get
 func get(kv *KeyValue, qobj queryObject, key string) (value string, err error) {
 	err = qobj.QueryRow(kv.sql("SELECT v FROM /*TPRE*/rows WHERE k=?"), key).Scan(&value)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = sorted.ErrNotFound
 	}
 	return

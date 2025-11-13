@@ -56,7 +56,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	var modTime types.Time3339
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

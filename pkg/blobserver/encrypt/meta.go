@@ -195,7 +195,7 @@ func unpackIndexEntry(s string) (plainSize uint32, encBR blob.Ref, err error) {
 // fetchMeta returns os.ErrNotExist if the plaintext blob is not in the index.
 func (s *storage) fetchMeta(ctx context.Context, b blob.Ref) (plainSize uint32, encBR blob.Ref, err error) {
 	v, err := s.index.Get(b.String())
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 	}
 	if err != nil {

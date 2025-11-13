@@ -163,7 +163,7 @@ func (zr *wholeFromZips) Read(p []byte) (n int, err error) {
 		zr.cur.Close()
 		zr.cur = nil
 	}
-	if err == io.EOF && zr.remain > 0 {
+	if errors.Is(err, io.EOF) && zr.remain > 0 {
 		err = nil
 	} else if err == nil && zr.remain == 0 {
 		err = io.EOF
@@ -187,7 +187,7 @@ func (zr *wholeFromZips) initCur() {
 	zr.zp = zr.zp[1:]
 	rc, err := zr.src.SubFetch(zr.ctx, zp.zipRef, int64(zp.zipOff), int64(zp.len))
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			err = fmt.Errorf("blobpacked: error opening next part of file: %w", err)
 		}
 		zr.err = err
