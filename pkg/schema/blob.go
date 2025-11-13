@@ -38,8 +38,8 @@ func (e MissingFieldError) Error() string {
 
 // IsMissingField returns whether error is of type MissingFieldError.
 func IsMissingField(err error) bool {
-	_, ok := err.(MissingFieldError)
-	return ok
+	var mfe MissingFieldError
+	return errors.As(err, &mfe)
 }
 
 // AnyBlob represents any type of schema blob.

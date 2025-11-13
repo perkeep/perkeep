@@ -178,7 +178,8 @@ func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	if aerr, ok := err.(awserr.Error); ok {
+	var aerr awserr.Error
+	if errors.As(err, &aerr) {
 		return aerr.Code() == s3.ErrCodeNoSuchKey ||
 			// Check 'NotFound' as well because it's returned for some requests, even
 			// though the API model doesn't include it (hence why there isn't an

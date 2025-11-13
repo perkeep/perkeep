@@ -308,10 +308,9 @@ func Main() {
 		}
 		err = cmd.RunCommand(cmdFlags.Args())
 	}
-	if ue, isUsage := err.(UsageError); isUsage {
-		if isUsage {
-			Errorf("%s\n", ue)
-		}
+	var ue UsageError
+	if errors.As(err, &ue) {
+		Errorf("%s\n", ue)
 		cmd.Usage()
 		Errorf("\nGlobal options:\n")
 		flag.PrintDefaults()

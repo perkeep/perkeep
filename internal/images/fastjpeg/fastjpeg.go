@@ -216,7 +216,8 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 		// If djpeg finished with warnings (exit code 2)
 		// the output is still usable most of the time.
 		// If not `readPNM` will fail its sanity checks
-		if exiterr, ok := err.(*exec.ExitError); ok {
+		var exiterr *exec.ExitError
+		if errors.As(err, &exiterr) {
 			if exiterr.ExitCode() == 2 {
 				goto Success
 			}

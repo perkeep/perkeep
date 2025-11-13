@@ -1235,8 +1235,9 @@ func (pk *packer) pack(ctx context.Context) error {
 MakingZips:
 	for len(pk.chunksRemain) > 0 {
 		if err := pk.writeAZip(ctx, trunc); err != nil {
-			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
-				trunc = needTrunc.Ref
+			var needTruncErr needsTruncatedAfterError
+			if errors.As(err, &needTruncErr) {
+				trunc = needTruncErr.Ref
 				if fn := testHookSawTruncate; fn != nil {
 					fn(trunc)
 				}

@@ -209,7 +209,8 @@ var malformedAuthHeaderMessageRegexp = regexp.MustCompile("region '[^']+' is wro
 // In an attempt to retain that functionality, we parse the error message
 // telling us we hit the wrong region and auto-correct it.
 func regionFromMalformedAuthHeaderError(err error) string {
-	if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "AuthorizationHeaderMalformed" {
+	var aerr awserr.Error
+	if errors.As(err, &aerr) && aerr.Code() == "AuthorizationHeaderMalformed" {
 		matches := malformedAuthHeaderMessageRegexp.FindStringSubmatch(aerr.Message())
 		if len(matches) == 2 {
 			return matches[1]

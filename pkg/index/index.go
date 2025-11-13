@@ -353,7 +353,8 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 
 	kv, err := sorted.NewKeyValue(kvConfig)
 	if err != nil {
-		if _, ok := err.(sorted.NeedWipeError); !ok {
+		var nwe sorted.NeedWipeError
+		if !errors.As(err, &nwe) {
 			return nil, err
 		}
 		if !reindex {

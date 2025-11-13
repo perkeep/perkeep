@@ -130,7 +130,10 @@ func (st *shareTester) get(path string) *shareError {
 		st.t.Fatalf("NewRequest(path=%q): %v", path, err)
 	}
 	if err := st.handler.serveHTTP(st.rec, req); err != nil {
-		return err.(*shareError)
+		var se *shareError
+		if errors.As(err, &se) {
+			return se
+		}
 	}
 	return nil
 }

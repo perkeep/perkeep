@@ -113,7 +113,8 @@ func lookupUserid(id int) string {
 	if err == nil {
 		return u.Username
 	}
-	if _, ok := err.(user.UnknownUserIdError); ok {
+	var ue user.UnknownUserIdError
+	if errors.As(err, &ue) {
 		return ""
 	}
 	if parsedPasswd {

@@ -309,7 +309,8 @@ var upgrader = websocket.Upgrader{
 
 func (h *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
 	ws, err := upgrader.Upgrade(rw, req, nil)
-	if _, ok := err.(websocket.HandshakeError); ok {
+	var he websocket.HandshakeError
+	if errors.As(err, &he) {
 		http.Error(rw, "Not a websocket handshake", http.StatusBadRequest)
 		return
 	} else if err != nil {

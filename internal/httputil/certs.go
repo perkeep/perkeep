@@ -234,7 +234,8 @@ yE+vPxsiUkvQHdO2fojCkY8jg70jxM+gu59tPDNbw3Uh/2Ij310FgTHsnGQMyA==
 		panic("failed to parse dummy certificate: " + err.Error())
 	}
 	_, err = dummyCert.Verify(x509.VerifyOptions{})
-	_, isSysRootError := err.(x509.SystemRootsError)
+	var sre x509.SystemRootsError
+	isSysRootError := errors.As(err, &sre)
 	sysRootsGood = !isSysRootError
 }
 

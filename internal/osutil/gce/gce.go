@@ -248,7 +248,8 @@ func SetInstanceHostname(camliNetHostName string) error {
 
 	hostname, err := metadata.InstanceAttributeValue("camlistore-hostname")
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
+		var nde metadata.NotDefinedError
+		if !errors.As(err, &nde) {
 			return fmt.Errorf("error getting existing camlistore-hostname: %w", err)
 		}
 	}
@@ -352,7 +353,8 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 
 	userData, err := metadata.InstanceAttributeValue(metadataKey)
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
+		var nde metadat.NotDefinedError
+		if !errors.As(err, &nde) {
 			return false, fmt.Errorf("error getting existing user-data: %w", err)
 		}
 	}
@@ -453,7 +455,8 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 func BlobpackedRecoveryValue() int {
 	recovery, err := metadata.InstanceAttributeValue("camlistore-recovery")
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
+		var nde metadata.NotDefinedError
+		if !errors.As(err, &nde) {
 			log.Printf("error getting camlistore-recovery: %v", err)
 		}
 		return 0

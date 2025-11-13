@@ -257,8 +257,9 @@ func OptionalInt(req *http.Request, param string) int {
 // error value.
 func ServeJSONError(rw http.ResponseWriter, err interface{}) {
 	code := 500
-	if i, ok := err.(httpCoder); ok {
-		code = i.HTTPCode()
+	var coder httpCoder
+	if errors.As(err, &coder) {
+		code = coder.HTTPCode()
 	}
 	msg := fmt.Sprint(err)
 	log.Printf("Sending error %v to client for: %v", code, msg)

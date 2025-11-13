@@ -291,7 +291,8 @@ func (h *shareHandler) serveHTTP(rw http.ResponseWriter, req *http.Request) erro
 	} else {
 		err = h.handleGetViaSharing(rw, req, blobRef)
 	}
-	if se, ok := err.(*shareError); ok {
+	var se *shareError
+	if errors.As(err, &se) {
 		switch se.response {
 		case badRequest:
 			httputil.BadRequestError(rw, "%s", err)

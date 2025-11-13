@@ -58,7 +58,8 @@ func (sto *s3Storage) fetch(ctx context.Context, br blob.Ref, objRange *string) 
 	if isNotFound(err) {
 		return nil, 0, os.ErrNotExist
 	}
-	if aerr, ok := err.(awserr.Error); ok {
+	var aerr awserr.Error
+	if errors.As(err, &aerr) {
 		if aerr.Code() == "InvalidRange" {
 			return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
 		}
