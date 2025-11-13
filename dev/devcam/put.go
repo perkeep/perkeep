@@ -74,7 +74,7 @@ func (c *putCmd) RunCommand(args []string) error {
 	}
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk-put")); err != nil {
-			return fmt.Errorf("Could not build pk-put: %v", err)
+			return fmt.Errorf("Could not build pk-put: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)

@@ -82,7 +82,7 @@ func (a *Addr) Set(v string) error {
 		fdStr := v[len("FD:"):]
 		fd, err := strconv.ParseUint(fdStr, 10, 32)
 		if err != nil {
-			return fmt.Errorf("invalid file descriptor %q: %v", fdStr, err)
+			return fmt.Errorf("invalid file descriptor %q: %w", fdStr, err)
 		}
 		return a.listenOnFD(uintptr(fd))
 	}
@@ -94,7 +94,7 @@ func (a *Addr) Set(v string) error {
 
 	_, _, err := net.SplitHostPort(ipPort)
 	if err != nil {
-		return fmt.Errorf("invalid PORT or IP:PORT %q: %v", v, err)
+		return fmt.Errorf("invalid PORT or IP:PORT %q: %w", v, err)
 	}
 	a.ln, err = net.Listen("tcp", ipPort)
 	return err

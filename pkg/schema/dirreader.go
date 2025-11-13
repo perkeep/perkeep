@@ -50,7 +50,7 @@ func NewDirReader(ctx context.Context, fetcher blob.Fetcher, dirBlobRef blob.Ref
 	}
 	dr, err := ss.NewDirReader(fetcher)
 	if err != nil {
-		return nil, fmt.Errorf("schema/dirreader: creating DirReader for %s: %v", dirBlobRef, err)
+		return nil, fmt.Errorf("schema/dirreader: creating DirReader for %s: %w", dirBlobRef, err)
 	}
 	dr.current = 0
 	return dr, nil
@@ -74,11 +74,11 @@ func (ss *superset) setFromBlobRef(ctx context.Context, fetcher blob.Fetcher, bl
 	ss.BlobRef = blobRef
 	rc, _, err := fetcher.Fetch(ctx, blobRef)
 	if err != nil {
-		return fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", blobRef, err)
+		return fmt.Errorf("schema/dirreader: fetching schema blob %s: %w", blobRef, err)
 	}
 	defer rc.Close()
 	if err := json.NewDecoder(rc).Decode(ss); err != nil {
-		return fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", blobRef, err)
+		return fmt.Errorf("schema/dirreader: decoding schema blob %s: %w", blobRef, err)
 	}
 	return nil
 }
@@ -103,12 +103,12 @@ func (dr *DirReader) StaticSet(ctx context.Context) ([]blob.Ref, error) {
 func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetcher) ([]blob.Ref, error) {
 	rsc, _, err := fetcher.Fetch(ctx, staticSetBlobref)
 	if err != nil {
-		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", staticSetBlobref, err)
+		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %w", staticSetBlobref, err)
 	}
 	defer rsc.Close()
 	ss, err := parseSuperset(rsc)
 	if err != nil {
-		return nil, fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", staticSetBlobref, err)
+		return nil, fmt.Errorf("schema/dirreader: decoding schema blob %s: %w", staticSetBlobref, err)
 	}
 	if ss.Type != "static-set" {
 		return nil, fmt.Errorf("schema/dirreader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
@@ -134,7 +134,7 @@ func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetc
 		// TODO(mpl): do it concurrently
 		subset, err := staticSet(ctx, toMerge, fetcher)
 		if err != nil {
-			return nil, fmt.Errorf("schema/dirreader: could not get members of %q, subset of %v: %v", toMerge, staticSetBlobref, err)
+			return nil, fmt.Errorf("schema/dirreader: could not get members of %q, subset of %v: %w", toMerge, staticSetBlobref, err)
 		}
 		members = append(members, subset...)
 	}
@@ -145,7 +145,7 @@ func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetc
 func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEntry, err error) {
 	sts, err := dr.StaticSet(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("schema/dirreader: can't get StaticSet: %v", err)
+		return nil, fmt.Errorf("schema/dirreader: can't get StaticSet: %w", err)
 	}
 	up := dr.current + n
 	if n <= 0 {

@@ -151,7 +151,7 @@ type fetcherIndex struct {
 func (fi *fetcherIndex) addBlob(b *test.Blob) error {
 	fi.tf.AddBlob(b)
 	if _, err := fi.idx.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
-		return fmt.Errorf("ReceiveBlob(%v): %v", b.BlobRef(), err)
+		return fmt.Errorf("ReceiveBlob(%v): %w", b.BlobRef(), err)
 	}
 	return nil
 }

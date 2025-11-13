@@ -77,7 +77,7 @@ func loadCamliHubImage(image string) error {
 	imgURL := camliHub + strings.TrimPrefix(image, "camlistore/") + ".tar.gz"
 	resp, err := http.Get(imgURL)
 	if err != nil {
-		return fmt.Errorf("error fetching image %s: %v", image, err)
+		return fmt.Errorf("error fetching image %s: %w", image, err)
 	}
 	defer resp.Body.Close()
 
@@ -93,19 +93,19 @@ func loadCamliHubImage(image string) error {
 		defer tar.Close()
 		zr, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			errc1 <- fmt.Errorf("gzip reader error for image %s: %v", image, err)
+			errc1 <- fmt.Errorf("gzip reader error for image %s: %w", image, err)
 			return
 		}
 		defer zr.Close()
 		if _, err = io.Copy(tar, zr); err != nil {
-			errc1 <- fmt.Errorf("error gunzipping image %s: %v", image, err)
+			errc1 <- fmt.Errorf("error gunzipping image %s: %w", image, err)
 			return
 		}
 		errc1 <- nil
 	}()
 	go func() {
 		if err := dockerLoad.Run(); err != nil {
-			errc2 <- fmt.Errorf("error running docker load %v: %v", image, err)
+			errc2 <- fmt.Errorf("error running docker load %v: %w", image, err)
 			return
 		}
 		errc2 <- nil
@@ -161,7 +161,7 @@ func run(args ...string) (containerID string, err error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err = cmd.Run(); err != nil {
-		err = fmt.Errorf("%v%v", stderr.String(), err)
+		err = fmt.Errorf("%v%w", stderr.String(), err)
 		return
 	}
 	containerID = strings.TrimSpace(stdout.String())
@@ -187,7 +187,7 @@ func Pull(image string) error {
 	// "Authentication is required" message does come from stderr, then quit
 	// checking stdout.
 	if err != nil || stderr.Len() != 0 || strings.Contains(out, "Authentication is required") {
-		return fmt.Errorf("docker pull failed: stdout: %s, stderr: %s, err: %v", out, stderr.String(), err)
+		return fmt.Errorf("docker pull failed: stdout: %s, stderr: %s, err: %w", out, stderr.String(), err)
 	}
 	return nil
 }
@@ -258,7 +258,7 @@ func (c ContainerID) KillRemove(t *testing.T) {
 func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err error) {
 	ip, err = c.IP()
 	if err != nil {
-		err = fmt.Errorf("error getting IP: %v", err)
+		err = fmt.Errorf("error getting IP: %w", err)
 		return
 	}
 	addr := fmt.Sprintf("%s:%d", ip, port)
@@ -333,12 +333,12 @@ func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip st
 	rootdb, err := sql.Open("postgres",
 		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
 	if err != nil {
-		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %v", err))
+		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %w", err))
 	}
 	if _, err := sqlExecRetry(rootdb,
 		"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
 		50); err != nil {
-		cleanupAndDie(fmt.Errorf("Could not create database %v: %v", dbname, err))
+		cleanupAndDie(fmt.Errorf("Could not create database %v: %w", dbname, err))
 	}
 	return
 }
@@ -367,5 +367,5 @@ func sqlExecRetry(db *sql.DB, stmt string, maxTry int) (sql.Result, error) {
 		time.Sleep(interval)
 		interval *= 2
 	}
-	return result, fmt.Errorf("failed %v times: %v", try, err)
+	return result, fmt.Errorf("failed %v times: %w", try, err)
 }

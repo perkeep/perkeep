@@ -35,9 +35,11 @@ package azure
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"go4.org/jsonconfig"
+
 	"perkeep.org/internal/azure/storage"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -92,13 +94,12 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	}
 	if !skipStartupCheck {
 		_, err := client.ListBlobs(context.TODO(), sto.container, 1)
-		if serr, ok := err.(*storage.Error); ok {
-			if serr.AzureError.Code == "ContainerNotFound" {
-				return nil, fmt.Errorf("container %q doesn't exist", sto.container)
-			}
-			return nil, fmt.Errorf("error listing container %s: %v", sto.container, serr)
-		} else if err != nil {
-			return nil, fmt.Errorf("error listing container %s: %v", sto.container, err)
+		var serr *storage.Error
+		if errors.As(err, &serr) && serr.AzureError.Code == "ContainerNotFound" {
+			return nil, fmt.Errorf("container %q doesn't exist", sto.container)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error listing container %s: %w", sto.container, err)
 		}
 	}
 	return sto, nil

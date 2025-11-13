@@ -86,17 +86,17 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	lower, err := ld.GetStorage(lowerPrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load lower at %s: %v", lowerPrefix, err)
+		return nil, fmt.Errorf("failed to load lower at %s: %w", lowerPrefix, err)
 	}
 	upper, err := ld.GetStorage(upperPrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load upper at %s: %v", upperPrefix, err)
+		return nil, fmt.Errorf("failed to load upper at %s: %w", upperPrefix, err)
 	}
 	var deleted sorted.KeyValue
 	if len(deletedConf) != 0 {
 		deleted, err = sorted.NewKeyValueMaybeWipe(deletedConf)
 		if err != nil {
-			return nil, fmt.Errorf("failed to setup deleted: %v", err)
+			return nil, fmt.Errorf("failed to setup deleted: %w", err)
 		}
 	}
 

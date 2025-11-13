@@ -132,7 +132,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler
 
 	bs, err := ld.GetStorage(blobRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get share handler's storage at %q: %v", blobRoot, err)
+		return nil, fmt.Errorf("failed to get share handler's storage at %q: %w", blobRoot, err)
 	}
 	fetcher, ok := bs.(blob.Fetcher)
 	if !ok {

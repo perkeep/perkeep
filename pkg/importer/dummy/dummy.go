@@ -147,7 +147,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrUsername, name,
 		acctAttrToken, code,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

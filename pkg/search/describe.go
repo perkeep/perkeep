@@ -573,7 +573,7 @@ func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
 	defer dr.mu.Unlock()
 	for k, err := range dr.errs {
 		// TODO: include all?
-		return nil, fmt.Errorf("error populating %s: %v", k, err)
+		return nil, fmt.Errorf("error populating %s: %w", k, err)
 	}
 	m := make(map[string]*DescribedBlob)
 	for k, desb := range dr.m {
@@ -830,7 +830,7 @@ func (dr *DescribeRequest) populatePermanodeFields(ctx context.Context, pi *Desc
 	claims, err := dr.sh.index.AppendClaims(ctx, nil, pn, dr.sh.owner.KeyID(), "")
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
+		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %w", pn.String(), err))
 		return
 	}
 

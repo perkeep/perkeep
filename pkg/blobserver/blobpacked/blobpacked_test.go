@@ -700,11 +700,11 @@ func testPack(t *testing.T,
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("error looking up logical blob %v in meta: %v", sb.Ref, err)
+			return fmt.Errorf("error looking up logical blob %v in meta: %w", sb.Ref, err)
 		}
 		m, err := parseMetaRow([]byte(v))
 		if err != nil {
-			return fmt.Errorf("error parsing logical blob %v meta %q: %v", sb.Ref, v, err)
+			return fmt.Errorf("error parsing logical blob %v meta %q: %w", sb.Ref, v, err)
 		}
 		if !m.exists || m.size != sb.Size || !zipSeen[m.largeRef] {
 			return fmt.Errorf("logical blob %v = %+v; want in zip", sb.Ref, m)

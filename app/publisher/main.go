@@ -97,7 +97,7 @@ func appConfig() (*config, error) {
 	}
 	cl, err := app.Client()
 	if err != nil {
-		return nil, fmt.Errorf("could not get a client to fetch extra config: %v", err)
+		return nil, fmt.Errorf("could not get a client to fetch extra config: %w", err)
 	}
 	conf := &config{}
 	pause := time.Second
@@ -415,12 +415,12 @@ func newPublishHandler(conf *config) *publishHandler {
 func goTemplate(files fs.FS, templateFile string) (*template.Template, error) {
 	f, err := files.Open(templateFile)
 	if err != nil {
-		return nil, fmt.Errorf("Could not open template %v: %v", templateFile, err)
+		return nil, fmt.Errorf("Could not open template %v: %w", templateFile, err)
 	}
 	defer f.Close()
 	templateBytes, err := io.ReadAll(f)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read template %v: %v", templateFile, err)
+		return nil, fmt.Errorf("Could not read template %v: %w", templateFile, err)
 	}
 	return template.Must(template.New("subject").Parse(string(templateBytes))), nil
 }
@@ -466,7 +466,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// (by e.g. the owner) since last time.
 		err := ph.initRootNode()
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("No publish root node: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("No publish root node: %w", err))
 			ph.rootNodeMu.Unlock()
 			return
 		}
@@ -475,7 +475,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ph.masterQueryMu.Lock()
 	if !ph.masterQueryDone {
 		if err := ph.setMasterQuery(ph.rootNode); err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("master query not set: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("master query not set: %w", err))
 			ph.masterQueryMu.Unlock()
 			return
 		}
@@ -485,7 +485,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	preq, err := ph.NewRequest(w, r)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Could not create publish request: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Could not create publish request: %w", err))
 		return
 	}
 	preq.serveHTTP()
@@ -495,7 +495,7 @@ func (ph *publishHandler) initRootNode() error {
 	var getRootNode = func() (blob.Ref, error) {
 		result, err := ph.camliRootQuery()
 		if err != nil {
-			return blob.Ref{}, fmt.Errorf("could not find permanode for root %q of publish handler: %v", ph.rootName, err)
+			return blob.Ref{}, fmt.Errorf("could not find permanode for root %q of publish handler: %w", ph.rootName, err)
 		}
 		if len(result.Blobs) == 0 || !result.Blobs[0].Blob.Valid() {
 			return blob.Ref{}, fmt.Errorf("could not find permanode for root %q of publish handler: %v", ph.rootName, os.ErrNotExist)
@@ -607,7 +607,7 @@ func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
 		Depth:   1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe %v: %v", br, err)
+		return nil, fmt.Errorf("Could not describe %v: %w", br, err)
 	}
 	// TODO(mpl): check why Describe is not giving us an error when br is invalid.
 	if res == nil || res.Meta == nil || res.Meta[br.String()] == nil {
@@ -633,7 +633,7 @@ func (ph *publishHandler) deepDescribe(br blob.Ref) (*search.DescribeResponse, e
 		Limit: -1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not deep describe %v: %v", br, err)
+		return nil, fmt.Errorf("Could not deep describe %v: %w", br, err)
 	}
 	if res == nil || res.Describe == nil {
 		return nil, fmt.Errorf("no describe result for %v", br)
@@ -1176,7 +1176,7 @@ func (ph *publishHandler) describeMembers(br blob.Ref) (*search.SearchResult, er
 		Limit: -1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe members of %v: %v", br, err)
+		return nil, fmt.Errorf("Could not describe members of %v: %w", br, err)
 	}
 	return res, nil
 }

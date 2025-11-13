@@ -222,7 +222,7 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 			}
 		}
 		djpegFailureVar.Add(1)
-		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
+		return nil, DjpegFailedError{Err: fmt.Errorf("%w: %s", err, stderrW)}
 	}
 
 Success:

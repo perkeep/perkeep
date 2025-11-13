@@ -127,7 +127,7 @@ func (is *kvis) Wipe() error {
 
 	db, err := kv.Create(is.path, is.opts)
 	if err != nil {
-		return fmt.Errorf("error creating %s: %v", is.path, err)
+		return fmt.Errorf("error creating %s: %w", is.path, err)
 	}
 	is.db = db
 	return nil

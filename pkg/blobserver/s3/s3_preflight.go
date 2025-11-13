@@ -126,7 +126,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 		}
 		var b bytes.Buffer
 		if _, err := io.Copy(&b, r.HTTPResponse.Body); err != nil {
-			r.Error = fmt.Errorf("error reading body: %v", err)
+			r.Error = fmt.Errorf("error reading body: %w", err)
 			return
 		}
 
@@ -152,7 +152,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 				return determineEndpoint(ctx, svc, endpoint, bucket, newRegion)
 			}
 		}
-		return "", "", fmt.Errorf("s3: could not determine endpoint: %v", err)
+		return "", "", fmt.Errorf("s3: could not determine endpoint: %w", err)
 	}
 	// this indicates the UnmarshalError handler wasn't called, and since the
 	// above branch didn't happen there wasn't an error. That means our current

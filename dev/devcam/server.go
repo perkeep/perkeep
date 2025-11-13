@@ -191,7 +191,7 @@ func (c *serverCmd) setRoot() error {
 	if c.wipe {
 		log.Printf("Wiping %v", c.root)
 		if err := os.RemoveAll(c.root); err != nil {
-			return fmt.Errorf("Could not wipe %v: %v", c.root, err)
+			return fmt.Errorf("Could not wipe %v: %w", c.root, err)
 		}
 	}
 	return nil
@@ -279,7 +279,7 @@ func (c *serverCmd) setEnvVars() error {
 		if c.hostname == "" {
 			hostname, err := os.Hostname()
 			if err != nil {
-				return fmt.Errorf("Could not get system hostname: %v", err)
+				return fmt.Errorf("Could not get system hostname: %w", err)
 			}
 			base = "http://" + hostname + ":" + c.port
 		} else {
@@ -383,7 +383,7 @@ func (c *serverCmd) setupIndexer() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Could not run pk dbinit: %v", err)
+		return fmt.Errorf("Could not run pk dbinit: %w", err)
 	}
 	return nil
 }
@@ -399,7 +399,7 @@ func (c *serverCmd) syncTemplateBlobs() error {
 		}
 		blobsDir := filepath.Join(c.root, "sha1")
 		if err := cpDir(templateDir, blobsDir, nil); err != nil {
-			return fmt.Errorf("Could not cp template blobs: %v", err)
+			return fmt.Errorf("Could not cp template blobs: %w", err)
 		}
 	}
 	return nil
@@ -418,7 +418,7 @@ func (c *serverCmd) setFullClosure() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("Could not run updatelibrary.go: %v", err)
+			return fmt.Errorf("Could not run updatelibrary.go: %w", err)
 		}
 		c.env.Set("CAMLI_DEV_CLOSURE_DIR", "clients/web/embed/closure/lib/closure")
 	}
@@ -431,7 +431,7 @@ func (c *serverCmd) makeThings() error {
 	configFile := filepath.Join(camliSrcRoot, "config", "dev-server-config.json")
 	config, err := os.ReadFile(configFile)
 	if err != nil {
-		return fmt.Errorf("could not read config file %v: %v", configFile, err)
+		return fmt.Errorf("could not read config file %v: %w", configFile, err)
 	}
 	if !bytes.Contains(config, []byte(importerPrefix)) {
 		return fmt.Errorf("%s prefix not found in dev config. Did it change?", importerPrefix)
@@ -451,7 +451,7 @@ func (c *serverCmd) makeThings() error {
 
 	cl, err := client.New(client.OptionServer(baseURL))
 	if err != nil {
-		return fmt.Errorf("making client: %v", err)
+		return fmt.Errorf("making client: %w", err)
 	}
 	signer, err := cl.Signer()
 	if err != nil {
@@ -485,7 +485,7 @@ func (c *serverCmd) makeThings() error {
 		hc.HTTPClient = &http.Client{Transport: tr}
 		host, err := importer.NewHost(hc)
 		if err != nil {
-			return fmt.Errorf("could not obtain Host: %v", err)
+			return fmt.Errorf("could not obtain Host: %w", err)
 		}
 
 		rc, err := importer.CreateAccount(host, name)
@@ -494,7 +494,7 @@ func (c *serverCmd) makeThings() error {
 		}
 
 		if err := mk.SetTestAccount(rc.AccountNode()); err != nil {
-			return fmt.Errorf("could not set fake account node for importer %v: %v", name, err)
+			return fmt.Errorf("could not set fake account node for importer %v: %w", name, err)
 		}
 
 		if err := imp.Run(rc); err != nil {
@@ -527,10 +527,10 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 	}
 	if err := c.setRoot(); err != nil {
-		return fmt.Errorf("Could not setup the camli root: %v", err)
+		return fmt.Errorf("Could not setup the camli root: %w", err)
 	}
 	if err := c.setEnvVars(); err != nil {
-		return fmt.Errorf("Could not setup the env vars: %v", err)
+		return fmt.Errorf("Could not setup the env vars: %w", err)
 	}
 	// wipeCacheDir needs to be called after setEnvVars, because that is where
 	// CAMLI_CACHE_DIR is defined.
@@ -538,13 +538,13 @@ func (c *serverCmd) RunCommand(args []string) error {
 		c.env.wipeCacheDir()
 	}
 	if err := c.setupIndexer(); err != nil {
-		return fmt.Errorf("Could not setup the indexer: %v", err)
+		return fmt.Errorf("Could not setup the indexer: %w", err)
 	}
 	if err := c.syncTemplateBlobs(); err != nil {
-		return fmt.Errorf("Could not copy the template blobs: %v", err)
+		return fmt.Errorf("Could not copy the template blobs: %w", err)
 	}
 	if err := c.setFullClosure(); err != nil {
-		return fmt.Errorf("Could not setup the closure lib: %v", err)
+		return fmt.Errorf("Could not setup the closure lib: %w", err)
 	}
 
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
@@ -552,7 +552,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 
 	pkBin, err := exec.LookPath("perkeepd")
 	if err != nil {
-		return fmt.Errorf("could not find perkeepd path: %v", err)
+		return fmt.Errorf("could not find perkeepd path: %w", err)
 	}
 	cmdArgs := []string{
 		"-configfile=" + filepath.Join(camliSrcRoot, "config", "dev-server-config.json"),

@@ -49,11 +49,11 @@ func setUpThumbnailContainer() error {
 	}
 	if ok, err := haveImageID(thumbnailImage, thumbnailImageID); !ok || err != nil {
 		if err != nil {
-			return fmt.Errorf("error running docker to check for %s: %v", thumbnailImage, err)
+			return fmt.Errorf("error running docker to check for %s: %w", thumbnailImage, err)
 		}
 		log.Printf("pulling docker image %s ...", thumbnailImage)
 		if err := pull(thumbnailImage); err != nil {
-			return fmt.Errorf("error pulling %s: %v", thumbnailImage, err)
+			return fmt.Errorf("error pulling %s: %w", thumbnailImage, err)
 		}
 	}
 	haveThumbnailImage = true
@@ -101,7 +101,7 @@ func pull(image string) error {
 	// "Authentication is required" message does come from stderr, then quit
 	// checking stdout.
 	if err != nil || stderr.Len() != 0 || strings.Contains(out, "Authentication is required") {
-		return fmt.Errorf("docker pull failed: stdout: %s, stderr: %s, err: %v", out, stderr.String(), err)
+		return fmt.Errorf("docker pull failed: stdout: %s, stderr: %s, err: %w", out, stderr.String(), err)
 	}
 	return nil
 }

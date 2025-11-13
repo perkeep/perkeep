@@ -181,13 +181,13 @@ func unpackIndexEntry(s string) (plainSize uint32, encBR blob.Ref, err error) {
 	}
 	size, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
-		err = fmt.Errorf("malformed index entry %q: %s", s, err)
+		err = fmt.Errorf("malformed index entry %q: %w", s, err)
 		return
 	}
 	plainSize = uint32(size)
 	encBR = blob.ParseOrZero(parts[1])
 	if !encBR.Valid() {
-		err = fmt.Errorf("malformed index entry %q: %s", s, err)
+		err = fmt.Errorf("malformed index entry %q: %w", s, err)
 	}
 	return
 }
@@ -289,13 +289,13 @@ func (s *storage) readAllMetaBlobs() error {
 				defer func() { <-gate }()
 				rc, _, err := s.meta.Fetch(ctx, sb.Ref)
 				if err != nil {
-					metac <- encMB{sb.Ref, nil, fmt.Errorf("fetch failed: %v", err)}
+					metac <- encMB{sb.Ref, nil, fmt.Errorf("fetch failed: %w", err)}
 					return
 				}
 				defer rc.Close()
 				all, err := io.ReadAll(rc)
 				if err != nil {
-					metac <- encMB{sb.Ref, nil, fmt.Errorf("read failed: %v", err)}
+					metac <- encMB{sb.Ref, nil, fmt.Errorf("read failed: %w", err)}
 					return
 				}
 				metac <- encMB{sb.Ref, all, nil}
@@ -320,7 +320,7 @@ func (s *storage) readAllMetaBlobs() error {
 			// TODO: advertise in this error message a new option or environment variable
 			// to skip a certain or all meta blobs, to allow partial recovery, if some
 			// are corrupt. For now, require all to be correct.
-			return fmt.Errorf("error with meta blob %v: %v", mi.br, err)
+			return fmt.Errorf("error with meta blob %v: %w", mi.br, err)
 		}
 	}
 

@@ -109,7 +109,7 @@ func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
 func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 	rc, _, err := ix.blobSource.Fetch(ctx, br)
 	if err != nil {
-		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
+		return fmt.Errorf("index: failed to fetch %v for reindexing: %w", br, err)
 	}
 	defer rc.Close()
 	if _, err := blobserver.Receive(ctx, ix, br, rc); err != nil {
@@ -307,7 +307,7 @@ func (ix *Index) commit(mm *mutationMap) error {
 	}
 	for _, cl := range mm.deletes {
 		if err := ix.updateDeletesCache(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
 		}
 	}
 	return nil
@@ -841,11 +841,11 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	if err != nil {
 		if err == os.ErrNotExist {
 			if err := ix.noteNeeded(br, target); err != nil {
-				return fmt.Errorf("could not note that delete claim %v depends on %v: %v", br, target, err)
+				return fmt.Errorf("could not note that delete claim %v depends on %v: %w", br, target, err)
 			}
 			return errMissingDep
 		}
-		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %v", target, err))
+		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %w", target, err))
 		return nil
 	}
 
@@ -948,7 +948,7 @@ func (ix *Index) updateDeletesCache(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("Could not get date of delete claim %v: %w", deleteClaim, err)
 	}
 	targetDeletions := append(ix.deletes.m[target],
 		deletion{

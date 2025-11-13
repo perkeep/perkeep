@@ -54,7 +54,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 
 	req, err := http.NewRequest("POST", url_, strings.NewReader(params.Encode()))
 	if err != nil {
-		return fmt.Errorf("Error creating RemoveBlobs POST request: %v", err)
+		return fmt.Errorf("Error creating RemoveBlobs POST request: %w", err)
 	}
 	req = req.WithContext(ctx)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")

@@ -62,7 +62,7 @@ func SelfPath() (string, error) {
 func RestartProcess(arg ...string) error {
 	path, err := SelfPath()
 	if err != nil {
-		return fmt.Errorf("RestartProcess failed: %v", err)
+		return fmt.Errorf("RestartProcess failed: %w", err)
 	}
 
 	var args []string

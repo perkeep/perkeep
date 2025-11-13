@@ -204,7 +204,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 		// New index.
 		err := idx.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 		if err != nil {
-			return nil, fmt.Errorf("Could not write index schema version %q: %v", requiredSchemaVersion, err)
+			return nil, fmt.Errorf("Could not write index schema version %q: %w", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
@@ -222,10 +222,10 @@ func New(s sorted.KeyValue) (*Index, error) {
 			schemaVersion, requiredSchemaVersion, tip)
 	}
 	if err := idx.initDeletesCache(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's deletes cache: %v", err)
+		return nil, fmt.Errorf("Could not initialize index's deletes cache: %w", err)
 	}
 	if err := idx.initNeededMaps(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
+		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %w", err)
 	}
 	return idx, nil
 }
@@ -318,7 +318,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 		}
 		size, err := strconv.Atoi(size_s)
 		if err != nil {
-			return fmt.Errorf("bogus size in keyFileInfo value %v: %v", it.Value(), err)
+			return fmt.Errorf("bogus size in keyFileInfo value %v: %w", it.Value(), err)
 		}
 		mutations[keyFileInfo.Key(br)] = keyFileInfo.Val(size, filename, mimetype, wholeRef)
 		fixedEntries++
@@ -367,7 +367,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 			return nil, fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", kv)
 		}
 		if err := wiper.Wipe(); err != nil {
-			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %v", kv, err)
+			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %w", kv, err)
 		}
 		log.Printf("Index wiped.")
 	}
@@ -386,7 +386,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
 			ix.Close()
-			return nil, fmt.Errorf("could not fix missing wholeRef entries: %v", err)
+			return nil, fmt.Errorf("could not fix missing wholeRef entries: %w", err)
 		}
 		ix, err = New(kv)
 	}
@@ -467,7 +467,7 @@ func (x *Index) Reindex() error {
 		}
 		log.Printf("Wiping index storage type %T ...", x.s)
 		if err := wiper.Wipe(); err != nil {
-			return fmt.Errorf("error wiping index's sorted key/value type %T: %v", x.s, err)
+			return fmt.Errorf("error wiping index's sorted key/value type %T: %w", x.s, err)
 		}
 		log.Printf("Index wiped.")
 	}

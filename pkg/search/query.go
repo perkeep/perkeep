@@ -252,10 +252,10 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 	expr := q.Expression
 	sq, err = parseExpression(ctx, expr)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
+		return nil, fmt.Errorf("Error parsing search expression %q: %w", expr, err)
 	}
 	if err := sq.Constraint.checkValid(); err != nil {
-		return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
+		return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %w", expr, err)
 	}
 	return sq, nil
 }
@@ -990,7 +990,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	}
 	exprResult, err := rawq.checkValid(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)
+		return nil, fmt.Errorf("Invalid SearchQuery: %w", err)
 	}
 	q := rawq.plannedQuery(exprResult)
 	res := new(SearchResult)

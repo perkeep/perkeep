@@ -75,7 +75,7 @@ func (c *desCmd) RunCommand(args []string) error {
 		var err error
 		at, err = time.Parse(time.RFC3339, c.at)
 		if err != nil {
-			return fmt.Errorf("error parsing --at value %q: %v", c.at, err)
+			return fmt.Errorf("error parsing --at value %q: %w", c.at, err)
 		}
 	}
 

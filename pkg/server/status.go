@@ -220,7 +220,7 @@ func (sh *StatusHandler) googleCloudConsole() (string, error) {
 	}
 	projID, err := metadata.ProjectID()
 	if err != nil {
-		return "", fmt.Errorf("Error getting project ID: %v", err)
+		return "", fmt.Errorf("Error getting project ID: %w", err)
 	}
 	return "https://console.cloud.google.com/compute/instances?project=" + projID, nil
 }

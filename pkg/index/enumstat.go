@@ -71,7 +71,7 @@ func (ix *Index) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.S
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("error looking up key %q: %v", key, err)
+			return fmt.Errorf("error looking up key %q: %w", key, err)
 		}
 		size, err := parseHaveVal(v)
 		if err != nil {

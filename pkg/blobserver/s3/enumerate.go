@@ -85,7 +85,7 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 	}
 
 	if err != nil {
-		return fmt.Errorf("s3 EnumerateBlobs: %v", err)
+		return fmt.Errorf("s3 EnumerateBlobs: %w", err)
 	}
 	return nil
 }

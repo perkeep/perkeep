@@ -150,7 +150,7 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
-		return fmt.Errorf("error opening public key file: %v", err)
+		return fmt.Errorf("error opening public key file: %w", err)
 	}
 	vr.PublicKeyPacket = pk
 	return nil

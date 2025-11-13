@@ -106,7 +106,7 @@ func (c *initCmd) initSecretRing() error {
 	}
 	if _, err := os.Stat(c.secretRing); err != nil {
 		hint := "\nA GPG key is required, please use 'pk-put init --newkey'.\n\nOr if you know what you're doing, you can set the global pk-put flag --secret-keyring, or the CAMLI_SECRET_RING env var, to use your own GPG ring. And --gpgkey=<pubid> or GPGKEY to select which key ID to use."
-		return fmt.Errorf("Could not use secret ring file %v: %v.\n%v", c.secretRing, err, hint)
+		return fmt.Errorf("Could not use secret ring file %v: %w.\n%v", c.secretRing, err, hint)
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func (c *initCmd) initKeyId() error {
 		log.Printf("Re-using identity with keyId %q found in file %s", c.keyId, c.secretRing)
 	} else {
 		hint := "You can set --gpgkey=<pubid> or the GPGKEY env var to select which key ID to use.\n"
-		return fmt.Errorf("No suitable gpg key was found in %v: %v.\n%v", c.secretRing, err, hint)
+		return fmt.Errorf("No suitable gpg key was found in %v: %w.\n%v", c.secretRing, err, hint)
 	}
 	c.keyId = strings.TrimPrefix(
 		strings.ReplaceAll(c.keyId, " ", ""),
@@ -134,11 +134,11 @@ func (c *initCmd) initKeyId() error {
 func (c *initCmd) getPublicKeyArmored() ([]byte, error) {
 	entity, err := jsonsign.EntityFromSecring(c.keyId, c.secretRing)
 	if err != nil {
-		return nil, fmt.Errorf("Could not find keyId %v in ring %v: %v", c.keyId, c.secretRing, err)
+		return nil, fmt.Errorf("Could not find keyId %v in ring %v: %w", c.keyId, c.secretRing, err)
 	}
 	pubArmor, err := jsonsign.ArmoredPublicKey(entity)
 	if err != nil {
-		return nil, fmt.Errorf("failed to export armored public key ID %q from %v: %v", c.keyId, c.secretRing, err)
+		return nil, fmt.Errorf("failed to export armored public key ID %q from %v: %w", c.keyId, c.secretRing, err)
 	}
 	return []byte(pubArmor), nil
 }
@@ -192,7 +192,7 @@ func (c *initCmd) writeConfig(cc *clientconfig.Config) error {
 		log.Fatalf("JSON serialization error: %v", err)
 	}
 	if err := os.WriteFile(configFilePath, jsonBytes, 0600); err != nil {
-		return fmt.Errorf("could not write client config file %v: %v", configFilePath, err)
+		return fmt.Errorf("could not write client config file %v: %w", configFilePath, err)
 	}
 	log.Printf("Wrote %q; modify as necessary.", configFilePath)
 	return nil

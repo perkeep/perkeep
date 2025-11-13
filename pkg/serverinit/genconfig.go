@@ -209,7 +209,7 @@ func (b *lowBuilder) longIdentity() (string, error) {
 	}
 	keyID, err := jsonsign.KeyIdFromRing(b.high.IdentitySecretRing)
 	if err != nil {
-		return "", fmt.Errorf("could not find any keyID in file %q: %v", b.high.IdentitySecretRing, err)
+		return "", fmt.Errorf("could not find any keyID in file %q: %w", b.high.IdentitySecretRing, err)
 	}
 	if !strings.HasSuffix(keyID, b.high.Identity) {
 		return "", fmt.Errorf("%q identity not found in secret ring %v", b.high.Identity, b.high.IdentitySecretRing)
@@ -986,7 +986,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.BaseURL != "" {
 		u, err := url.Parse(conf.BaseURL)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", conf.BaseURL, err)
+			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %w", conf.BaseURL, err)
 		}
 		if u.Path != "" && u.Path != "/" {
 			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port")
@@ -1061,7 +1061,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	if !noMkdir {
 		if err := os.MkdirAll(cacheDir, 0700); err != nil {
-			return nil, fmt.Errorf("Could not create blobs cache dir %s: %v", cacheDir, err)
+			return nil, fmt.Errorf("Could not create blobs cache dir %s: %w", cacheDir, err)
 		}
 	}
 
@@ -1083,7 +1083,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			}
 		}
 		if err := b.addPublishedConfig(tlsO); err != nil {
-			return nil, fmt.Errorf("Could not generate config for published: %v", err)
+			return nil, fmt.Errorf("Could not generate config for published: %w", err)
 		}
 	}
 
@@ -1101,7 +1101,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			}
 		}
 		if err := b.addScanCabConfig(tlsO); err != nil {
-			return nil, fmt.Errorf("Could not generate config for scanning cabinet: %v", err)
+			return nil, fmt.Errorf("Could not generate config for scanning cabinet: %w", err)
 		}
 	}
 
@@ -1179,7 +1179,7 @@ func WriteDefaultConfigFile(filePath string) error {
 		return err
 	}
 	if err := wkfs.MkdirAll(blobDir, 0700); err != nil {
-		return fmt.Errorf("Could not create default blobs directory: %v", err)
+		return fmt.Errorf("Could not create default blobs directory: %w", err)
 	}
 	conf.BlobPath = blobDir
 	conf.PackRelated = true
@@ -1195,11 +1195,11 @@ func WriteDefaultConfigFile(filePath string) error {
 
 	confData, err := json.MarshalIndent(conf, "", "    ")
 	if err != nil {
-		return fmt.Errorf("Could not json encode config file : %v", err)
+		return fmt.Errorf("Could not json encode config file: %w", err)
 	}
 
 	if err := wkfs.WriteFile(filePath, confData, 0600); err != nil {
-		return fmt.Errorf("Could not create or write default server config: %v", err)
+		return fmt.Errorf("Could not create or write default server config: %w", err)
 	}
 
 	return nil
@@ -1212,19 +1212,19 @@ func getOrMakeKeyring() (keyID, secRing string, err error) {
 	case err == nil:
 		keyID, err = jsonsign.KeyIdFromRing(secRing)
 		if err != nil {
-			err = fmt.Errorf("Could not find any keyID in file %q: %v", secRing, err)
+			err = fmt.Errorf("Could not find any keyID in file %q: %w", secRing, err)
 			return
 		}
 		log.Printf("Re-using identity with keyID %q found in file %s", keyID, secRing)
 	case os.IsNotExist(err):
 		keyID, err = jsonsign.GenerateNewSecRing(secRing)
 		if err != nil {
-			err = fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
+			err = fmt.Errorf("Could not generate new secRing at file %q: %w", secRing, err)
 			return
 		}
 		log.Printf("Generated new identity with keyID %q in file %s", keyID, secRing)
 	default:
-		err = fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
+		err = fmt.Errorf("Could not stat secret ring %q: %w", secRing, err)
 	}
 	return
 }

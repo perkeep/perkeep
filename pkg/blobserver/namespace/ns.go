@@ -57,11 +57,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	}
 	sto.inventory, err = sorted.NewKeyValue(invConf)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid 'inventory' configuration: %v", err)
+		return nil, fmt.Errorf("Invalid 'inventory' configuration: %w", err)
 	}
 	sto.master, err = ld.GetStorage(masterName)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid 'storage' configuration: %v", err)
+		return nil, fmt.Errorf("Invalid 'storage' configuration: %w", err)
 	}
 	return sto, nil
 }

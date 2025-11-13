@@ -135,7 +135,7 @@ func configParser() *jsonconfig.ConfigParser {
 func replaceRingPath(path string) ([]byte, error) {
 	secRing, err := filepath.Abs(relativeRing)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
+		return nil, fmt.Errorf("Could not get absolute path of %v: %w", relativeRing, err)
 	}
 	secRing = strings.Replace(secRing, `\`, `\\`, -1)
 	slurpBytes, err := os.ReadFile(path)

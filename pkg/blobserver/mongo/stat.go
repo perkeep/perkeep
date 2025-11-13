@@ -40,7 +40,7 @@ func (m *mongoStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(
 		case mgo.ErrNotFound:
 			return sb, nil
 		default:
-			return sb, fmt.Errorf("mongo: error statting %v: %v", b, err)
+			return sb, fmt.Errorf("mongo: error statting %v: %w", b, err)
 		}
 	})
 }

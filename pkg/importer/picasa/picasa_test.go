@@ -208,7 +208,7 @@ func newSigner(bs blobserver.BlobReceiver) (signer *schema.Signer, owner blob.Re
 	}
 	pubRef := blob.RefFromString(armorPub)
 	if _, err := bs.ReceiveBlob(ctxbg, pubRef, strings.NewReader(armorPub)); err != nil {
-		return nil, owner, fmt.Errorf("could not store pub key blob: %v", err)
+		return nil, owner, fmt.Errorf("could not store pub key blob: %w", err)
 	}
 	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {

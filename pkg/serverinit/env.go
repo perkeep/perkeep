@@ -47,11 +47,11 @@ func DefaultEnvConfig() (*Config, error) {
 	pass, _ := metadata.InstanceAttributeValue("camlistore-password")
 	confBucket, err := metadata.InstanceAttributeValue("camlistore-config-dir")
 	if confBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-dir' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-dir' not set: %w", err)
 	}
 	blobBucket, err := metadata.InstanceAttributeValue("camlistore-blob-dir")
 	if blobBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-dir' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-dir' not set: %w", err)
 	}
 	if user != "" && pass != "" {
 		auth = "userpass:" + user + ":" + pass

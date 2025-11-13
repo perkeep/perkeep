@@ -157,7 +157,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 
 	ba, err := gs.client.Bucket(gs.bucket).Attrs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error statting bucket %q: %v", gs.bucket, err)
+		return nil, fmt.Errorf("error statting bucket %q: %w", gs.bucket, err)
 	}
 	hash := sha1.New()
 	fmt.Fprintf(hash, "%v%v", ba.Created, ba.MetaGeneration)

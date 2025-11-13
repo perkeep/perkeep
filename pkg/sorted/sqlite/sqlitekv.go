@@ -51,7 +51,7 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	fi, err := os.Stat(file)
 	if os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
 		if err := InitDB(file); err != nil {
-			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %v", file, err)
+			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %w", file, err)
 		}
 	}
 	db, err := sql.Open("sqlite", file)
@@ -69,7 +69,7 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 	version, err := kv.SchemaVersion()
 	if err != nil {
-		return nil, fmt.Errorf("error getting schema version (need to init database with 'camtool dbinit %s'?): %v", file, err)
+		return nil, fmt.Errorf("error getting schema version (need to init database with 'camtool dbinit %s'?): %w", file, err)
 	}
 
 	if err := kv.ping(); err != nil {

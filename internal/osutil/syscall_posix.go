@@ -58,7 +58,7 @@ func maxFD() (uint64, error) {
 			// syscall.Getrlimit() not implemented in ARMv5, and it returns this string
 			return 0, ErrNotSupported
 		}
-		return 0, fmt.Errorf("ulimit error: %v", err)
+		return 0, fmt.Errorf("ulimit error: %w", err)
 	}
 	// On FreeBSD Getrlimit returns an int64, because (among other things) the
 	// maximum value for the Rlimit struct fields, called RLIM_INFINITY used to

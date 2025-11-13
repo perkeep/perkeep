@@ -110,7 +110,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	ms := &memory.Storage{}
 	h.pubKeyBlobRef = blob.RefFromString(h.pubKey)
 	if _, err := ms.ReceiveBlob(ctx, h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
-		return nil, fmt.Errorf("could not store pub key blob: %v", err)
+		return nil, fmt.Errorf("could not store pub key blob: %w", err)
 	}
 	h.pubKeyFetcher = ms
 

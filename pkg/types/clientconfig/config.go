@@ -126,11 +126,11 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 	if https && httpsCert != "" {
 		certPEMBlock, err := wkfs.ReadFile(httpsCert)
 		if err != nil {
-			return nil, fmt.Errorf("could not read certificate: %v", err)
+			return nil, fmt.Errorf("could not read certificate: %w", err)
 		}
 		sig, err := httputil.CertFingerprint(certPEMBlock)
 		if err != nil {
-			return nil, fmt.Errorf("could not get fingerprints of certificate: %v", err)
+			return nil, fmt.Errorf("could not get fingerprints of certificate: %w", err)
 		}
 		trustedList = []string{sig}
 	}

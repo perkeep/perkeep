@@ -352,7 +352,7 @@ func (r *run) importStatuses(userID mastodon.ID) error {
 				defer gate.Done()
 				alreadyHad, err := r.importStatus(statusesNode, st)
 				if err != nil {
-					return fmt.Errorf("error importing status %s: %v", st.URI, err)
+					return fmt.Errorf("error importing status %s: %w", st.URI, err)
 				}
 
 				if !alreadyHad {

@@ -72,7 +72,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 	cl := newClient(c.server)
 	looseClient, err := cl.NewPathClient("/bs-loose/")
 	if err != nil {
-		return fmt.Errorf("NewPathClient: %v", err)
+		return fmt.Errorf("NewPathClient: %w", err)
 	}
 
 	res, err := cl.Query(ctxbg, req)

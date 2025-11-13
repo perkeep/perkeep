@@ -483,7 +483,7 @@ func runDemoBlobServerContainer(name string) error {
 	// stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
 	// cmd.Stderr = stderr
 	// if err := cmd.Run(); err != nil {
-	// 	return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+	// 	return fmt.Errorf("failed to run demo blob server: %w, stderr: %v", err, string(stderr.Bytes()))
 	// }
 	return nil
 }
