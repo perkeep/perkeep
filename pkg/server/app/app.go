@@ -517,7 +517,7 @@ func (a *Handler) AuthMode() auth.AuthMode {
 
 // AppConfig returns the optional configuration parameters object that the app
 // can request from the app handler. It can be nil.
-func (a *Handler) AppConfig() map[string]interface{} {
+func (a *Handler) AppConfig() map[string]any {
 	return a.appConfig
 }
 

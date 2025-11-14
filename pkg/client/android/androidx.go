@@ -57,7 +57,7 @@ func PreExit() {
 
 var androidOutMu sync.Mutex
 
-func Printf(format string, args ...interface{}) {
+func Printf(format string, args ...any) {
 	androidOutMu.Lock()
 	defer androidOutMu.Unlock()
 	fmt.Printf(format, args...)

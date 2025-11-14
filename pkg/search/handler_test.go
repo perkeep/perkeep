@@ -61,7 +61,7 @@ type handlerTest struct {
 	query    string // the HTTP path + optional query suffix after "camli/search/"
 	postBody string // if non-nil, a POST request
 
-	want map[string]interface{}
+	want map[string]any
 	// wantDescribed is a list of blobref strings that should've been
 	// described in meta. If want is nil and this is non-zero length,
 	// want is ignored.
@@ -76,8 +76,8 @@ var (
 	lastModtime time.Time
 )
 
-func parseJSON(s string) map[string]interface{} {
-	m := make(map[string]interface{})
+func parseJSON(s string) map[string]any {
+	m := make(map[string]any)
 	err := json.Unmarshal([]byte(s), &m)
 	if err != nil {
 		panic(err)
@@ -842,7 +842,7 @@ func initTests() []handlerTest {
 	}
 }
 
-func marshalJSON(v interface{}) string {
+func marshalJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		panic(err)
@@ -850,8 +850,8 @@ func marshalJSON(v interface{}) string {
 	return string(b)
 }
 
-func jmap(v interface{}) map[string]interface{} {
-	m := make(map[string]interface{})
+func jmap(v any) map[string]any {
+	m := make(map[string]any)
 	if err := json.NewDecoder(strings.NewReader(marshalJSON(v))).Decode(&m); err != nil {
 		panic(err)
 	}

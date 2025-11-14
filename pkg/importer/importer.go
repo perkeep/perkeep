@@ -232,7 +232,7 @@ func NewHost(hc HostConfig) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	h.tmpl = h.tmpl.Funcs(map[string]interface{}{
+	h.tmpl = h.tmpl.Funcs(map[string]any{
 		"bloblink": func(br blob.Ref) template.HTML {
 			if h.uiPrefix == "" {
 				return template.HTML(br.String())
@@ -449,7 +449,7 @@ type accountStatus struct {
 
 // AccountsStatus returns the currently configured accounts and their status for
 // inclusion in the status.json document, as rendered by the web UI.
-func (h *Host) AccountsStatus() (interface{}, []camtypes.StatusError) {
+func (h *Host) AccountsStatus() (any, []camtypes.StatusError) {
 	h.didInit.Wait()
 	var s []accountStatus
 	var errs []camtypes.StatusError

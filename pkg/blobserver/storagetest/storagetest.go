@@ -262,7 +262,7 @@ func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
 	}
 }
 
-func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) error {
+func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...any) error {
 	var after string
 	var n = 1000
 	for _, opt := range opts {
@@ -338,7 +338,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	return nil
 }
 
-func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...interface{}) {
+func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...any) {
 	if r.opt.SkipEnum {
 		r.t.Log("Skipping enum test")
 		return

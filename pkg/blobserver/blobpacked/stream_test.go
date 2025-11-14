@@ -18,7 +18,6 @@ package blobpacked
 
 import (
 	"bytes"
-	"context"
 	"reflect"
 	"strconv"
 	"testing"
@@ -48,8 +47,7 @@ func TestStreamBlobs(t *testing.T) {
 		b.MustUpload(t, small)
 		all[b.BlobRef()] = true
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	ctx := t.Context()
 	token := "" // beginning
 
 	got := map[blob.Ref]bool{}

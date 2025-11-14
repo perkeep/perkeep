@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -113,10 +114,5 @@ func (c *getCmd) checkFlags(args []string) error {
 
 func isSharedMode(args []string) bool {
 	sharedRgx := regexp.MustCompile("--?shared")
-	for _, v := range args {
-		if sharedRgx.MatchString(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(args, sharedRgx.MatchString)
 }

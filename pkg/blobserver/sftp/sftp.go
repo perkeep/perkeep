@@ -324,7 +324,7 @@ func (s *Storage) sftp() (*sftp.Client, error) {
 		}
 	}
 	s.mu.Unlock()
-	ci, err := s.getClientGroup.Do("", func() (interface{}, error) {
+	ci, err := s.getClientGroup.Do("", func() (any, error) {
 		sc, waiter, toClose, err := s.dialSFTP()
 		if err != nil {
 			return nil, err

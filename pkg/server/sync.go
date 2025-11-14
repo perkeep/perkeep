@@ -119,7 +119,7 @@ func (sh *SyncHandler) fromToString() string {
 	return fmt.Sprintf("%v -> %v", sh.fromName, sh.toName)
 }
 
-func (sh *SyncHandler) logf(format string, args ...interface{}) {
+func (sh *SyncHandler) logf(format string, args ...any) {
 	log.Printf("sync: "+sh.fromToString()+": "+format, args...)
 }
 
@@ -378,7 +378,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// and transition to using that here.
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
-	f := func(p string, a ...interface{}) {
+	f := func(p string, a ...any) {
 		fmt.Fprintf(rw, p, a...)
 	}
 	now := time.Now()
@@ -482,7 +482,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (sh *SyncHandler) setStatusf(s string, args ...interface{}) {
+func (sh *SyncHandler) setStatusf(s string, args ...any) {
 	s = time.Now().UTC().Format(time.RFC3339) + ": " + fmt.Sprintf(s, args...)
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
@@ -1034,7 +1034,7 @@ func (w incrWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func storageDesc(v interface{}) string {
+func storageDesc(v any) string {
 	if s, ok := v.(fmt.Stringer); ok {
 		return s.String()
 	}

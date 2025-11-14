@@ -504,7 +504,7 @@ func (c *Client) SetHaveCache(cache HaveCache) {
 	c.haveCache = cache
 }
 
-func (c *Client) printf(format string, v ...interface{}) {
+func (c *Client) printf(format string, v ...any) {
 	if c.Verbose && c.Logger != nil {
 		c.Logger.Printf(format, v...)
 	}
@@ -1139,7 +1139,7 @@ func (c *Client) doDiscovery() error {
 // GetJSON sends a GET request to url, and unmarshals the returned
 // JSON response into data. The URL's host must match the client's
 // configured server.
-func (c *Client) GetJSON(ctx context.Context, url string, data interface{}) error {
+func (c *Client) GetJSON(ctx context.Context, url string, data any) error {
 	if !strings.HasPrefix(url, c.discoRoot()) {
 		return fmt.Errorf("wrong URL (%q) for this server", url)
 	}

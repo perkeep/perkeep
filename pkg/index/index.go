@@ -97,7 +97,7 @@ var (
 	_ Interface          = (*Index)(nil)
 )
 
-func (x *Index) logf(format string, args ...interface{}) {
+func (x *Index) logf(format string, args ...any) {
 	log.Printf("index: "+format, args...)
 }
 
@@ -511,9 +511,7 @@ func (x *Index) Reindex() error {
 	}()
 	var wg sync.WaitGroup
 	for i := 0; i < reindexMaxProcs.v; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for br := range blobc {
 				if err := x.indexBlob(ctx, br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
@@ -524,7 +522,7 @@ func (x *Index) Reindex() error {
 					// there's any error with reindexing?
 				}
 			}
-		}()
+		})
 	}
 	if err := <-enumErr; err != nil {
 		return err
@@ -635,11 +633,11 @@ func (x *Index) queryPrefixString(prefix string) sorted.Iterator {
 	return queryPrefixString(x.s, prefix)
 }
 
-func queryPrefix(s sorted.KeyValue, key *keyType, args ...interface{}) sorted.Iterator {
+func queryPrefix(s sorted.KeyValue, key *keyType, args ...any) sorted.Iterator {
 	return queryPrefixString(s, key.Prefix(args...))
 }
 
-func (x *Index) queryPrefix(key *keyType, args ...interface{}) sorted.Iterator {
+func (x *Index) queryPrefix(key *keyType, args ...any) sorted.Iterator {
 	return x.queryPrefixString(key.Prefix(args...))
 }
 

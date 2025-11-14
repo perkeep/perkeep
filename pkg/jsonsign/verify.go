@@ -71,8 +71,8 @@ type VerifyRequest struct {
 	PublicKeyPacket *packet.PublicKey
 
 	// set if Verify() returns true:
-	PayloadMap  map[string]interface{} // The JSON values from BPJ
-	SignerKeyId string                 // e.g. "2931A67C26F5ABDA"
+	PayloadMap  map[string]any // The JSON values from BPJ
+	SignerKeyId string         // e.g. "2931A67C26F5ABDA"
 
 	Err error // last error encountered
 }
@@ -83,7 +83,7 @@ func (vr *VerifyRequest) fail(msg string) bool {
 }
 
 func (vr *VerifyRequest) ParseSigMap() bool {
-	sigMap := make(map[string]interface{})
+	sigMap := make(map[string]any)
 	if err := json.Unmarshal(vr.bs, &sigMap); err != nil {
 		return vr.fail("invalid JSON in signature")
 	}
@@ -107,7 +107,7 @@ func (vr *VerifyRequest) ParseSigMap() bool {
 }
 
 func (vr *VerifyRequest) ParsePayloadMap() bool {
-	vr.PayloadMap = make(map[string]interface{})
+	vr.PayloadMap = make(map[string]any)
 	pm := vr.PayloadMap
 
 	if err := json.Unmarshal(vr.bpj, &pm); err != nil {

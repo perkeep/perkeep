@@ -33,8 +33,8 @@ func runCmd(t *testing.T, w *test.World, cmd string, args ...string) string {
 	return out
 }
 
-func parseJSON(s string) map[string]interface{} {
-	m := make(map[string]interface{})
+func parseJSON(s string) map[string]any {
+	m := make(map[string]any)
 	err := json.Unmarshal([]byte(s), &m)
 	if err != nil {
 		panic(err)

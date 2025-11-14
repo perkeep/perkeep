@@ -115,12 +115,12 @@ type DecodeOpts struct {
 	// If an int, Rotate is the number of degrees to rotate
 	// counter clockwise and must be one of 0, 90, -90, 180, or
 	// -180.
-	Rotate interface{}
+	Rotate any
 
 	// Flip specifies how to flip the image.
 	// If nil, the image is flipped automatically based on EXIF metadata.
 	// Otherwise, Flip is a FlipDirection bitfield indicating how to flip.
-	Flip interface{}
+	Flip any
 
 	// MaxWidgth and MaxHeight optionally specify bounds on the
 	// image's size. Rescaling is done before flipping or rotating.

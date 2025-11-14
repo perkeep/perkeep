@@ -107,7 +107,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserve
 	return sto, nil
 }
 
-func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (storageFunc, error) {
+func buildStorageForReceive(ld blobserver.Loader, confOrString any) (storageFunc, error) {
 	// Static configuration from a string
 	if s, ok := confOrString.(string); ok {
 		sto, err := ld.GetStorage(s)
@@ -120,7 +120,7 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 		return f, nil
 	}
 
-	conf := jsonconfig.Obj(confOrString.(map[string]interface{}))
+	conf := jsonconfig.Obj(confOrString.(map[string]any))
 
 	ifStr := conf.RequiredString("if")
 	// TODO: let 'then' and 'else' point to not just strings but either

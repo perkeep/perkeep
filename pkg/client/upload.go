@@ -136,13 +136,13 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 
 // TODO(bradfitz): delete most of this. use new perkeep.org/pkg/blobserver/protocol types instead
 // of a map[string]interface{}.
-func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
+func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]any, error) {
 	if resp.StatusCode != 200 {
 		c.printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
 		return nil, fmt.Errorf("after %s request, HTTP response code is %d; no JSON to parse", requestName, resp.StatusCode)
 	}
-	jmap := make(map[string]interface{})
+	jmap := make(map[string]any)
 	if err := httputil.DecodeJSON(resp, &jmap); err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
 
 // Upload uploads a blob, as described by the provided UploadHandle parameters.
 func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error) {
-	errorf := func(msg string, arg ...interface{}) (*PutResult, error) {
+	errorf := func(msg string, arg ...any) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
 		c.printf("%v", err)
 		return nil, err
