@@ -29,7 +29,7 @@ type tbLogger struct {
 	log []string
 }
 
-func (l *tbLogger) Log(args ...interface{}) {
+func (l *tbLogger) Log(args ...any) {
 	l.log = append(l.log, args[0].(string))
 }
 

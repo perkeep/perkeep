@@ -23,9 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -102,7 +104,7 @@ type DescribeRequest struct {
 	BlobRefs []blob.Ref `json:"blobrefs,omitempty"`
 
 	// BlobRef is the blob to describe.
-	BlobRef blob.Ref `json:"blobref,omitempty"`
+	BlobRef blob.Ref `json:"blobref"`
 
 	// Depth is the optional traversal depth to describe from the
 	// root BlobRef. If zero, a default is used.
@@ -194,12 +196,7 @@ func (dr *DescribeRequest) blobInitiallyRequested(br blob.Ref) bool {
 	if dr.BlobRef.Valid() && dr.BlobRef == br {
 		return true
 	}
-	for _, br1 := range dr.BlobRefs {
-		if br == br1 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(dr.BlobRefs, br)
 }
 
 type DescribeRule struct {
@@ -577,9 +574,7 @@ func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
 		return nil, fmt.Errorf("error populating %s: %w", k, err)
 	}
 	m := make(map[string]*DescribedBlob)
-	for k, desb := range dr.m {
-		m[k] = desb
-	}
+	maps.Copy(m, dr.m)
 	return m, nil
 }
 
@@ -629,13 +624,11 @@ func (dr *DescribeRequest) StartDescribe(ctx context.Context, br blob.Ref, depth
 		return
 	}
 	dr.started[key] = true
-	dr.wg.Add(1)
-	go func() {
-		defer dr.wg.Done()
+	dr.wg.Go(func() {
 		desBlobMu.Lock()
 		defer desBlobMu.Unlock()
 		dr.doDescribe(ctx, br, depth)
-	}()
+	})
 }
 
 // requires dr.mu be held.

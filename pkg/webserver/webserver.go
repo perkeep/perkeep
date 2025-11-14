@@ -92,7 +92,7 @@ func New() *Server {
 	}
 }
 
-func (s *Server) printf(format string, v ...interface{}) {
+func (s *Server) printf(format string, v ...any) {
 	if s.Logger != nil {
 		s.Logger.Printf(format, v...)
 		return
@@ -100,7 +100,7 @@ func (s *Server) printf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func (s *Server) fatalf(format string, v ...interface{}) {
+func (s *Server) fatalf(format string, v ...any) {
 	if s.Logger != nil {
 		s.Logger.Fatalf(format, v...)
 		return

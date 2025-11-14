@@ -182,9 +182,7 @@ func TestEncryptStress(t *testing.T) {
 	defer close(blobs)
 
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for blob := range blobs {
 				tb := &test.Blob{Contents: blob}
 				tb.MustUpload(t, ts.sto)
@@ -192,7 +190,7 @@ func TestEncryptStress(t *testing.T) {
 					t.Errorf("Fetching plaintext blobref %v = %v; want %q", tb.BlobRef(), got, blob)
 				}
 			}
-		}()
+		})
 	}
 
 	for i := range numBlobs {
@@ -238,7 +236,7 @@ func TestNewFromConfig(t *testing.T) {
 		"keyFile": tmpKeyFile.Name(),
 		"blobs":   "/good-blobs/",
 		"meta":    "/good-meta/",
-		"metaIndex": map[string]interface{}{
+		"metaIndex": map[string]any{
 			"type": "memory",
 		},
 	}); err != nil {
@@ -253,7 +251,7 @@ func TestNewFromConfig(t *testing.T) {
 			"keyFile": tmpKeyFile.Name(),
 			"blobs":   "/good-blobs/",
 			"meta":    "/good-meta/",
-			"metaIndex": map[string]interface{}{
+			"metaIndex": map[string]any{
 				"type": "memory",
 			},
 		}); err == nil || !strings.Contains(err.Error(), "Key file permissions are too permissive") {

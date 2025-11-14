@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	cleanSysStat = func(si interface{}) interface{} {
+	cleanSysStat = func(si any) any {
 		st, ok := si.(*syscall.Stat_t)
 		if !ok {
 			return si

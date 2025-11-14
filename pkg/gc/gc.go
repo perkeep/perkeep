@@ -28,7 +28,7 @@ import (
 const buffered = 32 // arbitrary
 
 // Item is something that exists that may or may not survive a GC collection.
-type Item interface{}
+type Item any
 
 // A Collector performs a garbage collection.
 type Collector struct {

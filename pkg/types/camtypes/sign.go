@@ -25,5 +25,5 @@ type VerifyResponse struct {
 	// SignerKeyId is the ID of the signing key.
 	SignerKeyId string `json:"signerKeyId,omitempty"`
 	// VerifiedData contains the JSON values from the payload that we signed.
-	VerifiedData map[string]interface{} `json:"verifiedData,omitempty"`
+	VerifiedData map[string]any `json:"verifiedData,omitempty"`
 }

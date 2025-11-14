@@ -1805,7 +1805,7 @@ func testLimitDoesntDeadlock(t *testing.T, sortType SortType) {
 	})
 }
 
-func prettyJSON(v interface{}) string {
+func prettyJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		panic(err)

@@ -153,7 +153,7 @@ func TestUploadDirectories(t *testing.T) {
 		// (where it would currently/previously deadlock waiting on
 		// children that are starved out) See
 		// ee4550bff453526ebae460da1ad59f6e7f3efe77.
-		testHookStatCache = func(el interface{}, ok bool) {
+		testHookStatCache = func(el any, ok bool) {
 			if !ok {
 				return
 			}

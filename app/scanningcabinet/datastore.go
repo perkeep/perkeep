@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -408,13 +409,7 @@ func (h *handler) updateDocument(ctx context.Context, pn blob.Ref, new *document
 func (h *handler) updateTags(ctx context.Context, pn blob.Ref, old, new separatedString) error {
 	// first, delete the ones that are supposed to be gone
 	for _, o := range old {
-		found := false
-		for _, n := range new {
-			if o == n {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(new, o)
 		if found {
 			continue
 		}
@@ -424,13 +419,7 @@ func (h *handler) updateTags(ctx context.Context, pn blob.Ref, old, new separate
 	}
 	// then, add the ones that previously didn't  exist
 	for _, n := range new {
-		found := false
-		for _, o := range old {
-			if o == n {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(old, n)
 		if found {
 			continue
 		}

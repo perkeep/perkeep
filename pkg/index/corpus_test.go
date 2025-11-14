@@ -19,6 +19,7 @@ package index_test
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -356,13 +357,7 @@ func testDeletePermanodes(t *testing.T,
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
 	for _, bm := range got {
-		found := false
-		for _, perm := range want {
-			if bm.Ref == perm {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(want, bm.Ref)
 		if !found {
 			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
 		}
@@ -395,13 +390,7 @@ func testDeletePermanodes(t *testing.T,
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
 	for _, bm := range got {
-		found := false
-		for _, perm := range want {
-			if bm.Ref == perm {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(want, bm.Ref)
 		if !found {
 			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
 		}

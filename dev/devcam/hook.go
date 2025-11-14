@@ -226,7 +226,7 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 	return files, nil
 }
 
-func printf(format string, args ...interface{}) {
+func printf(format string, args ...any) {
 	cmdmain.Errorf(format, args...)
 }
 
@@ -262,7 +262,7 @@ func lines(text string) []string {
 	return out
 }
 
-func (c *hookCmd) verbosef(format string, args ...interface{}) {
+func (c *hookCmd) verbosef(format string, args ...any) {
 	if c.verbose {
 		fmt.Fprintf(cmdmain.Stdout, format, args...)
 	}

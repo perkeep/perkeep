@@ -353,14 +353,14 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 	return errors.New("twitter: got EOF without a tweet")
 }
 
-func (r *run) errorf(format string, args ...interface{}) {
+func (r *run) errorf(format string, args ...any) {
 	log.Printf("twitter: "+format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.anyErr = true
 }
 
-func (r *run) doAPI(result interface{}, apiPath string, keyval ...string) error {
+func (r *run) doAPI(result any, apiPath string, keyval ...string) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,

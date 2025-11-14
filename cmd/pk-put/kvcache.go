@@ -332,7 +332,7 @@ func escapeGen(gen string) string {
 	return url.QueryEscape(gen)
 }
 
-var cleanSysStat func(v interface{}) interface{}
+var cleanSysStat func(v any) any
 
 func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
 	// We calculate the CRC32 of the underlying system stat structure to get

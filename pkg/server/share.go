@@ -23,6 +23,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -101,7 +102,7 @@ func (e *shareError) Error() string {
 	return fmt.Sprintf("share: %v (code=%v, type=%v)", e.message, e.code, e.response)
 }
 
-func unauthorized(code errorCode, format string, args ...interface{}) *shareError {
+func unauthorized(code errorCode, format string, args ...any) *shareError {
 	return &shareError{
 		code: code, response: unauthorizedRequest, message: fmt.Sprintf(format, args...),
 	}
@@ -342,10 +343,8 @@ func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {
 			return d == target
 		}
 	case schema.TypeStaticSet:
-		for _, m := range b.StaticSetMembers() {
-			if m == target {
-				return true
-			}
+		if slices.Contains(b.StaticSetMembers(), target) {
+			return true
 		}
 	}
 	return false
