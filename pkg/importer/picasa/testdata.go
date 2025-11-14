@@ -99,10 +99,7 @@ func fakeAlbumsList(index, nTotal, nEntries int, cached map[int]string) string {
 		return cl
 	}
 
-	max := index + nEntries
-	if max > nTotal+1 {
-		max = nTotal + 1
-	}
+	max := min(index+nEntries, nTotal+1)
 	var entries []picago.Entry
 	for i := index; i < max; i++ {
 		entries = append(entries, fakeAlbum(i))
@@ -148,10 +145,7 @@ func fakeAlbum(counter int) picago.Entry {
 // index, and ends at index + nEntries (exclusive), or at nTotal (inclusive),
 // whichever is the lowest.
 func fakePhotosList(index, nTotal, nEntries int) string {
-	max := index + nEntries
-	if max > nTotal+1 {
-		max = nTotal + 1
-	}
+	max := min(index+nEntries, nTotal+1)
 	var entries []picago.Entry
 	for i := index; i < max; i++ {
 		entries = append(entries, fakePhotoEntry(i, nTotal))

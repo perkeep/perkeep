@@ -56,7 +56,7 @@ func (s staticStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.
 func TestStaticStreamer(t *testing.T) {
 	var blobs []*blob.Blob
 	var want []blob.SizedRef
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		tb := &test.Blob{Contents: strconv.Itoa(i)}
 		b := tb.Blob()
 		blobs = append(blobs, b)
@@ -71,9 +71,9 @@ func TestMultiStreamer(t *testing.T) {
 	var want []blob.SizedRef
 	n := 0
 
-	for st := 0; st < 3; st++ {
+	for range 3 {
 		var blobs []*blob.Blob
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			n++
 			tb := &test.Blob{Contents: strconv.Itoa(n)}
 			b := tb.Blob()

@@ -108,7 +108,7 @@ func TestStorage(t *testing.T) {
 		New: func(t *testing.T) blobserver.Storage {
 			sto, err := newFromConfig(nil, jsonconfig.Obj{
 				"parent_id": *parentId,
-				"auth": map[string]interface{}{
+				"auth": map[string]any{
 					"client_id":     *clientID,
 					"client_secret": *clientSecret,
 					"refresh_token": refreshToken,

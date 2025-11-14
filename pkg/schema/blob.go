@@ -112,7 +112,7 @@ func (b *Blob) ByteParts() []BytesPart {
 }
 
 func (b *Blob) Builder() *Builder {
-	var m map[string]interface{}
+	var m map[string]any
 	dec := json.NewDecoder(strings.NewReader(b.str))
 	dec.UseNumber()
 	err := dec.Decode(&m)
@@ -355,14 +355,14 @@ func (sf StaticFile) AsStaticSocket() (ss StaticSocket, ok bool) {
 // A Builder builds a JSON blob.
 // After mutating the Builder, call Blob to get the built blob.
 type Builder struct {
-	m map[string]interface{}
+	m map[string]any
 }
 
 // NewBuilder returns a new blob schema builder.
 // The "camliVersion" field is set to "1" by default and the required
 // "camliType" field is NOT set.
 func NewBuilder() *Builder {
-	return &Builder{map[string]interface{}{
+	return &Builder{map[string]any{
 		"camliVersion": "1",
 	}}
 }
@@ -442,7 +442,7 @@ func (bb *Builder) Blob() *Blob {
 
 // Builder returns a clone of itself and satisfies the Buildable interface.
 func (bb *Builder) Builder() *Builder {
-	return &Builder{clone(bb.m).(map[string]interface{})}
+	return &Builder{clone(bb.m).(map[string]any)}
 }
 
 // JSON returns the JSON of the blob as built so far.
@@ -600,18 +600,18 @@ func (bb *Builder) PartsSize() int64 {
 	return n
 }
 
-func clone(i interface{}) interface{} {
+func clone(i any) any {
 	switch t := i.(type) {
-	case map[string]interface{}:
-		m2 := make(map[string]interface{})
+	case map[string]any:
+		m2 := make(map[string]any)
 		for k, v := range t {
 			m2[k] = clone(v)
 		}
 		return m2
 	case string, int, int64, float64, json.Number:
 		return t
-	case []interface{}:
-		s2 := make([]interface{}, len(t))
+	case []any:
+		s2 := make([]any, len(t))
 		for i, v := range t {
 			s2[i] = clone(v)
 		}

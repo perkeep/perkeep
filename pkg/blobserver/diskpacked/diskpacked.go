@@ -64,13 +64,13 @@ type debugT bool
 
 var debug = debugT(false)
 
-func (d debugT) Printf(format string, args ...interface{}) {
+func (d debugT) Printf(format string, args ...any) {
 	if bool(d) {
 		log.Printf(format, args...)
 	}
 }
 
-func (d debugT) Println(args ...interface{}) {
+func (d debugT) Println(args ...any) {
 	if bool(d) {
 		log.Println(args...)
 	}
@@ -422,7 +422,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	batch := s.index.BeginBatch()
 	var wg syncutil.Group
 	for _, br := range blobs {
-		br := br
 		removeGate.Start()
 		batch.Delete(br.String())
 		wg.Go(func() error {

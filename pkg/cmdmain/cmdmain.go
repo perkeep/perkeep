@@ -366,19 +366,19 @@ func shiftFlags(mode string) []string {
 }
 
 // Errorf prints to Stderr, regardless of FlagVerbose.
-func Errorf(format string, args ...interface{}) {
+func Errorf(format string, args ...any) {
 	fmt.Fprintf(Stderr, format, args...)
 }
 
 // Printf prints to Stderr if FlagVerbose, and is silent otherwise.
-func Printf(format string, args ...interface{}) {
+func Printf(format string, args ...any) {
 	if *FlagVerbose {
 		fmt.Fprintf(Stderr, format, args...)
 	}
 }
 
 // Logf logs to Stderr if FlagVerbose, and is silent otherwise.
-func Logf(format string, v ...interface{}) {
+func Logf(format string, v ...any) {
 	if !*FlagVerbose {
 		return
 	}

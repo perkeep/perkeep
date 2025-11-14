@@ -25,6 +25,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -54,7 +55,7 @@ func init() {
 		}
 		return path.Clean("/gcs/" + strings.TrimPrefix(v, "gs://"))
 	})
-	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []interface{}) (interface{}, error) {
+	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []any) (any, error) {
 		if len(v) != 1 {
 			return nil, errors.New("only 1 argument supported after _gce_instance_meta")
 		}
@@ -116,12 +117,7 @@ func LogWriter() (w io.WriteCloser, err error) {
 	}
 	scopes, _ := metadata.Scopes("default")
 	haveScope := func(scope string) bool {
-		for _, x := range scopes {
-			if x == scope {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(scopes, scope)
 	}
 	if !haveScope(logging.WriteScope) {
 		return nil, fmt.Errorf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v)", logging.WriteScope)
@@ -318,7 +314,7 @@ func SetInstanceHostname(camliNetHostName string) error {
 	}
 }
 
-func exitf(pattern string, args ...interface{}) {
+func exitf(pattern string, args ...any) {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(0)
 	log.Fatalf(pattern, args...)

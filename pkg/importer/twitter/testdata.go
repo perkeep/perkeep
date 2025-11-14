@@ -93,10 +93,7 @@ func fakeTimeLine(maxId, minId int64, cached map[int64]string) string {
 	if tl, ok := cached[maxId]; ok {
 		return tl
 	}
-	min := maxId - int64(tweetRequestLimit)
-	if min <= minId {
-		min = minId
-	}
+	min := max(maxId-int64(tweetRequestLimit), minId)
 	var tweets []*apiTweetItem
 	entitiesCounter := 0
 	geoCounter := 0

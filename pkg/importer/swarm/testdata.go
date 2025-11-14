@@ -153,10 +153,7 @@ func fakeCheckinsList(offset, maxCheckin int, towns map[int]*venueLocationItem, 
 	if cl, ok := cached[offset]; ok {
 		return cl
 	}
-	max := offset + checkinsRequestLimit
-	if max > maxCheckin {
-		max = maxCheckin
-	}
+	max := min(offset+checkinsRequestLimit, maxCheckin)
 	var items []*checkinItem
 	tzCounter := 0
 	venueCounter := 0

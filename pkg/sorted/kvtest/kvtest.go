@@ -46,7 +46,7 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	if v, err := kv.Get("NOT_EXIST"); err != sorted.ErrNotFound {
 		t.Errorf("get(NOT_EXIST) = %q, %v; want error sorted.ErrNotFound", v, err)
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if err := kv.Delete("foo"); err != nil {
 			t.Errorf("Delete(foo) (on loop %d/2) returned error %v", i+1, err)
 		}

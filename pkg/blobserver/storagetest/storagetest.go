@@ -82,7 +82,7 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	contents := []string{"foo", "quux", "asdf", "qwerty", "0123456789"}
 	if !testing.Short() {
-		for i := 0; i < 95; i++ {
+		for i := range 95 {
 			contents = append(contents, "foo-"+strconv.Itoa(i))
 		}
 	}
@@ -262,7 +262,7 @@ func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
 	}
 }
 
-func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) error {
+func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...any) error {
 	var after string
 	var n = 1000
 	for _, opt := range opts {
@@ -338,7 +338,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	return nil
 }
 
-func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...interface{}) {
+func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...any) {
 	if r.opt.SkipEnum {
 		r.t.Log("Skipping enum test")
 		return
@@ -510,7 +510,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	sawStreamed = map[blob.Ref]int{}
 	gotRefs = gotRefs[:0]
 	contToken := ""
-	for i := 0; i < len(wantRefs); i++ {
+	for i := range wantRefs {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		ch := make(chan blobserver.BlobAndToken)

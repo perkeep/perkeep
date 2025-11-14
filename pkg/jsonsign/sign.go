@@ -140,7 +140,7 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		return "", errors.New(msg)
 	}
 
-	jmap := make(map[string]interface{})
+	jmap := make(map[string]any)
 	if err := json.Unmarshal([]byte(trimmedJSON), &jmap); err != nil {
 		return inputfail("json parse error")
 	}

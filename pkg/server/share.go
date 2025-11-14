@@ -23,6 +23,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -101,7 +102,7 @@ func (e *shareError) Error() string {
 	return fmt.Sprintf("share: %v (code=%v, type=%v)", e.message, e.code, e.response)
 }
 
-func unauthorized(code errorCode, format string, args ...interface{}) *shareError {
+func unauthorized(code errorCode, format string, args ...any) *shareError {
 	return &shareError{
 		code: code, response: unauthorizedRequest, message: fmt.Sprintf(format, args...),
 	}
@@ -183,7 +184,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 	}()
 	viaBlobs := make([]blob.Ref, 0)
 	if via := req.FormValue("via"); via != "" {
-		for _, vs := range strings.Split(via, ",") {
+		for vs := range strings.SplitSeq(via, ",") {
 			if br, ok := blob.Parse(vs); ok {
 				viaBlobs = append(viaBlobs, br)
 			} else {
@@ -341,10 +342,8 @@ func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {
 			return d == target
 		}
 	case schema.TypeStaticSet:
-		for _, m := range b.StaticSetMembers() {
-			if m == target {
-				return true
-			}
+		if slices.Contains(b.StaticSetMembers(), target) {
+			return true
 		}
 	}
 	return false

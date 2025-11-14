@@ -72,18 +72,12 @@ func Resize(m image.Image, r image.Rectangle, w, h int) image.Image {
 			// Spread the source pixel over 1 or more destination rows.
 			py := uint64(y-r.Min.Y) * hh
 			for remy := hh; remy > 0; {
-				qy := dy - (py % dy)
-				if qy > remy {
-					qy = remy
-				}
+				qy := min(dy-(py%dy), remy)
 				// Spread the source pixel over 1 or more destination columns.
 				px := uint64(x-r.Min.X) * ww
 				index := 4 * ((py/dy)*ww + (px / dx))
 				for remx := ww; remx > 0; {
-					qx := dx - (px % dx)
-					if qx > remx {
-						qx = remx
-					}
+					qx := min(dx-(px%dx), remx)
 					sum[index+0] += r64 * qx * qy
 					sum[index+1] += g64 * qx * qy
 					sum[index+2] += b64 * qx * qy
@@ -103,8 +97,8 @@ func Resize(m image.Image, r image.Rectangle, w, h int) image.Image {
 // average convert the sums to averages and returns the result.
 func average(sum []uint64, w, h int, n uint64) image.Image {
 	ret := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			i := y*ret.Stride + x*4
 			j := 4 * (y*w + x)
 			ret.Pix[i+0] = uint8(sum[j+0] / n)
@@ -144,18 +138,12 @@ func resizeRGBA(m *image.RGBA, r image.Rectangle, w, h int) image.Image {
 			// Spread the source pixel over 1 or more destination rows.
 			py := uint64(y-r.Min.Y) * hh
 			for remy := hh; remy > 0; {
-				qy := dy - (py % dy)
-				if qy > remy {
-					qy = remy
-				}
+				qy := min(dy-(py%dy), remy)
 				// Spread the source pixel over 1 or more destination columns.
 				px := uint64(x-r.Min.X) * ww
 				index := 4 * ((py/dy)*ww + (px / dx))
 				for remx := ww; remx > 0; {
-					qx := dx - (px % dx)
-					if qx > remx {
-						qx = remx
-					}
+					qx := min(dx-(px%dx), remx)
 					qxy := qx * qy
 					sum[index+0] += r64 * qxy
 					sum[index+1] += g64 * qxy
@@ -304,8 +292,8 @@ func Resample(m image.Image, r image.Rectangle, w, h int) image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	xStep := float64(r.Dx()) / float64(w)
 	yStep := float64(r.Dy()) / float64(h)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			xSrc := int(float64(r.Min.X) + float64(x)*xStep)
 			ySrc := int(float64(r.Min.Y) + float64(y)*yStep)
 			r, g, b, a := m.At(xSrc, ySrc).RGBA()

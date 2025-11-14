@@ -76,7 +76,7 @@ type acctBody struct {
 	HasSomePaidAPI bool
 }
 
-var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
+var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 	"bloblink": func(br blob.Ref) string {
 		panic("should be overridden; this one won't be called")
 	},

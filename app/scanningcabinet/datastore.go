@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -408,13 +409,7 @@ func (h *handler) updateDocument(ctx context.Context, pn blob.Ref, new *document
 func (h *handler) updateTags(ctx context.Context, pn blob.Ref, old, new separatedString) error {
 	// first, delete the ones that are supposed to be gone
 	for _, o := range old {
-		found := false
-		for _, n := range new {
-			if o == n {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(new, o)
 		if found {
 			continue
 		}
@@ -424,13 +419,7 @@ func (h *handler) updateTags(ctx context.Context, pn blob.Ref, old, new separate
 	}
 	// then, add the ones that previously didn't  exist
 	for _, n := range new {
-		found := false
-		for _, o := range old {
-			if o == n {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(old, n)
 		if found {
 			continue
 		}
@@ -786,8 +775,8 @@ func (np numberedPages) Less(i, j int) bool { return np[i].nb < np[j].nb }
 func (h *handler) describeDocument(b *search.DescribedBlob) (*document, error) {
 	var sortedPages numberedPages
 	for key, val := range b.Permanode.Attr {
-		if strings.HasPrefix(key, "camliPath:") {
-			pageNumber, err := strconv.ParseInt(strings.TrimPrefix(key, "camliPath:"), 10, 64)
+		if after, ok := strings.CutPrefix(key, "camliPath:"); ok {
+			pageNumber, err := strconv.ParseInt(after, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid page number %q in document %v: %v", key, b.BlobRef, err)
 			}

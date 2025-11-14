@@ -206,10 +206,7 @@ func (c *Client) ListBlobs(ctx context.Context, container string, maxResults int
 	}
 	marker := ""
 	for len(blobs) < maxResults {
-		fetchN := maxResults - len(blobs)
-		if fetchN > maxList {
-			fetchN = maxList
-		}
+		fetchN := min(maxResults-len(blobs), maxList)
 		var bres listBlobsResults
 
 		listURL := fmt.Sprintf("%s?restype=container&comp=list&marker=%s&maxresults=%d",

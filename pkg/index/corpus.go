@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -119,18 +120,13 @@ type Corpus struct {
 	ss []string
 }
 
-func (c *Corpus) logf(format string, args ...interface{}) {
+func (c *Corpus) logf(format string, args ...any) {
 	log.Printf("index/corpus: "+format, args...)
 }
 
 // blobMatches reports whether br is in the set.
 func (srs SignerRefSet) blobMatches(br blob.Ref) bool {
-	for _, v := range srs {
-		if br.EqualString(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(srs, br.EqualString)
 }
 
 // signerFromBlobrefMap maps a signer blobRef to the signer's GPG ID (e.g.
@@ -637,10 +633,8 @@ func (c *Corpus) updateDeletes(deleteClaim schema.Claim) error {
 		deleter: c.br(deleter.BlobRef()),
 		when:    when,
 	}
-	for _, v := range c.deletes[target] {
-		if v == del {
-			return nil
-		}
+	if slices.Contains(c.deletes[target], del) {
+		return nil
 	}
 	targetDeletions := append(c.deletes[target], del)
 	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
@@ -1517,12 +1511,7 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 		return false
 	}
 	if values, ok := pm.valuesAtSigner(at, ""); ok {
-		for _, v := range values[attr] {
-			if v == val {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(values[attr], val)
 	}
 	if at.IsZero() {
 		at = time.Now()

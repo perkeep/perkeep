@@ -112,7 +112,7 @@ type SearchQuery struct {
 	// Around specifies that the results, after sorting, should be centered around
 	// this result. If Around is not found the returned results will be empty.
 	// If both Continue and Around are set, an error is returned.
-	Around blob.Ref `json:"around,omitempty"`
+	Around blob.Ref `json:"around"`
 
 	// Continue specifies the opaque token (as returned by a
 	// SearchResult) for where to continue fetching results when
@@ -425,7 +425,7 @@ type FileConstraint struct {
 	// file (the concatenation of all its blobs) is equal to the
 	// provided blobref. The index may not have every file's digest for
 	// every known hash algorithm.
-	WholeRef blob.Ref `json:"wholeRef,omitempty"`
+	WholeRef blob.Ref `json:"wholeRef"`
 
 	// ParentDir, if non-nil, constrains the file match based on properties
 	// of its parent directory.
@@ -680,7 +680,7 @@ type PermanodeConstraint struct {
 	// At specifies the time at which to pretend we're resolving attributes.
 	// Attribute claims after this point in time are ignored.
 	// If zero, the current time is used.
-	At time.Time `json:"at,omitempty"`
+	At time.Time `json:"at"`
 
 	// ModTime optionally matches on the last modtime of the permanode.
 	ModTime *TimeConstraint `json:"modTime,omitempty"`
@@ -1059,10 +1059,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 					// If Limit is even, and the number of results before and after Around
 					// are both greater than half the limit, then there will be one more result before
 					// than after.
-					discard := len(res.Blobs) - q.Limit/2 - 1
-					if discard < 0 {
-						discard = 0
-					}
+					discard := max(len(res.Blobs)-q.Limit/2-1, 0)
 					res.Blobs = res.Blobs[discard:]
 				}
 				if len(res.Blobs) == q.Limit {
@@ -1140,14 +1137,8 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 					if aroundPos == len(res.Blobs) || res.Blobs[aroundPos].Blob != q.Around {
 						panic("q.Around blobRef should be in the results")
 					}
-					lowerBound := aroundPos - q.Limit/2
-					if lowerBound < 0 {
-						lowerBound = 0
-					}
-					upperBound := lowerBound + q.Limit
-					if upperBound > len(res.Blobs) {
-						upperBound = len(res.Blobs)
-					}
+					lowerBound := max(aroundPos-q.Limit/2, 0)
+					upperBound := min(lowerBound+q.Limit, len(res.Blobs))
 					res.Blobs = res.Blobs[lowerBound:upperBound]
 				} else {
 					res.Blobs = res.Blobs[:q.Limit]

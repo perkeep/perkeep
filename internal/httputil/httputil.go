@@ -43,13 +43,13 @@ func ErrorRouting(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("Internal routing error on %q", req.URL.Path)
 }
 
-func BadRequestError(rw http.ResponseWriter, errorMessage string, args ...interface{}) {
+func BadRequestError(rw http.ResponseWriter, errorMessage string, args ...any) {
 	rw.WriteHeader(http.StatusBadRequest)
 	log.Printf("Bad request: %s", fmt.Sprintf(errorMessage, args...))
 	fmt.Fprintf(rw, "<h1>Bad Request</h1>")
 }
 
-func ForbiddenError(rw http.ResponseWriter, errorMessage string, args ...interface{}) {
+func ForbiddenError(rw http.ResponseWriter, errorMessage string, args ...any) {
 	rw.WriteHeader(http.StatusForbidden)
 	log.Printf("Forbidden: %s", fmt.Sprintf(errorMessage, args...))
 	fmt.Fprintf(rw, "<h1>Forbidden</h1>")
@@ -69,11 +69,11 @@ func ServeError(rw http.ResponseWriter, req *http.Request, err error) {
 	fmt.Fprintf(rw, "An internal error occurred, sorry.")
 }
 
-func ReturnJSON(rw http.ResponseWriter, data interface{}) {
+func ReturnJSON(rw http.ResponseWriter, data any) {
 	ReturnJSONCode(rw, 200, data)
 }
 
-func ReturnJSONCode(rw http.ResponseWriter, code int, data interface{}) {
+func ReturnJSONCode(rw http.ResponseWriter, code int, data any) {
 	js, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		BadRequestError(rw, "JSON serialization error: %v", err)
@@ -255,14 +255,14 @@ func OptionalInt(req *http.Request, param string) int {
 
 // ServeJSONError sends a JSON error response to rw for the provided
 // error value.
-func ServeJSONError(rw http.ResponseWriter, err interface{}) {
+func ServeJSONError(rw http.ResponseWriter, err any) {
 	code := 500
 	if i, ok := err.(httpCoder); ok {
 		code = i.HTTPCode()
 	}
 	msg := fmt.Sprint(err)
 	log.Printf("Sending error %v to client for: %v", code, msg)
-	ReturnJSONCode(rw, code, map[string]interface{}{
+	ReturnJSONCode(rw, code, map[string]any{
 		"error":     msg,
 		"errorType": http.StatusText(code),
 	})
@@ -270,7 +270,7 @@ func ServeJSONError(rw http.ResponseWriter, err interface{}) {
 
 // DecodeJSON decodes the JSON in res.Body into dest and then closes
 // res.Body.
-func DecodeJSON(res *http.Response, dest interface{}) error {
+func DecodeJSON(res *http.Response, dest any) error {
 	defer res.Body.Close()
 	if err := json.NewDecoder(res.Body).Decode(dest); err != nil {
 		return fmt.Errorf("httputil.DecodeJSON: %v", err)

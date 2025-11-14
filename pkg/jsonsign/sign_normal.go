@@ -44,7 +44,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 			Prompt:   "Passphrase",
 			Desc:     desc,
 		}
-		for tries := 0; tries < 2; tries++ {
+		for range 2 {
 			pass, err := conn.GetPassphrase(req)
 			if err == nil {
 				err = e.PrivateKey.Decrypt([]byte(pass))
@@ -65,7 +65,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 	}
 
 	pinReq := &pinentry.Request{Desc: desc, Prompt: "Passphrase"}
-	for tries := 0; tries < 2; tries++ {
+	for range 2 {
 		pass, err := pinReq.GetPIN()
 		if err == nil {
 			err = e.PrivateKey.Decrypt([]byte(pass))

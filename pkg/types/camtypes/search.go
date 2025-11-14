@@ -114,7 +114,7 @@ type FileInfo struct {
 	// WholeRef is the digest of the entire file contents.
 	// This will be zero for non-regular files, and may also be zero
 	// for files above a certain size threshold.
-	WholeRef blob.Ref `json:"wholeRef,omitempty"`
+	WholeRef blob.Ref `json:"wholeRef"`
 }
 
 func (fi *FileInfo) IsText() bool {

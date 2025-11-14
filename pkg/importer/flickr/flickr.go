@@ -494,7 +494,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return photos, nil
 }
 
-func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
+func (r *run) flickrAPIRequest(result any, method string, keyval ...string) error {
 	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
 	return importer.OAuthContext{
 		Ctx:    r.Context(),

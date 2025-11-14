@@ -396,7 +396,7 @@ func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Buil
 	// see if any generated errors.
 	// Once this loop is done, we own all the tokens in gatec, so nobody
 	// else can have one outstanding.
-	for i := 0; i < chunksInFlight; i++ {
+	for range chunksInFlight {
 		gatec.Start()
 	}
 	select {

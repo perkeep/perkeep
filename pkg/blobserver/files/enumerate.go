@@ -120,10 +120,7 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 				newBlobPrefix = opts.blobPrefix + name
 			}
 			if len(opts.after) > 0 {
-				compareLen := len(newBlobPrefix)
-				if len(opts.after) < compareLen {
-					compareLen = len(opts.after)
-				}
+				compareLen := min(len(opts.after), len(newBlobPrefix))
 				if newBlobPrefix[:compareLen] < opts.after[:compareLen] {
 					continue
 				}

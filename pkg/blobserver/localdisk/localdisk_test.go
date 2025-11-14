@@ -103,7 +103,7 @@ func TestMultiStat(t *testing.T) {
 	// maxParallelStats other dummy blobs, to exercise the stat
 	// rate-limiting (which had a deadlock once after a cleanup)
 	const maxParallelStats = 20
-	for i := 0; i < maxParallelStats; i++ {
+	for i := range maxParallelStats {
 		blobs = append(blobs, blob.RefFromString(strconv.Itoa(i)))
 	}
 

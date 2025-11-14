@@ -181,7 +181,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	for _, dn := range strings.Split(*srcDirs, ",") {
+	for dn := range strings.SplitSeq(*srcDirs, ",") {
 		err := filepath.Walk(dn, ec.walk)
 		if err != nil {
 			log.Fatal(err)

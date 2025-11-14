@@ -40,7 +40,7 @@ type Discovery struct {
 	// StorageGenerationError is the error that occurred on generating the storage, if any.
 	StorageGenerationError string `json:"storageGenerationError,omitempty"`
 	// StorageInitTime is the initialization time of the storage.
-	StorageInitTime types.Time3339 `json:"storageInitTime,omitempty"`
+	StorageInitTime types.Time3339 `json:"storageInitTime"`
 
 	ThumbVersion string `json:"thumbVersion"` // Thumbnailing version.
 
@@ -68,7 +68,7 @@ type SignDiscovery struct {
 	// PublicKey is the path to the public signing key.
 	PublicKey string `json:"publicKey,omitempty"`
 	// PublicKeyBlobRef is the blob.Ref for the public key.
-	PublicKeyBlobRef blob.Ref `json:"publicKeyBlobRef,omitempty"`
+	PublicKeyBlobRef blob.Ref `json:"publicKeyBlobRef"`
 	// PublicKeyID is the ID of the public key.
 	PublicKeyID string `json:"publicKeyId"`
 	// SignHandler is the URL path prefix to the signing handler.

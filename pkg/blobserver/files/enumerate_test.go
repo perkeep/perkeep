@@ -133,7 +133,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 
 	const blobsToMake = 250
 	t.Logf("Uploading test blobs...")
-	for i := 0; i < blobsToMake; i++ {
+	for i := range blobsToMake {
 		blob := &test.Blob{Contents: fmt.Sprintf("blob-%d", i)}
 		blob.MustUpload(t, ds)
 	}

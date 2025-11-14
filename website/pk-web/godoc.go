@@ -136,7 +136,7 @@ func fileInfoTimeFunc(fi os.FileInfo) string {
 }
 
 // Write an AST node to w.
-func writeNode(w io.Writer, fset *token.FileSet, x interface{}) {
+func writeNode(w io.Writer, fset *token.FileSet, x any) {
 	// convert trailing tabs into spaces using a tconv filter
 	// to ensure a good outcome in most browsers (there may still
 	// be tabs in comments and strings, but converting those into
@@ -152,13 +152,13 @@ func writeNode(w io.Writer, fset *token.FileSet, x interface{}) {
 	}
 }
 
-func nodeFunc(node interface{}, fset *token.FileSet) string {
+func nodeFunc(node any, fset *token.FileSet) string {
 	var buf bytes.Buffer
 	writeNode(&buf, fset, node)
 	return buf.String()
 }
 
-func nodeHTMLFunc(node interface{}, fset *token.FileSet) string {
+func nodeHTMLFunc(node any, fset *token.FileSet) string {
 	var buf1 bytes.Buffer
 	writeNode(&buf1, fset, node)
 	var buf2 bytes.Buffer
@@ -358,7 +358,7 @@ func readTextTemplate(name string) *template.Template {
 	return t
 }
 
-func applyTextTemplate(t *template.Template, name string, data interface{}) []byte {
+func applyTextTemplate(t *template.Template, name string, data any) []byte {
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, data); err != nil {
 		log.Printf("%s.Execute: %s", name, err)

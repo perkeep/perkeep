@@ -220,7 +220,7 @@ func BenchmarkParseBlob(b *testing.B) {
 	b.ReportAllocs()
 	ref := "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
 	refb := []byte(ref)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, ok := Parse(ref); !ok {
 			b.FailNow()
 		}
@@ -330,7 +330,7 @@ func TestEqualString(t *testing.T) {
 
 func BenchmarkEqualString(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, tt := range equalStringTests {
 			got := tt.ref.EqualString(tt.str)
 			if got != tt.want {
@@ -396,7 +396,7 @@ func TestHasPrefix(t *testing.T) {
 
 func BenchmarkHasPrefix(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, tt := range hasPrefixTests {
 			got := tt.ref.HasPrefix(tt.str)
 			if got != tt.want {

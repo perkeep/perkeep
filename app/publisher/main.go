@@ -30,6 +30,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -388,7 +389,7 @@ func newPublishHandler(conf *config) *publishHandler {
 		if err := os.MkdirAll(thumbsCacheDir, 0700); err != nil {
 			logger.Fatalf("Could not create cache dir %s for %v publisher: %v", thumbsCacheDir, conf.RootName, err)
 		}
-		kv, err := sorted.NewKeyValue(map[string]interface{}{
+		kv, err := sorted.NewKeyValue(map[string]any{
 			"type": "kv",
 			"file": filepath.Join(thumbsCacheDir, conf.RootName+"-thumbnails.kv"),
 		})
@@ -429,7 +430,7 @@ func goTemplate(files fs.FS, templateFile string) (*template.Template, error) {
 // a *client.Client, so we can use a fake client in tests.
 type client interface {
 	search.QueryDescriber
-	GetJSON(ctx context.Context, url string, data interface{}) error
+	GetJSON(ctx context.Context, url string, data any) error
 	Post(ctx context.Context, url string, bodyType string, body io.Reader) error
 	blob.Fetcher
 }
@@ -812,7 +813,7 @@ func (pr *publishRequest) subresourceType() string {
 	return ""
 }
 
-func (pr *publishRequest) pf(format string, args ...interface{}) {
+func (pr *publishRequest) pf(format string, args ...any) {
 	fmt.Fprintf(pr.rw, format, args...)
 }
 
@@ -903,9 +904,7 @@ func (ph *publishHandler) cacheDescribed(described map[string]*search.DescribedB
 		ph.describedCache = described
 		return
 	}
-	for k, v := range described {
-		ph.describedCache[k] = v
-	}
+	maps.Copy(ph.describedCache, described)
 }
 
 func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {

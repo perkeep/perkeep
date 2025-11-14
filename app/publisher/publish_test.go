@@ -139,7 +139,7 @@ func (fc *fakeClient) Describe(ctx context.Context, req *search.DescribeRequest)
 	return fc.sh.Describe(ctx, req)
 }
 
-func (fc *fakeClient) GetJSON(ctx context.Context, url string, data interface{}) error {
+func (fc *fakeClient) GetJSON(ctx context.Context, url string, data any) error {
 	// no need to implement
 	return nil
 }

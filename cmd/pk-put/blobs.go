@@ -127,8 +127,8 @@ func (c *blobCmd) RunCommand(args []string) error {
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
-			tags := strings.Split(c.tag, ",")
-			for _, tag := range tags {
+			tags := strings.SplitSeq(c.tag, ",")
+			for tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)

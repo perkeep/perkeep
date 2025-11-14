@@ -191,7 +191,7 @@ func (octx OAuthContext) POST(url string, form url.Values) (*http.Response, erro
 
 // PopulateJSONFromURL makes a POST or GET call at apiURL, using keyval as parameters of
 // the associated form. The JSON response is decoded into result.
-func (octx OAuthContext) PopulateJSONFromURL(result interface{}, method string, apiURL string, keyval ...string) error {
+func (octx OAuthContext) PopulateJSONFromURL(result any, method string, apiURL string, keyval ...string) error {
 	if method != http.MethodGet && method != http.MethodPost {
 		return fmt.Errorf("only HTTP Get or Post supported: found %v", method)
 	}
