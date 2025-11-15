@@ -18,19 +18,19 @@ package schema
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"strings"
 	"time"
 
-	"go4.org/rollsum"
+	"github.com/bobg/hashsplit/v2"
+	"golang.org/x/sync/errgroup"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-
-	"go4.org/syncutil"
 )
 
 const (
@@ -263,7 +263,7 @@ func addBytesParts(ctx context.Context, bs blobserver.StatReceiver, dst *[]Bytes
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob. It uses rolling checksum for the chunks sizes.
 func writeFileMapRolling(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
-	n, spans, err := writeFileChunks(ctx, bs, file, r)
+	n, spans, err := writeFileChunks(ctx, bs, r)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -274,7 +274,7 @@ func writeFileMapRolling(ctx context.Context, bs blobserver.StatReceiver, file *
 // WriteFileChunks uploads chunks of r to bs while populating file.
 // It does not upload file.
 func WriteFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) error {
-	size, spans, err := writeFileChunks(ctx, bs, file, r)
+	size, spans, err := writeFileChunks(ctx, bs, r)
 	if err != nil {
 		return err
 	}
@@ -288,83 +288,26 @@ func WriteFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Buil
 	return file.PopulateParts(size, parts)
 }
 
-func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
+func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, r io.Reader) (n int64, spans []span, outerr error) {
 	src := &noteEOFReader{r: r}
 	bufr := bufio.NewReaderSize(src, bufioReaderSize)
 	spans = []span{} // the tree of spans, cut on interesting rollsum boundaries
-	rs := rollsum.New()
-	var last int64
-	var buf bytes.Buffer
-	blobSize := 0 // of the next blob being built, should be same as buf.Len()
+	var nbytes int64
+
+	spl := hashsplit.NewSplitter()
+	spl.SplitBits = 16 // A chunk boundary occurs on average once every 64k bytes; median chunk size is 45426.
+	spl.MinSize = tooSmallThreshold
 
 	const chunksInFlight = 32 // at ~64 KB chunks, this is ~2MB memory per file
-	gatec := syncutil.NewGate(chunksInFlight)
-	firsterrc := make(chan error, 1)
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(chunksInFlight)
 
-	// uploadLastSpan runs in the same goroutine as the loop below and is responsible for
-	// starting uploading the contents of the buf.  It returns false if there's been
-	// an error and the loop below should be stopped.
-	uploadLastSpan := func() bool {
-		chunk := buf.String()
-		buf.Reset()
-		br := blob.RefFromString(chunk)
-		spans[len(spans)-1].br = br
-		select {
-		case outerr = <-firsterrc:
-			return false
-		default:
-			// No error seen so far, continue.
-		}
-		gatec.Start()
-		go func() {
-			defer gatec.Done()
-			if _, err := uploadString(ctx, bs, br, chunk); err != nil {
-				select {
-				case firsterrc <- err:
-				default:
-				}
-			}
-		}()
-		return true
-	}
+	chunkPairs, errptr := spl.Split(bufr)
+	chunkPairs = adjustChunks(chunkPairs)
 
-	for {
-		c, err := bufr.ReadByte()
-		if err == io.EOF {
-			if n != last {
-				spans = append(spans, span{from: last, to: n})
-				if !uploadLastSpan() {
-					return
-				}
-			}
-			break
-		}
-		if err != nil {
-			return 0, nil, err
-		}
-
-		buf.WriteByte(c)
-		n++
-		blobSize++
-		rs.Roll(c)
-
-		var bits int
-		onRollSplit := rs.OnSplit()
-		switch {
-		case blobSize == maxBlobSize:
-			bits = 20 // arbitrary node weight; 1<<20 == 1MB
-		case src.sawEOF:
-			// Don't split. End is coming soon enough.
-			continue
-		case onRollSplit && n > firstChunkSize && blobSize > tooSmallThreshold:
-			bits = rs.Bits()
-		case n == firstChunkSize:
-			bits = 18 // 1 << 18 == 256KB
-		default:
-			// Don't split.
-			continue
-		}
-		blobSize = 0
+	for chunkBytes, bits := range chunkPairs {
+		chunkStr := string(chunkBytes)
+		br := blob.RefFromString(chunkStr)
 
 		// Take any spans from the end of the spans slice that
 		// have a smaller 'bits' score and make them children
@@ -379,32 +322,72 @@ func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Buil
 			copy(children, spans[childrenFrom:])
 			spans = spans[:childrenFrom]
 		}
+		to := nbytes + int64(len(chunkBytes))
+		spans = append(spans, span{from: nbytes, to: to, bits: bits, children: children})
+		nbytes = to
 
-		spans = append(spans, span{from: last, to: n, bits: bits, children: children})
-		last = n
-		if !uploadLastSpan() {
-			return
+		g.Go(func() error {
+			_, err := uploadString(ctx, bs, br, chunkStr)
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, nil, fmt.Errorf("writeFileChunks: uploading chunks: %w", err)
+	}
+	if err := *errptr; err != nil {
+		return 0, nil, fmt.Errorf("writeFileChunks: reading input: %w", err)
+	}
+
+	return nbytes, spans, nil
+}
+
+func adjustChunks(chunks iter.Seq2[[]byte, int]) iter.Seq2[[]byte, int] {
+	return func(yield func(chunk []byte, level int) bool) {
+		next, stop := iter.Pull2(chunks)
+		defer stop()
+
+		// Produce the first chunk pair.
+		var (
+			firstChunk []byte
+			firstLevel = -1
+		)
+		for {
+			chunk, level, ok := next()
+			if !ok {
+				if firstLevel >= 0 {
+					yield(firstChunk, firstLevel)
+				}
+				return
+			}
+
+			// Optimization.
+			if len(firstChunk) == 0 && len(chunk) >= firstChunkSize {
+				// Just use this chunk as-is.
+				if !yield(chunk, level) {
+					return
+				}
+				break
+			}
+
+			if level > firstLevel {
+				firstLevel = level
+			}
+			firstChunk = append(firstChunk, chunk...)
+
+			if len(firstChunk) >= firstChunkSize {
+				if !yield(firstChunk, firstLevel) {
+					return
+				}
+				break
+			}
+		}
+
+		// Produce the rest of the chunks.
+		for {
+			chunk, level, ok := next()
+			if !ok || !yield(chunk, level) {
+				return
+			}
 		}
 	}
-
-	// Loop was already hit earlier.
-	if outerr != nil {
-		return 0, nil, outerr
-	}
-
-	// Wait for all uploads to finish, one way or another, and then
-	// see if any generated errors.
-	// Once this loop is done, we own all the tokens in gatec, so nobody
-	// else can have one outstanding.
-	for i := 0; i < chunksInFlight; i++ {
-		gatec.Start()
-	}
-	select {
-	case err := <-firsterrc:
-		return 0, nil, err
-	default:
-	}
-
-	return n, spans, nil
-
 }
