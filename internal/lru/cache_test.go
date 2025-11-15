@@ -31,7 +31,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 
-	expectHit := func(k string, ev interface{}) {
+	expectHit := func(k string, ev any) {
 		v, ok := c.Get(k)
 		if !ok {
 			t.Fatalf("expected cache(%q)=%v; but missed", k, ev)

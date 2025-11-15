@@ -107,19 +107,13 @@ type Directory interface {
 	Readdir(ctx context.Context, n int) ([]DirectoryEntry, error)
 }
 
-type Symlink interface {
-	// .. TODO
-}
+type Symlink any
 
 // FIFO is the read-only interface to a "fifo" schema blob.
-type FIFO interface {
-	// .. TODO
-}
+type FIFO any
 
 // Socket is the read-only interface to a "socket" schema blob.
-type Socket interface {
-	// .. TODO
-}
+type Socket any
 
 // DirectoryEntry is a read-only interface to an entry in a (static)
 // directory.
@@ -149,7 +143,7 @@ type dirEntry struct {
 
 // A SearchQuery must be of type *search.SearchQuery.
 // This type breaks an otherwise-circular dependency.
-type SearchQuery interface{}
+type SearchQuery any
 
 func (de *dirEntry) CamliType() CamliType {
 	return de.ss.Type
@@ -264,11 +258,11 @@ type superset struct {
 	// representations of file names in schema blobs.  They should
 	// not be accessed directly.  Use the FileNameString accessor
 	// instead, which also sanitizes malicious values.
-	FileName      string        `json:"fileName"`
-	FileNameBytes []interface{} `json:"fileNameBytes"`
+	FileName      string `json:"fileName"`
+	FileNameBytes []any  `json:"fileNameBytes"`
 
-	SymlinkTarget      string        `json:"symlinkTarget"`
-	SymlinkTargetBytes []interface{} `json:"symlinkTargetBytes"`
+	SymlinkTarget      string `json:"symlinkTarget"`
+	SymlinkTargetBytes []any  `json:"symlinkTargetBytes"`
 
 	UnixPermission string `json:"unixPermission"`
 	UnixOwnerId    int    `json:"unixOwnerId"`
@@ -363,7 +357,7 @@ type BytesPart struct {
 // used for non-UTF8 filenames in "fileNameBytes" fields.  The strings
 // are UTF-8 segments and the float64s (actually uint8 values) are
 // byte values.
-func stringFromMixedArray(parts []interface{}) string {
+func stringFromMixedArray(parts []any) string {
 	var buf bytes.Buffer
 	for _, part := range parts {
 		if s, ok := part.(string); ok {
@@ -381,7 +375,7 @@ func stringFromMixedArray(parts []interface{}) string {
 // mixedArrayFromString is the inverse of stringFromMixedArray. It
 // splits a string to a series of either UTF-8 strings and non-UTF-8
 // bytes.
-func mixedArrayFromString(s string) (parts []interface{}) {
+func mixedArrayFromString(s string) (parts []any) {
 	for len(s) > 0 {
 		if n := utf8StrLen(s); n > 0 {
 			parts = append(parts, s[:n])
@@ -632,7 +626,7 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 }
 
 func base(version int, ctype CamliType) *Builder {
-	return &Builder{map[string]interface{}{
+	return &Builder{map[string]any{
 		"camliVersion": version,
 		"camliType":    string(ctype),
 	}}
@@ -672,7 +666,7 @@ func NewHashPlannedPermanode(h hash.Hash) *Builder {
 // and always starts with the header bytes:
 //
 //	{"camliVersion":
-func mapJSON(m map[string]interface{}) (string, error) {
+func mapJSON(m map[string]any) (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
 		return "", ErrNoCamliVersion
@@ -708,7 +702,7 @@ func newCommonFilenameMap(fileName string) *Builder {
 	return bb
 }
 
-var populateSchemaStat []func(schemaMap map[string]interface{}, fi os.FileInfo)
+var populateSchemaStat []func(schemaMap map[string]any, fi os.FileInfo)
 
 func NewCommonFileMap(fileName string, fi os.FileInfo) *Builder {
 	bb := newCommonFilenameMap(fileName)
@@ -736,11 +730,11 @@ func (bb *Builder) PopulateParts(size int64, parts []BytesPart) error {
 	return populateParts(bb.m, size, parts)
 }
 
-func populateParts(m map[string]interface{}, size int64, parts []BytesPart) error {
+func populateParts(m map[string]any, size int64, parts []BytesPart) error {
 	sumSize := int64(0)
-	mparts := make([]map[string]interface{}, len(parts))
+	mparts := make([]map[string]any, len(parts))
 	for idx, part := range parts {
-		mpart := make(map[string]interface{})
+		mpart := make(map[string]any)
 		mparts[idx] = mpart
 		switch {
 		case part.BlobRef.Valid() && part.BytesRef.Valid():
@@ -825,9 +819,9 @@ func newClaim(claims ...*claimParam) *Builder {
 		populateClaimMap(bb.m, cp)
 		return bb
 	}
-	var claimList []interface{}
+	var claimList []any
 	for _, cp := range claims {
-		m := map[string]interface{}{}
+		m := map[string]any{}
 		populateClaimMap(m, cp)
 		claimList = append(claimList, m)
 	}
@@ -836,7 +830,7 @@ func newClaim(claims ...*claimParam) *Builder {
 	return bb
 }
 
-func populateClaimMap(m map[string]interface{}, cp *claimParam) {
+func populateClaimMap(m map[string]any, cp *claimParam) {
 	m["claimType"] = string(cp.claimType)
 	switch cp.claimType {
 	case ShareClaim:
@@ -956,7 +950,7 @@ func LikelySchemaBlob(buf []byte) bool {
 // findSize checks if v is an *os.File or if it has
 // a Size() int64 method, to find its size.
 // It returns 0, false otherwise.
-func findSize(v interface{}) (size int64, ok bool) {
+func findSize(v any) (size int64, ok bool) {
 	if fi, ok := v.(*os.File); ok {
 		v, _ = fi.Stat()
 	}

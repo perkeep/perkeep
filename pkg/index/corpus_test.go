@@ -19,6 +19,7 @@ package index_test
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -356,13 +357,7 @@ func testDeletePermanodes(t *testing.T,
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
 	for _, bm := range got {
-		found := false
-		for _, perm := range want {
-			if bm.Ref == perm {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(want, bm.Ref)
 		if !found {
 			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
 		}
@@ -395,13 +390,7 @@ func testDeletePermanodes(t *testing.T,
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
 	for _, bm := range got {
-		found := false
-		for _, perm := range want {
-			if bm.Ref == perm {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(want, bm.Ref)
 		if !found {
 			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
 		}
@@ -514,7 +503,7 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	}
 	donec := make(chan struct{})
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			nth := fmt.Sprintf("%d", i)
 			// No need to lock the index here. It is already done within NewPlannedPermanode,
 			// because it calls idxd.Index.ReceiveBlob.
@@ -524,7 +513,7 @@ func testCacheSortedPermanodesRace(t *testing.T,
 		donec <- struct{}{}
 	}()
 	go func() {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			idx.RLock()
 			enumFunc(c, func(m camtypes.BlobMeta) bool {
 				return true

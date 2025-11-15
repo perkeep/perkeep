@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -196,12 +197,7 @@ func TestIndexerTestsCompleteness(t *testing.T) {
 }
 
 func skipFromList(name string) bool {
-	for _, v := range notAnIndexer {
-		if name == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(notAnIndexer, name)
 }
 
 func testMergeFileInfoRow(t *testing.T, wholeRef string) {

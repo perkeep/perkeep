@@ -239,7 +239,7 @@ func (s *storage) String() string {
 	return `"blobpacked" storage`
 }
 
-func (s *storage) Logf(format string, args ...interface{}) {
+func (s *storage) Logf(format string, args ...any) {
 	s.logger().Printf(format, args...)
 }
 
@@ -305,7 +305,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()
-	condFatalf := func(pattern string, args ...interface{}) {
+	condFatalf := func(pattern string, args ...any) {
 		log.Printf(pattern, args...)
 		if !keepGoing {
 			os.Exit(1)
@@ -1020,7 +1020,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var grp syncutil.Group
 	delGate := syncutil.NewGate(removeLookups)
 	for _, br := range blobs {
-		br := br
 		delGate.Start()
 		grp.Go(func() error {
 			defer delGate.Done()

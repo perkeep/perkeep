@@ -41,11 +41,11 @@ func TestStorageTest(t *testing.T) {
 		s1, _ := ld.GetStorage("/good-schema/")
 		s2, _ := ld.GetStorage("/good-other/")
 		ld.SetStorage("/replica-all/", replica.NewForTest([]blobserver.Storage{s1, s2}))
-		uni := newUnion(t, ld, map[string]interface{}{
-			"subsets": []interface{}{"/good-schema/", "/good-other/"},
+		uni := newUnion(t, ld, map[string]any{
+			"subsets": []any{"/good-schema/", "/good-other/"},
 		})
 		ld.SetStorage("/union/", uni)
-		cnd := newCond(t, ld, map[string]interface{}{
+		cnd := newCond(t, ld, map[string]any{
 			"write":  "/good-schema/",
 			"read":   "/union/",
 			"remove": "/replica-all/",

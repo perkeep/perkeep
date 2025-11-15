@@ -540,7 +540,7 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	return obj, obj.SetAttr(nodeattr.Title, title)
 }
 
-func (r *run) doAPI(result interface{}, apiUrl string, keyval ...string) error {
+func (r *run) doAPI(result any, apiUrl string, keyval ...string) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,

@@ -271,7 +271,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		members := b.StaticSetMembers()
 		workc := make(chan work, len(members))
 		defer close(workc)
-		for i := 0; i < numWorkers; i++ {
+		for range numWorkers {
 			go func() {
 				for wi := range workc {
 					wi.errc <- smartFetch(ctx, src, targ, wi.br)

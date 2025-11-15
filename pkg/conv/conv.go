@@ -27,7 +27,7 @@ import (
 	"go4.org/strutil"
 )
 
-func ParseFields(v []byte, dst ...interface{}) error {
+func ParseFields(v []byte, dst ...any) error {
 	for i, dv := range dst {
 		thisv := v
 		if i < len(dst)-1 {

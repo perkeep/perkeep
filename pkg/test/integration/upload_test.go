@@ -45,7 +45,7 @@ func (f *fakeFile) Size() int64        { return f.size }
 func (f *fakeFile) ModTime() time.Time { return f.modTime }
 func (f *fakeFile) Mode() os.FileMode  { return 0666 }
 func (f *fakeFile) IsDir() bool        { return false }
-func (f *fakeFile) Sys() interface{}   { return nil }
+func (f *fakeFile) Sys() any           { return nil }
 
 // TestUploadFile checks if uploading a file with the same content
 // but different metadata works, and whether camliType is set to "file".

@@ -32,7 +32,6 @@ func (sto *azureStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) erro
 	var wg syncutil.Group
 
 	for _, blob := range blobs {
-		blob := blob
 		removeGate.Start()
 		wg.Go(func() error {
 			defer removeGate.Done()

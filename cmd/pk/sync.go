@@ -390,7 +390,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 
 	mismatches := []blob.Ref{}
 
-	logErrorf := func(format string, args ...interface{}) {
+	logErrorf := func(format string, args ...any) {
 		log.Printf(format, args...)
 		statsMu.Lock()
 		stats.ErrorCount++
@@ -428,11 +428,8 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	var wg sync.WaitGroup
 
 	for sb := range syncBlobs {
-		sb := sb
 		gate.Start()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer gate.Done()
 			fmt.Fprintf(cmdmain.Stdout, "Destination needs blob: %s\n", sb)
 			blobReader, size, err := src.Fetch(ctxbg, sb.Ref)
@@ -462,7 +459,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 					logErrorf("Failed to delete %s from source: %v", sb.Ref, err)
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

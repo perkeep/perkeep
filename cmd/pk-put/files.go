@@ -278,8 +278,8 @@ func (c *fileCmd) RunCommand(args []string) error {
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
-			tags := strings.Split(c.tag, ",")
-			for _, tag := range tags {
+			tags := strings.SplitSeq(c.tag, ",")
+			for tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)
@@ -981,7 +981,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 }
 
 // testHookStatCache, if non-nil, runs first in the checkStatCache worker.
-var testHookStatCache func(el interface{}, ok bool)
+var testHookStatCache func(el any, ok bool)
 
 func (t *TreeUpload) run() {
 	defer close(t.donec)
@@ -1025,10 +1025,10 @@ func (t *TreeUpload) run() {
 	skippedc := make(chan *node)  // didn't even hit blobserver; trusted our stat cache
 
 	uploadsdonec := make(chan bool)
-	var upload chan<- interface{}
+	var upload chan<- any
 	withPermanode := t.up.fileOpts.wantFilePermanode()
 	if t.DiskUsageMode {
-		upload = chanworker.NewWorker(1, func(el interface{}, ok bool) {
+		upload = chanworker.NewWorker(1, func(el any, ok bool) {
 			if !ok {
 				uploadsdonec <- true
 				return
@@ -1042,7 +1042,7 @@ func (t *TreeUpload) run() {
 		// dirUpload is unbounded because directories can depend on directories.
 		// We bound the number of HTTP requests in flight instead.
 		// TODO(bradfitz): remove this chanworker stuff?
-		dirUpload := chanworker.NewWorker(-1, func(el interface{}, ok bool) {
+		dirUpload := chanworker.NewWorker(-1, func(el any, ok bool) {
 			if !ok {
 				cmdmain.Logf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
@@ -1057,7 +1057,7 @@ func (t *TreeUpload) run() {
 			uploadedc <- n
 		})
 
-		upload = chanworker.NewWorker(uploadWorkers, func(el interface{}, ok bool) {
+		upload = chanworker.NewWorker(uploadWorkers, func(el any, ok bool) {
 			if !ok {
 				cmdmain.Logf("done with all uploads.")
 				close(dirUpload)
@@ -1082,7 +1082,7 @@ func (t *TreeUpload) run() {
 		})
 	}
 
-	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el interface{}, ok bool) {
+	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el any, ok bool) {
 		if hook := testHookStatCache; hook != nil {
 			hook(el, ok)
 		}

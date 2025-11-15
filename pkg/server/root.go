@@ -205,7 +205,7 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := func(p string, a ...interface{}) {
+	f := func(p string, a ...any) {
 		fmt.Fprintf(w, p, a...)
 	}
 	f("<html><body><p>This is perkeepd (%s), a "+

@@ -52,11 +52,11 @@ type BlobHub interface {
 
 var (
 	hubmu  sync.RWMutex
-	stohub = map[interface{}]BlobHub{} // Storage -> hub
+	stohub = map[any]BlobHub{} // Storage -> hub
 )
 
 // GetHub return a BlobHub for the given storage implementation.
-func GetHub(storage interface{}) BlobHub {
+func GetHub(storage any) BlobHub {
 	if h, ok := getHub(storage); ok {
 		return h
 	}
@@ -71,7 +71,7 @@ func GetHub(storage interface{}) BlobHub {
 	return h
 }
 
-func getHub(storage interface{}) (BlobHub, bool) {
+func getHub(storage any) (BlobHub, bool) {
 	hubmu.RLock()
 	defer hubmu.RUnlock()
 	h, ok := stohub[storage]
@@ -84,7 +84,7 @@ var canLongPoll = true
 // WaitForBlob waits until deadline for blobs to arrive. If blobs is empty, any
 // blobs are waited on.  Otherwise, those specific blobs are waited on.
 // When WaitForBlob returns, nothing may have happened.
-func WaitForBlob(storage interface{}, deadline time.Time, blobs []blob.Ref) {
+func WaitForBlob(storage any, deadline time.Time, blobs []blob.Ref) {
 	hub := GetHub(storage)
 	ch := make(chan blob.Ref, 1)
 	if len(blobs) == 0 {
@@ -137,13 +137,11 @@ func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
 
 	// Global listeners
 	for ch := range h.listeners {
-		ch := ch
 		go func() { ch <- br }()
 	}
 
 	// Blob-specific listeners
 	for ch := range h.blobListeners[br] {
-		ch := ch
 		go func() { ch <- br }()
 	}
 	return nil

@@ -24,7 +24,7 @@ import (
 // bytesBuffer is a pool of *bytes.Buffer.
 // Callers must Reset the buffer after obtaining it.
 var bytesBuffer = sync.Pool{
-	New: func() interface{} { return new(bytes.Buffer) },
+	New: func() any { return new(bytes.Buffer) },
 }
 
 // BytesBuffer returns an empty bytes.Buffer.

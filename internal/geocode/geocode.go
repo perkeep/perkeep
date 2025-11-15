@@ -138,7 +138,7 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 		return nil, err
 	}
 
-	rectsi, err := sf.Do(address, func() (interface{}, error) {
+	rectsi, err := sf.Do(address, func() (any, error) {
 		if key != "" {
 			return lookupGoogle(ctx, address, key)
 		} else {

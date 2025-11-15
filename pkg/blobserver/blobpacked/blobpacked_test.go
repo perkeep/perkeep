@@ -568,8 +568,8 @@ type packTest struct {
 	sto                   *storage
 	logical, small, large *test.Fetcher
 
-	wantLargeBlobs interface{} // nil means disabled, else int
-	wantSmallBlobs interface{} // nil means disabled, else int
+	wantLargeBlobs any // nil means disabled, else int
+	wantSmallBlobs any // nil means disabled, else int
 
 	okayNoMeta map[blob.Ref]bool
 }
@@ -763,8 +763,7 @@ func TestSmallFallback(t *testing.T) {
 
 	// Enumerate
 	saw := false
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	ctx := t.Context()
 	if err := blobserver.EnumerateAll(ctx, s, func(sb blob.SizedRef) error {
 		if sb != wantSB {
 			return fmt.Errorf("saw blob %v; want %v", sb, wantSB)
@@ -797,8 +796,7 @@ func TestForeachZipBlob(t *testing.T) {
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	ctx := t.Context()
 
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
@@ -881,8 +879,7 @@ func singleBlob(sto blobserver.BlobEnumerator) (ret blob.SizedRef, err error) {
 }
 
 func TestRemoveBlobs(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	ctx := t.Context()
 
 	// The basic small cases are handled via storagetest in TestStorage,
 	// so this only tests removing packed blobs.

@@ -74,13 +74,13 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 		return err
 	}
 	low := cfg.LowLevelJSONConfig() //lint:ignore SA1019 we use it
-	prefixes, ok := low["prefixes"].(map[string]interface{})
+	prefixes, ok := low["prefixes"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
 	}
 	paths, confs := []string{}, []jsonconfig.Obj{}
 	for prefix, vei := range prefixes {
-		pmap, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(map[string]any)
 		if !ok {
 			log.Printf("prefix %q value is a %T, not an object", prefix, vei)
 			continue
@@ -123,7 +123,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	}
 	// If no index is specified, the default will be used (as on the regular path).
 	if mi := confs[0]["metaIndex"]; mi != nil {
-		if mi, ok := mi.(map[string]interface{}); ok {
+		if mi, ok := mi.(map[string]any); ok {
 			indexConf = jsonconfig.Obj(mi)
 		}
 	}

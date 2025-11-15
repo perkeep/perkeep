@@ -159,7 +159,6 @@ func (sto *replicaStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn f
 	group, ctx := errgroup.WithContext(ctx)
 
 	for _, replica := range sto.readReplicas {
-		replica := replica
 		group.Go(func() error {
 			return replica.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
 				mu.Lock()

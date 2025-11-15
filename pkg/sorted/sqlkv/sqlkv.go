@@ -246,8 +246,8 @@ func (kv *KeyValue) Close() error { return kv.DB.Close() }
 
 // Something we can make queries on. This will either be an *sql.DB or an *sql.Tx.
 type queryObject interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
-	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Query(query string, args ...any) (*sql.Rows, error)
 }
 
 // Common logic for KeyValue.Find and batchTx.Find.

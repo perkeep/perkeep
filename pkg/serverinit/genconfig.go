@@ -53,7 +53,7 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 	b := &lowBuilder{
 		high: conf,
 		low: jsonconfig.Obj{
-			"prefixes": make(map[string]interface{}),
+			"prefixes": make(map[string]any),
 		},
 	}
 	return b.build()
@@ -68,20 +68,20 @@ type lowBuilder struct {
 // args is an alias for map[string]interface{} just to cut down on
 // noise below.  But we take care to convert it back to
 // map[string]interface{} in the one place where we accept it.
-type args map[string]interface{}
+type args map[string]any
 
 func (b *lowBuilder) addPrefix(at, handler string, a args) {
-	v := map[string]interface{}{
+	v := map[string]any{
 		"handler": handler,
 	}
 	if a != nil {
-		v["handlerArgs"] = (map[string]interface{})(a)
+		v["handlerArgs"] = (map[string]any)(a)
 	}
-	b.low["prefixes"].(map[string]interface{})[at] = v
+	b.low["prefixes"].(map[string]any)[at] = v
 }
 
 func (b *lowBuilder) hasPrefix(p string) bool {
-	_, ok := b.low["prefixes"].(map[string]interface{})[p]
+	_, ok := b.low["prefixes"].(map[string]any)[p]
 	return ok
 }
 
@@ -146,8 +146,8 @@ func (b *lowBuilder) dbName(of dbname) string {
 		return prefix + "uithumbmeta"
 	}
 	asString := string(of)
-	if strings.HasPrefix(asString, string(dbSyncQueue)) {
-		return prefix + "syncto_" + strings.TrimPrefix(asString, string(dbSyncQueue))
+	if after, ok := strings.CutPrefix(asString, string(dbSyncQueue)); ok {
+		return prefix + "syncto_" + after
 	}
 	return ""
 }
@@ -217,7 +217,7 @@ func (b *lowBuilder) longIdentity() (string, error) {
 	return keyID, nil
 }
 
-func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, low jsonconfig.Obj) {
+func addAppConfig(config map[string]any, appConfig *serverconfig.App, low jsonconfig.Obj) {
 	if appConfig.Listen != "" {
 		config["listen"] = appConfig.Listen
 	}
@@ -248,7 +248,7 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 		if v.GoTemplate == "" {
 			return fmt.Errorf("missing \"goTemplate\" key in configuration for %s", k)
 		}
-		appConfig := map[string]interface{}{
+		appConfig := map[string]any{
 			"camliRoot":  v.CamliRoot,
 			"cacheRoot":  v.CacheRoot,
 			"goTemplate": v.GoTemplate,
@@ -310,7 +310,7 @@ func (b *lowBuilder) addScanCabConfig(tlsO *tlsOpts) error {
 	if auth == "" {
 		auth = b.high.Auth
 	}
-	appConfig := map[string]interface{}{
+	appConfig := map[string]any{
 		"auth": auth,
 	}
 	if scancab.HTTPSCert != "" && scancab.HTTPSKey != "" {
@@ -369,15 +369,15 @@ func (b *lowBuilder) kvFileType() string {
 }
 
 func (b *lowBuilder) addUIConfig() {
-	args := map[string]interface{}{
+	args := map[string]any{
 		"cache": "/cache/",
 	}
 	if b.high.SourceRoot != "" {
 		args["sourceRoot"] = b.high.SourceRoot
 	}
-	var thumbCache map[string]interface{}
+	var thumbCache map[string]any
 	if b.high.BlobPath != "" {
-		thumbCache = map[string]interface{}{
+		thumbCache = map[string]any{
 			"type": b.kvFileType(),
 			"file": filepath.Join(b.high.BlobPath, "thumbmeta."+b.kvFileType()),
 		}
@@ -394,7 +394,7 @@ func (b *lowBuilder) addUIConfig() {
 	b.addPrefix("/ui/", "ui", args)
 }
 
-func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[string]interface{}, error) {
+func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[string]any, error) {
 	dbName := b.dbName(sortedType)
 	if dbName == "" {
 		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
@@ -405,7 +405,7 @@ func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[s
 		fields = strings.Split(fields[0], ":")
 		if len(fields) == 2 {
 			user, pass := fields[0], fields[1]
-			return map[string]interface{}{
+			return map[string]any{
 				"type":     "mongo",
 				"host":     host,
 				"user":     user,
@@ -443,7 +443,7 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
-func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (map[string]interface{}, error) {
+func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (map[string]any, error) {
 	dbName := b.dbName(sortedType)
 	if dbName == "" {
 		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
@@ -452,7 +452,7 @@ func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (m
 	if !ok {
 		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"type":     rdbms,
 		"host":     host,
 		"user":     user,
@@ -461,13 +461,13 @@ func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (m
 	}, nil
 }
 
-func (b *lowBuilder) sortedStorage(sortedType dbname) (map[string]interface{}, error) {
+func (b *lowBuilder) sortedStorage(sortedType dbname) (map[string]any, error) {
 	return b.sortedStorageAt(sortedType, "")
 }
 
 // sortedDBMS returns the configuration for a name database on one of the
 // DBMS, if any was found in the configuration. It returns nil otherwise.
-func (b *lowBuilder) sortedDBMS(named dbname) (map[string]interface{}, error) {
+func (b *lowBuilder) sortedDBMS(named dbname) (map[string]any, error) {
 	if b.high.MySQL != "" {
 		return b.dbIndexStorage("mysql", b.high.MySQL, named)
 	}
@@ -484,7 +484,7 @@ func (b *lowBuilder) sortedDBMS(named dbname) (map[string]interface{}, error) {
 // some sorted implementations, but is required by others.
 // The filePrefix should be to a file, not a directory, and should not end in a ".ext" extension.
 // An extension like ".kv" or ".sqlite" will be added.
-func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[string]interface{}, error) {
+func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[string]any, error) {
 	dbms, err := b.sortedDBMS(sortedType)
 	if err != nil {
 		return nil, err
@@ -493,7 +493,7 @@ func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[
 		return dbms, nil
 	}
 	if b.high.MemoryIndex {
-		return map[string]interface{}{
+		return map[string]any{
 			"type": "memory",
 		}, nil
 	}
@@ -508,19 +508,19 @@ func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[
 		return filePrefix + "." + ext
 	}
 	if b.high.SQLite != "" {
-		return map[string]interface{}{
+		return map[string]any{
 			"type": "sqlite",
 			"file": dbFile(b.high.SQLite, "sqlite"),
 		}, nil
 	}
 	if b.high.KVFile != "" {
-		return map[string]interface{}{
+		return map[string]any{
 			"type": "kv",
 			"file": dbFile(b.high.KVFile, "kv"),
 		}, nil
 	}
 	if b.high.LevelDB != "" {
-		return map[string]interface{}{
+		return map[string]any{
 			"type": "leveldb",
 			"file": dbFile(b.high.LevelDB, "leveldb"),
 		}, nil
@@ -528,10 +528,10 @@ func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[
 	panic("internal error: sortedStorageAt didn't find a sorted implementation")
 }
 
-func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (queue map[string]interface{}) {
+func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]any) (queue map[string]any) {
 	// TODO(mpl): what about if b.high.MemoryIndex ?
 	if b.high.MemoryStorage {
-		return map[string]interface{}{
+		return map[string]any{
 			"type": "memory",
 		}
 	}
@@ -604,7 +604,7 @@ func (b *lowBuilder) addS3Config(s3 string, vendor string) error {
 			"from": "/bs/",
 			"to":   s3Prefix,
 			"queue": b.thatQueueUnlessMemory(
-				map[string]interface{}{
+				map[string]any{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, queue+b.kvFileType()),
 				}),
@@ -644,7 +644,7 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	}
 	b.addPrefix(prefix, "storage-googledrive", args{
 		"parent_id": parentId,
-		"auth": map[string]interface{}{
+		"auth": map[string]any{
 			"client_id":     clientId,
 			"client_secret": secret,
 			"refresh_token": refreshToken,
@@ -660,7 +660,7 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 			"from": "/bs/",
 			"to":   prefix,
 			"queue": b.thatQueueUnlessMemory(
-				map[string]interface{}{
+				map[string]any{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, "sync-to-googledrive-queue."+b.kvFileType()),
 				}),
@@ -697,7 +697,7 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	gsArgs := func(bucket string) args {
 		a := args{
 			"bucket": bucket,
-			"auth": map[string]interface{}{
+			"auth": map[string]any{
 				"client_id":     clientID,
 				"client_secret": secret,
 				"refresh_token": refreshToken,
@@ -741,7 +741,7 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 			"from": "/bs/",
 			"to":   gsPrefix,
 			"queue": b.thatQueueUnlessMemory(
-				map[string]interface{}{
+				map[string]any{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue."+b.kvFileType()),
 				}),
@@ -771,8 +771,8 @@ func (b *lowBuilder) indexFileDir() string {
 	return ""
 }
 
-func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
-	a := map[string]interface{}{
+func (b *lowBuilder) syncToIndexArgs() (map[string]any, error) {
+	a := map[string]any{
 		"from": "/bs/",
 		"to":   "/index/",
 	}
@@ -785,7 +785,7 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 			return nil, err
 		}
 		if qj == nil && b.high.MemoryIndex {
-			qj = map[string]interface{}{
+			qj = map[string]any{
 				"type": "memory",
 			}
 		}
@@ -812,7 +812,7 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 		dir = b.indexFileDir()
 	}
 	a["queue"] = b.thatQueueUnlessMemory(
-		map[string]interface{}{
+		map[string]any{
 			"type": b.kvFileType(),
 			"file": filepath.Join(dir, "sync-to-index-queue."+b.kvFileType()),
 		})
@@ -828,7 +828,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		pubKeyDest = "/bs-and-index/"
 	}
 
-	rootArgs := map[string]interface{}{
+	rootArgs := map[string]any{
 		"stealth":      false,
 		"blobRoot":     root,
 		"helpRoot":     "/help/",
@@ -854,17 +854,17 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 
 	importerArgs := args{}
 	if b.high.Flickr != "" {
-		importerArgs["flickr"] = map[string]interface{}{
+		importerArgs["flickr"] = map[string]any{
 			"clientSecret": b.high.Flickr,
 		}
 	}
 	if b.high.Picasa != "" {
-		importerArgs["picasa"] = map[string]interface{}{
+		importerArgs["picasa"] = map[string]any{
 			"clientSecret": b.high.Picasa,
 		}
 	}
 	if b.high.Instapaper != "" {
-		importerArgs["instapaper"] = map[string]interface{}{
+		importerArgs["instapaper"] = map[string]any{
 			"clientSecret": b.high.Instapaper,
 		}
 	}
@@ -916,7 +916,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		if b.high.PackBlobs {
 			b.addPrefix("/cache/", "storage-"+storageType, args{
 				"path": filepath.Join(b.high.BlobPath, "/cache"),
-				"metaIndex": map[string]interface{}{
+				"metaIndex": map[string]any{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, "cache", "index."+b.kvFileType()),
 				},
@@ -939,11 +939,11 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		b.addPrefix("/sync/", "sync", syncArgs)
 
 		b.addPrefix("/bs-and-index/", "storage-replica", args{
-			"backends": []interface{}{"/bs/", "/index/"},
+			"backends": []any{"/bs/", "/index/"},
 		})
 
 		b.addPrefix("/bs-and-maybe-also-index/", "storage-cond", args{
-			"write": map[string]interface{}{
+			"write": map[string]any{
 				"if":   "isSchema",
 				"then": "/bs-and-index/",
 				"else": "/bs/",
@@ -957,7 +957,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		}
 		searchArgs := args{
 			"index": "/index/",
-			"owner": map[string]interface{}{
+			"owner": map[string]any{
 				"identity":    owner.Identity,
 				"secringFile": owner.SecringFile,
 			},
@@ -1141,7 +1141,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	return &Config{jconf: b.low}, nil
 }
 
-func numSet(vv ...interface{}) (num int) {
+func numSet(vv ...any) (num int) {
 	for _, vi := range vv {
 		switch v := vi.(type) {
 		case string:

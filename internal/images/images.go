@@ -115,12 +115,12 @@ type DecodeOpts struct {
 	// If an int, Rotate is the number of degrees to rotate
 	// counter clockwise and must be one of 0, 90, -90, 180, or
 	// -180.
-	Rotate interface{}
+	Rotate any
 
 	// Flip specifies how to flip the image.
 	// If nil, the image is flipped automatically based on EXIF metadata.
 	// Otherwise, Flip is a FlipDirection bitfield indicating how to flip.
-	Flip interface{}
+	Flip any
 
 	// MaxWidgth and MaxHeight optionally specify bounds on the
 	// image's size. Rescaling is done before flipping or rotating.
@@ -163,24 +163,24 @@ func rotate(im image.Image, angle int) image.Image {
 	case 90:
 		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(newH-1-y, x))
 			}
 		}
 	case -90:
 		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(y, newW-1-x))
 			}
 		}
 	case 180, -180:
 		newW, newH := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(newW-1-x, newH-1-y))
 			}
 		}
@@ -217,7 +217,7 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 		}
 	}
 	if dir&FlipHorizontal != 0 {
-		for y := 0; y < dy; y++ {
+		for y := range dy {
 			for x := 0; x < dx/2; x++ {
 				old := im.At(x, y)
 				di.Set(x, y, im.At(dx-1-x, y))
@@ -227,7 +227,7 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 	}
 	if dir&FlipVertical != 0 {
 		for y := 0; y < dy/2; y++ {
-			for x := 0; x < dx; x++ {
+			for x := range dx {
 				old := im.At(x, y)
 				di.Set(x, y, im.At(x, dy-1-y))
 				di.Set(x, dy-1-y, old)

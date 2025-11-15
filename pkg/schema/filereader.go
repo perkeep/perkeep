@@ -280,7 +280,7 @@ func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (*superset, 
 		return root.getSuperset(ctx, br)
 	}
 	brStr := br.String()
-	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
+	ssi, err := fr.sfg.Do(brStr, func() (any, error) {
 		fr.ssmmu.Lock()
 		ss, ok := fr.ssm[br]
 		fr.ssmmu.Unlock()

@@ -106,7 +106,7 @@ func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef
 			return error("response JSON didn't contain 'blobs' array", nil)
 		}
 		for _, v := range blobs {
-			itemJSON, ok := v.(map[string]interface{})
+			itemJSON, ok := v.(map[string]any)
 			if !ok {
 				return error("item in 'blobs' was malformed", nil)
 			}
@@ -140,7 +140,7 @@ func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef
 	return nil
 }
 
-func getJSONMapString(m map[string]interface{}, key string) (string, bool) {
+func getJSONMapString(m map[string]any, key string) (string, bool) {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {
 			return s, true
@@ -149,7 +149,7 @@ func getJSONMapString(m map[string]interface{}, key string) (string, bool) {
 	return "", false
 }
 
-func getJSONMapInt64(m map[string]interface{}, key string) (int64, bool) {
+func getJSONMapInt64(m map[string]any, key string) (int64, bool) {
 	if v, ok := m[key]; ok {
 		if n, ok := v.(float64); ok {
 			return int64(n), true
@@ -158,7 +158,7 @@ func getJSONMapInt64(m map[string]interface{}, key string) (int64, bool) {
 	return 0, false
 }
 
-func getJSONMapUint32(m map[string]interface{}, key string) (uint32, bool) {
+func getJSONMapUint32(m map[string]any, key string) (uint32, bool) {
 	u, ok := getJSONMapInt64(m, key)
 	if !ok {
 		return 0, false
@@ -169,9 +169,9 @@ func getJSONMapUint32(m map[string]interface{}, key string) (uint32, bool) {
 	return uint32(u), true
 }
 
-func getJSONMapArray(m map[string]interface{}, key string) ([]interface{}, bool) {
+func getJSONMapArray(m map[string]any, key string) ([]any, bool) {
 	if v, ok := m[key]; ok {
-		if a, ok := v.([]interface{}); ok {
+		if a, ok := v.([]any); ok {
 			return a, true
 		}
 	}

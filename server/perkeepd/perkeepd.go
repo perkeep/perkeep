@@ -112,7 +112,7 @@ func init() {
 	}
 }
 
-func exitf(pattern string, args ...interface{}) {
+func exitf(pattern string, args ...any) {
 	if !strings.HasSuffix(pattern, "\n") {
 		pattern = pattern + "\n"
 	}

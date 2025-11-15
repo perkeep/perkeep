@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -168,9 +169,7 @@ func TestImportAlbums(t *testing.T) {
 	//t.Logf("fix:\n%#v", fixResponses)
 	fixAnd := func(ContErrors int) map[string]func() *http.Response {
 		resp := make(map[string]func() *http.Response, len(fixResponses)+1)
-		for k, v := range fixResponses {
-			resp[k] = v
-		}
+		maps.Copy(resp, fixResponses)
 		resp[URL] = (&testResponse{response: response, ContErrors: ContErrors}).GetResponse
 		return resp
 	}

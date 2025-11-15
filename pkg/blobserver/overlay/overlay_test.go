@@ -39,12 +39,12 @@ func newOverlayWithLower(t *testing.T, withDel bool) (sto, lower blobserver.Stor
 	ld := test.NewLoader()
 	lower, _ = ld.GetStorage("/good-lower/")
 	ld.GetStorage("/good-upper/")
-	conf := map[string]interface{}{
+	conf := map[string]any{
 		"lower": "/good-lower/",
 		"upper": "/good-upper/",
 	}
 	if withDel {
-		conf["deleted"] = map[string]interface{}{
+		conf["deleted"] = map[string]any{
 			"type": "memory",
 		}
 	}

@@ -35,7 +35,7 @@ type Cache struct {
 // *entry is the type stored in each *list.Element.
 type entry struct {
 	key   string
-	value interface{}
+	value any
 }
 
 // New returns a new cache with the provided maximum items.
@@ -58,7 +58,7 @@ func NewUnlocked(maxEntries int) *Cache {
 
 // Add adds the provided key and value to the cache, evicting
 // an old item if necessary.
-func (c *Cache) Add(key string, value interface{}) {
+func (c *Cache) Add(key string, value any) {
 	if !c.nolock {
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -82,7 +82,7 @@ func (c *Cache) Add(key string, value interface{}) {
 
 // Get fetches the key's value from the cache.
 // The ok result will be true if the item was found.
-func (c *Cache) Get(key string) (value interface{}, ok bool) {
+func (c *Cache) Get(key string) (value any, ok bool) {
 	if !c.nolock {
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -96,7 +96,7 @@ func (c *Cache) Get(key string) (value interface{}, ok bool) {
 
 // RemoveOldest removes the oldest item in the cache and returns its key and value.
 // If the cache is empty, the empty string and nil are returned.
-func (c *Cache) RemoveOldest() (key string, value interface{}) {
+func (c *Cache) RemoveOldest() (key string, value any) {
 	if !c.nolock {
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -105,7 +105,7 @@ func (c *Cache) RemoveOldest() (key string, value interface{}) {
 }
 
 // note: must hold c.mu
-func (c *Cache) removeOldest() (key string, value interface{}) {
+func (c *Cache) removeOldest() (key string, value any) {
 	ele := c.ll.Back()
 	if ele == nil {
 		return

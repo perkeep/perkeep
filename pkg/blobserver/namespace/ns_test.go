@@ -29,9 +29,9 @@ import (
 )
 
 func newNamespace(t *testing.T, ld *test.Loader) *nsto {
-	sto, err := newFromConfig(ld, map[string]interface{}{
+	sto, err := newFromConfig(ld, map[string]any{
 		"storage": "/good-storage/",
-		"inventory": map[string]interface{}{
+		"inventory": map[string]any{
 			"type": "memory",
 		},
 	})

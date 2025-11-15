@@ -379,7 +379,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 
 	if !cacheHit {
 		thumbCacheMiss.Add(1)
-		imi, err := singleResize.Do(key, func() (interface{}, error) {
+		imi, err := singleResize.Do(key, func() (any, error) {
 			return ih.scaleImage(ctx, file)
 		})
 		if err != nil {

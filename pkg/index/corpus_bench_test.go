@@ -43,7 +43,7 @@ func BenchmarkCorpusFromStorage(b *testing.B) {
 		}
 		id := indextest.NewIndexDeps(idx)
 		id.Fataler = b
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			fileRef, _ := id.UploadFile("file.txt", fmt.Sprintf("some file %d", i), time.Unix(1382073153, 0))
 			pn := id.NewPlannedPermanode(fmt.Sprint(i))
 			id.SetAttribute(pn, "camliContent", fileRef.String())
@@ -52,9 +52,7 @@ func BenchmarkCorpusFromStorage(b *testing.B) {
 	defer index.SetVerboseCorpusLogging(true)
 	index.SetVerboseCorpusLogging(false)
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := index.NewCorpusFromStorage(kvForBenchmark)
 		if err != nil {
 			b.Fatal(err)

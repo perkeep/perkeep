@@ -30,8 +30,8 @@ func TestFromConfig(t *testing.T) {
 	tests := []struct {
 		in string
 
-		want    interface{}
-		wanterr interface{}
+		want    any
+		wanterr any
 	}{
 		{in: "", wanterr: ErrNoAuth},
 		{in: "slkdjflksdjf", wanterr: `Unknown auth type: "slkdjflksdjf"`},

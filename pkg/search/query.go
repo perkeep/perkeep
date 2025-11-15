@@ -1059,10 +1059,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 					// If Limit is even, and the number of results before and after Around
 					// are both greater than half the limit, then there will be one more result before
 					// than after.
-					discard := len(res.Blobs) - q.Limit/2 - 1
-					if discard < 0 {
-						discard = 0
-					}
+					discard := max(len(res.Blobs)-q.Limit/2-1, 0)
 					res.Blobs = res.Blobs[discard:]
 				}
 				if len(res.Blobs) == q.Limit {
@@ -1140,14 +1137,8 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 					if aroundPos == len(res.Blobs) || res.Blobs[aroundPos].Blob != q.Around {
 						panic("q.Around blobRef should be in the results")
 					}
-					lowerBound := aroundPos - q.Limit/2
-					if lowerBound < 0 {
-						lowerBound = 0
-					}
-					upperBound := lowerBound + q.Limit
-					if upperBound > len(res.Blobs) {
-						upperBound = len(res.Blobs)
-					}
+					lowerBound := max(aroundPos-q.Limit/2, 0)
+					upperBound := min(lowerBound+q.Limit, len(res.Blobs))
 					res.Blobs = res.Blobs[lowerBound:upperBound]
 				} else {
 					res.Blobs = res.Blobs[:q.Limit]

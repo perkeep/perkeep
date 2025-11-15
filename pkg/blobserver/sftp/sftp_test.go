@@ -98,7 +98,7 @@ func TestStorage_Manual(t *testing.T) {
 	}
 
 	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
-		conf := make(map[string]interface{})
+		conf := make(map[string]any)
 		if err := json.Unmarshal(jconf, &conf); err != nil {
 			t.Fatalf("Error parsing JSON file %s: %v", sftpTestAuthFile, err)
 		}

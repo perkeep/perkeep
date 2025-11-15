@@ -41,11 +41,11 @@ type Loader struct {
 
 var _ blobserver.Loader = (*Loader)(nil)
 
-func (ld *Loader) FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error) {
+func (ld *Loader) FindHandlerByType(handlerType string) (prefix string, handler any, err error) {
 	panic("NOIMPL")
 }
 
-func (ld *Loader) AllHandlers() (map[string]string, map[string]interface{}) {
+func (ld *Loader) AllHandlers() (map[string]string, map[string]any) {
 	panic("NOIMPL")
 }
 
@@ -62,7 +62,7 @@ func (ld *Loader) GetHandlerType(prefix string) string {
 	return ""
 }
 
-func (ld *Loader) GetHandler(prefix string) (interface{}, error) {
+func (ld *Loader) GetHandler(prefix string) (any, error) {
 	log.Printf("test.Loader: GetHandler called but not implemented.")
 	return nil, errors.New("doesn't exist")
 }

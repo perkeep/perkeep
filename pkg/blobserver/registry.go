@@ -41,11 +41,11 @@ type FindHandlerByTyper interface {
 	// not cause the prefix to load immediately. At runtime (after
 	// construction of all handlers), then prefix and handler will
 	// both be non-nil when err is nil.
-	FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error)
+	FindHandlerByType(handlerType string) (prefix string, handler any, err error)
 
 	// AllHandlers returns a map from prefix to handler type, and
 	// a map from prefix to handler.
-	AllHandlers() (map[string]string, map[string]interface{})
+	AllHandlers() (map[string]string, map[string]any)
 }
 
 type Loader interface {
@@ -66,7 +66,7 @@ type Loader interface {
 	// GetHandler returns either a Storage or an http.Handler.
 	// It forces the handler to be loaded and returns an error if
 	// a cycle is created.
-	GetHandler(prefix string) (interface{}, error)
+	GetHandler(prefix string) (any, error)
 
 	// GetStorage is like GetHandler but requires that the Handler be
 	// a storage Handler.

@@ -121,10 +121,8 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 			return err
 		}
 		rcc.Close()
-		si.wg.Add(1)
 		// asynchronous work assignment through w.workc
-		go func() {
-			defer si.wg.Done()
+		si.wg.Go(func() {
 			si.mu.RLock()
 			// do not pile in more work to do if there's already been an error
 			if si.err != nil {
@@ -145,7 +143,7 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 					si.mu.Unlock()
 				}
 			}
-		}()
+		})
 		return nil
 	case "file":
 		rcc.Close()
@@ -183,7 +181,7 @@ func (si *shareImporter) importAll(ctx context.Context) error {
 	defer close(si.workc)
 
 	// fan out over a pool of numWorkers workers overall
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go func() {
 			for wi := range si.workc {
 				wi.errc <- si.imprt(ctx, wi.br)

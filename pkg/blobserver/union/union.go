@@ -73,14 +73,11 @@ func (sto *unionStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadClo
 	results := make(chan result, len(sto.subsets))
 	var wg sync.WaitGroup
 	for _, bs := range sto.subsets {
-		bs := bs
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var res result
 			res.file, res.size, res.err = bs.Fetch(ctx, b)
 			results <- res
-		}()
+		})
 	}
 	go func() {
 		wg.Wait()
@@ -123,16 +120,14 @@ func (sto *unionStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, f func
 	for _, s := range sto.subsets {
 		if bs, ok := s.(blobserver.BlobStatter); ok {
 			any = true
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				if err := bs.StatBlobs(ctx, blobs, func(sr blob.SizedRef) error {
 					maybeDup <- sr
 					return nil
 				}); err != nil {
 					errCh <- err
 				}
-			}()
+			})
 		}
 	}
 	if !any {

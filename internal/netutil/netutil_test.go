@@ -184,7 +184,7 @@ func TestListenOnLocalRandomPort(t *testing.T) {
 }
 
 func BenchmarkLocalhostLookup(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if ip := localhostLookup(); ip == nil {
 			b.Fatal("no ip found.")
 		}
@@ -192,7 +192,7 @@ func BenchmarkLocalhostLookup(b *testing.B) {
 }
 
 func BenchmarkLoopbackIP(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if ip := loopbackIP(); ip == nil {
 			b.Fatal("no ip found.")
 		}

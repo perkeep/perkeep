@@ -32,32 +32,32 @@ func halve(m image.Image) {
 
 func BenchmarkResizeRGBA(b *testing.B) {
 	m := image.NewRGBA(orig)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		resize(m)
 	}
 }
 
 func BenchmarkHalveRGBA(b *testing.B) {
 	m := image.NewRGBA(orig)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		halve(m)
 	}
 }
 
 func BenchmarkResizeYCrCb(b *testing.B) {
 	m := image.NewYCbCr(orig, image.YCbCrSubsampleRatio422)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		resize(m)
 	}
 }
 
 func BenchmarkHalveYCrCb(b *testing.B) {
 	m := image.NewYCbCr(orig, image.YCbCrSubsampleRatio422)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		halve(m)
 	}
 }

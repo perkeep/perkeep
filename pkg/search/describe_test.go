@@ -412,7 +412,7 @@ func TestDescribeRace(t *testing.T) {
 	<-headstartc
 	ctx := context.Background()
 	go func() {
-		for i := 0; i < headstart; i++ {
+		for i := range headstart {
 			br := blobrefs[i]
 			res, err := h.Describe(ctx, &search.DescribeRequest{
 				BlobRef: br,

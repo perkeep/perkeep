@@ -62,11 +62,11 @@ type metaBlobHeap struct {
 
 var _ heap.Interface = (*metaBlobHeap)(nil)
 
-func (h *metaBlobHeap) Push(x interface{}) {
+func (h *metaBlobHeap) Push(x any) {
 	h.s = append(h.s, x.(*metaBlob))
 }
 
-func (h *metaBlobHeap) Pop() interface{} {
+func (h *metaBlobHeap) Pop() any {
 	l := len(h.s)
 	v := h.s[l-1]
 	h.s = h.s[:l-1]

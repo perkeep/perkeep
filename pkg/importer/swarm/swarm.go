@@ -175,7 +175,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	return nil
 }
 
-func (r *run) errorf(format string, args ...interface{}) {
+func (r *run) errorf(format string, args ...any) {
 	log.Printf(format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -496,7 +496,7 @@ func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error
 
 // doUserAPI makes requests to the Foursquare API with a user token.
 // https://developer.foursquare.com/overview/auth#requests
-func (im *imp) doUserAPI(ctx context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doUserAPI(ctx context.Context, accessToken string, result any, apiPath string, keyval ...string) error {
 	form := url.Values{}
 	form.Set("oauth_token", accessToken)
 	return im.doAPI(ctx, form, result, apiPath, keyval...)
@@ -506,14 +506,14 @@ func (im *imp) doUserAPI(ctx context.Context, accessToken string, result interfa
 // quota than user requests for some endpoints.
 // https://developer.foursquare.com/overview/auth#userless
 // https://developer.foursquare.com/overview/ratelimits
-func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result any, apiPath string, keyval ...string) error {
 	form := url.Values{}
 	form.Set("client_id", clientID)
 	form.Set("client_secret", clientSecret)
 	return im.doAPI(ctx, form, result, apiPath, keyval...)
 }
 
-func (im *imp) doAPI(ctx context.Context, form url.Values, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doAPI(ctx context.Context, form url.Values, result any, apiPath string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		panic("Incorrect number of keyval arguments")
 	}

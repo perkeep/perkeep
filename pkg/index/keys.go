@@ -57,19 +57,19 @@ type keyType struct {
 	valParts []part
 }
 
-func (k *keyType) Prefix(args ...interface{}) string {
+func (k *keyType) Prefix(args ...any) string {
 	return k.build(true, true, k.keyParts, args...)
 }
 
-func (k *keyType) Key(args ...interface{}) string {
+func (k *keyType) Key(args ...any) string {
 	return k.build(false, true, k.keyParts, args...)
 }
 
-func (k *keyType) Val(args ...interface{}) string {
+func (k *keyType) Val(args ...any) string {
 	return k.build(false, false, k.valParts, args...)
 }
 
-func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{}) string {
+func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...any) string {
 	var buf bytes.Buffer
 	if isKey {
 		buf.WriteString(k.name)

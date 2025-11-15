@@ -33,11 +33,11 @@ func init() {
 func TestStaticConfig(t *testing.T) {
 	ld := test.NewLoader()
 	h, err := newFromConfig(ld, jsonconfig.Obj{
-		"dummy1": map[string]interface{}{
+		"dummy1": map[string]any{
 			"clientID":     "id1",
 			"clientSecret": "secret1",
 		},
-		"dummy2": map[string]interface{}{
+		"dummy2": map[string]any{
 			"clientSecret": "id2:secret2",
 		},
 	})
@@ -58,11 +58,11 @@ func TestStaticConfig(t *testing.T) {
 		t.Errorf("dummy2 secret = %q; want %q", g, w)
 	}
 
-	if _, err := newFromConfig(ld, jsonconfig.Obj{"dummy1": map[string]interface{}{"bogus": ""}}); err == nil {
+	if _, err := newFromConfig(ld, jsonconfig.Obj{"dummy1": map[string]any{"bogus": ""}}); err == nil {
 		t.Errorf("expected error from unknown key")
 	}
 
-	if _, err := newFromConfig(ld, jsonconfig.Obj{"dummy1": map[string]interface{}{"clientSecret": "x"}}); err == nil {
+	if _, err := newFromConfig(ld, jsonconfig.Obj{"dummy1": map[string]any{"clientSecret": "x"}}); err == nil {
 		t.Errorf("expected error from secret without id")
 	}
 }

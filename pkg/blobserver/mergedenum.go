@@ -58,7 +58,7 @@ func mergedEnumerate(ctx context.Context, dest chan<- blob.SizedRef, nsrc int, g
 	}
 
 	peekers := make([]*blob.ChanPeeker, 0, nsrc)
-	for i := 0; i < nsrc; i++ {
+	for i := range nsrc {
 		peekers = append(peekers, startEnum(getSource(i)))
 	}
 

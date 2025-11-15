@@ -59,7 +59,7 @@ func (s *Signer) Entity() *openpgp.Entity {
 // NewSigner returns an Signer given an armored public key's blobref,
 // its armored content, and its associated private key entity.
 // The privateKeySource must be either an *openpgp.Entity or a string filename to a secret key.
-func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource interface{}) (*Signer, error) {
+func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource any) (*Signer, error) {
 	hash := pubKeyRef.Hash()
 	fingerprint, armoredPubKeyString, err := jsonsign.ParseArmoredPublicKey(io.TeeReader(armoredPubKey, hash))
 	if err != nil {

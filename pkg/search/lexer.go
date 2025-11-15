@@ -144,7 +144,7 @@ func (l *lexer) acceptRunFn(valid func(rune) bool) {
 	l.backup()
 }
 
-func (l *lexer) errorf(format string, args ...interface{}) stateFn {
+func (l *lexer) errorf(format string, args ...any) stateFn {
 	l.tokens <- token{
 		typ:   tokenError,
 		val:   fmt.Sprintf(format, args...),

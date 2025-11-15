@@ -59,8 +59,8 @@ func TestStorageTest(t *testing.T) {
 		s1, _ := ld.GetStorage("/good-schema/")
 		s2, _ := ld.GetStorage("/good-other/")
 		ld.SetStorage("/replica-all/", replica.NewForTest([]blobserver.Storage{s1, s2}))
-		sto := newCond(t, ld, map[string]interface{}{
-			"write": map[string]interface{}{
+		sto := newCond(t, ld, map[string]any{
+			"write": map[string]any{
 				"if":   "isSchema",
 				"then": "/good-schema/",
 				"else": "/good-other/",
@@ -74,8 +74,8 @@ func TestStorageTest(t *testing.T) {
 
 func TestReceiveIsSchema(t *testing.T) {
 	ld := test.NewLoader()
-	sto := newCond(t, ld, map[string]interface{}{
-		"write": map[string]interface{}{
+	sto := newCond(t, ld, map[string]any{
+		"write": map[string]any{
 			"if":   "isSchema",
 			"then": "/good-schema/",
 			"else": "/good-other/",

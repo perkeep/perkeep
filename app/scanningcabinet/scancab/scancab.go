@@ -171,7 +171,7 @@ func uploadOne(filename string) {
 		// not using RemoveAll on purpose, so that it does not remove if some of the temp files are still in there
 		os.Remove(tmpDir)
 	}()
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		fmt.Printf("	page %04d of %04d\n", i+1, cnt)
 		converted := path.Join(tmpDir, fmt.Sprintf("page-%04d.%v", i+1, ext))
 		pageArgs := append(args, fmt.Sprintf("%v[%d]", filename, i), converted)

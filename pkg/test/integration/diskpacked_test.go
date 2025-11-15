@@ -47,9 +47,8 @@ func benchmarkWrite(b *testing.B, cfg string) {
 	testFile := filepath.Join(w.SourceRoot(), testFileRel)
 	createTestFile(b, testFile, testFileSize)
 	defer os.Remove(testFile)
-	b.ResetTimer()
-	b.StopTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		err = w.Start()
 		if err != nil {
 			b.Fatalf("could not start server for config: %v\nError: %v", cfg, err)

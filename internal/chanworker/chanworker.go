@@ -22,11 +22,11 @@ import (
 )
 
 type chanWorker struct {
-	c chan interface{}
+	c chan any
 
 	donec chan bool
-	workc chan interface{}
-	fn    func(n interface{}, ok bool)
+	workc chan any
+	fn    func(n any, ok bool)
 	buf   *list.List
 }
 
@@ -41,18 +41,18 @@ const buffered = 16
 // When the returned channel is closed, fn is called with (nil, false)
 // after all other calls to fn have completed.
 // If nWorkers is zero, NewWorker will panic.
-func NewWorker(nWorkers int, fn func(el interface{}, ok bool)) chan<- interface{} {
+func NewWorker(nWorkers int, fn func(el any, ok bool)) chan<- any {
 	if nWorkers == 0 {
 		panic("NewChanWorker: invalid value of 0 for nWorkers")
 	}
-	retc := make(chan interface{}, buffered)
+	retc := make(chan any, buffered)
 	if nWorkers < 0 {
 		// Unbounded number of workers.
 		go func() {
 			var wg sync.WaitGroup
 			for w := range retc {
 				wg.Add(1)
-				go func(w interface{}) {
+				go func(w any) {
 					fn(w, true)
 					wg.Done()
 				}(w)
@@ -64,17 +64,17 @@ func NewWorker(nWorkers int, fn func(el interface{}, ok bool)) chan<- interface{
 	}
 	w := &chanWorker{
 		c:     retc,
-		workc: make(chan interface{}, buffered),
+		workc: make(chan any, buffered),
 		donec: make(chan bool), // when workers finish
 		fn:    fn,
 		buf:   list.New(),
 	}
 	go w.pump()
-	for i := 0; i < nWorkers; i++ {
+	for range nWorkers {
 		go w.work()
 	}
 	go func() {
-		for i := 0; i < nWorkers; i++ {
+		for range nWorkers {
 			<-w.donec
 		}
 		fn(nil, false) // final sentinel
@@ -86,7 +86,7 @@ func (w *chanWorker) pump() {
 	inc := w.c
 	for inc != nil || w.buf.Len() > 0 {
 		outc := w.workc
-		var frontNode interface{}
+		var frontNode any
 		if e := w.buf.Front(); e != nil {
 			frontNode = e.Value
 		} else {

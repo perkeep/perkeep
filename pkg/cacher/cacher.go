@@ -80,7 +80,7 @@ func (cf *CachingFetcher) Fetch(ctx context.Context, br blob.Ref) (content io.Re
 }
 
 func (cf *CachingFetcher) faultIn(ctx context.Context, br blob.Ref) error {
-	_, err := cf.g.Do(br.String(), func() (interface{}, error) {
+	_, err := cf.g.Do(br.String(), func() (any, error) {
 		sblob, _, err := cf.sf.Fetch(ctx, br)
 		if err != nil {
 			return nil, err

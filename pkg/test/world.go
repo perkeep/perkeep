@@ -208,7 +208,7 @@ func (w *World) Start() error {
 			}
 			w.addr = strings.TrimSpace(addr)
 
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				res, err := http.Get("http://" + w.addr)
 				if err == nil {
 					res.Body.Close()

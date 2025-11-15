@@ -251,7 +251,7 @@ func check(err error, query string) {
 	exitf("SQL error for query %q: %v", query, err)
 }
 
-func exitf(format string, args ...interface{}) {
+func exitf(format string, args ...any) {
 	if !strings.HasSuffix(format, "\n") {
 		format = format + "\n"
 	}

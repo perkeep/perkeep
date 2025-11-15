@@ -134,7 +134,7 @@ func (c *Client) parseConfig() {
 		if isURLOrHostPort(alias) {
 			log.Fatalf("Server alias %q looks like a hostname; \".\" or \";\" are not allowed.", alias)
 		}
-		serverMap, ok := vei.(map[string]interface{})
+		serverMap, ok := vei.(map[string]any)
 		if !ok {
 			log.Fatalf("entry %q in servers section is a %T, want an object", alias, vei)
 		}
@@ -175,8 +175,8 @@ func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
 		return nil, errors.New("could not convert config to multi-servers style: no \"server\" key found")
 	}
 	newConf := jsonconfig.Obj{
-		"servers": map[string]interface{}{
-			"server": map[string]interface{}{
+		"servers": map[string]any{
+			"server": map[string]any{
 				"auth":    conf.OptionalString("auth", ""),
 				"default": true,
 				"server":  server,
@@ -186,7 +186,7 @@ func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
 		"identitySecretRing": conf.OptionalString("identitySecretRing", ""),
 	}
 	if ignoredFiles := conf.OptionalList("ignoredFiles"); ignoredFiles != nil {
-		var list []interface{}
+		var list []any
 		for _, v := range ignoredFiles {
 			list = append(list, v)
 		}
@@ -513,14 +513,12 @@ func newIgnoreChecker(ignoredFiles []string) func(path string) (shouldIgnore boo
 	// 3) absolute paths
 	// 4) paths components
 	for _, pattern := range ignFiles {
-		pattern := pattern
 		_, err := filepath.Match(pattern, "whatever")
 		if err == nil {
 			fns = append(fns, func(v string) bool { return isShellPatternMatch(pattern, v) })
 		}
 	}
 	for _, pattern := range ignFiles {
-		pattern := pattern
 		if filepath.IsAbs(pattern) {
 			fns = append(fns, func(v string) bool { return hasDirPrefix(filepath.Clean(pattern), v) })
 		} else {

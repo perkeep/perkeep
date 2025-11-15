@@ -122,7 +122,7 @@ type status struct {
 	importerRoot string
 	rootPrefix   string
 
-	ImporterAccounts interface{} `json:"importerAccounts"`
+	ImporterAccounts any `json:"importerAccounts"`
 }
 
 func (st *status) addError(msg, url string) {
@@ -146,12 +146,12 @@ func (st *status) isHandler(pfx string) bool {
 }
 
 type storageStatus struct {
-	Primary     bool        `json:"primary,omitempty"`
-	IsIndex     bool        `json:"isIndex,omitempty"`
-	Type        string      `json:"type"`
-	ApproxBlobs int         `json:"approxBlobs,omitempty"`
-	ApproxBytes int         `json:"approxBytes,omitempty"`
-	ImplStatus  interface{} `json:"implStatus,omitempty"`
+	Primary     bool   `json:"primary,omitempty"`
+	IsIndex     bool   `json:"isIndex,omitempty"`
+	Type        string `json:"type"`
+	ApproxBlobs int    `json:"approxBlobs,omitempty"`
+	ApproxBytes int    `json:"approxBytes,omitempty"`
+	ImplStatus  any    `json:"implStatus,omitempty"`
 }
 
 func (sh *StatusHandler) currentStatus() *status {
@@ -175,7 +175,7 @@ func (sh *StatusHandler) currentStatus() *status {
 	if pfx, h, err := sh.handlerFinder.FindHandlerByType("importer"); err == nil {
 		res.importerRoot = pfx
 		as := h.(interface {
-			AccountsStatus() (interface{}, []camtypes.StatusError)
+			AccountsStatus() (any, []camtypes.StatusError)
 		})
 		var errs []camtypes.StatusError
 		res.ImporterAccounts, errs = as.AccountsStatus()
@@ -229,7 +229,7 @@ var quotedPrefix = regexp.MustCompile(`[;"]/(\S+?/)[&"]`)
 
 func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Request) {
 	st := sh.currentStatus()
-	f := func(p string, a ...interface{}) {
+	f := func(p string, a ...any) {
 		if len(a) == 0 {
 			io.WriteString(rw, p)
 		} else {
