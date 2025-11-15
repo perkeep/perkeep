@@ -38,11 +38,11 @@ import (
 )
 
 type syncCmd struct {
-	src       string
-	dest      string
-	third     string
-	srcKeyID  string // GPG public key ID of the source server, if supported.
-	destKeyID string // GPG public key ID of the destination server, if supported.
+	src                string
+	dest               string
+	third              string
+	srcKeyFingerprint  string // GPG public key fingerprint of the source server, if supported.
+	destKeyFingerprint string // GPG public key fingerprint of the destination server, if supported.
 
 	loop           bool
 	all            bool
@@ -123,9 +123,9 @@ func (c *syncCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	differentKeyIDs := fmt.Sprintf("WARNING: the source server GPG key ID (%v) and the destination's (%v) differ. All blobs will be synced, but because the indexer at the other side is indexing claims by a different user, you may not see what you expect in that server's web UI, etc.", c.srcKeyID, c.destKeyID)
+	differentKeyIDs := fmt.Sprintf("WARNING: the source server GPG key fingerprint (%v) and the destination's (%v) differ. All blobs will be synced, but because the indexer at the other side is indexing claims by a different user, you may not see what you expect in that server's web UI, etc.", c.srcKeyFingerprint, c.destKeyFingerprint)
 
-	if c.dest != "stdout" && !c.oneIsDisk && c.srcKeyID != c.destKeyID { // both blank is ok.
+	if c.dest != "stdout" && !c.oneIsDisk && c.srcKeyFingerprint != c.destKeyFingerprint { // both blank is ok.
 		// Warn at the top (and hope the user sees it and can abort if it was a mistake):
 		fmt.Fprintln(cmdmain.Stderr, differentKeyIDs)
 		// Warn also at the end (in case the user missed the first one)
@@ -200,14 +200,14 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	}
 	cl.Verbose = *cmdmain.FlagVerbose
 	cl.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
-	serverKeyID, err := cl.ServerKeyID()
+	serverKeyFingerprint, err := cl.ServerKeyFingerprint()
 	if err != nil && err != client.ErrNoSigning {
 		fmt.Fprintf(cmdmain.Stderr, "Failed to discover keyId for server %v: %v", val, err)
 	} else {
 		if which == storageSource {
-			c.srcKeyID = serverKeyID
+			c.srcKeyFingerprint = serverKeyFingerprint
 		} else if which == storageDest {
-			c.destKeyID = serverKeyID
+			c.destKeyFingerprint = serverKeyFingerprint
 		}
 	}
 	return cl, nil
