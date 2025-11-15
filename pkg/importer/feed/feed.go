@@ -269,7 +269,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	if err := ctx.AccountNode.SetAttrs(
 		acctAttrFeedURL, feed.String(),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

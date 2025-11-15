@@ -17,6 +17,7 @@ limitations under the License.
 package netutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -82,7 +83,7 @@ func testLocalListener(t *testing.T, ln net.Listener) {
 	select {
 	case r := <-c:
 		if r.err != nil {
-			if r.err == ErrUnsupportedOS {
+			if errors.Is(r.err, ErrUnsupportedOS) {
 				t.Skipf("Skipping test; not implemented on " + runtime.GOOS)
 			}
 			t.Fatal(r.err)

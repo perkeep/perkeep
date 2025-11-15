@@ -64,7 +64,7 @@ func runExec(bin string, args []string, env *Env) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not run %v: %v", bin, err)
+		return fmt.Errorf("Could not run %v: %w", bin, err)
 	}
 	go handleSignals(cmd.Process)
 	return cmd.Wait()
@@ -84,7 +84,7 @@ func cpDir(src, dst string, filter []string) error {
 		}
 		suffix, err := filepath.Rel(src, fullpath)
 		if err != nil {
-			return fmt.Errorf("Failed to find Rel(%q, %q): %v", src, fullpath, err)
+			return fmt.Errorf("Failed to find Rel(%q, %q): %w", src, fullpath, err)
 		}
 		if fi.IsDir() {
 			return nil
@@ -175,7 +175,7 @@ func checkPerkeepSrcRoot() {
 func repoRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("could not get current directory: %v", err)
+		return "", fmt.Errorf("could not get current directory: %w", err)
 	}
 	rootlen := 1
 	if runtime.GOOS == "windows" {
@@ -208,18 +208,18 @@ func selfModTime() (time.Time, error) {
 func checkModtime() error {
 	binModtime, err := selfModTime()
 	if err != nil {
-		return fmt.Errorf("could not get ModTime of current devcam executable: %v", err)
+		return fmt.Errorf("could not get ModTime of current devcam executable: %w", err)
 	}
 
 	devcamDir := filepath.Join(camliSrcRoot, "dev", "devcam")
 	d, err := os.Open(devcamDir)
 	if err != nil {
-		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
+		return fmt.Errorf("could not read devcam source dir %v: %w", devcamDir, err)
 	}
 	defer d.Close()
 	fis, err := d.Readdir(-1)
 	if err != nil {
-		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
+		return fmt.Errorf("could not read devcam source dir %v: %w", devcamDir, err)
 	}
 	for _, fi := range fis {
 		if fi.ModTime().After(binModtime) {
@@ -258,7 +258,7 @@ func build(targets ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error building %v: %v", targetsComma, err)
+		return fmt.Errorf("error building %v: %w", targetsComma, err)
 	}
 	return nil
 }

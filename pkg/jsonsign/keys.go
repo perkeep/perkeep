@@ -67,7 +67,7 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	}
 	p, err := packet.Read(block.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid public key blob: %v", err)
+		return nil, fmt.Errorf("Invalid public key blob: %w", err)
 	}
 
 	pk, ok := p.(*packet.PublicKey)
@@ -89,13 +89,13 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 	}
 	secring, err := wkfs.Open(keyFile)
 	if err != nil {
-		return nil, fmt.Errorf("jsonsign: failed to open keyring: %v", err)
+		return nil, fmt.Errorf("jsonsign: failed to open keyring: %w", err)
 	}
 	defer secring.Close()
 
 	el, err := readKeyRing(secring)
 	if err != nil {
-		return nil, fmt.Errorf("readKeyRing of %q: %v", keyFile, err)
+		return nil, fmt.Errorf("readKeyRing of %q: %w", keyFile, err)
 	}
 	var entity *openpgp.Entity
 	for _, e := range el {
@@ -176,12 +176,12 @@ func readKeyRing(r io.Reader) (openpgp.EntityList, error) {
 func KeyIdFromRing(secRing string) (keyID string, err error) {
 	f, err := wkfs.Open(secRing)
 	if err != nil {
-		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
+		return "", fmt.Errorf("Could not open secret ring file %v: %w", secRing, err)
 	}
 	defer f.Close()
 	el, err := readKeyRing(f)
 	if err != nil {
-		return "", fmt.Errorf("Could not read secret ring file %s: %v", secRing, err)
+		return "", fmt.Errorf("Could not read secret ring file %s: %w", secRing, err)
 	}
 	if len(el) != 1 {
 		return "", fmt.Errorf("Secret ring file %v contained %d identities; expected 1", secRing, len(el))
@@ -196,7 +196,7 @@ func KeyIdFromRing(secRing string) (keyID string, err error) {
 func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	ent, err := NewEntity()
 	if err != nil {
-		return "", fmt.Errorf("generating new identity: %v", err)
+		return "", fmt.Errorf("generating new identity: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(secRing), 0700); err != nil {
 		return "", err
@@ -208,10 +208,10 @@ func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	err = WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
 	if err != nil {
 		f.Close()
-		return "", fmt.Errorf("Could not write new key ring to %s: %v", secRing, err)
+		return "", fmt.Errorf("Could not write new key ring to %s: %w", secRing, err)
 	}
 	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("Could not close %v: %v", secRing, err)
+		return "", fmt.Errorf("Could not close %v: %w", secRing, err)
 	}
 	return ent.PrimaryKey.KeyIdString(), nil
 }

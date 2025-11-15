@@ -153,7 +153,7 @@ func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("invalid proxy address %q: %v", proxy, err)
+		return nil, fmt.Errorf("invalid proxy address %q: %w", proxy, err)
 	}
 	return proxyURL, nil
 }

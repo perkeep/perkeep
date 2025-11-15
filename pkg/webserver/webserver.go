@@ -206,7 +206,7 @@ func (s *Server) Listen(addr string) error {
 		s.listener, err = listen.Listen(addr)
 	}
 	if err != nil {
-		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
+		return fmt.Errorf("Failed to listen on %s: %w", addr, err)
 	}
 	base := s.ListenURL()
 	s.printf("Starting to listen on %s\n", base)
@@ -240,7 +240,7 @@ func (s *Server) Listen(addr string) error {
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 			if err != nil {
-				return fmt.Errorf("Failed to load TLS cert: %v", err)
+				return fmt.Errorf("Failed to load TLS cert: %w", err)
 			}
 			s.listener = tls.NewListener(s.listener, config)
 			return nil
@@ -274,7 +274,7 @@ func (s *Server) listenTailscale(addr string, withTLS bool) (net.Listener, error
 	if dir == "" {
 		confDir, err := os.UserConfigDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to find user config dir: %v", err)
+			return nil, fmt.Errorf("failed to find user config dir: %w", err)
 		}
 		dir = filepath.Join(confDir, "tsnet-"+name)
 	}

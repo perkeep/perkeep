@@ -38,7 +38,7 @@ func pageCountPoppler(filename string) (cnt int, err error) {
 	cmd := exec.Command("pdfinfo", filename)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return cnt, fmt.Errorf("could not get page count with pdfinfo: %v, %v", err, string(out))
+		return cnt, fmt.Errorf("could not get page count with pdfinfo: %w, %v", err, string(out))
 	}
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {

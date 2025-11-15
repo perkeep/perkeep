@@ -153,8 +153,8 @@ type pageParams struct {
 
 // pageTmplData is the template data passed to page.html.
 type pageTmplData struct {
-	Title    string
-	Subtitle string
+	Title    template.HTML
+	Subtitle template.HTML
 	Content  template.HTML
 
 	// For the "go-import" meta header:
@@ -178,8 +178,8 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
 	if err := pageHTML.ExecuteTemplate(w, "page", &pageTmplData{
-		Title:            title,
-		Subtitle:         subtitle,
+		Title:            template.HTML(title),
+		Subtitle:         template.HTML(subtitle),
 		Content:          template.HTML(content),
 		GoImportDomain:   domain,
 		GoImportUpstream: upstream,
@@ -483,7 +483,7 @@ func runDemoBlobServerContainer(name string) error {
 	// stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
 	// cmd.Stderr = stderr
 	// if err := cmd.Run(); err != nil {
-	// 	return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+	// 	return fmt.Errorf("failed to run demo blob server: %w, stderr: %v", err, string(stderr.Bytes()))
 	// }
 	return nil
 }

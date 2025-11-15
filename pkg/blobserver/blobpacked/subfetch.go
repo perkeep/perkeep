@@ -18,6 +18,7 @@ package blobpacked
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"perkeep.org/pkg/blob"
@@ -47,7 +48,7 @@ func (s *storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int
 	}
 	if sf, ok := s.small.(blob.SubFetcher); ok {
 		rc, err := sf.SubFetch(ctx, ref, offset, length)
-		if err != blob.ErrUnimplemented {
+		if !errors.Is(err, blob.ErrUnimplemented) {
 			return rc, err
 		}
 	}

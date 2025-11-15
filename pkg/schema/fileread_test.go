@@ -333,7 +333,7 @@ func TestReaderForeachChunk(t *testing.T) {
 		}
 		rc, size, err := sto.Fetch(ctxbg, p.BlobRef)
 		if err != nil {
-			return fmt.Errorf("Error fetching blobref of chunk %+v: %v", p, err)
+			return fmt.Errorf("Error fetching blobref of chunk %+v: %w", p, err)
 		}
 		defer rc.Close()
 		totSize += p.Size

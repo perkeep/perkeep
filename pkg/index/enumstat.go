@@ -18,6 +18,7 @@ package index
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,11 +68,11 @@ func (ix *Index) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.S
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("error looking up key %q: %v", key, err)
+			return fmt.Errorf("error looking up key %q: %w", key, err)
 		}
 		size, err := parseHaveVal(v)
 		if err != nil {

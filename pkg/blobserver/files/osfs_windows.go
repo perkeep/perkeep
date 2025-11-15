@@ -17,6 +17,7 @@ limitations under the License.
 package files
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -27,8 +28,8 @@ import (
 // a file over one that already exists
 // 2) oldfile and newfile are the same files (i.e have the same size)
 func mapRenameError(err error, oldfile, newfile string) error {
-	linkErr, ok := err.(*os.LinkError)
-	if !ok {
+	var linkErr *os.LinkError
+	if !errors.As(err, &linkErr) {
 		return err
 	}
 	if linkErr.Err != error(syscall.ERROR_ALREADY_EXISTS) {

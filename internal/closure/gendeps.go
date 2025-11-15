@@ -47,7 +47,7 @@ func GenDeps(root http.FileSystem) ([]byte, error) {
 func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 	d, err := root.Open("/")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open root of %v: %v", root, err)
+		return nil, fmt.Errorf("Failed to open root of %v: %w", root, err)
 	}
 	fi, err := d.Stat()
 	if err != nil {
@@ -58,7 +58,7 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 	}
 	ent, err := d.Readdir(-1)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read dir entries of root: %v", err)
+		return nil, fmt.Errorf("Could not read dir entries of root: %w", err)
 	}
 	var buf bytes.Buffer
 	for _, info := range ent {
@@ -72,12 +72,12 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 		}
 		f, err := root.Open(name)
 		if err != nil {
-			return nil, fmt.Errorf("Could not open %v: %v", name, err)
+			return nil, fmt.Errorf("Could not open %v: %w", name, err)
 		}
 		prov, req, err := parseProvidesRequires(info, name, f)
 		f.Close()
 		if err != nil {
-			return nil, fmt.Errorf("Could not parse deps for %v: %v", name, err)
+			return nil, fmt.Errorf("Could not parse deps for %v: %w", name, err)
 		}
 		if len(prov) > 0 {
 			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", pathPrefix+name, jsList(prov), jsList(req))

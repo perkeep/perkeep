@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -573,7 +574,7 @@ func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
 	defer dr.mu.Unlock()
 	for k, err := range dr.errs {
 		// TODO: include all?
-		return nil, fmt.Errorf("error populating %s: %v", k, err)
+		return nil, fmt.Errorf("error populating %s: %w", k, err)
 	}
 	m := make(map[string]*DescribedBlob)
 	for k, desb := range dr.m {
@@ -738,7 +739,7 @@ func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 
 func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth int) {
 	meta, err := dr.sh.index.GetBlobMeta(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 	if err != nil {
@@ -766,7 +767,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.lh.PermanodeLocation(ctx, br, at, dr.sh.owner); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("PermanodeLocation(permanode %s): %v", br, err)
 			}
 		}
@@ -797,7 +798,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.index.GetFileLocation(ctx, br); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("index.GetFileLocation(file %s): %v", br, err)
 			}
 		}
@@ -830,7 +831,7 @@ func (dr *DescribeRequest) populatePermanodeFields(ctx context.Context, pi *Desc
 	claims, err := dr.sh.index.AppendClaims(ctx, nil, pn, dr.sh.owner.KeyID(), "")
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
+		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %w", pn.String(), err))
 		return
 	}
 

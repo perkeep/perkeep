@@ -61,11 +61,11 @@ func (c *whoamiCmd) RunCommand(args []string) error {
 
 	cc, err := client.New()
 	if err != nil {
-		return fmt.Errorf("creating Client: %v", err)
+		return fmt.Errorf("creating Client: %w", err)
 	}
 	signer, err := cc.Signer()
 	if err != nil {
-		return fmt.Errorf("no configured Signer: %v", err)
+		return fmt.Errorf("no configured Signer: %w", err)
 	}
 
 	cmd, ok := whoCmds[args[0]]

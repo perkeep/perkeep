@@ -98,7 +98,7 @@ func getUploadURL() (string, error) {
 	}
 	uploadURL := string(body)
 	if _, err := url.ParseRequestURI(uploadURL); err != nil {
-		return "", fmt.Errorf("could not parse upload URL returned by server (%q): %v", uploadURL, err)
+		return "", fmt.Errorf("could not parse upload URL returned by server (%q): %w", uploadURL, err)
 	}
 	return uploadURL, nil
 }

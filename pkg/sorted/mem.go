@@ -100,7 +100,7 @@ func (mk *memKeys) Get(key string) (string, error) {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	k, err := mk.db.Get([]byte(key))
-	if err == memdb.ErrNotFound {
+	if errors.Is(err, memdb.ErrNotFound) {
 		return "", ErrNotFound
 	}
 	return string(k), err
@@ -134,7 +134,7 @@ func (mk *memKeys) Delete(key string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	err := mk.db.Delete([]byte(key))
-	if err == memdb.ErrNotFound {
+	if errors.Is(err, memdb.ErrNotFound) {
 		return nil
 	}
 	return err

@@ -257,7 +257,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 
 	bodyReader, bodySize, err := h.readerAndSize()
 	if err != nil {
-		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
+		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %w", err)
 	}
 	if bodySize > constants.MaxBlobSize {
 		return nil, errors.New("client: body is bigger then max blob size")
@@ -491,7 +491,7 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
 	hasLegacySHA1, err := c.HasLegacySHA1()
 	if err != nil {
-		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %v", err)
+		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %w", err)
 	}
 	td := hashutil.NewTrackDigestReader(contents)
 	td.DoLegacySHA1 = hasLegacySHA1
@@ -522,12 +522,12 @@ func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Build
 	}
 	dupMap, err := c.FetchSchemaBlob(ctx, dupFileRef)
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
+		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %w", wholeRef, err)
 	}
 	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
 	json, err := fileMap.JSON()
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)
+		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %w", wholeRef, err)
 	}
 	bref := blob.RefFromString(json)
 	if bref == dupFileRef {

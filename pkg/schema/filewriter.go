@@ -19,6 +19,7 @@ package schema
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -97,7 +98,7 @@ func serverHasBlob(ctx context.Context, bs blobserver.BlobStatter, br blob.Ref) 
 	_, err = blobserver.StatBlob(ctx, bs, br)
 	if err == nil {
 		have = true
-	} else if err == os.ErrNotExist {
+	} else if errors.Is(err, os.ErrNotExist) {
 		err = nil
 	}
 	return
@@ -131,7 +132,7 @@ type noteEOFReader struct {
 
 func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	n, err = r.r.Read(p)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		r.sawEOF = true
 	}
 	return

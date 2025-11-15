@@ -165,7 +165,7 @@ func (ds *Storage) fetch(ctx context.Context, br blob.Ref, offset, length int64)
 	if offset != 0 {
 		if at, err := file.Seek(offset, io.SeekStart); err != nil || at != offset {
 			file.Close()
-			return nil, 0, fmt.Errorf("localdisk: error seeking to %d: got %v, %v", offset, at, err)
+			return nil, 0, fmt.Errorf("localdisk: error seeking to %d: got %v, %w", offset, at, err)
 		}
 	}
 	return struct {

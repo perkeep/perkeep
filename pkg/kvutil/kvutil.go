@@ -45,7 +45,7 @@ func Open(dbFile string, opts *kv.Options) (*kv.DB, error) {
 			lkfile := dbFile + ".lock"
 			cl, err := lock.Lock(lkfile)
 			if err != nil {
-				return nil, fmt.Errorf("failed to acquire lock on %s: %v", lkfile, err)
+				return nil, fmt.Errorf("failed to acquire lock on %s: %w", lkfile, err)
 			}
 			return cl, nil
 		}
@@ -58,7 +58,7 @@ func Open(dbFile string, opts *kv.Options) (*kv.DB, error) {
 	}
 	db, err := createOpen(dbFile, opts)
 	if err != nil {
-		return nil, fmt.Errorf("error %s %s: %v", verb, dbFile, err)
+		return nil, fmt.Errorf("error %s %s: %w", verb, dbFile, err)
 	}
 	return db, nil
 }

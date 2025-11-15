@@ -31,6 +31,7 @@ package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -98,7 +99,7 @@ func New(root string) (*DiskStorage, error) {
 		// As a special case, we auto-created the "packed" directory for subpacked.
 		if filepath.Base(root) == "packed" {
 			if err := os.Mkdir(root, 0700); err != nil {
-				return nil, fmt.Errorf("failed to mkdir packed directory: %v", err)
+				return nil, fmt.Errorf("failed to mkdir packed directory: %w", err)
 			}
 			fi, err = os.Stat(root)
 		} else {
@@ -106,7 +107,7 @@ func New(root string) (*DiskStorage, error) {
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
+		return nil, fmt.Errorf("Failed to stat directory %q: %w", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
@@ -119,11 +120,11 @@ func New(root string) (*DiskStorage, error) {
 		gen:        local.NewGenerationer(root),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
-		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
+		return nil, fmt.Errorf("Error initialization generation for %q: %w", root, err)
 	}
 	ul, err := osutil.MaxFD()
 	if err != nil {
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			// Do not set the gate on Windows, since we don't know the ulimit.
 			return ds, nil
 		}
@@ -162,12 +163,12 @@ func init() {
 func (ds *DiskStorage) checkFS() (ret error) {
 	tempdir, err := os.MkdirTemp(ds.root, "")
 	if err != nil {
-		return fmt.Errorf("localdisk check: unable to create tempdir in %s, err=%v", ds.root, err)
+		return fmt.Errorf("localdisk check: unable to create tempdir in %s, err=%w", ds.root, err)
 	}
 	defer func() {
 		err := os.RemoveAll(tempdir)
 		if err != nil {
-			cleanErr := fmt.Errorf("localdisk check: unable to clean temp dir: %v", err)
+			cleanErr := fmt.Errorf("localdisk check: unable to clean temp dir: %w", err)
 			if ret == nil {
 				ret = cleanErr
 			} else {
@@ -181,24 +182,24 @@ func (ds *DiskStorage) checkFS() (ret error) {
 	data := []byte("perkeep rocks")
 	err = os.WriteFile(tempfile, data, 0644)
 	if err != nil {
-		return fmt.Errorf("localdisk check: unable to write into %s, err=%v", ds.root, err)
+		return fmt.Errorf("localdisk check: unable to write into %s, err=%w", ds.root, err)
 	}
 
 	out, err := os.ReadFile(tempfile)
 	if err != nil {
-		return fmt.Errorf("localdisk check: unable to read from %s, err=%v", tempfile, err)
+		return fmt.Errorf("localdisk check: unable to read from %s, err=%w", tempfile, err)
 	}
 	if !bytes.Equal(out, data) {
 		return fmt.Errorf("localdisk check: tempfile contents didn't match, got=%q", out)
 	}
 	if _, err := os.Lstat(filename); !os.IsNotExist(err) {
-		return fmt.Errorf("localdisk check: didn't expect file to exist, Lstat had other error, err=%v", err)
+		return fmt.Errorf("localdisk check: didn't expect file to exist, Lstat had other error, err=%w", err)
 	}
 	if err := os.Rename(tempfile, filename); err != nil {
-		return fmt.Errorf("localdisk check: rename failed, err=%v", err)
+		return fmt.Errorf("localdisk check: rename failed, err=%w", err)
 	}
 	if _, err := os.Lstat(filename); err != nil {
-		return fmt.Errorf("localdisk check: after rename passed Lstat had error, err=%v", err)
+		return fmt.Errorf("localdisk check: after rename passed Lstat had error, err=%w", err)
 	}
 	return nil
 }

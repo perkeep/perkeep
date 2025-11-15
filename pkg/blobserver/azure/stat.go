@@ -18,9 +18,11 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"go4.org/syncutil"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 )
@@ -34,7 +36,7 @@ func (sto *azureStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn fun
 		if err == nil {
 			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 		}
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return sb, nil
 		}
 		return sb, err

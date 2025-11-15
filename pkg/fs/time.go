@@ -74,32 +74,32 @@ func parseCanonicalTime(in string) (time.Time, error) {
 
 	year, err := strconv.Atoi(in[0:4])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing year: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing year: %w", err)
 	}
 
 	month, err := strconv.Atoi(in[5:7])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing month: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing month: %w", err)
 	}
 
 	day, err := strconv.Atoi(in[8:10])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing day: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing day: %w", err)
 	}
 
 	hour, err := strconv.Atoi(in[11:13])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing hour: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing hour: %w", err)
 	}
 
 	minute, err := strconv.Atoi(in[14:16])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing minute: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing minute: %w", err)
 	}
 
 	second, err := strconv.Atoi(in[17:19])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error parsing second: %v", err)
+		return time.Time{}, fmt.Errorf("error parsing second: %w", err)
 	}
 
 	var nsecstr string
@@ -111,7 +111,7 @@ func parseCanonicalTime(in string) (time.Time, error) {
 	if nsecstr != "" {
 		nsec, err = strconv.Atoi(nsecstr)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("error parsing nanoseconds: %v", err)
+			return time.Time{}, fmt.Errorf("error parsing nanoseconds: %w", err)
 		}
 	}
 

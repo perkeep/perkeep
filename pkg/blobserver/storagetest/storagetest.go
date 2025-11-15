@@ -202,7 +202,7 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range regions {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
-		if err == blob.ErrUnimplemented {
+		if errors.Is(err, blob.ErrUnimplemented) {
 			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
 			return
 		}
@@ -232,7 +232,7 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range invalids {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
-		if err == blob.ErrUnimplemented {
+		if errors.Is(err, blob.ErrUnimplemented) {
 			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
 			return
 		}
@@ -241,7 +241,7 @@ func (r *run) testSubFetcher() {
 			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)
 			continue
 		}
-		if err != blob.ErrNegativeSubFetch && err != blob.ErrOutOfRangeOffsetSubFetch {
+		if !errors.Is(err, blob.ErrNegativeSubFetch) && !errors.Is(err, blob.ErrOutOfRangeOffsetSubFetch) {
 			t.Errorf("Unexpected error fetching with off=%d limit=%d: %v", tt.off, tt.limit, err)
 		}
 	}
@@ -288,7 +288,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		if err := sto.EnumerateBlobs(ctx, sbc, after, n); err != nil {
-			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n, err)
+			return fmt.Errorf("EnumerateBlobs(%q, %d): %w", after, n, err)
 		}
 		return nil
 	})
@@ -318,7 +318,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 
 	})
 	if err := grp.Err(); err != nil {
-		return fmt.Errorf("Enumerate error: %v", err)
+		return fmt.Errorf("Enumerate error: %w", err)
 	}
 	if len(got) == 0 && len(want) == 0 {
 		return nil

@@ -18,6 +18,7 @@ package images
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -391,7 +392,8 @@ func TestHEIFToJPEG(t *testing.T) {
 	max := 1008
 	data, err := HEIFToJPEG(f, &Dimensions{MaxWidth: max, MaxHeight: max})
 	if err != nil {
-		if _, ok := err.(NoHEICTOJPEGError); ok {
+		var e NoHEICTOJPEGError
+		if errors.As(err, &e) {
 			t.Skipf("skipping test; missing program: %v", err)
 		}
 		t.Fatal(err)

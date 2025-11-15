@@ -593,7 +593,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %w", err))
 		return
 	}
 
@@ -626,7 +626,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrUserLast, u.LastName,
 		acctAttrAccessToken, token.AccessToken,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

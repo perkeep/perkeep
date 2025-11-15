@@ -85,24 +85,24 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	signUpload := func(bb *schema.Builder) (blob.Ref, error) {
 		signed, err := sigh.Sign(ctx, bb)
 		if err != nil {
-			return blob.Ref{}, fmt.Errorf("could not sign blob: %v", err)
+			return blob.Ref{}, fmt.Errorf("could not sign blob: %w", err)
 		}
 		br := blob.RefFromString(signed)
 		if _, err := blobserver.Receive(ctx, bs, br, strings.NewReader(signed)); err != nil {
-			return blob.Ref{}, fmt.Errorf("could not upload %v: %v", br.String(), err)
+			return blob.Ref{}, fmt.Errorf("could not upload %v: %w", br.String(), err)
 		}
 		return br, nil
 	}
 
 	pn, err := signUpload(schema.NewUnsignedPermanode())
 	if err != nil {
-		return fmt.Errorf("could not create new camliRoot node: %v", err)
+		return fmt.Errorf("could not create new camliRoot node: %w", err)
 	}
 	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "camliRoot", camliRoot)); err != nil {
-		return fmt.Errorf("could not set camliRoot on new node %v: %v", pn, err)
+		return fmt.Errorf("could not set camliRoot on new node %v: %w", pn, err)
 	}
 	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+camliRoot)); err != nil {
-		return fmt.Errorf("could not set camliRoot on new node %v: %v", pn, err)
+		return fmt.Errorf("could not set camliRoot on new node %v: %w", pn, err)
 	}
 	return nil
 }

@@ -109,7 +109,7 @@ func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
 func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 	rc, _, err := ix.blobSource.Fetch(ctx, br)
 	if err != nil {
-		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
+		return fmt.Errorf("index: failed to fetch %v for reindexing: %w", br, err)
 	}
 	defer rc.Close()
 	if _, err := blobserver.Receive(ctx, ix, br, rc); err != nil {
@@ -243,7 +243,7 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		log.Printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
 	}
 	if err != nil {
-		if err != errMissingDep {
+		if !errors.Is(err, errMissingDep) {
 			return blob.SizedRef{}, err
 		}
 		fetcher.mu.Lock()
@@ -307,7 +307,7 @@ func (ix *Index) commit(mm *mutationMap) error {
 	}
 	for _, cl := range mm.deletes {
 		if err := ix.updateDeletesCache(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
 		}
 	}
 	return nil
@@ -370,7 +370,7 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 		return nil, err
 	}
 	var haveVal string
-	if err == errMissingDep {
+	if errors.Is(err, errMissingDep) {
 		haveVal = fmt.Sprintf("%d", sniffer.Size())
 	} else {
 		haveVal = fmt.Sprintf("%d|indexed", sniffer.Size())
@@ -414,7 +414,7 @@ type missTrackFetcher struct {
 
 func (f *missTrackFetcher) Fetch(ctx context.Context, br blob.Ref) (blob io.ReadCloser, size uint32, err error) {
 	blob, size, err = f.fetcher.Fetch(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.missing = append(f.missing, br)
@@ -467,7 +467,7 @@ type filePrefixReader interface {
 func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn func(filePrefixReader) error) (err error) {
 	pr := bytes.NewReader(prefix)
 	err = fn(pr)
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		var fr *schema.FileReader
 		fr, err = b.NewFileReader(fetcher)
 		if err == nil {
@@ -839,13 +839,13 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	}
 	meta, err := ix.GetBlobMeta(ctx, target)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			if err := ix.noteNeeded(br, target); err != nil {
-				return fmt.Errorf("could not note that delete claim %v depends on %v: %v", br, target, err)
+				return fmt.Errorf("could not note that delete claim %v depends on %v: %w", br, target, err)
 			}
 			return errMissingDep
 		}
-		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %v", target, err))
+		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %w", target, err))
 		return nil
 	}
 
@@ -948,7 +948,7 @@ func (ix *Index) updateDeletesCache(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("Could not get date of delete claim %v: %w", deleteClaim, err)
 	}
 	targetDeletions := append(ix.deletes.m[target],
 		deletion{

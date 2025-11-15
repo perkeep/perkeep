@@ -18,6 +18,7 @@ package flickr
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -278,7 +279,7 @@ func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
 
 func fakePicture() string {
 	srcRoot, err := osutil.PkSourceRoot()
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {

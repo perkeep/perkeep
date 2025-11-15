@@ -101,7 +101,7 @@ func TestDelete(t *testing.T) {
 		return func() error {
 			sb, err := sto.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 			if err != nil {
-				return fmt.Errorf("ReceiveBlob of %s: %v", sb, err)
+				return fmt.Errorf("ReceiveBlob of %s: %w", sb, err)
 			}
 			if sb != tb.SizedRef() {
 				return fmt.Errorf("Received %v; want %v", sb, tb.SizedRef())
@@ -127,7 +127,7 @@ func TestDelete(t *testing.T) {
 	stepDelete := func(tb *test.Blob) step { // delete the blob in sto
 		return func() error {
 			if err := sto.RemoveBlobs(ctx, []blob.Ref{tb.BlobRef()}); err != nil {
-				return fmt.Errorf("RemoveBlob(%s): %v", tb.BlobRef(), err)
+				return fmt.Errorf("RemoveBlob(%s): %w", tb.BlobRef(), err)
 			}
 			return nil
 		}

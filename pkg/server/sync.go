@@ -176,7 +176,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 	sh.toIndex = isToIndex
 	sh.copierPoolSize = copierPoolSize
 	if err := sh.readQueueToMemory(); err != nil {
-		return nil, fmt.Errorf("Error reading sync queue to memory: %v", err)
+		return nil, fmt.Errorf("Error reading sync queue to memory: %w", err)
 	}
 
 	if fullSync || blockFullSync {
@@ -222,7 +222,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 
 func (sh *SyncHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	_, h, err := hl.FindHandlerByType("root")
-	if err == blobserver.ErrHandlerTypeNotFound {
+	if errors.Is(err, blobserver.ErrHandlerTypeNotFound) {
 		// It's optional. We register ourselves if it's there.
 		return nil
 	}
@@ -639,7 +639,7 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err erro
 	cs.setStatus(statusFetching)
 	rc, fromSize, err := sh.from.Fetch(ctx, br)
 	if err != nil {
-		return fmt.Errorf("source fetch: %v", err)
+		return fmt.Errorf("source fetch: %w", err)
 	}
 	if fromSize != sb.Size {
 		rc.Close()
@@ -656,7 +656,7 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err erro
 		)), buf)
 	rc.Close()
 	if err != nil {
-		return fmt.Errorf("Read error after %d/%d bytes: %v", n, fromSize, err)
+		return fmt.Errorf("Read error after %d/%d bytes: %w", n, fromSize, err)
 	}
 	if !br.HashMatches(hash) {
 		return fmt.Errorf("Read data has unexpected digest %x", hash.Sum(nil))
@@ -665,7 +665,7 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err erro
 	cs.setStatus(statusWriting)
 	newsb, err := sh.to.ReceiveBlob(ctx, br, io.TeeReader(bytes.NewReader(buf), incrWriter{cs, &cs.nwrite}))
 	if err != nil {
-		return fmt.Errorf("dest write: %v", err)
+		return fmt.Errorf("dest write: %w", err)
 	}
 	if newsb.Size != sb.Size {
 		return fmt.Errorf("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
@@ -791,13 +791,13 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 	srcErr := &chanError{
 		C: serrc,
 		Wrap: func(err error) error {
-			return fmt.Errorf("Error enumerating source %s for validating shard %s: %v", sh.fromName, pfx, err)
+			return fmt.Errorf("Error enumerating source %s for validating shard %s: %w", sh.fromName, pfx, err)
 		},
 	}
 	dstErr := &chanError{
 		C: derrc,
 		Wrap: func(err error) error {
-			return fmt.Errorf("Error enumerating target %s for validating shard %s: %v", sh.toName, pfx, err)
+			return fmt.Errorf("Error enumerating target %s for validating shard %s: %w", sh.toName, pfx, err)
 		},
 	}
 
@@ -877,7 +877,7 @@ func (sh *SyncHandler) startValidatePrefix(ctx context.Context, pfx string, doDe
 				return ctx.Err()
 			}
 		})
-		if err == errNotPrefix {
+		if errors.Is(err, errNotPrefix) {
 			err = nil
 		}
 		if err != nil {
@@ -1098,14 +1098,14 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 			}
 			blob, size, err := sh.to.(blob.Fetcher).Fetch(ctx, sr.Ref)
 			if err != nil {
-				return fmt.Errorf("error fetching %s: %v", sr.Ref, err)
+				return fmt.Errorf("error fetching %s: %w", sr.Ref, err)
 			}
 			if size != sr.Size {
 				return fmt.Errorf("%s: expected size %d, got %d", sr.Ref, sr.Size, size)
 			}
 			h := sr.Ref.Hash()
 			if _, err := io.Copy(h, blob); err != nil {
-				return fmt.Errorf("error while reading %s: %v", sr.Ref, err)
+				return fmt.Errorf("error while reading %s: %w", sr.Ref, err)
 			}
 			if !sr.HashMatches(h) {
 				return fmt.Errorf("expected %s, got %x", sr.Ref, h.Sum(nil))

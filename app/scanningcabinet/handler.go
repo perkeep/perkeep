@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -76,11 +77,11 @@ func appConfig() (*extraConfig, error) {
 	}
 	cl, err := app.Client()
 	if err != nil {
-		return nil, fmt.Errorf("could not get a client to fetch extra config: %v", err)
+		return nil, fmt.Errorf("could not get a client to fetch extra config: %w", err)
 	}
 	conf := &extraConfig{}
 	if err := cl.GetJSON(context.Background(), configURL, conf); err != nil {
-		return nil, fmt.Errorf("could not get app extra config at %v: %v", configURL, err)
+		return nil, fmt.Errorf("could not get app extra config at %v: %w", configURL, err)
 	}
 	return conf, nil
 }
@@ -103,7 +104,7 @@ type handler struct {
 func newHandler() (*handler, error) {
 	cl, err := app.Client()
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize a client: %v", err)
+		return nil, fmt.Errorf("could not initialize a client: %w", err)
 	}
 	h := &handler{
 		sh:      cl,
@@ -198,7 +199,7 @@ func (h *handler) disco() error {
 	if server == "" {
 		server, err = h.cl.BlobRoot()
 		if err != nil {
-			return fmt.Errorf("CAMLI_API_HOST var not set, and client could not discover server blob root: %v", err)
+			return fmt.Errorf("CAMLI_API_HOST var not set, and client could not discover server blob root: %w", err)
 		}
 	}
 	h.server = server
@@ -206,7 +207,7 @@ func (h *handler) disco() error {
 	// TODO(mpl): setup our own signer if we got our own key and stuff.
 	signer, err := h.cl.ServerPublicKeyBlobRef()
 	if err != nil {
-		return fmt.Errorf("client has no signing capability and server can't sign for us either: %v", err)
+		return fmt.Errorf("client has no signing capability and server can't sign for us either: %w", err)
 	}
 	h.signer = signer
 	return nil
@@ -321,7 +322,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	cr := countingReader{}
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -337,12 +338,12 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			}
 			creationParam, err := io.ReadAll(part)
 			if err != nil {
-				httputil.ServeError(w, r, fmt.Errorf("could not read provided creation time: %v", err))
+				httputil.ServeError(w, r, fmt.Errorf("could not read provided creation time: %w", err))
 				return
 			}
 			creation, err = time.Parse(time.RFC3339, string(creationParam))
 			if err != nil {
-				httputil.ServeError(w, r, fmt.Errorf("could not parse provided creation time %q: %v", creationParam, err))
+				httputil.ServeError(w, r, fmt.Errorf("could not parse provided creation time %q: %w", creationParam, err))
 				return
 			}
 
@@ -352,7 +353,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		cr.r = part
 		br, err = h.cl.UploadFile(ctx, fileName, &cr, nil)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not write %v to blobserver: %v", fileName, err))
+			httputil.ServeError(w, r, fmt.Errorf("could not write %v to blobserver: %w", fileName, err))
 			return
 		}
 	}
@@ -369,7 +370,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			newScan := scan
 			newScan.creation = creation
 			if err := h.updateScan(ctx, scan.permanode, &newScan, &scan); err != nil {
-				httputil.ServeError(w, r, fmt.Errorf("could not update scan: %v", err))
+				httputil.ServeError(w, r, fmt.Errorf("could not update scan: %w", err))
 				return
 			}
 		}
@@ -377,7 +378,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !os.IsNotExist(err) {
-		httputil.ServeError(w, r, fmt.Errorf("could not check if scan with %v already exists: %v", fileName, err))
+		httputil.ServeError(w, r, fmt.Errorf("could not check if scan with %v already exists: %w", fileName, err))
 		return
 	}
 
@@ -387,7 +388,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not create scan object for %v: %v", fileName, err))
+		httputil.ServeError(w, r, fmt.Errorf("could not create scan object for %v: %w", fileName, err))
 		return
 	}
 	io.WriteString(w, scanRef.String())
@@ -426,11 +427,11 @@ func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
 
 	mediaObject, err := h.fetchScan(scanRef)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			http.Error(w, fmt.Sprintf("%v not found", scanRef), http.StatusNotFound)
 			return
 		}
-		httputil.ServeError(w, r, fmt.Errorf("resource %v not found: %v", scanRef, err))
+		httputil.ServeError(w, r, fmt.Errorf("resource %v not found: %w", scanRef, err))
 		return
 	}
 
@@ -447,7 +448,7 @@ func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
 	if resizeParam := r.FormValue("resize"); resizeParam != "" {
 		resized, err := strconv.Atoi(resizeParam)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("bogus resize param %q: %v", resizeParam, err))
+			httputil.ServeError(w, r, fmt.Errorf("bogus resize param %q: %w", resizeParam, err))
 			return
 		}
 		ih.MaxWidth = resized
@@ -483,7 +484,7 @@ func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {
 	doc, err = h.fetchDocumentByPages(pages)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			httputil.ServeError(w, r, fmt.Errorf("could not check if document already existed: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("could not check if document already existed: %w", err))
 			return
 		}
 		newDoc := document{
@@ -492,7 +493,7 @@ func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {
 		}
 		docRef, err := h.persistDocAndPages(ctx, newDoc)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not create new document: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("could not create new document: %w", err))
 			return
 		}
 		newDoc.permanode = docRef
@@ -533,7 +534,7 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 		// TODO(mpl): group fetch ?
 		page, err := h.fetchScan(v)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not fetch page %v for document %v: %v", v, document.permanode, err))
+			httputil.ServeError(w, r, fmt.Errorf("could not fetch page %v for document %v: %w", v, document.permanode, err))
 			return
 		}
 		pages = append(pages, page)
@@ -543,7 +544,7 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 	if sizeParam := r.FormValue("size"); sizeParam != "" {
 		sizeint, err := strconv.Atoi(sizeParam)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("invalid size param %q: %v", sizeParam, err))
+			httputil.ServeError(w, r, fmt.Errorf("invalid size param %q: %w", sizeParam, err))
 			return
 		}
 		size = sizeint
@@ -572,7 +573,7 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 		AllTags:        allTags,
 	}
 	if err := docTemplate.Execute(w, d); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not serve doc template: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("could not serve doc template: %w", err))
 		return
 	}
 }
@@ -593,7 +594,7 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 	mode := r.FormValue("mode")
 	if mode == "break" {
 		if err := h.breakAndDeleteDoc(ctx, docRef); err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not delete document %v: %v", docRef, err))
+			httputil.ServeError(w, r, fmt.Errorf("could not delete document %v: %w", docRef, err))
 			return
 		}
 		fmt.Fprintf(w, "<html><body>[&lt;&lt; <a href='%s'>Back</a>] Doc %s deleted and images broken out as un-annotated.</body></html>", baseURL(r), docRef)
@@ -601,7 +602,7 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 	}
 	if mode == "delete" {
 		if err := h.deleteDocAndImages(ctx, docRef); err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not do full delete of %v: %v", docRef, err))
+			httputil.ServeError(w, r, fmt.Errorf("could not do full delete of %v: %w", docRef, err))
 			return
 		}
 		fmt.Fprintf(w, "<html><body>[&lt;&lt; <a href='%s'>Back</a>] Doc %s and its images deleted.</body></html>", baseURL(r), docRef)
@@ -615,20 +616,20 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 
 	docDate, err := dateOrZero(r.FormValue("date"), dateformatYyyyMmDd)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not assign new date to document: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("could not assign new date to document: %w", err))
 		return
 	}
 	document.docDate = docDate
 
 	duedate, err := dateOrZero(r.FormValue("due_date"), dateformatYyyyMmDd)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not assign new due date to document: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("could not assign new due date to document: %w", err))
 		return
 	}
 	document.dueDate = duedate
 
 	if err := h.updateDocument(ctx, docRef, document); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not update document %v: %v", docRef, err))
+		httputil.ServeError(w, r, fmt.Errorf("could not update document %v: %w", docRef, err))
 		return
 	}
 

@@ -19,6 +19,7 @@ limitations under the License.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -296,7 +297,7 @@ func Main() {
 		// We want -h to behave as -help, but without having to define another flag for
 		// it, so we handle it here.
 		// TODO(mpl): maybe even remove -help and just let them both be handled here?
-		if err == flag.ErrHelp {
+		if errors.Is(err, flag.ErrHelp) {
 			help(mode)
 			return
 		}
@@ -308,10 +309,9 @@ func Main() {
 		}
 		err = cmd.RunCommand(cmdFlags.Args())
 	}
-	if ue, isUsage := err.(UsageError); isUsage {
-		if isUsage {
-			Errorf("%s\n", ue)
-		}
+	var ue UsageError
+	if errors.As(err, &ue) {
+		Errorf("%s\n", ue)
 		cmd.Usage()
 		Errorf("\nGlobal options:\n")
 		flag.PrintDefaults()

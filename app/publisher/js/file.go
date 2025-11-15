@@ -526,7 +526,7 @@ func (fic *fileItemContainer) render() error {
 
 	err := <-c
 	if err != nil {
-		return fmt.Errorf("cannot get peers of %v: %v", fit.pn, err)
+		return fmt.Errorf("cannot get peers of %v: %w", fit.pn, err)
 	}
 
 	if needsUpdate {

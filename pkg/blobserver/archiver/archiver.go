@@ -94,7 +94,7 @@ func (a *Archiver) RunOnce(ctx context.Context) error {
 		}
 		return nil
 	})
-	if err == errStopEnumerate {
+	if errors.Is(err, errStopEnumerate) {
 		err = nil
 	}
 	if err != nil {

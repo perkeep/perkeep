@@ -534,12 +534,12 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 	// struct later.
 	highExpandedJSON, err := json.Marshal(m)
 	if err != nil {
-		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %v", err)
+		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %w", err)
 	}
 
 	var hiLevelConf serverconfig.Config
 	if err := json.Unmarshal(highExpandedJSON, &hiLevelConf); err != nil {
-		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %v", err)
+		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %w", err)
 	}
 
 	// At this point, conf.jconf.UnknownKeys() contains all the names found in
@@ -662,11 +662,11 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 	}()
 
 	if err := config.checkValidAuth(); err != nil {
-		return nil, fmt.Errorf("error while configuring auth: %v", err)
+		return nil, fmt.Errorf("error while configuring auth: %w", err)
 	}
 	prefixes := config.jconf.RequiredObject("prefixes")
 	if err := config.jconf.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration error in root object's keys: %v", err)
+		return nil, fmt.Errorf("configuration error in root object's keys: %w", err)
 	}
 
 	if v := os.Getenv("CAMLI_PPROF_START"); v != "" {
@@ -740,7 +740,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {
-				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
+				return nil, fmt.Errorf("Error calling InitHandler on %s: %w", pfx, err)
 			}
 		}
 	}
@@ -772,7 +772,7 @@ func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 func (c *Config) StartApps() error {
 	for _, ap := range c.apps {
 		if err := ap.Start(); err != nil {
-			return fmt.Errorf("error starting app %v: %v", ap.ProgramName(), err)
+			return fmt.Errorf("error starting app %v: %w", ap.ProgramName(), err)
 		}
 	}
 	return nil
@@ -881,7 +881,7 @@ func logsHandler(w http.ResponseWriter, r *http.Request) {
 	case "perkeepd":
 		projID, err := metadata.ProjectID()
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %w", err))
 			return
 		}
 		http.Redirect(w, r,

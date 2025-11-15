@@ -18,6 +18,7 @@ package localdisk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -134,7 +135,7 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	foo := &test.Blob{Contents: "foo"}
 
 	blob, _, err := ds.Fetch(context.Background(), foo.BlobRef())
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected ErrNotExist; got %v", err)
 	}
 	if blob != nil {

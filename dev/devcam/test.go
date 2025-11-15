@@ -115,7 +115,7 @@ func (c *testCmd) buildSelf() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Error building devcam: %v", err)
+		return fmt.Errorf("Error building devcam: %w", err)
 	}
 	return nil
 }

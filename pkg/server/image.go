@@ -180,7 +180,7 @@ func cacheKey(bref string, width int, height int) string {
 func (ih *ImageHandler) scaledCached(ctx context.Context, buf *bytes.Buffer, file blob.Ref) (format string) {
 	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
 	br, err := ih.ThumbMeta.Get(key)
-	if err == errCacheMiss {
+	if errors.Is(err, errCacheMiss) {
 		return
 	}
 	if err != nil {
@@ -265,7 +265,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
-	if err == images.ErrHEIC {
+	if errors.Is(err, images.ErrHEIC) {
 		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
 		if err != nil {
 			log.Printf("cannot convert with heiftojpeg: %v", err)

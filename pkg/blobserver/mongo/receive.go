@@ -18,6 +18,7 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"perkeep.org/pkg/blob"
@@ -42,7 +43,8 @@ func (m *mongoStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, source io.
 	if err = m.c.Insert(b); err != nil {
 		// Unique key violation?
 		// Then the blob already exists, no need to throw an error
-		if mongoErr, isMongoErr := err.(*mgo.LastError); isMongoErr && mongoErr.Code == mgoUniqueKeyErr {
+		var mongoErr *mgo.LastError
+		if errors.As(err, &mongoErr) && mongoErr.Code == mgoUniqueKeyErr {
 			return blob.SizedRef{Ref: ref, Size: b.Size}, nil
 		}
 		return blob.SizedRef{}, err

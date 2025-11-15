@@ -19,6 +19,7 @@ package integration
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -122,7 +123,8 @@ func isBadFilenameError(err error) bool {
 	if runtime.GOOS != "darwin" {
 		return false
 	}
-	if pe, ok := err.(*os.PathError); ok && pe.Op == "open" && pe.Err == syscall.Errno(0x5c) {
+	var pe *os.PathError
+	if errors.As(err, &pe) && pe.Op == "open" && pe.Err == syscall.Errno(0x5c) {
 		return true
 	}
 	return false

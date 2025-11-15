@@ -118,7 +118,7 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	fmt.Fprintf(stdin, "GETPIN\n")
 	lineb, _, err = br.ReadLine()
 	if err != nil {
-		return "", fmt.Errorf("Failed to read line after GETPIN: %v", err)
+		return "", fmt.Errorf("Failed to read line after GETPIN: %w", err)
 	}
 	line = string(lineb)
 	if strings.HasPrefix(line, "D ") {
@@ -134,7 +134,7 @@ func runPass(bin string, args ...string) error {
 	cmd := exec.Command(bin, args...)
 	cmd.Stdin = os.Stdin
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%v error: %v, %s", bin, err, out)
+		return fmt.Errorf("%v error: %w, %s", bin, err, out)
 	}
 	return nil
 }

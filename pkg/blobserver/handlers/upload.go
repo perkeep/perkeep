@@ -75,7 +75,7 @@ func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
 			return
 		}
 		_, err := blobserver.Receive(ctx, storage, br, req.Body)
-		if err == blobserver.ErrCorruptBlob {
+		if errors.Is(err, blobserver.ErrCorruptBlob) {
 			httputil.BadRequestError(rw, "data doesn't match declared digest")
 			return
 		}
@@ -97,14 +97,14 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	}
 	fr, err := schema.NewFileReader(ctx, sf, fileblob.Ref)
 	if err != nil {
-		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.Ref.String(), err)
+		return fmt.Errorf("Filereader error for blobref %v: %w", fileblob.Ref.String(), err)
 	}
 	defer fr.Close()
 
 	h := blob.NewHash()
 	n, err := io.Copy(h, fr)
 	if err != nil {
-		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.Ref.String(), err)
+		return fmt.Errorf("Could not read all file of blobref %v: %w", fileblob.Ref.String(), err)
 	}
 	if n != fr.Size() {
 		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
@@ -137,7 +137,7 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	// 3) the signature time of 2)
 	claimDate := fr.UnixMtime()
 	if claimDate.IsZero() {
-		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileName(), err)
+		return fmt.Errorf("While parsing modtime for file %v: %w", fr.FileName(), err)
 	}
 
 	permanodeBB := schema.NewHashPlannedPermanode(h)
@@ -145,12 +145,12 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	permanodeBB.SetClaimDate(claimDate)
 	permanodeSigned, err := sigHelper.Sign(ctx, permanodeBB)
 	if err != nil {
-		return fmt.Errorf("signing permanode %v: %v", permanodeSigned, err)
+		return fmt.Errorf("signing permanode %v: %w", permanodeSigned, err)
 	}
 	permanodeRef := blob.RefFromString(permanodeSigned)
 	_, err = blobserver.ReceiveNoHash(ctx, blobReceiver, permanodeRef, strings.NewReader(permanodeSigned))
 	if err != nil {
-		return fmt.Errorf("while uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
+		return fmt.Errorf("while uploading signed permanode %v, %v: %w", permanodeRef, permanodeSigned, err)
 	}
 
 	contentClaimBB := schema.NewSetAttributeClaim(permanodeRef, "camliContent", fileblob.Ref.String())
@@ -158,12 +158,12 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	contentClaimBB.SetClaimDate(claimDate)
 	contentClaimSigned, err := sigHelper.Sign(ctx, contentClaimBB)
 	if err != nil {
-		return fmt.Errorf("signing camliContent claim: %v", err)
+		return fmt.Errorf("signing camliContent claim: %w", err)
 	}
 	contentClaimRef := blob.RefFromString(contentClaimSigned)
 	_, err = blobserver.ReceiveNoHash(ctx, blobReceiver, contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
-		return fmt.Errorf("while uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
+		return fmt.Errorf("while uploading signed camliContent claim %v, %v: %w", contentClaimRef, contentClaimSigned, err)
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 	for {
 		mimePart, err := multipart.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

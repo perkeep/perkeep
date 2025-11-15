@@ -203,7 +203,7 @@ func goPathBinDir() (string, error) {
 	cmd := exec.Command("go", "env", "GOPATH")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
+		return "", fmt.Errorf("could not get GOPATH: %w, %s", err, out)
 	}
 	paths := filepath.SplitList(strings.TrimSpace(string(out)))
 	if len(paths) < 1 {

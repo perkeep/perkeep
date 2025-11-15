@@ -153,7 +153,7 @@ func (im imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := im.auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %w", err))
 		return
 	}
 
@@ -170,7 +170,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		logf("token exchange error: %v", err)
-		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %w", err))
 		return
 	}
 
@@ -179,7 +179,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	userInfo, err := im.getUserInfo(gphotosCtx)
 	if err != nil {
 		logf("couldn't get username: %v", err)
-		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("can't get username: %w", err))
 		return
 	}
 
@@ -189,7 +189,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		importer.AcctAttrUserName, userInfo.Email,
 		acctAttrOAuthToken, encodeToken(token),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -333,7 +333,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
 	photosNode, err := r.getTopLevelNode("photos")
 	if err != nil {
-		return fmt.Errorf("gphotos importer: get top level node: %v", err)
+		return fmt.Errorf("gphotos importer: get top level node: %w", err)
 	}
 
 	grp, grpCtx := errgroup.WithContext(ctx)
@@ -359,7 +359,7 @@ func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("gphotos importer: %v", err)
+		return fmt.Errorf("gphotos importer: %w", err)
 	}
 	if r.setNextToken != nil {
 		r.setNextToken(nextToken)
@@ -448,8 +448,8 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph *phot
 		wholeRef := blob.RefFromHash(h)
 		pn, attrs, err := findExistingPermanode(r.Context(), r.Host.Searcher(), wholeRef)
 		if err != nil {
-			if err != os.ErrNotExist {
-				return nil, fmt.Errorf("could not look for permanode with %v as camliContent : %v", fileRefStr, err)
+			if !errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("could not look for permanode with %v as camliContent: %w", fileRefStr, err)
 			}
 			return r.Host.NewObject()
 		}
@@ -460,9 +460,9 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph *phot
 	})
 	if err != nil {
 		if fileRefStr != "" {
-			return fmt.Errorf("error getting permanode for photo %q, with content %v: %v", ph.ID, fileRefStr, err)
+			return fmt.Errorf("error getting permanode for photo %q, with content %v: %w", ph.ID, fileRefStr, err)
 		}
-		return fmt.Errorf("error getting permanode for photo %q: %v", ph.ID, err)
+		return fmt.Errorf("error getting permanode for photo %q: %w", ph.ID, err)
 	}
 
 	if fileRefStr == "" {

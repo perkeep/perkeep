@@ -376,7 +376,7 @@ func GoPackagePath(pkg string) (path string, err error) {
 		cmd := exec.Command("go", "env", "GOPATH")
 		out, err := cmd.Output()
 		if err != nil {
-			return "", fmt.Errorf("could not run 'go env GOPATH': %v, %s", err, out)
+			return "", fmt.Errorf("could not run 'go env GOPATH': %w, %s", err, out)
 		}
 		gp = strings.TrimSpace(string(out))
 		if gp == "" {
@@ -407,7 +407,7 @@ func GoModPackagePath() (string, error) {
 		cmd := exec.Command("go", "env", "GOMOD")
 		out, err := cmd.Output()
 		if err != nil {
-			return "", fmt.Errorf("could not run 'go env GOMOD': %v, %s", err, out)
+			return "", fmt.Errorf("could not run 'go env GOMOD': %w, %s", err, out)
 		}
 		gmp = strings.TrimSuffix(strings.TrimSpace(string(out)), "go.mod")
 		if gmp == "" {
@@ -434,7 +434,7 @@ func goPathBinDir() (string, error) {
 	cmd := exec.Command("go", "env", "GOPATH")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
+		return "", fmt.Errorf("could not get GOPATH: %w, %s", err, out)
 	}
 	paths := filepath.SplitList(strings.TrimSpace(string(out)))
 	if len(paths) < 1 {
@@ -452,7 +452,7 @@ func LookPathGopath(binName string) (string, error) {
 	}
 	binDir, err := goPathBinDir()
 	if err != nil {
-		return "", fmt.Errorf("command %q not found in $PATH, and could not look in $GOPATH/bin because %v", binName, err)
+		return "", fmt.Errorf("command %q not found in $PATH, and could not look in $GOPATH/bin because %w", binName, err)
 	}
 	binPath = filepath.Join(binDir, binName)
 	if runtime.GOOS == "windows" {

@@ -141,7 +141,7 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 	reader, _, err := vr.fetcher.Fetch(ctx, vr.CamliSigner)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return camerrors.ErrMissingKeyBlob
 		}
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
@@ -150,7 +150,7 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
-		return fmt.Errorf("error opening public key file: %v", err)
+		return fmt.Errorf("error opening public key file: %w", err)
 	}
 	vr.PublicKeyPacket = pk
 	return nil

@@ -54,7 +54,7 @@ var (
 func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return certPEM, keyPEM, fmt.Errorf("failed to generate private key: %s", err)
+		return certPEM, keyPEM, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	now := time.Now()
@@ -83,17 +83,17 @@ func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
-		return certPEM, keyPEM, fmt.Errorf("failed to create certificate: %s", err)
+		return certPEM, keyPEM, fmt.Errorf("failed to create certificate: %w", err)
 	}
 	var certBuf bytes.Buffer
 	if err := pem.Encode(&certBuf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS cert: %v", err)
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS cert: %w", err)
 	}
 	certPEM = certBuf.Bytes()
 
 	var keyBuf bytes.Buffer
 	if err := pem.Encode(&keyBuf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
-		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS private key: %v", err)
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS private key: %w", err)
 	}
 	keyPEM = keyBuf.Bytes()
 	return certPEM, keyPEM, nil
@@ -107,7 +107,7 @@ func CertFingerprint(certPEM []byte) (string, error) {
 	}
 	cert, err := x509.ParseCertificate(p.Bytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse certificate: %v", err)
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
 	}
 	return hashutil.SHA256Prefix(cert.Raw), nil
 }
@@ -122,13 +122,13 @@ func GenSelfTLSFiles(hostname, certPath, keyPath string) (fingerprint string, er
 	}
 	sig, err := CertFingerprint(cert)
 	if err != nil {
-		return "", fmt.Errorf("could not get SHA-256 fingerprint of certificate: %v", err)
+		return "", fmt.Errorf("could not get SHA-256 fingerprint of certificate: %w", err)
 	}
 	if err := wkfs.WriteFile(certPath, cert, 0666); err != nil {
-		return "", fmt.Errorf("failed to write self-signed TLS cert: %v", err)
+		return "", fmt.Errorf("failed to write self-signed TLS cert: %w", err)
 	}
 	if err := wkfs.WriteFile(keyPath, key, 0600); err != nil {
-		return "", fmt.Errorf("failed to write self-signed TLS key: %v", err)
+		return "", fmt.Errorf("failed to write self-signed TLS key: %w", err)
 	}
 	return sig, nil
 }
@@ -234,7 +234,8 @@ yE+vPxsiUkvQHdO2fojCkY8jg70jxM+gu59tPDNbw3Uh/2Ij310FgTHsnGQMyA==
 		panic("failed to parse dummy certificate: " + err.Error())
 	}
 	_, err = dummyCert.Verify(x509.VerifyOptions{})
-	_, isSysRootError := err.(x509.SystemRootsError)
+	var sre x509.SystemRootsError
+	isSysRootError := errors.As(err, &sre)
 	sysRootsGood = !isSysRootError
 }
 

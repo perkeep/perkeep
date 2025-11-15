@@ -63,7 +63,7 @@ func (c *toolCmd) Describe() string {
 func (c *toolCmd) RunCommand(args []string) error {
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk")); err != nil {
-			return fmt.Errorf("Could not build pk: %v", err)
+			return fmt.Errorf("Could not build pk: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
