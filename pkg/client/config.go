@@ -326,8 +326,8 @@ func (c *Client) SetupAuth() error {
 			c.authMode = authMode
 			return nil
 		}
-		if err != auth.ErrNoAuth {
-			return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %v", err)
+		if !errors.Is(err, auth.ErrNoAuth) {
+			return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %w", err)
 		}
 	}
 	if c.server == "" {

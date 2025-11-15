@@ -69,11 +69,11 @@ func (c *hookCmd) installHook() error {
 		}
 
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("checking hook: %v", err)
+			return fmt.Errorf("checking hook: %w", err)
 		}
 		c.verbosef("installing %s hook", hookFile)
 		if err := os.WriteFile(filename, []byte(hookContent), 0700); err != nil {
-			return fmt.Errorf("writing hook: %v", err)
+			return fmt.Errorf("writing hook: %w", err)
 		}
 	}
 	return nil
@@ -215,9 +215,9 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 	if err != nil {
 		// Error but no stderr: usually can't find gofmt.
 		if stderr.Len() == 0 {
-			return nil, fmt.Errorf("invoking gofmt: %v", err)
+			return nil, fmt.Errorf("invoking gofmt: %w", err)
 		}
-		return nil, fmt.Errorf("%s: %v", stderr.String(), err)
+		return nil, fmt.Errorf("%s: %w", stderr.String(), err)
 	}
 
 	// Build file list.

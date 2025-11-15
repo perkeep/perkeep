@@ -151,7 +151,7 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 		rcc.Close()
 		fr, err := schema.NewFileReader(ctx, src, br)
 		if err != nil {
-			return fmt.Errorf("NewFileReader: %v", err)
+			return fmt.Errorf("NewFileReader: %w", err)
 		}
 		defer fr.Close()
 		si.mu.Lock()

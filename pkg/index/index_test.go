@@ -18,6 +18,7 @@ package index_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -635,7 +636,7 @@ func TestFixMissingWholeref(t *testing.T) {
 
 	// init broken index
 	ix, err = index.New(s)
-	if err != index.Exp_ErrMissingWholeRef {
+	if !errors.Is(err, index.Exp_ErrMissingWholeRef) {
 		t.Fatalf("wrong error upon index initialization: got %v, wanted %v", err, index.Exp_ErrMissingWholeRef)
 	}
 	// and fix it

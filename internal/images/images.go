@@ -492,16 +492,16 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			var buf bytes.Buffer
 			tr := io.TeeReader(mr, &buf)
 			im, err = fastjpeg.DecodeDownsample(tr, factor)
-			switch err.(type) {
-			case fastjpeg.DjpegFailedError:
+			var derr fastjpeg.DjpegFailedError
+			if errors.As(err, &derr) {
 				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
 				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
 				if err != nil {
 					return nil, format, err, false
 				}
-			case nil:
+			} else if err == nil {
 				// fallthrough to rescale() below.
-			default:
+			} else {
 				return nil, format, err, false
 			}
 			return rescale(im, sw, sh), format, err, true
@@ -671,7 +671,7 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 	bin := localImageMagick()
 	if bin == "" {
 		if err := setUpThumbnailContainer(); err != nil {
-			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)}
+			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %w. Install a modern ImageMagick or install docker.", err)}
 		}
 		bin = "docker"
 		useDocker = true
@@ -728,7 +728,7 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 		if debug {
 			log.Printf("internal/images: error running imagemagick heic conversion: %s", buf.Bytes())
 		}
-		return nil, fmt.Errorf("error running imagemagick: %v, %s", err, buf.Bytes())
+		return nil, fmt.Errorf("error running imagemagick: %w, %s", err, buf.Bytes())
 	}
 	if debug {
 		log.Printf("internal/images: ran imagemagick heic conversion in %v", time.Since(t0))

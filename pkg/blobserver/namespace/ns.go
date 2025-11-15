@@ -25,6 +25,7 @@ package namespace // import "perkeep.org/pkg/blobserver/namespace"
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -32,6 +33,7 @@ import (
 	"strconv"
 
 	"go4.org/jsonconfig"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -57,11 +59,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	}
 	sto.inventory, err = sorted.NewKeyValue(invConf)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid 'inventory' configuration: %v", err)
+		return nil, fmt.Errorf("Invalid 'inventory' configuration: %w", err)
 	}
 	sto.master, err = ld.GetStorage(masterName)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid 'storage' configuration: %v", err)
+		return nil, fmt.Errorf("Invalid 'storage' configuration: %w", err)
 	}
 	return sto, nil
 }
@@ -100,7 +102,7 @@ func (ns *nsto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, a
 
 func (ns *nsto) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	invSizeStr, err := ns.inventory.Get(br.String())
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 		return
 	}
@@ -155,7 +157,7 @@ func (ns *nsto) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 func (ns *nsto) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	for _, br := range blobs {
 		invSizeStr, err := ns.inventory.Get(br.String())
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			continue
 		}
 		if err != nil {

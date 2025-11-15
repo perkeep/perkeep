@@ -273,7 +273,7 @@ func ServeJSONError(rw http.ResponseWriter, err interface{}) {
 func DecodeJSON(res *http.Response, dest interface{}) error {
 	defer res.Body.Close()
 	if err := json.NewDecoder(res.Body).Decode(dest); err != nil {
-		return fmt.Errorf("httputil.DecodeJSON: %v", err)
+		return fmt.Errorf("httputil.DecodeJSON: %w", err)
 	}
 	return nil
 }

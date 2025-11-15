@@ -70,7 +70,7 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 
 func (sh *StatusHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	_, h, err := hl.FindHandlerByType("search")
-	if err == blobserver.ErrHandlerTypeNotFound {
+	if errors.Is(err, blobserver.ErrHandlerTypeNotFound) {
 		return nil
 	}
 	if err != nil {
@@ -220,7 +220,7 @@ func (sh *StatusHandler) googleCloudConsole() (string, error) {
 	}
 	projID, err := metadata.ProjectID()
 	if err != nil {
-		return "", fmt.Errorf("Error getting project ID: %v", err)
+		return "", fmt.Errorf("Error getting project ID: %w", err)
 	}
 	return "https://console.cloud.google.com/compute/instances?project=" + projID, nil
 }

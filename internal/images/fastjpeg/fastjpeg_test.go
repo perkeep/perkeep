@@ -18,6 +18,7 @@ package fastjpeg
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/jpeg"
 	"os"
@@ -132,7 +133,7 @@ func TestUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 2); err != ErrDjpegNotFound {
+	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 2); !errors.Is(err, ErrDjpegNotFound) {
 		t.Errorf("Wanted ErrDjpegNotFound, got %v", err)
 	}
 }
@@ -162,7 +163,8 @@ func TestFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = DecodeDownsample(bytes.NewReader(tis[0].buf), 2)
-	if _, ok := err.(DjpegFailedError); !ok {
+	var derr DjpegFailedError
+	if !errors.As(err, &derr) {
 		t.Errorf("Got err type %T want ErrDjpegFailed: %v", err, err)
 	}
 }

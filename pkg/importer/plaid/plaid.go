@@ -124,14 +124,14 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %w", err))
 		return
 	}
 
 	client := plaid.NewClient(clientID, secret, plaid.Tartan)
 	res, _, err := client.ConnectAddUser(username, password, "", institution, nil)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("ConnectAddUser error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("ConnectAddUser error: %w", err))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrToken, res.AccessToken,
 		acctInstitution, institution,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -166,7 +166,7 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 	client := plaid.NewClient(clientID, secret, plaid.Tartan)
 	resp, _, err := client.ConnectGet(ctx.AccountNode().Attr(acctAttrToken), &opt)
 	if err != nil {
-		return fmt.Errorf("connectGet: %s", err)
+		return fmt.Errorf("connectGet: %w", err)
 	}
 
 	var latestTrans string

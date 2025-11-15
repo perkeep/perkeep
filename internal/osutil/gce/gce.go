@@ -64,7 +64,7 @@ func init() {
 		}
 		val, err := metadata.InstanceAttributeValue(attr)
 		if err != nil {
-			return nil, fmt.Errorf("error reading GCE instance attribute %q: %v", attr, err)
+			return nil, fmt.Errorf("error reading GCE instance attribute %q: %w", attr, err)
 		}
 		return val, nil
 	})
@@ -130,10 +130,10 @@ func LogWriter() (w io.WriteCloser, err error) {
 	ctx := context.Background()
 	logc, err := logging.NewClient(ctx, projID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating Google logging client: %v", err)
+		return nil, fmt.Errorf("error creating Google logging client: %w", err)
 	}
 	if err := logc.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("Google logging client not ready (ping failed): %v", err)
+		return nil, fmt.Errorf("Google logging client not ready (ping failed): %w", err)
 	}
 	logw := writer{
 		severity: logging.Debug,
@@ -157,24 +157,24 @@ func gceInstance() (*gceInst, error) {
 	ctx := context.Background()
 	hc, err := google.DefaultClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting a default http client: %v", err)
+		return nil, fmt.Errorf("error getting a default http client: %w", err)
 	}
 	cs, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
-		return nil, fmt.Errorf("error getting a compute service: %v", err)
+		return nil, fmt.Errorf("error getting a compute service: %w", err)
 	}
 	cis := compute.NewInstancesService(cs)
 	projectID, err := metadata.ProjectID()
 	if err != nil {
-		return nil, fmt.Errorf("error getting projectID: %v", err)
+		return nil, fmt.Errorf("error getting projectID: %w", err)
 	}
 	zone, err := metadata.Zone()
 	if err != nil {
-		return nil, fmt.Errorf("error getting zone: %v", err)
+		return nil, fmt.Errorf("error getting zone: %w", err)
 	}
 	name, err := metadata.InstanceName()
 	if err != nil {
-		return nil, fmt.Errorf("error getting instance name: %v", err)
+		return nil, fmt.Errorf("error getting instance name: %w", err)
 	}
 	return &gceInst{
 		cs:        cs,
@@ -205,7 +205,7 @@ func resetInstance() error {
 		if googleapi.IsNotModified(err) {
 			return nil
 		}
-		return fmt.Errorf("error resetting instance: %v", err)
+		return fmt.Errorf("error resetting instance: %w", err)
 	}
 	// TODO(mpl): refactor this whole pattern below into a func
 	opName := op.Name
@@ -217,7 +217,7 @@ func resetInstance() error {
 		}
 		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
 		if err != nil {
-			return fmt.Errorf("failed to get op %s: %v", opName, err)
+			return fmt.Errorf("failed to get op %s: %w", opName, err)
 		}
 		switch op.Status {
 		case "PENDING", "RUNNING":
@@ -248,8 +248,9 @@ func SetInstanceHostname(camliNetHostName string) error {
 
 	hostname, err := metadata.InstanceAttributeValue("camlistore-hostname")
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
-			return fmt.Errorf("error getting existing camlistore-hostname: %v", err)
+		var nde metadata.NotDefinedError
+		if !errors.As(err, &nde) {
+			return fmt.Errorf("error getting existing camlistore-hostname: %w", err)
 		}
 	}
 	if err == nil && hostname != "" {
@@ -267,7 +268,7 @@ func SetInstanceHostname(camliNetHostName string) error {
 
 	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("error getting instance: %v", err)
+		return fmt.Errorf("error getting instance: %w", err)
 	}
 	items := instance.Metadata.Items
 	items = append(items, &compute.MetadataItems{
@@ -285,7 +286,7 @@ func SetInstanceHostname(camliNetHostName string) error {
 		if googleapi.IsNotModified(err) {
 			return nil
 		}
-		return fmt.Errorf("error setting instance hostname: %v", err)
+		return fmt.Errorf("error setting instance hostname: %w", err)
 	}
 	// TODO(mpl): refactor this whole pattern below into a func
 	opName := op.Name
@@ -298,7 +299,7 @@ func SetInstanceHostname(camliNetHostName string) error {
 		}
 		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
 		if err != nil {
-			return fmt.Errorf("failed to get op %s: %v", opName, err)
+			return fmt.Errorf("failed to get op %s: %w", opName, err)
 		}
 		switch op.Status {
 		case "PENDING", "RUNNING":
@@ -352,8 +353,9 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 
 	userData, err := metadata.InstanceAttributeValue(metadataKey)
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
-			return false, fmt.Errorf("error getting existing user-data: %v", err)
+		var nde metadata.NotDefinedError
+		if !errors.As(err, &nde) {
+			return false, fmt.Errorf("error getting existing user-data: %w", err)
 		}
 	}
 
@@ -390,7 +392,7 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 
 	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
 	if err != nil {
-		return false, fmt.Errorf("error getting instance: %v", err)
+		return false, fmt.Errorf("error getting instance: %w", err)
 	}
 	items := instance.Metadata.Items
 	for k, v := range items {
@@ -413,7 +415,7 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 		if googleapi.IsNotModified(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("error setting instance user-data: %v", err)
+		return false, fmt.Errorf("error setting instance user-data: %w", err)
 	}
 	// TODO(mpl): refactor this whole pattern below into a func
 	opName := op.Name
@@ -425,7 +427,7 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 		}
 		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
 		if err != nil {
-			return false, fmt.Errorf("failed to get op %s: %v", opName, err)
+			return false, fmt.Errorf("failed to get op %s: %w", opName, err)
 		}
 		switch op.Status {
 		case "PENDING", "RUNNING":
@@ -453,7 +455,8 @@ func fixUserDataForPerkeepRename() (needsRestart bool, err error) {
 func BlobpackedRecoveryValue() int {
 	recovery, err := metadata.InstanceAttributeValue("camlistore-recovery")
 	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
+		var nde metadata.NotDefinedError
+		if !errors.As(err, &nde) {
 			log.Printf("error getting camlistore-recovery: %v", err)
 		}
 		return 0

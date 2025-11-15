@@ -17,11 +17,13 @@ limitations under the License.
 package server
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
 	"go4.org/types"
+
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
@@ -56,7 +58,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	var modTime types.Time3339
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

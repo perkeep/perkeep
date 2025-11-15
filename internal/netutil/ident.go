@@ -100,7 +100,7 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 		}
 		f, err := os.Open(file)
 		if err != nil {
-			return 0, fmt.Errorf("Error opening %s: %v", file, err)
+			return 0, fmt.Errorf("Error opening %s: %w", file, err)
 		}
 		defer f.Close()
 		return uidFromProcReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
@@ -179,7 +179,7 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 	br := bufio.NewReader(stdout)
 	for {
 		line, err := br.ReadSlice('\n')
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return 0, ErrNotFound
 		}
 		if err != nil {

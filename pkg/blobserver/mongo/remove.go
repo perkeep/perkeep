@@ -18,10 +18,12 @@ package mongo
 
 import (
 	"context"
+	"errors"
 
 	"go4.org/syncutil"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+
 	"perkeep.org/pkg/blob"
 )
 
@@ -36,7 +38,7 @@ func (m *mongoStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error 
 		wg.Go(func() error {
 			defer removeGate.Done()
 			err := m.c.Remove(bson.M{"key": blob.String()})
-			if err == mgo.ErrNotFound {
+			if errors.Is(err, mgo.ErrNotFound) {
 				return nil
 			}
 			return err

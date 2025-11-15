@@ -77,7 +77,7 @@ func (zh *zipHandler) describeMembers(br blob.Ref) (*search.DescribeResponse, er
 		Limit: -1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe %v: %v", br, err)
+		return nil, fmt.Errorf("Could not describe %v: %w", br, err)
 	}
 	if res == nil || res.Describe == nil {
 		return nil, fmt.Errorf("no describe result for %v", br)
@@ -92,7 +92,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 	//	dr.Describe(dirBlob, 3)
 	//	res, err := dr.Result()
 	//	if err != nil {
-	//		return nil, fmt.Errorf("Could not describe %v: %v", dirBlob, err)
+	//		return nil, fmt.Errorf("Could not describe %v: %w", dirBlob, err)
 	//	}
 	res, err := zh.describeMembers(dirBlob)
 	if err != nil {
@@ -110,7 +110,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 		dirRoot := dirBlobPath[1]
 		children, err := zh.blobsFromDir("", dirRoot)
 		if err != nil {
-			return nil, fmt.Errorf("Could not get list of blobs from %v: %v", dirRoot, err)
+			return nil, fmt.Errorf("Could not get list of blobs from %v: %w", dirRoot, err)
 		}
 		list = append(list, children...)
 		return list, nil
@@ -128,7 +128,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 			children, err := zh.blobsFromDir(
 				path.Join(dirPath, dirInfo.FileName), newZipRoot)
 			if err != nil {
-				return nil, fmt.Errorf("Could not get list of blobs from %v: %v", newZipRoot, err)
+				return nil, fmt.Errorf("Could not get list of blobs from %v: %w", newZipRoot, err)
 			}
 			list = append(list, children...)
 			// TODO(mpl): we assume a directory permanode does not also have members.
@@ -147,7 +147,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 		fullpath := path.Join(dirPath, pseudoDirName)
 		moreMembers, err := zh.blobList(fullpath, member.BlobRef)
 		if err != nil {
-			return nil, fmt.Errorf("Could not get list of blobs from %v: %v", member.BlobRef, err)
+			return nil, fmt.Errorf("Could not get list of blobs from %v: %w", member.BlobRef, err)
 		}
 		list = append(list, moreMembers...)
 	}
@@ -160,11 +160,11 @@ func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFil
 	var list []*blobFile
 	dr, err := schema.NewDirReader(context.TODO(), zh.fetcher, dirBlob)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read dir blob %v: %v", dirBlob, err)
+		return nil, fmt.Errorf("Could not read dir blob %v: %w", dirBlob, err)
 	}
 	ent, err := dr.Readdir(context.TODO(), -1)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read dir entries: %v", err)
+		return nil, fmt.Errorf("Could not read dir entries: %w", err)
 	}
 	for _, v := range ent {
 		fullpath := path.Join(dirPath, v.FileName())
@@ -174,7 +174,7 @@ func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFil
 		case schema.TypeDirectory:
 			children, err := zh.blobsFromDir(fullpath, v.BlobRef())
 			if err != nil {
-				return nil, fmt.Errorf("Could not get list of blobs from %v: %v", v.BlobRef(), err)
+				return nil, fmt.Errorf("Could not get list of blobs from %v: %w", v.BlobRef(), err)
 			}
 			list = append(list, children...)
 		}

@@ -289,7 +289,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 				}
 			}
 			if err := impConf.Validate(); err != nil {
-				return nil, fmt.Errorf("Invalid static configuration for importer %q: %v", k, err)
+				return nil, fmt.Errorf("Invalid static configuration for importer %q: %w", k, err)
 			}
 			ClientId[k] = clientId
 			ClientSecret[k] = clientSecret
@@ -371,7 +371,7 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 	}
 	ia, err := imp.newAccount()
 	if err != nil {
-		return nil, fmt.Errorf("could not create new account for importer %v: %v", impl, err)
+		return nil, fmt.Errorf("could not create new account for importer %v: %w", impl, err)
 	}
 	rc := &RunContext{
 		Host: ia.im.host,

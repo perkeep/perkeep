@@ -18,6 +18,7 @@ package app
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -198,7 +199,7 @@ func TestQuit(t *testing.T) {
 		process: pid,
 	}
 	err = h.Quit()
-	if err != errProcessTookTooLong {
+	if !errors.Is(err, errProcessTookTooLong) {
 		t.Errorf("got %v, wanted %v", err, errProcessTookTooLong)
 	}
 }

@@ -97,7 +97,7 @@ type kvis struct {
 func (is *kvis) Get(key string) (string, error) {
 	val, err := is.db.Get([]byte(key), is.readOpts)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			return "", sorted.ErrNotFound
 		}
 		return "", err
@@ -150,7 +150,7 @@ func (is *kvis) Wipe() error {
 
 	db, err := leveldb.OpenFile(is.path, is.opts)
 	if err != nil {
-		return fmt.Errorf("error creating %s: %v", is.path, err)
+		return fmt.Errorf("error creating %s: %w", is.path, err)
 	}
 	is.db = db
 	return nil

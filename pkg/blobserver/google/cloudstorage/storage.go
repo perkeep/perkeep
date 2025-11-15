@@ -157,7 +157,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 
 	ba, err := gs.client.Bucket(gs.bucket).Attrs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error statting bucket %q: %v", gs.bucket, err)
+		return nil, fmt.Errorf("error statting bucket %q: %w", gs.bucket, err)
 	}
 	hash := sha1.New()
 	fmt.Fprintf(hash, "%v%v", ba.Created, ba.MetaGeneration)
@@ -226,7 +226,7 @@ func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 	// TODO: use cache
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
 		attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return sb, nil
 		}
 		if err != nil {
@@ -247,7 +247,7 @@ func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, siz
 		}
 	}
 	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(ctx)
-	if err == storage.ErrObjectNotExist {
+	if errors.Is(err, storage.ErrObjectNotExist) {
 		return nil, 0, os.ErrNotExist
 	}
 	if err != nil {
@@ -271,10 +271,10 @@ func (s *Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int6
 	}
 	ctx = context.WithValue(ctx, ctxutil.HTTPClient, s.baseHTTPClient)
 	rc, err = gcsutil.GetPartialObject(ctx, gcsutil.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()}, offset, length)
-	if err == gcsutil.ErrInvalidRange {
+	if errors.Is(err, gcsutil.ErrInvalidRange) {
 		return nil, blob.ErrOutOfRangeOffsetSubFetch
 	}
-	if err == storage.ErrObjectNotExist {
+	if errors.Is(err, storage.ErrObjectNotExist) {
 		return nil, os.ErrNotExist
 	}
 	return rc, err
@@ -292,7 +292,7 @@ func (s *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 		grp.Go(func() error {
 			defer gate.Done()
 			err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Delete(ctx)
-			if err == storage.ErrObjectNotExist {
+			if errors.Is(err, storage.ErrObjectNotExist) {
 				return nil
 			}
 			return err

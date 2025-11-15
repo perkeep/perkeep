@@ -18,6 +18,7 @@ package schema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -603,7 +604,7 @@ func TestStaticFIFO(t *testing.T) {
 
 	fifoPath := filepath.Join(tdir, "fifo")
 	err := osutil.Mkfifo(fifoPath, 0660)
-	if err == osutil.ErrNotSupported {
+	if errors.Is(err, osutil.ErrNotSupported) {
 		t.SkipNow()
 	}
 	if err != nil {
@@ -636,7 +637,7 @@ func TestStaticSocket(t *testing.T) {
 
 	sockPath := filepath.Join(tdir, "socket")
 	err := osutil.Mksocket(sockPath)
-	if err == osutil.ErrNotSupported {
+	if errors.Is(err, osutil.ErrNotSupported) {
 		t.SkipNow()
 	}
 	if err != nil {

@@ -81,7 +81,7 @@ var (
 func GetAPIKeyPath() (string, error) {
 	dir, err := osutil.PerkeepConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("could not get config dir: %v", err)
+		return "", fmt.Errorf("could not get config dir: %w", err)
 	}
 	return filepath.Join(dir, apiKeyName), nil
 }

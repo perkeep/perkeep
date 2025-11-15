@@ -46,6 +46,6 @@ func (sto *s3Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(b
 		if isNotFound(err) {
 			return sb, nil
 		}
-		return sb, fmt.Errorf("error statting %v: %v", br, err)
+		return sb, fmt.Errorf("error statting %v: %w", br, err)
 	})
 }

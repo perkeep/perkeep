@@ -205,7 +205,7 @@ func cpDir(src, dst string) error {
 		}
 		suffix, err := filepath.Rel(closureGitDir, path)
 		if err != nil {
-			return fmt.Errorf("Failed to find Rel(%q, %q): %v", closureGitDir, path, err)
+			return fmt.Errorf("Failed to find Rel(%q, %q): %w", closureGitDir, path, err)
 		}
 		base := fi.Name()
 		if fi.IsDir() {

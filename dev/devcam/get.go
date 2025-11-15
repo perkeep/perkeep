@@ -76,7 +76,7 @@ func (c *getCmd) RunCommand(args []string) error {
 	}
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk-get")); err != nil {
-			return fmt.Errorf("Could not build pk-get: %v", err)
+			return fmt.Errorf("Could not build pk-get: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)

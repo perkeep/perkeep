@@ -97,7 +97,7 @@ func genContribPage() ([]byte, error) {
 	}
 	err = shortlog.Start()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't run git shortlog: %v", err)
+		return nil, fmt.Errorf("couldn't run git shortlog: %w", err)
 	}
 
 	scn := bufio.NewScanner(shortlogOut)
@@ -130,7 +130,7 @@ func genContribPage() ([]byte, error) {
 	}
 	err = shortlog.Wait()
 	if err != nil {
-		return nil, fmt.Errorf("git shortlog failed: %v", err)
+		return nil, fmt.Errorf("git shortlog failed: %w", err)
 	}
 
 	// Add URLs and roles

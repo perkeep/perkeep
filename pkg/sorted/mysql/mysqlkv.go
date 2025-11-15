@@ -111,17 +111,17 @@ func (kv *keyValue) finalize() error {
 	}
 
 	if err := kv.ping(); err != nil {
-		return fmt.Errorf("MySQL db unreachable: %v", err)
+		return fmt.Errorf("MySQL db unreachable: %w", err)
 	}
 
 	version, err := kv.SchemaVersion()
 	if err != nil {
-		return fmt.Errorf("error getting current database schema version: %v", err)
+		return fmt.Errorf("error getting current database schema version: %w", err)
 	}
 	if version == 0 {
 		// Newly created table case
 		if _, err := kv.db.Exec(fmt.Sprintf(`REPLACE INTO %s.meta VALUES ('version', ?)`, kv.database), requiredSchemaVersion); err != nil {
-			return fmt.Errorf("error setting schema version: %v", err)
+			return fmt.Errorf("error setting schema version: %w", err)
 		}
 		return nil
 	}
@@ -166,7 +166,7 @@ func CreateDB(db *sql.DB, dbname string) error {
 		return errors.New("can not create database: database name is missing")
 	}
 	if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbname)); err != nil {
-		return fmt.Errorf("error creating database %v: %v", dbname, err)
+		return fmt.Errorf("error creating database %v: %w", dbname, err)
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (kv *keyValue) ping() error {
 // version is found it returns (0, nil), as the table should be considered empty.
 func (kv *keyValue) SchemaVersion() (version int, err error) {
 	err = kv.db.QueryRow("SELECT value FROM " + kv.KeyValue.TablePrefix + "meta WHERE metakey='version'").Scan(&version)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
 	return
@@ -254,7 +254,7 @@ func serverVersion(db *sql.DB) ([]int, error) {
 	versionRx := regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)-.*`)
 	var version string
 	if err := db.QueryRow("SELECT VERSION()").Scan(&version); err != nil {
-		return nil, fmt.Errorf("error getting MySQL server version: %v", err)
+		return nil, fmt.Errorf("error getting MySQL server version: %w", err)
 	}
 	m := versionRx.FindStringSubmatch(version)
 	if len(m) < 4 {

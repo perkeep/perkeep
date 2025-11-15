@@ -18,6 +18,7 @@ package picasa
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -229,7 +230,7 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 // TODO(mpl): refactor with twitter
 func fakePhoto() string {
 	srcRoot, err := osutil.PkSourceRoot()
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {

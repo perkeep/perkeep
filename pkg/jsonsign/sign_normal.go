@@ -55,7 +55,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 				conn.RemoveFromCache(req.CacheKey)
 				continue
 			}
-			if err == gpgagent.ErrCancel {
+			if errors.Is(err, gpgagent.ErrCancel) {
 				return errors.New("jsonsign: failed to decrypt key; action canceled")
 			}
 			log.Printf("jsonsign: gpgagent: %v", err)
@@ -75,7 +75,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 			pinReq.Error = "Passphrase failed to decrypt: " + err.Error()
 			continue
 		}
-		if err == pinentry.ErrCancel {
+		if errors.Is(err, pinentry.ErrCancel) {
 			return errors.New("jsonsign: failed to decrypt key; action canceled")
 		}
 		log.Printf("jsonsign: pinentry: %v", err)

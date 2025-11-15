@@ -178,7 +178,7 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 	encBR := blob.RefFromBytes(encBytes.Bytes())
 
 	if _, err = blobserver.ReceiveNoHash(ctx, s.blobs, encBR, encBytes); err != nil {
-		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
+		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %w", encBR, plainBR, err)
 	}
 
 	metaBytes, err := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
@@ -189,13 +189,13 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 	metaBR := blob.RefFromBytes(metaBytes)
 	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, metaBR, bytes.NewReader(metaBytes))
 	if err != nil {
-		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
+		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %w", plainBR, encBR, err)
 	}
 	s.recordMeta(&metaBlob{br: metaSB.Ref, plains: []blob.Ref{plainBR}})
 
 	err = s.index.Set(plainBR.String(), packIndexEntry(uint32(plainSize), encBR))
 	if err != nil {
-		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", encBR, plainBR, err)
+		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %w", encBR, plainBR, err)
 	}
 
 	return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
@@ -208,7 +208,7 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 	}
 	encData, _, err := s.blobs.Fetch(ctx, encBR)
 	if err != nil {
-		return nil, 0, fmt.Errorf("encrypt: error fetching plaintext %s's encrypted %v blob: %v", plainBR, encBR, err)
+		return nil, 0, fmt.Errorf("encrypt: error fetching plaintext %s's encrypted %v blob: %w", plainBR, encBR, err)
 	}
 	defer encData.Close()
 
@@ -232,7 +232,7 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 	// Using the pool here would be racy since the caller will read this asynchronously
 	plainBytes := bytes.NewBuffer(nil)
 	if err := s.decryptBlob(plainBytes, encBytes); err != nil {
-		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %s", encBR, err)
+		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %w", encBR, err)
 	}
 
 	return io.NopCloser(plainBytes), plainSize, nil
@@ -250,7 +250,7 @@ func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 		br := blob.MustParse(iter.Key())
 		plainSize, _, err := unpackIndexEntry(iter.Value())
 		if err != nil {
-			return fmt.Errorf("bogus encrypt index value %q: %s", iter.Value(), err)
+			return fmt.Errorf("bogus encrypt index value %q: %w", iter.Value(), err)
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: plainSize}:
@@ -314,7 +314,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	log.Printf("Reading encryption metadata...")
 	sto.smallMeta = &metaBlobHeap{}
 	if err := sto.readAllMetaBlobs(); err != nil {
-		return nil, fmt.Errorf("error scanning metadata on start-up: %v", err)
+		return nil, fmt.Errorf("error scanning metadata on start-up: %w", err)
 	}
 	log.Printf("Read all encryption metadata in %.3f seconds", time.Since(start).Seconds())
 

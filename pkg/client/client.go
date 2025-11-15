@@ -229,7 +229,7 @@ func NewOrFail(opts ...ClientOption) *Client {
 func (c *Client) NewPathClient(path string) (*Client, error) {
 	u, err := url.Parse(c.server)
 	if err != nil {
-		return nil, fmt.Errorf("bogus server %q for NewPathClient receiver: %v", c.server, err)
+		return nil, fmt.Errorf("bogus server %q for NewPathClient receiver: %w", c.server, err)
 	}
 	u.Path = path
 	pc, err := New(OptionServer(u.String()))
@@ -449,7 +449,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	req := c.newRequest(ctx, "GET", shareBlobURL, nil)
 	res, err := c.expect2XX(req)
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %w", shareBlobURL, err)
 	}
 	defer res.Body.Close()
 	var buf bytes.Buffer
@@ -459,7 +459,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	}
 	b, err := schema.BlobFromReader(rootbr, io.TeeReader(res.Body, &buf))
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %v , with response: %q", shareBlobURL, err, buf.Bytes())
+		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %w, with response: %q", shareBlobURL, err, buf.Bytes())
 	}
 	if b.ShareAuthType() != schema.ShareHaveRef {
 		return nil, blob.Ref{}, fmt.Errorf("unknown share authType of %q", b.ShareAuthType())
@@ -846,7 +846,7 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 		} else if mismatch {
 			return blob.Ref{}, fmt.Errorf("Client is too recent for this server. Use a client built before 2018-01-13-6e8a5930c9, or upgrade the server to after that revision.")
 		}
-		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
+		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %w", url, err)
 	}
 	if len(ress.Files) == 0 {
 		return blob.Ref{}, nil
@@ -872,7 +872,7 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 	version = version[:10] // keep only the date part
 	clientDate, err := time.Parse(shortRFC3339, version)
 	if err != nil {
-		return false, fmt.Errorf("could not parse date from version %q: %v", version, err)
+		return false, fmt.Errorf("could not parse date from version %q: %w", version, err)
 	}
 	apiChangeDate, _ := time.Parse(shortRFC3339, "2018-01-13")
 	if !clientDate.After(apiChangeDate) {
@@ -894,12 +894,12 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 		Version string `json:"version"`
 	}
 	if err := httputil.DecodeJSON(res, &status); err != nil {
-		return false, fmt.Errorf("error parsing JSON from URL %s: %v", url, err)
+		return false, fmt.Errorf("error parsing JSON from URL %s: %w", url, err)
 	}
 	serverVersion := status.Version[:10]
 	serverDate, err := time.Parse(shortRFC3339, serverVersion)
 	if err != nil {
-		return false, fmt.Errorf("could not parse date from server version %q: %v", status.Version, err)
+		return false, fmt.Errorf("could not parse date from server version %q: %w", status.Version, err)
 	}
 	if serverDate.After(apiChangeDate) {
 		// server is recent enough, all good.
@@ -1098,7 +1098,7 @@ func (c *Client) doDiscovery() error {
 
 	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {
-		return fmt.Errorf("client: error resolving blobRoot: %v", err)
+		return fmt.Errorf("client: error resolving blobRoot: %w", err)
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
 

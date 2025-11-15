@@ -113,7 +113,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 	if c.makePermanode {
 		permaNode, err = up.UploadNewPermanode(ctxbg)
 		if err != nil {
-			return fmt.Errorf("Uploading permanode: %v", err)
+			return fmt.Errorf("Uploading permanode: %w", err)
 		}
 	}
 

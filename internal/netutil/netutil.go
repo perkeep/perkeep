@@ -48,7 +48,7 @@ func HostPort(urlStr string) (string, error) {
 	// ListenHostPort below.
 	u, err := url.Parse(urlStr)
 	if err != nil {
-		return "", fmt.Errorf("could not parse %q as a url: %v", urlStr, err)
+		return "", fmt.Errorf("could not parse %q as a url: %w", urlStr, err)
 	}
 	if u.Scheme == "" {
 		return "", fmt.Errorf("url %q has no scheme", urlStr)
@@ -149,11 +149,11 @@ func RandPort() (int, error) {
 	}
 	listener, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		return port, fmt.Errorf("could not listen to find random port: %v", err)
+		return port, fmt.Errorf("could not listen to find random port: %w", err)
 	}
 	randAddr := listener.Addr().(*net.TCPAddr)
 	if err := listener.Close(); err != nil {
-		return port, fmt.Errorf("could not close random listener: %v", err)
+		return port, fmt.Errorf("could not close random listener: %w", err)
 	}
 	return randAddr.Port, nil
 }

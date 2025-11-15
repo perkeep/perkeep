@@ -29,6 +29,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -603,11 +604,11 @@ func listDownloads() (*ReleaseData, error) {
 	objIt := stoClient.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: objPrefix})
 	for {
 		attrs, err := objIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error listing objects in %s: %v", bucket, err)
+			return nil, fmt.Errorf("error listing objects in %s: %w", bucket, err)
 		}
 		if !strings.Contains(attrs.Name, fileVersion) {
 			continue
@@ -627,11 +628,11 @@ func listDownloads() (*ReleaseData, error) {
 	objIt = stoClient.Bucket(bucket).Objects(ctx, &storage.Query{Prefix: objPrefix})
 	for {
 		attrs, err := objIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error listing objects in %s: %v", bucket, err)
+			return nil, fmt.Errorf("error listing objects in %s: %w", bucket, err)
 		}
 		if !strings.Contains(attrs.Name, fileVersion) {
 			continue
@@ -661,12 +662,12 @@ func listDownloads() (*ReleaseData, error) {
 func genReleasePage(releaseData *ReleaseData) error {
 	tpl, err := template.New("release").Parse(releaseTemplate)
 	if err != nil {
-		return fmt.Errorf("could not parse template: %v", err)
+		return fmt.Errorf("could not parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&buf, "release", releaseData); err != nil {
-		return fmt.Errorf("could not execute template: %v", err)
+		return fmt.Errorf("could not execute template: %w", err)
 	}
 
 	releaseDocDir := filepath.Join(srcRoot, filepath.FromSlash("doc/release"))
@@ -675,7 +676,7 @@ func genReleasePage(releaseData *ReleaseData) error {
 	}
 	releaseDocPage := filepath.Join(releaseDocDir, "release.html")
 	if err := os.WriteFile(releaseDocPage, buf.Bytes(), 0700); err != nil {
-		return fmt.Errorf("could not write template to file %v: %v", releaseDocPage, err)
+		return fmt.Errorf("could not write template to file %v: %w", releaseDocPage, err)
 	}
 	return nil
 }
@@ -693,7 +694,7 @@ func committers() (map[string]string, error) {
 	cmd := exec.Command("git", "shortlog", "-n", "-e", "-s", *flagStatsFrom+".."+revOrHEAD())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("%v; %v", err, string(out))
+		return nil, fmt.Errorf("%w; %v", err, string(out))
 	}
 	rxp := regexp.MustCompile(`^\s+(\d+)\s+(.*)<(.*)>.*$`)
 	sc := bufio.NewScanner(bytes.NewReader(out))
@@ -708,7 +709,7 @@ func committers() (map[string]string, error) {
 		}
 		count, err := strconv.Atoi(m[1])
 		if err != nil {
-			return nil, fmt.Errorf("couldn't convert %q as a number of commits: %v", m[1], err)
+			return nil, fmt.Errorf("couldn't convert %q as a number of commits: %w", m[1], err)
 		}
 		name := strings.TrimSpace(m[2])
 		email := m[3]
@@ -744,7 +745,7 @@ func countCommits() (int, error) {
 	cmd := exec.Command("git", "log", "--format=oneline", *flagStatsFrom+".."+revOrHEAD())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return 0, fmt.Errorf("%v; %v", err, string(out))
+		return 0, fmt.Errorf("%w; %v", err, string(out))
 	}
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	var sum int
@@ -760,11 +761,11 @@ func countCommits() (int, error) {
 func genCommitStats() (*stats, error) {
 	committers, err := committers()
 	if err != nil {
-		return nil, fmt.Errorf("Could not count number of committers: %v", err)
+		return nil, fmt.Errorf("Could not count number of committers: %w", err)
 	}
 	commits, err := countCommits()
 	if err != nil {
-		return nil, fmt.Errorf("Could not count number of commits: %v", err)
+		return nil, fmt.Errorf("Could not count number of commits: %w", err)
 	}
 	var names []string
 	for _, v := range committers {
@@ -783,7 +784,7 @@ func genReleaseNotes() (map[string][]string, error) {
 	cmd := exec.Command("git", "log", "--format=oneline", "--no-merges", *flagStatsFrom+".."+revOrHEAD())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("%v; %v", err, string(out))
+		return nil, fmt.Errorf("%w; %v", err, string(out))
 	}
 
 	// We define the "context" of a commit message as the very first
@@ -922,7 +923,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	}
 	conf, err := google.JWTConfigFromJSON(jsonConf, scopes...)
 	if err != nil {
-		return nil, fmt.Errorf("reading JSON config from %s: %v", fileName, err)
+		return nil, fmt.Errorf("reading JSON config from %s: %w", fileName, err)
 	}
 	return conf.TokenSource(context.TODO()), nil
 }

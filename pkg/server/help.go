@@ -116,7 +116,7 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 	clientConfig, err := clientconfig.GenerateClientConfig(hh.serverConfig)
 	if err != nil {
-		return fmt.Errorf("error generating client config: %v", err)
+		return fmt.Errorf("error generating client config: %w", err)
 	}
 	hh.clientConfig = clientConfig
 
@@ -125,7 +125,7 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 	tmpl, err := template.New("help").Parse(helpHTML)
 	if err != nil {
-		return fmt.Errorf("error creating template: %v", err)
+		return fmt.Errorf("error creating template: %w", err)
 	}
 	hh.goTemplate = tmpl
 
@@ -164,7 +164,7 @@ func (hh *HelpHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWriter, req *http.Request) {
 	jsonBytes, err := json.MarshalIndent(cc, "", "  ")
 	if err != nil {
-		httputil.ServeError(rw, req, fmt.Errorf("could not serialize client config JSON: %v", err))
+		httputil.ServeError(rw, req, fmt.Errorf("could not serialize client config JSON: %w", err))
 		return
 	}
 

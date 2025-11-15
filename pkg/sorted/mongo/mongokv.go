@@ -129,7 +129,7 @@ func (kv *keyValue) Get(key string) (string, error) {
 	q := kv.db.Find(&bson.M{mgoKey: key})
 	err := q.One(&res)
 	if err != nil {
-		if err == mgo.ErrNotFound {
+		if errors.Is(err, mgo.ErrNotFound) {
 			return "", sorted.ErrNotFound
 		}
 		return "", err
@@ -160,7 +160,7 @@ func (kv *keyValue) Delete(key string) error {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	err := kv.db.Remove(&bson.M{mgoKey: key})
-	if err == mgo.ErrNotFound {
+	if errors.Is(err, mgo.ErrNotFound) {
 		return nil
 	}
 	return err

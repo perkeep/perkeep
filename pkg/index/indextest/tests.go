@@ -698,7 +698,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			}
 		}
 		_, err = id.Index.GetBlobMeta(ctx, blob.ParseOrZero("abc-123"))
-		if err != os.ErrNotExist {
+		if !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("GetBlobMeta(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
 	}

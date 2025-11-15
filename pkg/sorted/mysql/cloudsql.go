@@ -43,14 +43,14 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 	}
 	proj, err := metadata.ProjectID()
 	if err != nil {
-		return "", fmt.Errorf("Failed to lookup GCE project ID: %v", err)
+		return "", fmt.Errorf("Failed to lookup GCE project ID: %w", err)
 	}
 
 	ctx := context.TODO()
 	admin, _ := sqladmin.NewService(ctx, option.WithHTTPClient(oauth2.NewClient(ctx, google.ComputeTokenSource(""))))
 	listRes, err := admin.Instances.List(proj).Do()
 	if err != nil {
-		return "", fmt.Errorf("error enumerating Cloud SQL instances: %v", err)
+		return "", fmt.Errorf("error enumerating Cloud SQL instances: %w", err)
 	}
 	for _, it := range listRes.Items {
 		if !strings.EqualFold(it.Name, inst) {

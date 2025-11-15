@@ -236,9 +236,9 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	if ok {
 		s, err = ctor(cfg)
 		if err != nil {
-			we, ok := err.(NeedWipeError)
-			if !ok {
-				return nil, fmt.Errorf("error from %q KeyValue: %v", typ, err)
+			var we NeedWipeError
+			if !errors.As(err, &we) {
+				return nil, fmt.Errorf("error from %q KeyValue: %w", typ, err)
 			}
 			if err := cfg.Validate(); err != nil {
 				return nil, err
@@ -257,16 +257,16 @@ func NewKeyValueMaybeWipe(cfg jsonconfig.Obj) (KeyValue, error) {
 	if err == nil {
 		return kv, nil
 	}
-	if _, ok := err.(NeedWipeError); !ok {
+	var we NeedWipeError
+	if !errors.As(err, &we) {
 		return nil, err
 	}
 	wiper, ok := kv.(Wiper)
 	if !ok {
-		return nil, fmt.Errorf("storage type %T needs wiping because %v. But it doesn't support sorted.Wiper", err, kv)
+		return nil, fmt.Errorf("storage type %T needs wiping because %w. But it doesn't support sorted.Wiper", kv, err)
 	}
-	we := err
 	if err := wiper.Wipe(); err != nil {
-		return nil, fmt.Errorf("sorted key/value type %T needed wiping because %v. But could not wipe: %v", kv, we, err)
+		return nil, fmt.Errorf("sorted key/value type %T needed wiping because %w. But could not wipe: %w", kv, we, err)
 	}
 	return kv, nil
 }

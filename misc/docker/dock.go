@@ -361,7 +361,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	}
 	conf, err := google.JWTConfigFromJSON(jsonConf, scopes...)
 	if err != nil {
-		return nil, fmt.Errorf("reading JSON config from %s: %v", fileName, err)
+		return nil, fmt.Errorf("reading JSON config from %s: %w", fileName, err)
 	}
 	return conf.TokenSource(context.TODO()), nil
 }

@@ -230,7 +230,8 @@ func (pi *PageInfo) populateDirs(diskPath string, depth int) {
 func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	bpkg, err := build.ImportDir(diskPath, 0)
 	if err != nil {
-		if _, ok := err.(*build.NoGoError); ok {
+		var nge *build.NoGoError
+		if errors.As(err, &nge) {
 			pi.populateDirs(diskPath, -1)
 			return pi, nil
 		}

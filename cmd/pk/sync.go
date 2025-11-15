@@ -98,14 +98,14 @@ func (c *syncCmd) RunCommand(args []string) error {
 	if c.dumpConfigFlag {
 		err := c.dumpConfig()
 		if err != nil {
-			return fmt.Errorf("dumb-config failed: %v", err)
+			return fmt.Errorf("dumb-config failed: %w", err)
 		}
 		return nil
 	}
 	if c.all {
 		err := c.syncAll()
 		if err != nil {
-			return fmt.Errorf("sync all failed: %v", err)
+			return fmt.Errorf("sync all failed: %w", err)
 		}
 		return nil
 	}
@@ -138,7 +138,7 @@ func (c *syncCmd) RunCommand(args []string) error {
 		stats, err := c.doPass(ss, ds, ts)
 		cmdmain.Logf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
 		if err != nil {
-			return fmt.Errorf("sync failed: %v", err)
+			return fmt.Errorf("sync failed: %w", err)
 		}
 		if !c.loop {
 			break
@@ -168,7 +168,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 			discl := c.discoClient()
 			src, err := discl.BlobRoot()
 			if err != nil {
-				return nil, fmt.Errorf("Failed to discover source server's blob path: %v", err)
+				return nil, fmt.Errorf("Failed to discover source server's blob path: %w", err)
 			}
 			val = src
 			httpClient = discl.HTTPClient()
@@ -183,20 +183,20 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	if looksLikePath(val) {
 		disk, err := localdisk.New(val)
 		if err != nil {
-			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %v", which, val, err)
+			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %w", which, val, err)
 		}
 		c.oneIsDisk = true
 		return disk, nil
 	}
 	cl, err := client.New(client.OptionServer(val), client.OptionInsecure(c.insecureTLS))
 	if err != nil {
-		return nil, fmt.Errorf("creating client for %q: %v", val, err)
+		return nil, fmt.Errorf("creating client for %q: %w", val, err)
 	}
 	if httpClient != nil {
 		cl.SetHTTPClient(httpClient)
 	}
 	if err := cl.SetupAuth(); err != nil {
-		return nil, fmt.Errorf("could not setup auth for connecting to %v: %v", val, err)
+		return nil, fmt.Errorf("could not setup auth for connecting to %v: %w", val, err)
 	}
 	cl.Verbose = *cmdmain.FlagVerbose
 	cl.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
@@ -239,7 +239,7 @@ func (c *syncCmd) dumpConfig() error {
 	dc.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
-		return fmt.Errorf("sync handlers discovery failed: %v", err)
+		return fmt.Errorf("sync handlers discovery failed: %w", err)
 	}
 	for _, sh := range syncHandlers {
 		fmt.Printf("%v -> %v\n", sh.From, sh.To)
@@ -261,7 +261,7 @@ func (c *syncCmd) syncAll() error {
 	dc := c.discoClient()
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
-		return fmt.Errorf("sync handlers discovery failed: %v", err)
+		return fmt.Errorf("sync handlers discovery failed: %w", err)
 	}
 	cmdmain.Logf("To be synced:\n")
 	for _, sh := range syncHandlers {
@@ -270,22 +270,22 @@ func (c *syncCmd) syncAll() error {
 	for _, sh := range syncHandlers {
 		from, err := client.New(client.OptionServer(sh.From), client.OptionInsecure(c.insecureTLS))
 		if err != nil {
-			return fmt.Errorf("creating source client from %q: %v", sh.From, err)
+			return fmt.Errorf("creating source client from %q: %w", sh.From, err)
 		}
 		from.Verbose = *cmdmain.FlagVerbose
 		from.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := from.SetupAuth(); err != nil {
-			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.From, err)
+			return fmt.Errorf("could not setup auth for connecting to %v: %w", sh.From, err)
 		}
 
 		to, err := client.New(client.OptionServer(sh.To), client.OptionInsecure(c.insecureTLS))
 		if err != nil {
-			return fmt.Errorf("creating destination client to %q: %v", sh.To, err)
+			return fmt.Errorf("creating destination client to %q: %w", sh.To, err)
 		}
 		to.Verbose = *cmdmain.FlagVerbose
 		to.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := to.SetupAuth(); err != nil {
-			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.To, err)
+			return fmt.Errorf("could not setup auth for connecting to %v: %w", sh.To, err)
 		}
 		cmdmain.Logf("Now syncing: %v -> %v", sh.From, sh.To)
 		stats, err := c.doPass(from, to, nil)
@@ -356,7 +356,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	go enumerate(srcErr, src, srcBlobs)
 	checkSourceError := func() {
 		if err := <-srcErr; err != nil && err != context.Canceled {
-			retErr = fmt.Errorf("Enumerate error from source: %v", err)
+			retErr = fmt.Errorf("Enumerate error from source: %w", err)
 		}
 	}
 
@@ -377,7 +377,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	go enumerate(destErr, dest, destBlobs)
 	checkDestError := func() {
 		if err := <-destErr; err != nil && err != context.Canceled {
-			retErr = fmt.Errorf("Enumerate error from destination: %v", err)
+			retErr = fmt.Errorf("Enumerate error from destination: %w", err)
 		}
 	}
 
@@ -415,7 +415,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		go enumerate(thirdErr, thirdLeg, thirdBlobs)
 		checkThirdError = func() {
 			if err := <-thirdErr; err != nil && err != context.Canceled {
-				retErr = fmt.Errorf("Enumerate error from third leg: %v", err)
+				retErr = fmt.Errorf("Enumerate error from third leg: %w", err)
 			}
 		}
 		thirdNeedBlobs := make(chan blob.SizedRef)

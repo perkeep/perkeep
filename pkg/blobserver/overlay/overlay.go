@@ -41,6 +41,7 @@ package overlay // import "perkeep.org/pkg/blobserver/overlay"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -48,6 +49,7 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -86,17 +88,17 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	lower, err := ld.GetStorage(lowerPrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load lower at %s: %v", lowerPrefix, err)
+		return nil, fmt.Errorf("failed to load lower at %s: %w", lowerPrefix, err)
 	}
 	upper, err := ld.GetStorage(upperPrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load upper at %s: %v", upperPrefix, err)
+		return nil, fmt.Errorf("failed to load upper at %s: %w", upperPrefix, err)
 	}
 	var deleted sorted.KeyValue
 	if len(deletedConf) != 0 {
 		deleted, err = sorted.NewKeyValueMaybeWipe(deletedConf)
 		if err != nil {
-			return nil, fmt.Errorf("failed to setup deleted: %v", err)
+			return nil, fmt.Errorf("failed to setup deleted: %w", err)
 		}
 	}
 
@@ -153,7 +155,7 @@ func (sto *overlayStorage) isDeleted(br blob.Ref) bool {
 		return true
 	}
 
-	if err != sorted.ErrNotFound {
+	if !errors.Is(err, sorted.ErrNotFound) {
 		log.Printf("overlayStorage error accessing deleted: %v", err)
 	}
 
@@ -168,7 +170,7 @@ func (sto *overlayStorage) Fetch(ctx context.Context, br blob.Ref) (file io.Read
 	}
 
 	file, size, err = sto.upper.Fetch(ctx, br)
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		return file, size, err
 	}
 
