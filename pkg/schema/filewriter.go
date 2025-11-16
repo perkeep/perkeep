@@ -324,7 +324,13 @@ func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, r io.Reade
 			spans = spans[:childrenFrom]
 		}
 		to := nbytes + int64(len(chunkBytes))
-		spans = append(spans, span{from: nbytes, to: to, bits: bits, children: children})
+		spans = append(spans, span{
+			from:     nbytes,
+			to:       to,
+			bits:     bits,
+			children: children,
+			br:       br,
+		})
 		nbytes = to
 
 		g.Go(func() error {
