@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"strings"
 
-	"tailscale.com/client/tailscale"
+	"tailscale.com/client/local"
 )
 
 func newTailscaleAuth(arg string) (AuthMode, error) {
@@ -31,7 +31,7 @@ func newTailscaleAuth(arg string) (AuthMode, error) {
 		return &tailscaleAuth{any: true}, nil
 	}
 	if strings.Contains(arg, "@") {
-		lc := &tailscale.LocalClient{}
+		lc := &local.Client{}
 		return &tailscaleAuth{lc: lc, anyForUser: arg}, nil
 	}
 	// TODO(bradfitz): use grants: https://tailscale.com/blog/acl-grants
@@ -41,7 +41,7 @@ func newTailscaleAuth(arg string) (AuthMode, error) {
 type tailscaleAuth struct {
 	any bool // whether all access is permitted to anybody in the tailnet
 
-	lc         *tailscale.LocalClient
+	lc         *local.Client
 	anyForUser string // if non-empty, the user for whom any access is permitted
 }
 
