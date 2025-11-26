@@ -110,7 +110,7 @@ func testRun(b testing.TB, decode decodeFunc) {
 }
 
 func common(b *testing.B, decode decodeFunc) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		testRun(b, decode)
 	}
 }

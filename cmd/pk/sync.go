@@ -428,7 +428,6 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	var wg sync.WaitGroup
 
 	for sb := range syncBlobs {
-		sb := sb
 		gate.Start()
 		wg.Add(1)
 		go func() {

@@ -786,8 +786,8 @@ func (np numberedPages) Less(i, j int) bool { return np[i].nb < np[j].nb }
 func (h *handler) describeDocument(b *search.DescribedBlob) (*document, error) {
 	var sortedPages numberedPages
 	for key, val := range b.Permanode.Attr {
-		if strings.HasPrefix(key, "camliPath:") {
-			pageNumber, err := strconv.ParseInt(strings.TrimPrefix(key, "camliPath:"), 10, 64)
+		if after, ok := strings.CutPrefix(key, "camliPath:"); ok {
+			pageNumber, err := strconv.ParseInt(after, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid page number %q in document %v: %w", key, b.BlobRef, err)
 			}

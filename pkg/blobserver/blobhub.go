@@ -137,13 +137,11 @@ func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
 
 	// Global listeners
 	for ch := range h.listeners {
-		ch := ch
 		go func() { ch <- br }()
 	}
 
 	// Blob-specific listeners
 	for ch := range h.blobListeners[br] {
-		ch := ch
 		go func() { ch <- br }()
 	}
 	return nil

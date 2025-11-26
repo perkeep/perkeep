@@ -183,7 +183,7 @@ func (si *shareImporter) importAll(ctx context.Context) error {
 	defer close(si.workc)
 
 	// fan out over a pool of numWorkers workers overall
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go func() {
 			for wi := range si.workc {
 				wi.errc <- si.imprt(ctx, wi.br)

@@ -140,7 +140,7 @@ func enumBlobRange(base string, start, count int) BlobEnumerator {
 
 func strRange(base string, start, count int) []string {
 	v := make([]string, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		v[i] = fmt.Sprintf("%s-%04d", base, start+i)
 	}
 	return v

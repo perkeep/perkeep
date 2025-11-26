@@ -61,7 +61,7 @@ func (c *rawCmd) RunCommand(args []string) error {
 	}
 
 	bb := schema.NewBuilder()
-	for _, kv := range strings.Split(c.vals, "|") {
+	for kv := range strings.SplitSeq(c.vals, "|") {
 		kv := strings.SplitN(kv, "=", 2)
 		bb.SetRawStringField(kv[0], kv[1])
 	}

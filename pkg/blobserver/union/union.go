@@ -73,7 +73,6 @@ func (sto *unionStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadClo
 	results := make(chan result, len(sto.subsets))
 	var wg sync.WaitGroup
 	for _, bs := range sto.subsets {
-		bs := bs
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -53,7 +53,7 @@ func TestSql(t *testing.T) {
 }
 
 func BenchmarkSql(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, s := range queries {
 			kv.sql(s)
 		}
