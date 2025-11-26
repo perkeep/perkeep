@@ -46,8 +46,18 @@ import (
 
 const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
 
-// TailscaleCtxKey is the context key for whether the server is running in Tailscale tsnet mode.
-var TailscaleCtxKey = ctxkey.New("tailscale", false)
+// Context keys
+var (
+	// TSNetCtxKey is the context key for the Tailscale tsnet.Server.
+	TSNetCtxKey = ctxkey.New("tsnet", (*tsnet.Server)(nil))
+
+	// TailscaleCtxKey is the context key for whether the server is running in
+	// Tailscale tsnet mode.
+	//
+	// It is semantically equivalent to whether [TSNetCtxKey] is non-nil, but
+	// exists for convenience.
+	TailscaleCtxKey = ctxkey.New("tailscale", false)
+)
 
 type Server struct {
 	mux       *http.ServeMux
@@ -345,7 +355,10 @@ func (s *Server) Serve() {
 		Handler: s,
 		BaseContext: func(ln net.Listener) context.Context {
 			ctx := context.Background()
-			ctx = TailscaleCtxKey.WithValue(ctx, s.tsnetServer != nil)
+			if s.tsnetServer != nil {
+				ctx = TailscaleCtxKey.WithValue(ctx, true)
+				ctx = TSNetCtxKey.WithValue(ctx, s.tsnetServer)
+			}
 			return ctx
 		},
 	}
