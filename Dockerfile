@@ -23,6 +23,7 @@ FROM debian:trixie-slim
 
 ENV HOME=/home/keepy
 ENV PATH=/home/keepy/bin:$PATH
+ENV PK_IN_CONTAINER=1
 
 RUN apt-get update && apt-get install -y imagemagick libjpeg-turbo-progs && rm -rf /var/lib/apt/lists/*
 

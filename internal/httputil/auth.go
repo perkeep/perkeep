@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"perkeep.org/internal/netutil"
+	"perkeep.org/pkg/env"
 )
 
 var basicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
@@ -56,7 +57,7 @@ func IsLocalhost(req *http.Request) bool {
 	if uid == -1 || runtime.GOOS == "darwin" {
 		return from.IP.IsLoopback() && to.IP.IsLoopback()
 	}
-	if uid == 0 {
+	if uid == 0 && !env.InContainer() {
 		log.Printf("perkeepd running as root. Don't do that.")
 		return false
 	}
