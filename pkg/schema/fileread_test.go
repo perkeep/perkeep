@@ -438,10 +438,7 @@ type summary []byte
 
 func (s summary) String() string {
 	const prefix = 10
-	plen := prefix
-	if len(s) < plen {
-		plen = len(s)
-	}
+	plen := min(len(s), prefix)
 	return fmt.Sprintf("%d bytes, starting with %q", len(s), []byte(s[:plen]))
 }
 

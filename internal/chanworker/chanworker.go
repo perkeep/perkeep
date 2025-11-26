@@ -70,11 +70,11 @@ func NewWorker(nWorkers int, fn func(el interface{}, ok bool)) chan<- interface{
 		buf:   list.New(),
 	}
 	go w.pump()
-	for i := 0; i < nWorkers; i++ {
+	for range nWorkers {
 		go w.work()
 	}
 	go func() {
-		for i := 0; i < nWorkers; i++ {
+		for range nWorkers {
 			<-w.donec
 		}
 		fn(nil, false) // final sentinel

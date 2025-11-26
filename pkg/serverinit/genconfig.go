@@ -146,8 +146,8 @@ func (b *lowBuilder) dbName(of dbname) string {
 		return prefix + "uithumbmeta"
 	}
 	asString := string(of)
-	if strings.HasPrefix(asString, string(dbSyncQueue)) {
-		return prefix + "syncto_" + strings.TrimPrefix(asString, string(dbSyncQueue))
+	if after, ok := strings.CutPrefix(asString, string(dbSyncQueue)); ok {
+		return prefix + "syncto_" + after
 	}
 	return ""
 }

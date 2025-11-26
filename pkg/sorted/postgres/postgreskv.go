@@ -147,7 +147,7 @@ var replacePlaceHolders = func(query string) string {
 	i := 0
 	dollarInc := func(b []byte) []byte {
 		i++
-		return []byte(fmt.Sprintf("$%d", i))
+		return fmt.Appendf(nil, "$%d", i)
 	}
 	return string(qmark.ReplaceAllFunc([]byte(query), dollarInc))
 }

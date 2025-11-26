@@ -164,7 +164,7 @@ func TestUploadDirectories(t *testing.T) {
 		defer func() { testHookStatCache = nil }()
 
 		dirIter := uploadRoot
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			dirPath := filepath.Join(dirIter, "dir")
 			mustMkdir(t, dirPath, 0700)
 			for _, baseFile := range []string{"file.txt", "FILE.txt"} {

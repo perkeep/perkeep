@@ -109,7 +109,7 @@ func TestConcurrency(t *testing.T) {
 	defer clean()
 	const n = 100
 	ch := make(chan error)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		i := i
 		go func() {
 			bm := s.BeginBatch()
@@ -118,7 +118,7 @@ func TestConcurrency(t *testing.T) {
 			ch <- s.CommitBatch(bm)
 		}()
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if err := <-ch; err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
@@ -149,13 +149,13 @@ func TestFDLeak(t *testing.T) {
 
 	bm := s.BeginBatch()
 	const numRows = 150 // 3x the batchSize of 50 in sqlindex.go; to guarantee we do multiple batches
-	for i := 0; i < numRows; i++ {
+	for i := range numRows {
 		bm.Set(fmt.Sprintf("key:%05d", i), fmt.Sprint(i))
 	}
 	if err := s.CommitBatch(bm); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		it := s.Find("key:", "key~")
 		n := 0
 		for it.Next() {

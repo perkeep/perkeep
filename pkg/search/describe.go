@@ -919,7 +919,7 @@ func (dr *DescribeRequest) describeRefs(ctx context.Context, str string, depth i
 }
 
 func (b *DescribedBlob) setMIMEType(mime string) {
-	if strings.HasPrefix(mime, camliTypePrefix) {
-		b.CamliType = schema.CamliType(strings.TrimPrefix(mime, camliTypePrefix))
+	if after0, ok := strings.CutPrefix(mime, camliTypePrefix); ok {
+		b.CamliType = schema.CamliType(after0)
 	}
 }

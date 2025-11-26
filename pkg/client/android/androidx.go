@@ -338,10 +338,7 @@ type writeUntilSliceFull struct {
 func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
 	s := *w.s
 	l := len(s)
-	growBy := cap(s) - l
-	if growBy > len(p) {
-		growBy = len(p)
-	}
+	growBy := min(cap(s)-l, len(p))
 	s = s[0 : l+growBy]
 	copy(s[l:], p)
 	*w.s = s

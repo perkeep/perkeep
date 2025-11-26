@@ -82,7 +82,7 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	contents := []string{"foo", "quux", "asdf", "qwerty", "0123456789"}
 	if !testing.Short() {
-		for i := 0; i < 95; i++ {
+		for i := range 95 {
 			contents = append(contents, "foo-"+strconv.Itoa(i))
 		}
 	}
@@ -510,7 +510,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	sawStreamed = map[blob.Ref]int{}
 	gotRefs = gotRefs[:0]
 	contToken := ""
-	for i := 0; i < len(wantRefs); i++ {
+	for i := range wantRefs {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		ch := make(chan blobserver.BlobAndToken)

@@ -1020,7 +1020,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var grp syncutil.Group
 	delGate := syncutil.NewGate(removeLookups)
 	for _, br := range blobs {
-		br := br
 		delGate.Start()
 		grp.Go(func() error {
 			defer delGate.Done()

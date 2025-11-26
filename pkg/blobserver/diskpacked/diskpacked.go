@@ -422,7 +422,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	batch := s.index.BeginBatch()
 	var wg syncutil.Group
 	for _, br := range blobs {
-		br := br
 		removeGate.Start()
 		batch.Delete(br.String())
 		wg.Go(func() error {

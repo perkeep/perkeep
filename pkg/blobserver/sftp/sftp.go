@@ -234,8 +234,8 @@ func (s *Storage) dialSFTP() (sc *sftp.Client, waiter func() error, toClose io.C
 	// Another special case for testing:
 	user := s.cc.User
 	const sysPrefix = "use-system-ssh:"
-	if strings.HasPrefix(user, sysPrefix) {
-		user = strings.TrimPrefix(user, sysPrefix)
+	if after, ok := strings.CutPrefix(user, sysPrefix); ok {
+		user = after
 		cmd := exec.Command("ssh", user+"@"+strings.TrimSuffix(s.addr, ":22"), "-s", "sftp")
 		cmd.Stderr = os.Stderr
 		// get stdin and stdout
@@ -391,7 +391,7 @@ func (s sftpFS) TempFile(dir, prefix string) (files.WritableFile, error) {
 		return nil, err
 	}
 	dir = filepath.ToSlash(dir)
-	for tries := 0; tries < 5; tries++ {
+	for range 5 {
 		sufRand := make([]byte, 5)
 		_, _ = rand.Read(sufRand)
 		suffix := fmt.Sprintf("%x", sufRand)

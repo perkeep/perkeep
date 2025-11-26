@@ -183,7 +183,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 	}()
 	viaBlobs := make([]blob.Ref, 0)
 	if via := req.FormValue("via"); via != "" {
-		for _, vs := range strings.Split(via, ",") {
+		for vs := range strings.SplitSeq(via, ",") {
 			if br, ok := blob.Parse(vs); ok {
 				viaBlobs = append(viaBlobs, br)
 			} else {

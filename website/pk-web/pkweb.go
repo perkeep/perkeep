@@ -237,8 +237,7 @@ func redirectPath(u *url.URL) string {
 		}
 	}
 
-	if strings.HasPrefix(u.Path, "/gw/") {
-		path := strings.TrimPrefix(u.Path, "/gw/")
+	if path, ok := strings.CutPrefix(u.Path, "/gw/"); ok {
 		if commitHash.MatchString(path) {
 			// Assume it's a commit
 			return viewCommitPrefix + path
@@ -246,8 +245,8 @@ func redirectPath(u *url.URL) string {
 		return viewFilePrefix + "master/" + path
 	}
 
-	if strings.HasPrefix(u.Path, "/docs/") {
-		return "/doc/" + strings.TrimPrefix(u.Path, "/docs/")
+	if after, ok := strings.CutPrefix(u.Path, "/docs/"); ok {
+		return "/doc/" + after
 	}
 
 	// strip directory index files

@@ -181,7 +181,7 @@ func TestEncryptStress(t *testing.T) {
 	blobs := make(chan string, workers)
 	defer close(blobs)
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -195,7 +195,7 @@ func TestEncryptStress(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < numBlobs; i++ {
+	for i := range numBlobs {
 		blobs <- fmt.Sprintf("%d", i)
 	}
 }

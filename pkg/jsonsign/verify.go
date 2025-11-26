@@ -48,10 +48,7 @@ func reArmor(line string) string {
 	payload := line[0:lastEq]
 	crc := line[lastEq:]
 	for len(payload) > 0 {
-		chunkLen := len(payload)
-		if chunkLen > 60 {
-			chunkLen = 60
-		}
+		chunkLen := min(len(payload), 60)
 		fmt.Fprintf(buf, "%s\n", payload[0:chunkLen])
 		payload = payload[chunkLen:]
 	}

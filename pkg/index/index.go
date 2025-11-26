@@ -1790,7 +1790,7 @@ var camliTypeMIMEPrefixBytes = []byte(camliTypeMIMEPrefix)
 // "application/json; camliType=file" => "file"
 // "image/gif" => ""
 func camliTypeFromMIME(mime string) schema.CamliType {
-	if v := strings.TrimPrefix(mime, camliTypeMIMEPrefix); v != mime {
+	if v, ok := strings.CutPrefix(mime, camliTypeMIMEPrefix); ok {
 		return schema.CamliType(v)
 	}
 	return ""
