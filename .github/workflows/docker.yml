@@ -2,8 +2,9 @@ name: Docker
 
 on:
   push:
-    # push events will publish a new image, so only trigger on versioned tags.
+    # push events will publish a new image for a new version or for the latest commit.
     tags: ["v*"]
+    branches: ["master"]
   pull_request:
     # Run the workflow on pull_request events to ensure we can still build the image.
     # We only publish the image on push events (see if statements in steps below).
