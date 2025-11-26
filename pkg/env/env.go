@@ -19,6 +19,7 @@ package env // import "perkeep.org/pkg/env"
 
 import (
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -47,6 +48,30 @@ func IsDev() bool {
 func OnGCE() bool {
 	gceOnce.Do(detectGCE)
 	return isGCE
+}
+
+// InContainer reports whether it seems like we're running in a container.
+func InContainer() bool {
+	return inContainerLazy()
+}
+
+var inContainerLazy = sync.OnceValue(inContainer)
+
+func inContainer() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	// Only set if using docker's container runtime. Not guaranteed by
+	// documentation, but it's been in place for a long time.
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		// See https://github.com/cri-o/cri-o/issues/5461
+		return true
+	}
+	v, _ := strconv.ParseBool(os.Getenv("PK_IN_CONTAINER"))
+	return v
 }
 
 var (
