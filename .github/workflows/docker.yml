@@ -52,6 +52,11 @@ jobs:
           tags: |
             # exact git tag (e.g., v1.2.3)
             type=ref,event=tag
+            # for work on the main/master branch (we plan to move to "main" one
+            # day), push to docker tag "dev". We reserve the label "latest" to
+            # mean the latest stable release in the future.
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/master' && github.event_name == 'push' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
       - name: Build and push Docker image
         id: build-and-push
