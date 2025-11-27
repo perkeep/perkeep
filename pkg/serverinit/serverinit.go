@@ -746,12 +746,8 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		}
 	}
 
-	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_EXPVAR")); v {
-		hi.Handle("/debug/vars", expvarHandler{})
-	}
-	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
-		hi.Handle("/debug/pprof/", profileHandler{})
-	}
+	hi.Handle("/debug/vars", expvarHandler{})
+	hi.Handle("/debug/pprof/", profileHandler{})
 	hi.Handle("/debug/goroutines", auth.RequireAuth(http.HandlerFunc(dumpGoroutines), auth.OpRead))
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
 	hi.Handle("/debug/logs/", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
