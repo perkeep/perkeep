@@ -18,6 +18,7 @@ limitations under the License.
 package swarm // import "perkeep.org/pkg/importer/swarm"
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -26,7 +27,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,7 +57,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "2"
+	runCompleteVersion = "3"
 
 	// Permanode attributes on account node:
 	acctAttrUserId      = "foursquareUserId"
@@ -140,22 +141,37 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im          *imp
-	incremental bool // whether we've completed a run in the past
+	im                       *imp
+	ignoreCreatedAtBeforeSec int64 // checkItem.CreatedAt less than this are already imported
+	lastCompletedVersion     string
 
-	mu     sync.Mutex // guards anyErr
-	anyErr bool
+	mu            sync.Mutex // guards anyErr
+	anyErr        bool
+	highWaterItem *checkinItem // most recent checkin imported
 }
 
 func (r *run) token() string {
 	return r.RunContext.AccountNode().Attr(acctAttrAccessToken)
 }
 
+// attrLastFullImportMaxCreatedAtSec is the account attribute
+// where we store the max createdAt timestamp (in seconds since epoch)
+// of the max checkin item we saw, recorded only after a full successful
+// import.
+const attrLastFullImportMaxCreatedAtSec = "lastFullImportMaxCreatedAtSec"
+
 func (im *imp) Run(ctx *importer.RunContext) error {
 	r := &run{
-		RunContext:  ctx,
-		im:          im,
-		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		RunContext: ctx,
+		im:         im,
+
+		lastCompletedVersion: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion),
+	}
+
+	if v := ctx.AccountNode().Attr(attrLastFullImportMaxCreatedAtSec); v != "" {
+		if sec, err := strconv.ParseInt(v, 10, 64); err == nil {
+			r.ignoreCreatedAtBeforeSec = sec
+		}
 	}
 
 	if err := r.importCheckins(); err != nil {
@@ -164,10 +180,19 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 	r.mu.Lock()
 	anyErr := r.anyErr
+	highWaterItem := r.highWaterItem
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		var maxCreatedAtSec int64
+		if highWaterItem != nil {
+			maxCreatedAtSec = highWaterItem.CreatedAt
+		}
+
+		if err := r.AccountNode().SetAttrs(
+			importer.AcctAttrCompletedVersion, runCompleteVersion,
+			attrLastFullImportMaxCreatedAtSec, fmt.Sprint(maxCreatedAtSec),
+		); err != nil {
 			return err
 		}
 	}
@@ -215,20 +240,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	return fileRef.String()
 }
 
-type byCreatedAt []*checkinItem
-
-func (s byCreatedAt) Less(i, j int) bool {
-	return s[i].CreatedAt < s[j].CreatedAt
-}
-func (s byCreatedAt) Len() int {
-	return len(s)
-}
-func (s byCreatedAt) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func (r *run) importCheckins() error {
-	limit := checkinsRequestLimit
 	offset := 0
 	continueRequests := true
 
@@ -238,39 +250,57 @@ func (r *run) importCheckins() error {
 		log.Printf("swarm: will skip importing photos via paid API")
 	}
 
+	checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
+	if err != nil {
+		return err
+	}
+
+	placesNode, err := r.getTopLevelNode("places", "Places")
+	if err != nil {
+		return err
+	}
+
+	pplNode, err := r.getTopLevelNode("people", "People")
+	if err != nil {
+		return err
+	}
+
 	var sawPaidErr bool
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(checkinsRequestLimit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
+		isFirstPage := offset == 0
 
-		itemcount := len(resp.Response.Checkins.Items)
-		log.Printf("swarm: importing %d checkins (offset %d)", itemcount, offset)
-		if itemcount < limit {
+		items := resp.Response.Checkins.Items
+		itemCount := len(items)
+		if itemCount < checkinsRequestLimit {
 			continueRequests = false
 		} else {
-			offset += itemcount
+			offset += itemCount
 		}
-
-		checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
-		if err != nil {
-			return err
+		if itemCount == 0 {
+			break
 		}
+		slices.SortFunc(items, func(a, b *checkinItem) int {
+			return cmp.Compare(b.CreatedAt, a.CreatedAt) // most recent first
+		})
+		log.Printf("swarm: importing %d checkins (offset %d, %v)", itemCount, offset, time.Unix(items[0].CreatedAt, 0).Format(time.RFC3339))
 
-		placesNode, err := r.getTopLevelNode("places", "Places")
-		if err != nil {
-			return err
-		}
-
-		pplNode, err := r.getTopLevelNode("people", "People")
-		if err != nil {
-			return err
-		}
-
-		sort.Sort(byCreatedAt(resp.Response.Checkins.Items))
 		sawOldItem := false
-		for _, checkin := range resp.Response.Checkins.Items {
+		sawNewItem := false
+		for i, checkin := range items {
+			if i == 0 && isFirstPage {
+				r.mu.Lock()
+				r.highWaterItem = checkin
+				r.mu.Unlock()
+			}
+			if checkin.CreatedAt < r.ignoreCreatedAtBeforeSec {
+				sawOldItem = true
+				continue
+			}
+
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
 				r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
@@ -291,6 +321,9 @@ func (r *run) importCheckins() error {
 
 			if dup {
 				sawOldItem = true
+				log.Printf("swarm: checkin %s from %v already imported; skipping", checkin.Id, time.Unix(checkin.CreatedAt, 0).Format(time.RFC3339))
+			} else {
+				sawNewItem = true
 			}
 
 			if r.RunContext.UsePaidAPI() && !sawPaidErr {
@@ -307,7 +340,8 @@ func (r *run) importCheckins() error {
 				}
 			}
 		}
-		if sawOldItem && r.incremental {
+		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion {
+			log.Printf("swarm: all checkins in this page are old; stopping import")
 			break
 		}
 	}
