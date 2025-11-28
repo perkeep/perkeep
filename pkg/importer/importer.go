@@ -1265,7 +1265,10 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "togglepaidapi":
+		ia.mu.Lock()
 		ia.usePaidAPI = r.FormValue("usePaidAPI") == "on"
+		// TODO(bradfitz,radkat): persist this to the account permanode
+		ia.mu.Unlock()
 	case "delete":
 		ia.stop() // can't hurt
 		if err := ia.delete(); err != nil {
