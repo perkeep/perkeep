@@ -25,6 +25,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -144,6 +145,7 @@ type run struct {
 	im                       *imp
 	ignoreCreatedAtBeforeSec int64 // checkItem.CreatedAt less than this are already imported
 	lastCompletedVersion     string
+	forceFullRun             bool
 
 	mu            sync.Mutex // guards anyErr
 	anyErr        bool
@@ -172,6 +174,9 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		if sec, err := strconv.ParseInt(v, 10, 64); err == nil {
 			r.ignoreCreatedAtBeforeSec = sec
 		}
+	}
+	if v, _ := strconv.ParseBool(os.Getenv("PK_IMPORTER_FORCE_FULL_RUN")); v {
+		r.forceFullRun = true
 	}
 
 	if err := r.importCheckins(); err != nil {
@@ -298,7 +303,9 @@ func (r *run) importCheckins() error {
 			}
 			if checkin.CreatedAt < r.ignoreCreatedAtBeforeSec {
 				sawOldItem = true
-				continue
+				if !r.forceFullRun {
+					continue
+				}
 			}
 
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
@@ -319,9 +326,10 @@ func (r *run) importCheckins() error {
 				continue
 			}
 
+			checkinTime := time.Unix(checkin.CreatedAt, 0)
 			if dup {
 				sawOldItem = true
-				log.Printf("swarm: checkin %s from %v already imported; skipping", checkin.Id, time.Unix(checkin.CreatedAt, 0).Format(time.RFC3339))
+				log.Printf("swarm: checkin %s from %v already imported; skipping", checkin.Id, checkinTime.Format(time.RFC3339))
 			} else {
 				sawNewItem = true
 			}
@@ -340,7 +348,7 @@ func (r *run) importCheckins() error {
 				}
 			}
 		}
-		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion {
+		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion && !r.forceFullRun {
 			log.Printf("swarm: all checkins in this page are old; stopping import")
 			break
 		}
@@ -356,7 +364,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	if err := photosNode.SetAttrs(
-		nodeattr.Title, "Photos of "+placeNode.Attr("title"),
+		nodeattr.Title, "Photos of "+placeNode.Attr(nodeattr.Title),
 		nodeattr.DefaultVisibility, "hide"); err != nil {
 		return err
 	}
