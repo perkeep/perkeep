@@ -157,6 +157,9 @@ func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
 				qt.t.Fatalf("unexpected candidateSource: got %v, want %v", pickedCandidate, qt.candidateSource)
 			}
 		})
+		qt.t.Cleanup(func() {
+			ExportSetCandidateSourceHook(nil)
+		})
 	}
 	res, err := qt.Handler().Query(ctxbg, req)
 	if err != nil {
