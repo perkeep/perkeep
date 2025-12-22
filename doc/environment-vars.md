@@ -145,7 +145,7 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : Disable use of djpeg(1) to down-sample JPEG images by a factor of 2, 4 or 8.
   Only has an effect when djpeg is found in the PATH.
 
-`CAMLI_DISABLE_THUMB_CACHE` (bool)
+`PK_DISABLE_THUMB_CACHE` (bool)
 : If true, no thumbnail caching is done, and URLs even have cache
   buster components, to force browsers to reload a lot.
 
