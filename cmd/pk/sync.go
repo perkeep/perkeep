@@ -92,6 +92,9 @@ func (c *syncCmd) Examples() []string {
 }
 
 func (c *syncCmd) RunCommand(args []string) error {
+	if len(args) != 0 {
+		return cmdmain.UsageError("pk sync does not take any positional arguments")
+	}
 	if c.loop && !c.removeSrc {
 		return cmdmain.UsageError("Can't use --loop without --removesrc")
 	}

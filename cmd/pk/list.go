@@ -33,7 +33,7 @@ import (
 )
 
 type listCmd struct {
-	*syncCmd
+	syncCmd *syncCmd
 
 	describe  bool           // whether to describe each blob.
 	camliType string         // filter by schema blob type
@@ -51,7 +51,7 @@ func init() {
 		}
 		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Perkeep client config's default host.")
 		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each schema blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
-		flags.StringVar(&cmd.camliType, "type", "", "Filter by schema blob type. Empty string means no filter. Implies -describe.")
+		flags.StringVar(&cmd.camliType, "type", "", "Filter by schema blob type. Empty string means no filter. Implies --describe.")
 		return cmd
 	})
 }
@@ -71,6 +71,9 @@ func (c *listCmd) Examples() []string {
 }
 
 func (c *listCmd) RunCommand(args []string) error {
+	if len(args) != 0 {
+		return cmdmain.UsageError("pk list does not take any positional arguments")
+	}
 	c.describe = c.describe || c.camliType != ""
 
 	if !c.describe {
