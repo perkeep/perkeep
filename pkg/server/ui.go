@@ -70,7 +70,7 @@ var (
 	openSansPattern    = regexp.MustCompile(`^opensans/(([^/]+)(/.*)?)$`)
 	keepyPattern       = regexp.MustCompile(`^keepy/(.+)$`)
 
-	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
+	disableThumbCache, _ = strconv.ParseBool(os.Getenv("PK_DISABLE_THUMB_CACHE"))
 
 	vendorEmbed = filepath.Join("clients", "web", "embed")
 )

@@ -19,6 +19,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
+	github.com/perkeep/heic v0.0.0-20251225204104-663dcd1d2c16
 	github.com/pkg/sftp v1.13.9
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
@@ -55,6 +56,7 @@ require (
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gaissmai/bart v0.18.0 // indirect
@@ -91,6 +93,7 @@ require (
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20250716170648-1d0488a3d7da // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
