@@ -44,6 +44,7 @@ import (
 	. "perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/types/ptr"
 )
 
 var ctxbg = context.Background()
@@ -229,6 +230,22 @@ func TestQueryBlobSize(t *testing.T) {
 				BlobSize: &IntConstraint{
 					Min: 4 << 10,
 					Max: 6 << 10,
+				},
+			},
+		}
+		qt.wantRes(sq, smallFileRef)
+	})
+}
+
+func TestIntConstraintEqual(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		const size = 1234
+		_, smallFileRef := qt.id.UploadFile("file.txt", strings.Repeat("x", size), time.Unix(1382073153, 0))
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				BlobSize: &IntConstraint{
+					Equals: ptr.To(int64(size)),
 				},
 			},
 		}

@@ -491,6 +491,8 @@ type IntConstraint struct {
 	Max     int64 `json:"max,omitempty"`
 	ZeroMin bool  `json:"zeroMin,omitempty"` // if true, min is actually zero
 	ZeroMax bool  `json:"zeroMax,omitempty"` // if true, max is actually zero
+
+	Equals *int64 `json:"equals,omitempty"` // if non-nil, value must equal this
 }
 
 func (c *IntConstraint) hasMin() bool { return c.Min != 0 || c.ZeroMin }
@@ -513,6 +515,9 @@ func (c *IntConstraint) checkValid() error {
 }
 
 func (c *IntConstraint) intMatches(v int64) bool {
+	if c.Equals != nil {
+		return v == *c.Equals
+	}
 	if c.hasMin() && v < c.Min {
 		return false
 	}
