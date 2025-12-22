@@ -181,28 +181,30 @@ func (ih *ImageHandler) scaledCached(ctx context.Context, buf *bytes.Buffer, fil
 	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
 	br, err := ih.ThumbMeta.Get(key)
 	if errors.Is(err, errCacheMiss) {
-		return
+		return ""
 	}
 	if err != nil {
 		log.Printf("Warning: thumbnail cachekey(%q)->meta lookup error: %v", key, err)
-		return
+		return ""
 	}
 	fr, err := ih.cached(ctx, br)
 	if err != nil {
 		if imageDebug {
 			log.Printf("Could not get cached image %v: %v\n", br, err)
 		}
-		return
+		return ""
 	}
 	defer fr.Close()
 	_, err = io.Copy(buf, fr)
 	if err != nil {
-		return
+		return ""
 	}
 	mime := magic.MIMEType(buf.Bytes())
-	if format = strings.TrimPrefix(mime, "image/"); format == mime {
+	format = strings.TrimPrefix(mime, "image/")
+
+	if format == mime {
 		log.Printf("Warning: unescaped MIME type %q of %v file for thumbnail %q", mime, br, key)
-		return
+		return ""
 	}
 	return format
 }
@@ -224,13 +226,10 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	tr := io.TeeReader(r, header)
 	// We just need width & height for memory considerations, so we use the
 	// standard library's DecodeConfig, skipping the EXIF parsing and
-	// orientation correction for images.DecodeConfig.
-	// image.DecodeConfig is able to deal with HEIC because we registered it
-	// in internal/images.
-	conf, format, err := image.DecodeConfig(tr)
-	if err == nil && format == "heic" {
-		err = images.ErrHEIC
-	}
+	// orientation correction for images.DecodeConfig. image.DecodeConfig is
+	// able to deal with HEIC because it's registered indirectly in
+	// internal/images via the gen2brain/heic (perkeep/heic) package.
+	conf, _, err := image.DecodeConfig(tr)
 	return io.MultiReader(header, r), conf, err
 }
 
@@ -265,14 +264,6 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
-	if errors.Is(err, images.ErrHEIC) {
-		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
-		if err != nil {
-			log.Printf("cannot convert with heiftojpeg: %v", err)
-			return nil, errors.New("error converting HEIC image to jpeg")
-		}
-		return &formatAndImage{format: "jpeg", image: jpegBytes}, nil
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +340,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	key := cacheKey(file.String(), mw, mh)
-	etag := blob.RefFromString(key).String()[5:]
+	_, etag, _ := strings.Cut(blob.RefFromString(key).String(), "-")
 	inm := req.Header.Get("If-None-Match")
 	if inm != "" {
 		if strings.Trim(inm, `"`) == etag {
@@ -389,10 +380,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		im := imi.(*formatAndImage)
 		imageData = im.image
 		format = im.format
+
 		if ih.ThumbMeta != nil {
 			err := ih.cacheScaled(ctx, imageData, key)
 			if err != nil {
-				log.Printf("image resize: %v", err)
+				log.Printf("image resize error: %v", err)
 			}
 		}
 	}
@@ -403,7 +395,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		h.Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		h.Set("Etag", strconv.Quote(etag))
 	}
-	h.Set("Content-Type", imageContentTypeOfFormat(format))
+	h.Set("Content-Type", magic.MIMEType(imageData))
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))
 	imageBytesServedVar.Add(int64(size))
@@ -425,11 +417,4 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			return
 		}
 	}
-}
-
-func imageContentTypeOfFormat(format string) string {
-	if format == "jpeg" {
-		return "image/jpeg"
-	}
-	return "image/png"
 }
