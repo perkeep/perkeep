@@ -133,11 +133,15 @@ func (q *SearchQuery) URLSuffix() string { return "camli/search/query" }
 
 func (q *SearchQuery) FromHTTP(req *http.Request) error {
 	dec := json.NewDecoder(io.LimitReader(req.Body, 1<<20))
+	dec.DisallowUnknownFields()
 	return dec.Decode(q)
 }
 
 // exprQuery optionally specifies the *SearchQuery prototype that was generated
-// by parsing the search expression
+// by parsing the search expression.
+//
+// If expr is non-nil, then its Contraint/Sort/Limit are used instead of q's in
+// the cloned result.
 func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 	pq := new(SearchQuery)
 	*pq = *q
@@ -233,7 +237,12 @@ func (q *SearchQuery) addContinueConstraint() error {
 	return errors.New("token not valid for query type")
 }
 
-func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err error) {
+// checkValid checks the validity of the SearchQuery.
+//
+// If q is for an expression, it returns the compiled SearchQuery with a
+// Constraint populated. If q is already a Constraint-based query, it nil and
+// whether it's valid.
+func (q *SearchQuery) checkValid(ctx context.Context) (maybeConstraintQuery *SearchQuery, err error) {
 	if q.Sort >= maxSortType || q.Sort < 0 {
 		return nil, errors.New("invalid sort type")
 	}
@@ -247,10 +256,10 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 		return nil, errors.New("Constraint and Expression are mutually exclusive in a search query")
 	}
 	if q.Constraint != nil {
-		return sq, q.Constraint.checkValid()
+		return nil, q.Constraint.checkValid()
 	}
 	expr := q.Expression
-	sq, err = parseExpression(ctx, expr)
+	sq, err := parseExpression(ctx, expr)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing search expression %q: %w", expr, err)
 	}
@@ -1399,8 +1408,8 @@ type candidateSource struct {
 	name   string
 	sorted bool
 
-	// sends sends to the channel and must close it, regardless of error
-	// or interruption from context.Done().
+	// send calls the func for each matched blob, stopping early if the func
+	// returns false or interruption from context.Done().
 	send func(context.Context, *search, func(camtypes.BlobMeta) bool) error
 }
 
