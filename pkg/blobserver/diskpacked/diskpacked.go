@@ -124,6 +124,7 @@ func IsDir(dir string) (bool, error) {
 func New(dir string) (blobserver.Storage, error) {
 	var maxSize int64
 	if dh, err := os.Open(dir); err == nil {
+		defer dh.Close()
 		var nBlobFiles, atMax int
 		if fis, err := dh.Readdir(-1); err == nil {
 			// Detect existing max size from size of files, if obvious, and set maxSize to that

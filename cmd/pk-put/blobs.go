@@ -88,6 +88,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 			return cmdmain.UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
+	defer up.Close() // release resources when done; let Windows tests clean up temp dirs
 
 	var (
 		handle    *client.UploadHandle
