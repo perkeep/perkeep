@@ -22,28 +22,23 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/gif"
 	"image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
-
-	_ "image/gif"
-	_ "image/png"
-
-	"perkeep.org/internal/images/fastjpeg"
-	"perkeep.org/internal/images/resize"
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
 	"go4.org/media/heif"
 	"go4.org/readerutil"
-	"go4.org/syncutil"
+	"perkeep.org/internal/images/fastjpeg"
+	"perkeep.org/internal/images/resize"
+
+	_ "github.com/perkeep/heic" // register heic format
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
 	// so we don't mess up the import order again.
@@ -54,20 +49,7 @@ import (
 	_ "golang.org/x/image/tiff"
 )
 
-var ErrHEIC = errors.New("HEIC decoding not implemented yet")
-
-func init() {
-	image.RegisterFormat("heic",
-		"????ftypheic",
-		func(io.Reader) (image.Image, error) {
-			return nil, ErrHEIC
-		},
-		func(r io.Reader) (image.Config, error) {
-			return decodeHEIFConfig(readerutil.NewBufferingReaderAt(io.LimitReader(r, 8<<20)))
-		})
-}
-
-var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
+var disableThumbCache, _ = strconv.ParseBool(os.Getenv("PK_DISABLE_THUMB_CACHE"))
 
 // thumbnailVersion should be incremented whenever we want to
 // invalidate the cache of previous thumbnails on the server's
@@ -415,7 +397,13 @@ func DecodeConfig(r io.Reader) (Config, error) {
 			return c, err
 		}
 		c.HEICEXIF = exifBytes
-		mr = bytes.NewReader(exifBytes)
+
+		// As of Perkeep's 2025-12-24 switch to using libheif (via
+		// gen2brain/heic), the image.DecodeConfig above already took care of
+		// reading the dimensions after transformations/orientation, so we don't
+		// need to do it below. But we still return the HEICEXIF data for the
+		// index layer to get out times and Lat/Long and such.
+		return c, nil
 	}
 
 	ex, err := exif.Decode(mr)
@@ -441,6 +429,7 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	// those are the orientations that require
 	// a rotation of ±90
 	case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
+		log.Printf("XXX EXIF orientation %d requires ±90° rotation; swapping dimensions", orient)
 		c.Width, c.Height = c.Height, c.Width
 	}
 	return c, nil
@@ -614,124 +603,4 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	c.Format = format
 	c.setBounds(im)
 	return im, c, nil
-}
-
-// Dimensions is the desired max width and height of an image.
-type Dimensions struct {
-	MaxWidth  int
-	MaxHeight int
-}
-
-var convertGate = syncutil.NewGate(10) // bounds number of HEIF to JPEG subprocesses
-
-var magickHasHEIC struct {
-	sync.Mutex
-	checked bool
-	heic    bool
-}
-
-// localImageMagick returns the path to the local ImageMagick "magick" binary,
-// if it's new enough. Otherwise it returns the empty string.
-func localImageMagick() string {
-	bin, err := exec.LookPath("magick")
-	if err != nil {
-		return ""
-	}
-	magickHasHEIC.Lock()
-	defer magickHasHEIC.Unlock()
-	if magickHasHEIC.checked {
-		if magickHasHEIC.heic {
-			return bin
-		}
-		return ""
-	}
-	magickHasHEIC.checked = true
-	out, err := exec.Command(bin, "-version").CombinedOutput()
-	if err != nil {
-		log.Printf("internal/images: error checking local machine's imagemagick version: %v, %s", err, out)
-		return ""
-	}
-	if strings.Contains(string(out), " heic") {
-		magickHasHEIC.heic = true
-		return bin
-	}
-	return ""
-}
-
-type NoHEICTOJPEGError struct {
-	error
-}
-
-// HEIFToJPEG converts the HEIF file in fr to JPEG. It optionally resizes it
-// to the given maxSize argument, if any. It returns the contents of the JPEG file.
-func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
-	convertGate.Start()
-	defer convertGate.Done()
-	useDocker := false
-	bin := localImageMagick()
-	if bin == "" {
-		if err := setUpThumbnailContainer(); err != nil {
-			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %w. Install a modern ImageMagick or install docker.", err)}
-		}
-		bin = "docker"
-		useDocker = true
-	}
-
-	outDir, err := os.MkdirTemp("", "perkeep-heif")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(outDir)
-	inFile := filepath.Join(outDir, "input.heic")
-	outFile := filepath.Join(outDir, "output.jpg")
-
-	// first create the input file in tmp as heiftojpeg cannot take a piped stdin
-	f, err := os.Create(inFile)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := io.Copy(f, fr); err != nil {
-		f.Close()
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, err
-	}
-
-	// now actually run ImageMagick
-	var args []string
-	outFileArg := outFile
-	if useDocker {
-		args = append(args, "run",
-			"--rm",
-			"-v", outDir+":/out/",
-			thumbnailImage,
-			"/usr/local/bin/magick",
-		)
-		inFile = "/out/input.heic"
-		outFileArg = "/out/output.jpg"
-	}
-	args = append(args, "convert")
-	if maxSize != nil {
-		args = append(args, "-thumbnail", fmt.Sprintf("%dx%d", maxSize.MaxWidth, maxSize.MaxHeight))
-	}
-	args = append(args, inFile, "-colorspace", "RGB", "-auto-orient", outFileArg)
-
-	cmd := exec.Command(bin, args...)
-	t0 := time.Now()
-	if debug {
-		log.Printf("internal/images: running imagemagick heic conversion: %q %q", bin, args)
-	}
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if err = cmd.Run(); err != nil {
-		if debug {
-			log.Printf("internal/images: error running imagemagick heic conversion: %s", buf.Bytes())
-		}
-		return nil, fmt.Errorf("error running imagemagick: %w, %s", err, buf.Bytes())
-	}
-	if debug {
-		log.Printf("internal/images: ran imagemagick heic conversion in %v", time.Since(t0))
-	}
-	return os.ReadFile(outFile)
 }
