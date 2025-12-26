@@ -38,7 +38,6 @@ type testCmd struct {
 	short     bool
 	race      bool
 	run       string
-	sqlite    bool
 }
 
 func init() {
@@ -49,7 +48,6 @@ func init() {
 		flags.BoolVar(&cmd.precommit, "precommit", true, "Run the pre-commit githook as part of tests.")
 		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
 		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
-		flags.BoolVar(&cmd.sqlite, "sqlite", true, "Run tests with SQLite built-in where relevant.")
 		return cmd
 	})
 }
@@ -122,11 +120,7 @@ func (c *testCmd) buildSelf() error {
 
 func (c *testCmd) runTests(args []string) error {
 	targs := []string{"test"}
-	if c.sqlite {
-		targs = append(targs, "--tags=with_sqlite fake_android libsqlite3")
-	} else {
-		targs = append(targs, "--tags=fake_android")
-	}
+	targs = append(targs, "--tags=fake_android")
 	if c.short {
 		targs = append(targs, "-short")
 	}

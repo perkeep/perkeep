@@ -458,7 +458,7 @@ func benchmarkKillReindex(b *testing.B, killTimeFactor int, dbfile string,
 	sortedProvider func(dbfile string) (sorted.KeyValue, error)) {
 	cmd := exec.Command("go", "test", "-c")
 	if strings.HasSuffix(dbfile, "sqlite.db") {
-		cmd = exec.Command("go", "test", "--tags", "with_sqlite", "-c")
+		cmd = exec.Command("go", "test", "-c")
 	}
 	if err := cmd.Run(); err != nil {
 		b.Fatal(err)
