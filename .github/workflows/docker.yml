@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: linux-16cpu
+    runs-on: ${{ startsWith(github.ref, 'refs/tags/') && 'linux-16cpu' || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
