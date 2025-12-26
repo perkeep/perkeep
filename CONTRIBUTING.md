@@ -24,7 +24,7 @@ hack from a Perkeep release's zip file:
 
 On Debian/Ubuntu, some deps to get started:
 
-    $ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
+    $ sudo apt-get install pkg-config git
 
 During development, rather than using the main binaries ("pk", "pk-put",
 "pk-get", "pk-mount", etc) directly, we instead use a wrapper (devcam)
