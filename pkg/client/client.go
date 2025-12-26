@@ -434,7 +434,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	if m == nil {
 		return nil, blob.Ref{}, fmt.Errorf("Unknown share URL base")
 	}
-	c, err = New(append(opts[:len(opts):cap(opts)], OptionServer(m[1]))...)
+	c, err = New(append(slices.Clone(opts), OptionServer(m[1]))...)
 	if err != nil {
 		return nil, blob.Ref{}, err
 	}
