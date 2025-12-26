@@ -87,6 +87,7 @@ import (
 	"go4.org/wkfs"
 
 	"golang.org/x/crypto/acme/autocert"
+	_ "golang.org/x/crypto/x509roots/fallback"
 )
 
 var (
