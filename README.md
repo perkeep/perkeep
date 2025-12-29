@@ -22,3 +22,4 @@
 
 [![Linux Test Status](https://github.com/perkeep/perkeep/workflows/tests/linux/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/linux)
 [![Windows Test Status](https://github.com/perkeep/perkeep/workflows/tests/windows/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/windows)
+
