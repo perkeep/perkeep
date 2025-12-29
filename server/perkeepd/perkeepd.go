@@ -87,6 +87,7 @@ import (
 	"go4.org/wkfs"
 
 	"golang.org/x/crypto/acme/autocert"
+	_ "golang.org/x/crypto/x509roots/fallback"
 )
 
 var (
@@ -112,7 +113,7 @@ func init() {
 	}
 }
 
-func exitf(pattern string, args ...interface{}) {
+func exitf(pattern string, args ...any) {
 	if !strings.HasSuffix(pattern, "\n") {
 		pattern = pattern + "\n"
 	}
@@ -319,14 +320,14 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 	} else {
 		hostname, err := certHostname(listen, baseURL)
 		if err != nil {
-			return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
+			return "", fmt.Errorf("Bad baseURL or listen address: %w", err)
 		}
 		setupTLS(ws, config, hostname)
 	}
 
 	err = ws.Listen(listen)
 	if err != nil {
-		return "", fmt.Errorf("Listen: %v", err)
+		return "", fmt.Errorf("Listen: %w", err)
 	}
 	if baseURL == "" {
 		baseURL = ws.ListenURL()
@@ -343,7 +344,7 @@ func certHostname(listen, baseURL string) (string, error) {
 	}
 	hostname, _, err := net.SplitHostPort(hostPort)
 	if err != nil {
-		return "", fmt.Errorf("failed to find hostname for cert from address %q (baseURL %q): %v", hostPort, baseURL, err)
+		return "", fmt.Errorf("failed to find hostname for cert from address %q (baseURL %q): %w", hostPort, baseURL, err)
 	}
 	return hostname, nil
 }
@@ -365,7 +366,7 @@ func checkGeoKey() error {
 	}
 	keyPath, err := geocode.GetAPIKeyPath()
 	if err != nil {
-		return fmt.Errorf("error getting Geocoding API key path: %v", err)
+		return fmt.Errorf("error getting Geocoding API key path: %w", err)
 	}
 	if env.OnGCE() {
 		keyPath = strings.TrimPrefix(keyPath, "/gcs/")

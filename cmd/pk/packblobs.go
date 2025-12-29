@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -72,7 +73,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 	cl := newClient(c.server)
 	looseClient, err := cl.NewPathClient("/bs-loose/")
 	if err != nil {
-		return fmt.Errorf("NewPathClient: %v", err)
+		return fmt.Errorf("NewPathClient: %w", err)
 	}
 
 	res, err := cl.Query(ctxbg, req)
@@ -86,7 +87,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 		n++
 		fileRef := sr.Blob
 		rc, _, err := looseClient.Fetch(ctxbg, fileRef)
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("%d/%d: %v already done\n", n, total, fileRef)
 			continue
 		}

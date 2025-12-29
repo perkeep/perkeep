@@ -65,7 +65,7 @@ func checkSystemRequirements() error {
 func getRepoRoot(target string) (string, error) {
 	dir, err := filepath.Abs(filepath.Dir(target))
 	if err != nil {
-		return "", fmt.Errorf("Could not get working directory: %v", err)
+		return "", fmt.Errorf("Could not get working directory: %w", err)
 	}
 	for ; dir != "" && filepath.Base(dir) != "camlistore.org"; dir = filepath.Dir(dir) {
 	}
@@ -80,21 +80,21 @@ func writeDeps(baseJS, targetDir string) (string, error) {
 	closureBaseDir := filepath.Dir(baseJS)
 	depPrefix, err := filepath.Rel(closureBaseDir, targetDir)
 	if err != nil {
-		return "", fmt.Errorf("Could not compute relative path from %q to %q: %v", baseJS, targetDir, err)
+		return "", fmt.Errorf("Could not compute relative path from %q to %q: %w", baseJS, targetDir, err)
 	}
 
 	depPrefix += string(os.PathSeparator)
 	b, err := closure.GenDepsWithPath(depPrefix, http.Dir(targetDir))
 	if err != nil {
-		return "", fmt.Errorf("GenDepsWithPath failed: %v", err)
+		return "", fmt.Errorf("GenDepsWithPath failed: %w", err)
 	}
 	depsFile, err := os.CreateTemp("", "camlistore_closure_test_runner")
 	if err != nil {
-		return "", fmt.Errorf("Could not create temp js deps file: %v", err)
+		return "", fmt.Errorf("Could not create temp js deps file: %w", err)
 	}
 	err = os.WriteFile(depsFile.Name(), b, 0644)
 	if err != nil {
-		return "", fmt.Errorf("Could not write js deps file: %v", err)
+		return "", fmt.Errorf("Could not write js deps file: %w", err)
 	}
 	return depsFile.Name(), nil
 }

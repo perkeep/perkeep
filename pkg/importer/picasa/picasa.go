@@ -148,7 +148,7 @@ func (im imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := im.auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %w", err))
 		return
 	}
 
@@ -165,7 +165,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		log.Printf("importer/picasa: token exchange error: %v", err)
-		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %w", err))
 		return
 	}
 
@@ -175,7 +175,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	userInfo, err := im.getUserInfo(picagoCtx)
 	if err != nil {
 		log.Printf("Couldn't get username: %v", err)
-		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("can't get username: %w", err))
 		return
 	}
 
@@ -184,7 +184,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		importer.AcctAttrName, userInfo.Name,
 		acctAttrOAuthToken, encodeToken(token),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -321,7 +321,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 func (r *run) importAlbums(ctx context.Context) error {
 	albums, err := picago.GetAlbums(ctxutil.Client(ctx), "default")
 	if err != nil {
-		return fmt.Errorf("importAlbums: error listing albums: %v", err)
+		return fmt.Errorf("importAlbums: error listing albums: %w", err)
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
 	if err != nil {
@@ -334,7 +334,7 @@ func (r *run) importAlbums(ctx context.Context) error {
 		default:
 		}
 		if err := r.importAlbum(ctx, albumsNode, album); err != nil {
-			return fmt.Errorf("picasa importer: error importing album %s: %v", album, err)
+			return fmt.Errorf("picasa importer: error importing album %s: %w", album, err)
 		}
 	}
 	return nil
@@ -346,7 +346,7 @@ func (r *run) importAlbum(ctx context.Context, albumsNode *importer.Object, albu
 	}
 	albumNode, err := albumsNode.ChildPathObject(album.ID)
 	if err != nil {
-		return fmt.Errorf("importAlbum: error listing album: %v", err)
+		return fmt.Errorf("importAlbum: error listing album: %w", err)
 	}
 
 	dateMod := schema.RFC3339FromTime(album.Updated)
@@ -363,7 +363,7 @@ func (r *run) importAlbum(ctx context.Context, albumsNode *importer.Object, albu
 		nodeattr.URL, album.URL,
 	)
 	if err != nil {
-		return fmt.Errorf("error setting album attributes: %v", err)
+		return fmt.Errorf("error setting album attributes: %w", err)
 	}
 	if !changes && r.incremental && albumNode.Attr(nodeattr.DateModified) == dateMod {
 		return nil
@@ -416,7 +416,7 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 		log.Printf("Importing media from %v", photo.URL)
 		resp, err := ctxutil.Client(ctx).Get(photo.URL)
 		if err != nil {
-			return nil, fmt.Errorf("importing photo %s: %v", photo.ID, err)
+			return nil, fmt.Errorf("importing photo %s: %w", photo.ID, err)
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()

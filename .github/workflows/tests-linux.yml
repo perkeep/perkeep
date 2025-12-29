@@ -6,25 +6,19 @@ on:
     # all PRs on all branches
 name: "tests/linux"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    strategy:
-      matrix:
-        go-version: [1.24.x]
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+    runs-on: linux-16cpu
 
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
-
-    - uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-
+        go-version-file: go.mod
 
     - name: Install fuse
       run: sudo apt-get install --yes fuse3

@@ -20,11 +20,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -101,7 +104,7 @@ type DescribeRequest struct {
 	BlobRefs []blob.Ref `json:"blobrefs,omitempty"`
 
 	// BlobRef is the blob to describe.
-	BlobRef blob.Ref `json:"blobref,omitempty"`
+	BlobRef blob.Ref `json:"blobref"`
 
 	// Depth is the optional traversal depth to describe from the
 	// root BlobRef. If zero, a default is used.
@@ -193,12 +196,7 @@ func (dr *DescribeRequest) blobInitiallyRequested(br blob.Ref) bool {
 	if dr.BlobRef.Valid() && dr.BlobRef == br {
 		return true
 	}
-	for _, br1 := range dr.BlobRefs {
-		if br == br1 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(dr.BlobRefs, br)
 }
 
 type DescribeRule struct {
@@ -573,12 +571,10 @@ func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
 	defer dr.mu.Unlock()
 	for k, err := range dr.errs {
 		// TODO: include all?
-		return nil, fmt.Errorf("error populating %s: %v", k, err)
+		return nil, fmt.Errorf("error populating %s: %w", k, err)
 	}
 	m := make(map[string]*DescribedBlob)
-	for k, desb := range dr.m {
-		m[k] = desb
-	}
+	maps.Copy(m, dr.m)
 	return m, nil
 }
 
@@ -628,13 +624,11 @@ func (dr *DescribeRequest) StartDescribe(ctx context.Context, br blob.Ref, depth
 		return
 	}
 	dr.started[key] = true
-	dr.wg.Add(1)
-	go func() {
-		defer dr.wg.Done()
+	dr.wg.Go(func() {
 		desBlobMu.Lock()
 		defer desBlobMu.Unlock()
 		dr.doDescribe(ctx, br, depth)
-	}()
+	})
 }
 
 // requires dr.mu be held.
@@ -738,7 +732,7 @@ func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 
 func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth int) {
 	meta, err := dr.sh.index.GetBlobMeta(ctx, br)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 	if err != nil {
@@ -766,7 +760,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.lh.PermanodeLocation(ctx, br, at, dr.sh.owner); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("PermanodeLocation(permanode %s): %v", br, err)
 			}
 		}
@@ -797,7 +791,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if loc, err := dr.sh.index.GetFileLocation(ctx, br); err == nil {
 			des.Location = &loc
 		} else {
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				log.Printf("index.GetFileLocation(file %s): %v", br, err)
 			}
 		}
@@ -830,7 +824,7 @@ func (dr *DescribeRequest) populatePermanodeFields(ctx context.Context, pi *Desc
 	claims, err := dr.sh.index.AppendClaims(ctx, nil, pn, dr.sh.owner.KeyID(), "")
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
+		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %w", pn.String(), err))
 		return
 	}
 
@@ -918,7 +912,7 @@ func (dr *DescribeRequest) describeRefs(ctx context.Context, str string, depth i
 }
 
 func (b *DescribedBlob) setMIMEType(mime string) {
-	if strings.HasPrefix(mime, camliTypePrefix) {
-		b.CamliType = schema.CamliType(strings.TrimPrefix(mime, camliTypePrefix))
+	if after0, ok := strings.CutPrefix(mime, camliTypePrefix); ok {
+		b.CamliType = schema.CamliType(after0)
 	}
 }

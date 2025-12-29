@@ -29,8 +29,8 @@ func benchRescale(b *testing.B, w, h, thumbW, thumbH int) {
 	if !needRescale {
 		b.Fatal("opts.rescaleDimensions failed to indicate image needs rescale")
 	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = rescale(im, sw, sh)
 	}
 }

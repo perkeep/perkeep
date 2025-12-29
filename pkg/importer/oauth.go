@@ -173,7 +173,7 @@ func (octx OAuthContext) do(method string, url string, form url.Values) (*http.R
 		res, err = octx.Client.Get(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error fetching %s: %v", url, err)
+		return nil, fmt.Errorf("error fetching %s: %w", url, err)
 	}
 	if res.StatusCode != http.StatusOK {
 		return res, fmt.Errorf("%s request on %s failed with: %s", method, url, res.Status)
@@ -191,7 +191,7 @@ func (octx OAuthContext) POST(url string, form url.Values) (*http.Response, erro
 
 // PopulateJSONFromURL makes a POST or GET call at apiURL, using keyval as parameters of
 // the associated form. The JSON response is decoded into result.
-func (octx OAuthContext) PopulateJSONFromURL(result interface{}, method string, apiURL string, keyval ...string) error {
+func (octx OAuthContext) PopulateJSONFromURL(result any, method string, apiURL string, keyval ...string) error {
 	if method != http.MethodGet && method != http.MethodPost {
 		return fmt.Errorf("only HTTP Get or Post supported: found %v", method)
 	}
@@ -208,7 +208,7 @@ func (octx OAuthContext) PopulateJSONFromURL(result interface{}, method string, 
 	}
 	err = httputil.DecodeJSON(hres, result)
 	if err != nil {
-		return fmt.Errorf("could not parse response for %s: %v", apiURL, err)
+		return fmt.Errorf("could not parse response for %s: %w", apiURL, err)
 	}
 	return err
 }

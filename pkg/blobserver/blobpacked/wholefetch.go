@@ -83,13 +83,13 @@ func (s *storage) OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadClose
 		}
 		if err := conv.ParseFields(k[len(startKey)+len(":"):], &zp.idx); err != nil {
 			it.Close()
-			return nil, 0, fmt.Errorf("blobpacked: error parsing meta key %q: %v", k, err)
+			return nil, 0, fmt.Errorf("blobpacked: error parsing meta key %q: %w", k, err)
 		}
 		// "<zipchunk-blobref> <offset-in-zipchunk-blobref> <offset-in-whole_u64> <length_u32>"
 		var ignore uint64
 		if err := conv.ParseFields(it.ValueBytes(), &zp.zipRef, &zp.zipOff, &ignore, &zp.len); err != nil {
 			it.Close()
-			return nil, 0, fmt.Errorf("blobpacked: error parsing meta key %q = %q: %v", k, it.ValueBytes(), err)
+			return nil, 0, fmt.Errorf("blobpacked: error parsing meta key %q = %q: %w", k, it.ValueBytes(), err)
 		}
 		parts = append(parts, zp)
 	}
@@ -163,7 +163,7 @@ func (zr *wholeFromZips) Read(p []byte) (n int, err error) {
 		zr.cur.Close()
 		zr.cur = nil
 	}
-	if err == io.EOF && zr.remain > 0 {
+	if errors.Is(err, io.EOF) && zr.remain > 0 {
 		err = nil
 	} else if err == nil && zr.remain == 0 {
 		err = io.EOF
@@ -187,8 +187,8 @@ func (zr *wholeFromZips) initCur() {
 	zr.zp = zr.zp[1:]
 	rc, err := zr.src.SubFetch(zr.ctx, zp.zipRef, int64(zp.zipOff), int64(zp.len))
 	if err != nil {
-		if err == os.ErrNotExist {
-			err = fmt.Errorf("blobpacked: error opening next part of file: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			err = fmt.Errorf("blobpacked: error opening next part of file: %w", err)
 		}
 		zr.err = err
 		return

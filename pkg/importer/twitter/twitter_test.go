@@ -18,6 +18,7 @@ package twitter
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -69,9 +70,7 @@ func checkTweets(t *testing.T, rc *importer.RunContext, expectedPostGroups ...ma
 	// Merges groups, last wins
 	expectedPosts := map[string]string{}
 	for _, posts := range expectedPostGroups {
-		for k, v := range posts {
-			expectedPosts[k] = v
-		}
+		maps.Copy(expectedPosts, posts)
 	}
 
 	if len(childRefs) != len(expectedPosts) {

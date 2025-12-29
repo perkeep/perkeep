@@ -81,12 +81,12 @@ func (ce *CachingEntityFetcher) FetchEntity(fingerprint string) (*openpgp.Entity
 func (fe *FileEntityFetcher) FetchEntity(fingerprint string) (*openpgp.Entity, error) {
 	f, err := wkfs.Open(fe.File)
 	if err != nil {
-		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
+		return nil, fmt.Errorf("jsonsign: FetchEntity: %w", err)
 	}
 	defer f.Close()
 	el, err := readKeyRing(f)
 	if err != nil {
-		return nil, fmt.Errorf("jsonsign: readKeyRing of %q: %v", fe.File, err)
+		return nil, fmt.Errorf("jsonsign: readKeyRing of %q: %w", fe.File, err)
 	}
 	for _, e := range el {
 		pubk := &e.PrivateKey.PublicKey
@@ -140,7 +140,7 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		return "", errors.New(msg)
 	}
 
-	jmap := make(map[string]interface{})
+	jmap := make(map[string]any)
 	if err := json.Unmarshal([]byte(trimmedJSON), &jmap); err != nil {
 		return inputfail("json parse error")
 	}
@@ -185,7 +185,7 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		}
 		secring, err := wkfs.Open(sr.secretRingPath())
 		if err != nil {
-			return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
+			return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %w", sr.secretRingPath(), err)
 		}
 		secring.Close() // just opened to see if it's readable
 		entityFetcher = &FileEntityFetcher{File: file}

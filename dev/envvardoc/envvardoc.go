@@ -4,6 +4,7 @@ package main // import "perkeep.org/dev/envvardoc"
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -86,7 +87,7 @@ func (ec *envCollector) findEnvVars(path string, r io.Reader) error {
 	}
 
 	err := scanner.Err()
-	if err == bufio.ErrTooLong {
+	if errors.Is(err, bufio.ErrTooLong) {
 		// Happens only for unreasonably long lines.
 		// In our case the webui's embedded stuff.
 		return nil
@@ -181,7 +182,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	for _, dn := range strings.Split(*srcDirs, ",") {
+	for dn := range strings.SplitSeq(*srcDirs, ",") {
 		err := filepath.Walk(dn, ec.walk)
 		if err != nil {
 			log.Fatal(err)

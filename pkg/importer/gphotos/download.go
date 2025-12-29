@@ -22,6 +22,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -266,12 +267,7 @@ func (dl *downloader) openPhoto(ctx context.Context, photo photo) (io.ReadCloser
 // TODO: works for now since the Spaces for each file are still provided, but it
 // probably won't last. So this will have to be rethought.
 func inPhotoSpace(f *drive.File) bool {
-	for _, v := range f.Spaces {
-		if v == "photos" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.Spaces, "photos")
 }
 
 // fileAsPhoto returns a photo populated with the information found about f,
@@ -336,8 +332,8 @@ func (dl *downloader) rateLimit(ctx context.Context, f func() error) error {
 		if err == nil {
 			return nil
 		}
-		ge, ok := err.(*googleapi.Error)
-		if !ok || ge.Code != http.StatusForbidden {
+		var ge *googleapi.Error
+		if !errors.As(err, &ge) || ge.Code != http.StatusForbidden {
 			return err
 		}
 		if ge.Message == "" {

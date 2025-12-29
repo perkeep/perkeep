@@ -76,11 +76,11 @@ func NewKvHaveCache(gen string) *KvHaveCache {
 func maybeRunCompaction(dbname string, db *leveldb.DB) error {
 	val, err := db.GetProperty("leveldb.num-files-at-level0")
 	if err != nil {
-		return fmt.Errorf("could not get number of level-0 files of %v's LevelDB: %v", dbname, err)
+		return fmt.Errorf("could not get number of level-0 files of %v's LevelDB: %w", dbname, err)
 	}
 	nbFiles, err := strconv.Atoi(val)
 	if err != nil {
-		return fmt.Errorf("could not convert number of level-0 files to int: %v", err)
+		return fmt.Errorf("could not convert number of level-0 files to int: %w", err)
 	}
 	// Only force compaction if we're at the default trigger (4), see
 	// github.com/syndtr/goleveldb/leveldb/opt.DefaultCompactionL0Trigger
@@ -88,7 +88,7 @@ func maybeRunCompaction(dbname string, db *leveldb.DB) error {
 		return nil
 	}
 	if err := db.CompactRange(util.Range{Start: nil, Limit: nil}); err != nil {
-		return fmt.Errorf("could not run compaction on %v's LevelDB: %v", dbname, err)
+		return fmt.Errorf("could not run compaction on %v's LevelDB: %w", dbname, err)
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 	binBr, _ := br.MarshalBinary()
 	binVal, err := c.db.Get(binBr, nil)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			cachelog.Printf("have cache MISS on %v", br)
 			return
 		}
@@ -180,7 +180,7 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 	}
 	binVal, err := c.db.Get(binKey, nil)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
+		if errors.Is(err, leveldb.ErrNotFound) {
 			cachelog.Printf("stat cache MISS on %q", binKey)
 			return nil, errCacheMiss
 		}
@@ -188,7 +188,7 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 	}
 	val := &statCacheValue{}
 	if err = val.unmarshalBinary(binVal); err != nil {
-		return nil, fmt.Errorf("Bogus stat cached value for %q: %v", binKey, err)
+		return nil, fmt.Errorf("Bogus stat cached value for %q: %w", binKey, err)
 	}
 	fp := fileInfoToFingerprint(fi)
 	if val.Fingerprint != fp {
@@ -261,23 +261,23 @@ func (scv *statCacheValue) marshalBinary() ([]byte, error) {
 	buf := bytes.NewBuffer(data)
 	_, err := buf.WriteString(string(scv.Fingerprint))
 	if err != nil {
-		return nil, fmt.Errorf("Could not write fingerprint %v: %v", scv.Fingerprint, err)
+		return nil, fmt.Errorf("Could not write fingerprint %v: %w", scv.Fingerprint, err)
 	}
 	err = buf.WriteByte('|')
 	if err != nil {
-		return nil, fmt.Errorf("Could not write '|': %v", err)
+		return nil, fmt.Errorf("Could not write '|': %w", err)
 	}
 	err = binary.Write(buf, binary.BigEndian, int32(scv.Result.Size))
 	if err != nil {
-		return nil, fmt.Errorf("Could not write blob size %d: %v", scv.Result.Size, err)
+		return nil, fmt.Errorf("Could not write blob size %d: %w", scv.Result.Size, err)
 	}
 	err = buf.WriteByte('|')
 	if err != nil {
-		return nil, fmt.Errorf("Could not write '|': %v", err)
+		return nil, fmt.Errorf("Could not write '|': %w", err)
 	}
 	_, err = buf.Write(binBr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not write binary blobref %q: %v", binBr, err)
+		return nil, fmt.Errorf("Could not write binary blobref %q: %w", binBr, err)
 	}
 	return buf.Bytes(), nil
 }
@@ -301,11 +301,11 @@ func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 	var size int32
 	err := binary.Read(buf, binary.BigEndian, &size)
 	if err != nil {
-		return fmt.Errorf("Could not decode blob size from stat cache value part %q: %v", parts[1], err)
+		return fmt.Errorf("Could not decode blob size from stat cache value part %q: %w", parts[1], err)
 	}
 	br := new(blob.Ref)
 	if err := br.UnmarshalBinary(parts[2]); err != nil {
-		return fmt.Errorf("Could not unmarshalBinary for %q: %v", parts[2], err)
+		return fmt.Errorf("Could not unmarshalBinary for %q: %w", parts[2], err)
 	}
 
 	scv.Fingerprint = statFingerprint(fingerprint)
@@ -332,7 +332,7 @@ func escapeGen(gen string) string {
 	return url.QueryEscape(gen)
 }
 
-var cleanSysStat func(v interface{}) interface{}
+var cleanSysStat func(v any) any
 
 func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
 	// We calculate the CRC32 of the underlying system stat structure to get

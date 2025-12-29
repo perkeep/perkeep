@@ -33,7 +33,7 @@ import (
 )
 
 type listCmd struct {
-	*syncCmd
+	syncCmd *syncCmd
 
 	describe  bool           // whether to describe each blob.
 	camliType string         // filter by schema blob type
@@ -51,7 +51,7 @@ func init() {
 		}
 		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Perkeep client config's default host.")
 		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each schema blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
-		flags.StringVar(&cmd.camliType, "type", "", "Filter by schema blob type. Empty string means no filter. Implies -describe.")
+		flags.StringVar(&cmd.camliType, "type", "", "Filter by schema blob type. Empty string means no filter. Implies --describe.")
 		return cmd
 	})
 }
@@ -71,6 +71,9 @@ func (c *listCmd) Examples() []string {
 }
 
 func (c *listCmd) RunCommand(args []string) error {
+	if len(args) != 0 {
+		return cmdmain.UsageError("pk list does not take any positional arguments")
+	}
 	c.describe = c.describe || c.camliType != ""
 
 	if !c.describe {
@@ -81,7 +84,7 @@ func (c *listCmd) RunCommand(args []string) error {
 	defer func() { cmdmain.Stdout = stdout }()
 	pr, pw, err := os.Pipe()
 	if err != nil {
-		return fmt.Errorf("Could not create pipe to read from stdout: %v", err)
+		return fmt.Errorf("Could not create pipe to read from stdout: %w", err)
 	}
 	defer pr.Close()
 	cmdmain.Stdout = pw
@@ -110,7 +113,7 @@ func (c *listCmd) RunCommand(args []string) error {
 			Depth:    1,
 		})
 		if err != nil {
-			return fmt.Errorf("Error when describing blobs %v: %v", blobRefs, err)
+			return fmt.Errorf("Error when describing blobs %v: %w", blobRefs, err)
 		}
 		for _, v := range blobRefs {
 			blob, ok := described.Meta[v.String()]
@@ -147,7 +150,7 @@ func (c *listCmd) RunCommand(args []string) error {
 		return err
 	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("Error reading on pipe from stdout: %v", err)
+		return fmt.Errorf("Error reading on pipe from stdout: %w", err)
 	}
 	return nil
 }
@@ -156,7 +159,7 @@ func (c *listCmd) RunCommand(args []string) error {
 func (c *listCmd) setClient() error {
 	ss, err := c.syncCmd.storageFromParam("src", c.syncCmd.src)
 	if err != nil {
-		return fmt.Errorf("Could not set client for describe requests: %v", err)
+		return fmt.Errorf("Could not set client for describe requests: %w", err)
 	}
 	var ok bool
 	c.cl, ok = ss.(*client.Client)

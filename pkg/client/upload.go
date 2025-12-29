@@ -136,13 +136,13 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 
 // TODO(bradfitz): delete most of this. use new perkeep.org/pkg/blobserver/protocol types instead
 // of a map[string]interface{}.
-func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
+func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]any, error) {
 	if resp.StatusCode != 200 {
 		c.printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
 		return nil, fmt.Errorf("after %s request, HTTP response code is %d; no JSON to parse", requestName, resp.StatusCode)
 	}
-	jmap := make(map[string]interface{})
+	jmap := make(map[string]any)
 	if err := httputil.DecodeJSON(resp, &jmap); err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
 
 // Upload uploads a blob, as described by the provided UploadHandle parameters.
 func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error) {
-	errorf := func(msg string, arg ...interface{}) (*PutResult, error) {
+	errorf := func(msg string, arg ...any) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
 		c.printf("%v", err)
 		return nil, err
@@ -257,7 +257,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 
 	bodyReader, bodySize, err := h.readerAndSize()
 	if err != nil {
-		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
+		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %w", err)
 	}
 	if bodySize > constants.MaxBlobSize {
 		return nil, errors.New("client: body is bigger then max blob size")
@@ -491,7 +491,7 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
 	hasLegacySHA1, err := c.HasLegacySHA1()
 	if err != nil {
-		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %v", err)
+		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %w", err)
 	}
 	td := hashutil.NewTrackDigestReader(contents)
 	td.DoLegacySHA1 = hasLegacySHA1
@@ -522,12 +522,12 @@ func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Build
 	}
 	dupMap, err := c.FetchSchemaBlob(ctx, dupFileRef)
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
+		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %w", wholeRef, err)
 	}
 	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
 	json, err := fileMap.JSON()
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)
+		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %w", wholeRef, err)
 	}
 	bref := blob.RefFromString(json)
 	if bref == dupFileRef {

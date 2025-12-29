@@ -92,7 +92,7 @@ func (mo *mediaObject) MakeViewModel() MediaObjectVM {
 // the same number of MediaObjectVMs with the data converted.
 func MakeMediaObjectViewModels(mediaObjects []mediaObject) []MediaObjectVM {
 	models := make([]MediaObjectVM, len(mediaObjects))
-	for i := 0; i < len(mediaObjects); i++ {
+	for i := range mediaObjects {
 		models[i] = mediaObjects[i].MakeViewModel()
 	}
 	return models
@@ -210,7 +210,7 @@ func (doc *document) MakeViewModel() DocumentVM {
 // the same number of DocumentVMs with the data converted.
 func MakeDocumentViewModels(docs []*document) []DocumentVM {
 	models := make([]DocumentVM, len(docs))
-	for i := 0; i < len(docs); i++ {
+	for i := range docs {
 		models[i] = docs[i].MakeViewModel()
 	}
 	return models

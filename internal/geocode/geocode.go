@@ -81,7 +81,7 @@ var (
 func GetAPIKeyPath() (string, error) {
 	dir, err := osutil.PerkeepConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("could not get config dir: %v", err)
+		return "", fmt.Errorf("could not get config dir: %w", err)
 	}
 	return filepath.Join(dir, apiKeyName), nil
 }
@@ -138,7 +138,7 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 		return nil, err
 	}
 
-	rectsi, err := sf.Do(address, func() (interface{}, error) {
+	rectsi, err := sf.Do(address, func() (any, error) {
 		if key != "" {
 			return lookupGoogle(ctx, address, key)
 		} else {

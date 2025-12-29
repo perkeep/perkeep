@@ -73,7 +73,7 @@ func init() {
 	serverinit.SetNoMkdir(true)
 }
 
-func prettyPrint(t *testing.T, w io.Writer, v interface{}) {
+func prettyPrint(t *testing.T, w io.Writer, v any) {
 	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func configParser() *jsonconfig.ConfigParser {
 func replaceRingPath(path string) ([]byte, error) {
 	secRing, err := filepath.Abs(relativeRing)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
+		return nil, fmt.Errorf("Could not get absolute path of %v: %w", relativeRing, err)
 	}
 	secRing = strings.Replace(secRing, `\`, `\\`, -1)
 	slurpBytes, err := os.ReadFile(path)
@@ -222,7 +222,7 @@ func testConfig(name string, t *testing.T) {
 	compareConfigurations(t, name, lowLevelConf.Export_Obj(), wantConf)
 }
 
-func compareConfigurations(t *testing.T, name, g interface{}, w interface{}) {
+func compareConfigurations(t *testing.T, name, g any, w any) {
 	var got, want bytes.Buffer
 	prettyPrint(t, &got, g)
 	prettyPrint(t, &want, w)

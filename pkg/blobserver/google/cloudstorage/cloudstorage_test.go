@@ -19,6 +19,7 @@ package cloudstorage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"log"
@@ -134,7 +135,7 @@ func testStorage(t *testing.T, bucketDir string) {
 		New: func(t *testing.T) blobserver.Storage {
 			sto, err := newFromConfig(nil, jsonconfig.Obj{
 				"bucket": bucketWithDir,
-				"auth": map[string]interface{}{
+				"auth": map[string]any{
 					"client_id":     *clientID,
 					"client_secret": *clientSecret,
 					"refresh_token": refreshToken,
@@ -150,7 +151,7 @@ func testStorage(t *testing.T, bucketDir string) {
 			ctx := context.Background()
 			stor := sto.(*Storage)
 			it := stor.client.Bucket(stor.bucket).Objects(ctx, nil)
-			if _, err := it.Next(); err != iterator.Done {
+			if _, err := it.Next(); !errors.Is(err, iterator.Done) {
 				if err == nil {
 					t.Fatalf("Refusing to run test: bucket %v is not empty", *bucket)
 				}

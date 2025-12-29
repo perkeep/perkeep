@@ -37,6 +37,7 @@ package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -44,6 +45,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+
 	"perkeep.org/internal/lru"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -155,7 +157,7 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
 		return
 	}
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		log.Printf("warning: proxycache cache fetch error for %v: %v", b, err)
 	}
 	rc, size, err = sto.origin.Fetch(ctx, b)
@@ -180,7 +182,7 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 		if err == nil {
 			return rc, nil
 		}
-		if err != os.ErrNotExist && err != blob.ErrUnimplemented {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, blob.ErrUnimplemented) {
 			log.Printf("proxycache: error fetching from cache %T: %v", sto.cache, err)
 		}
 	}

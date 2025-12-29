@@ -18,6 +18,7 @@ package schema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -120,14 +121,14 @@ func TestMixedArrayFromString(t *testing.T) {
 	b80 := byte('\x80')
 	tests := []struct {
 		in   string
-		want []interface{}
+		want []any
 	}{
-		{"foo", []interface{}{"foo"}},
-		{"\x80foo", []interface{}{b80, "foo"}},
-		{"foo\x80foo", []interface{}{"foo", b80, "foo"}},
-		{"foo\x80", []interface{}{"foo", b80}},
-		{"\x80", []interface{}{b80}},
-		{"\x80\x80", []interface{}{b80, b80}},
+		{"foo", []any{"foo"}},
+		{"\x80foo", []any{b80, "foo"}},
+		{"foo\x80foo", []any{"foo", b80, "foo"}},
+		{"foo\x80", []any{"foo", b80}},
+		{"\x80", []any{b80}},
+		{"\x80\x80", []any{b80, b80}},
 	}
 	for _, tt := range tests {
 		got := mixedArrayFromString(tt.in)
@@ -149,7 +150,7 @@ func TestStringFromMixedArray(t *testing.T) {
 		{`["Am", 233, "lie.jpg"]`, "Am\xe9lie.jpg"},
 	}
 	for idx, test := range tests {
-		var v []interface{}
+		var v []any
 		if err := json.Unmarshal([]byte(test.json), &v); err != nil {
 			t.Fatalf("invalid JSON in test %d", idx)
 		}
@@ -603,7 +604,7 @@ func TestStaticFIFO(t *testing.T) {
 
 	fifoPath := filepath.Join(tdir, "fifo")
 	err := osutil.Mkfifo(fifoPath, 0660)
-	if err == osutil.ErrNotSupported {
+	if errors.Is(err, osutil.ErrNotSupported) {
 		t.SkipNow()
 	}
 	if err != nil {
@@ -636,7 +637,7 @@ func TestStaticSocket(t *testing.T) {
 
 	sockPath := filepath.Join(tdir, "socket")
 	err := osutil.Mksocket(sockPath)
-	if err == osutil.ErrNotSupported {
+	if errors.Is(err, osutil.ErrNotSupported) {
 		t.SkipNow()
 	}
 	if err != nil {

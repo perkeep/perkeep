@@ -196,7 +196,7 @@ func fetch(ctx context.Context, src blob.Fetcher, br blob.Ref) (r io.ReadCloser,
 	}
 	r, _, err = src.Fetch(ctx, br)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch %s: %s", br, err)
+		return nil, fmt.Errorf("Failed to fetch %s: %w", br, err)
 	}
 	return r, err
 }
@@ -230,7 +230,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		// opaque data - put it in a file
 		f, err := os.Create(targ)
 		if err != nil {
-			return fmt.Errorf("opaque: %v", err)
+			return fmt.Errorf("opaque: %w", err)
 		}
 		defer f.Close()
 		body, _ := sniffer.Body()
@@ -271,7 +271,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		members := b.StaticSetMembers()
 		workc := make(chan work, len(members))
 		defer close(workc)
-		for i := 0; i < numWorkers; i++ {
+		for range numWorkers {
 			go func() {
 				for wi := range workc {
 					wi.errc <- smartFetch(ctx, src, targ, wi.br)
@@ -294,7 +294,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 	case schema.TypeFile:
 		fr, err := schema.NewFileReader(ctx, src, br)
 		if err != nil {
-			return fmt.Errorf("NewFileReader: %v", err)
+			return fmt.Errorf("NewFileReader: %w", err)
 		}
 		fr.LoadAllChunks()
 		defer fr.Close()
@@ -314,11 +314,11 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 
 		f, err := os.Create(name)
 		if err != nil {
-			return fmt.Errorf("file type: %v", err)
+			return fmt.Errorf("file type: %w", err)
 		}
 		defer f.Close()
 		if _, err := io.Copy(f, fr); err != nil {
-			return fmt.Errorf("Copying %s to %s: %v", br, name, err)
+			return fmt.Errorf("Copying %s to %s: %w", br, name, err)
 		}
 		if err := setFileMeta(name, b); err != nil {
 			log.Print(err)
@@ -378,12 +378,12 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		}
 
 		err = osutil.Mkfifo(name, 0600)
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			log.Printf("Skipping FIFO %s: Unsupported filetype", name)
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("%s: osutil.Mkfifo(): %v", name, err)
+			return fmt.Errorf("%s: osutil.Mkfifo(): %w", name, err)
 		}
 
 		if err := setFileMeta(name, b); err != nil {
@@ -412,12 +412,12 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		}
 
 		err = osutil.Mksocket(name)
-		if err == osutil.ErrNotSupported {
+		if errors.Is(err, osutil.ErrNotSupported) {
 			log.Printf("Skipping socket %s: Unsupported filetype", name)
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("%s: %v", name, err)
+			return fmt.Errorf("%s: %w", name, err)
 		}
 
 		if err := setFileMeta(name, b); err != nil {

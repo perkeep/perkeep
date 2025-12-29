@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"strings"
 
-	"tailscale.com/client/tailscale"
+	"perkeep.org/pkg/webserver"
 )
 
 func newTailscaleAuth(arg string) (AuthMode, error) {
@@ -31,8 +31,7 @@ func newTailscaleAuth(arg string) (AuthMode, error) {
 		return &tailscaleAuth{any: true}, nil
 	}
 	if strings.Contains(arg, "@") {
-		lc := &tailscale.LocalClient{}
-		return &tailscaleAuth{lc: lc, anyForUser: arg}, nil
+		return &tailscaleAuth{anyForUser: arg}, nil
 	}
 	// TODO(bradfitz): use grants: https://tailscale.com/blog/acl-grants
 	return nil, errors.New("unknown tailscale auth mode")
@@ -41,11 +40,16 @@ func newTailscaleAuth(arg string) (AuthMode, error) {
 type tailscaleAuth struct {
 	any bool // whether all access is permitted to anybody in the tailnet
 
-	lc         *tailscale.LocalClient
 	anyForUser string // if non-empty, the user for whom any access is permitted
 }
 
 func (ta *tailscaleAuth) AllowedAccess(req *http.Request) Operation {
+
+	tsSrv := webserver.TSNetCtxKey.Value(req.Context())
+	if tsSrv == nil {
+		return 0
+	}
+
 	// AddAuthHeader inserts in req the credentials needed
 	// for a client to authenticate.
 	// TODO: eventially use req.RemoteAddr to talk to Tailscale LocalAPI WhoIs method
@@ -54,7 +58,12 @@ func (ta *tailscaleAuth) AllowedAccess(req *http.Request) Operation {
 		return OpAll
 	}
 	if ta.anyForUser != "" {
-		res, err := ta.lc.WhoIs(req.Context(), req.RemoteAddr)
+		lc, err := tsSrv.LocalClient()
+		if err != nil {
+			log.Printf("tailscale: LocalClient = %v", err)
+			return 0
+		}
+		res, err := lc.WhoIs(req.Context(), req.RemoteAddr)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				log.Printf("tailscale: WhoIs(%q) = %v", req.RemoteAddr, err)

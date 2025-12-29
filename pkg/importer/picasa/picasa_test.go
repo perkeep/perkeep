@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -168,9 +169,7 @@ func TestImportAlbums(t *testing.T) {
 	//t.Logf("fix:\n%#v", fixResponses)
 	fixAnd := func(ContErrors int) map[string]func() *http.Response {
 		resp := make(map[string]func() *http.Response, len(fixResponses)+1)
-		for k, v := range fixResponses {
-			resp[k] = v
-		}
+		maps.Copy(resp, fixResponses)
 		resp[URL] = (&testResponse{response: response, ContErrors: ContErrors}).GetResponse
 		return resp
 	}
@@ -208,7 +207,7 @@ func newSigner(bs blobserver.BlobReceiver) (signer *schema.Signer, owner blob.Re
 	}
 	pubRef := blob.RefFromString(armorPub)
 	if _, err := bs.ReceiveBlob(ctxbg, pubRef, strings.NewReader(armorPub)); err != nil {
-		return nil, owner, fmt.Errorf("could not store pub key blob: %v", err)
+		return nil, owner, fmt.Errorf("could not store pub key blob: %w", err)
 	}
 	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {

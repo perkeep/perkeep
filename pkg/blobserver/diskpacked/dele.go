@@ -65,7 +65,7 @@ func (s *storage) delete(br blob.Ref) error {
 	if space < 0 {
 		return fmt.Errorf("delete: cannot find space in header %q", b)
 	}
-	for i := 0; i < dash; i++ {
+	for i := range dash {
 		b[i] = 'x'
 	}
 	for i := dash + 1; i < dash+1+space; i++ {

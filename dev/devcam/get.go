@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -76,7 +77,7 @@ func (c *getCmd) RunCommand(args []string) error {
 	}
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk-get")); err != nil {
-			return fmt.Errorf("Could not build pk-get: %v", err)
+			return fmt.Errorf("Could not build pk-get: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -113,10 +114,5 @@ func (c *getCmd) checkFlags(args []string) error {
 
 func isSharedMode(args []string) bool {
 	sharedRgx := regexp.MustCompile("--?shared")
-	for _, v := range args {
-		if sharedRgx.MatchString(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(args, sharedRgx.MatchString)
 }

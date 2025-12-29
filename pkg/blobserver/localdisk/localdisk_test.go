@@ -18,6 +18,7 @@ package localdisk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -103,7 +104,7 @@ func TestMultiStat(t *testing.T) {
 	// maxParallelStats other dummy blobs, to exercise the stat
 	// rate-limiting (which had a deadlock once after a cleanup)
 	const maxParallelStats = 20
-	for i := 0; i < maxParallelStats; i++ {
+	for i := range maxParallelStats {
 		blobs = append(blobs, blob.RefFromString(strconv.Itoa(i)))
 	}
 
@@ -134,7 +135,7 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	foo := &test.Blob{Contents: "foo"}
 
 	blob, _, err := ds.Fetch(context.Background(), foo.BlobRef())
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected ErrNotExist; got %v", err)
 	}
 	if blob != nil {

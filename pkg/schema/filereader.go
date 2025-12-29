@@ -187,7 +187,7 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 		var n1 int
 		n1, err = io.ReadFull(rc, p)
 		rc.Close()
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			err = nil
 		}
 		if n1 == 0 {
@@ -280,7 +280,7 @@ func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (*superset, 
 		return root.getSuperset(ctx, br)
 	}
 	brStr := br.String()
-	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
+	ssi, err := fr.sfg.Do(brStr, func() (any, error) {
 		fr.ssmmu.Lock()
 		ss, ok := fr.ssm[br]
 		fr.ssmmu.Unlock()

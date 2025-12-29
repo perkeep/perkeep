@@ -72,17 +72,17 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 	for _, tableSQL := range SQLCreateTables() {
 		if _, err := db.Exec(tableSQL); err != nil {
-			return nil, fmt.Errorf("error creating table with %q: %v", tableSQL, err)
+			return nil, fmt.Errorf("error creating table with %q: %w", tableSQL, err)
 		}
 	}
 	for _, statement := range SQLDefineReplace() {
 		if _, err := db.Exec(statement); err != nil {
-			return nil, fmt.Errorf("error setting up replace statement with %q: %v", statement, err)
+			return nil, fmt.Errorf("error setting up replace statement with %q: %w", statement, err)
 		}
 	}
 	r, err := db.Query(fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, SchemaVersion()))
 	if err != nil {
-		return nil, fmt.Errorf("error setting schema version: %v", err)
+		return nil, fmt.Errorf("error setting schema version: %w", err)
 	}
 	r.Close()
 
@@ -96,11 +96,11 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		},
 	}
 	if err := kv.ping(); err != nil {
-		return nil, fmt.Errorf("PostgreSQL db unreachable: %v", err)
+		return nil, fmt.Errorf("PostgreSQL db unreachable: %w", err)
 	}
 	version, err := kv.SchemaVersion()
 	if err != nil {
-		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
+		return nil, fmt.Errorf("error getting schema version (need to init database?): %w", err)
 	}
 	if version != requiredSchemaVersion {
 		if env.IsDev() {
@@ -147,7 +147,7 @@ var replacePlaceHolders = func(query string) string {
 	i := 0
 	dollarInc := func(b []byte) []byte {
 		i++
-		return []byte(fmt.Sprintf("$%d", i))
+		return fmt.Appendf(nil, "$%d", i)
 	}
 	return string(qmark.ReplaceAllFunc([]byte(query), dollarInc))
 }

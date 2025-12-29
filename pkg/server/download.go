@@ -100,12 +100,12 @@ var errNotDir = errors.New("not a directory")
 func (dh *DownloadHandler) dirInfo(ctx context.Context, dir blob.Ref) (fi fileInfo, err error) {
 	rc, _, err := dh.Fetcher.Fetch(ctx, dir)
 	if err != nil {
-		return fi, fmt.Errorf("could not fetch %v: %v", dir, err)
+		return fi, fmt.Errorf("could not fetch %v: %w", dir, err)
 	}
 	b, err := schema.BlobFromReader(dir, rc)
 	rc.Close()
 	if err != nil {
-		return fi, fmt.Errorf("could not read %v as blob: %v", dir, err)
+		return fi, fmt.Errorf("could not read %v as blob: %w", dir, err)
 	}
 	tp := b.Type()
 	if tp != "directory" {
@@ -113,11 +113,11 @@ func (dh *DownloadHandler) dirInfo(ctx context.Context, dir blob.Ref) (fi fileIn
 	}
 	dr, err := schema.NewDirReader(ctx, dh.Fetcher, dir)
 	if err != nil {
-		return fi, fmt.Errorf("could not open %v as directory: %v", dir, err)
+		return fi, fmt.Errorf("could not open %v as directory: %w", dir, err)
 	}
 	children, err := dr.StaticSet(ctx)
 	if err != nil {
-		return fi, fmt.Errorf("could not get dir entries of %v: %v", dir, err)
+		return fi, fmt.Errorf("could not get dir entries of %v: %w", dir, err)
 	}
 	return fileInfo{
 		isDir:    true,
@@ -132,12 +132,12 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 	// TODO(mpl): should we let NewFileReader be ok with non-regular files? and fail later when e.g. trying to read?
 	rc, _, err := dh.Fetcher.Fetch(ctx, file)
 	if err != nil {
-		return fi, false, fmt.Errorf("could not fetch %v: %v", file, err)
+		return fi, false, fmt.Errorf("could not fetch %v: %w", file, err)
 	}
 	b, err := schema.BlobFromReader(file, rc)
 	rc.Close()
 	if err != nil {
-		return fi, false, fmt.Errorf("could not read %v as blob: %v", file, err)
+		return fi, false, fmt.Errorf("could not read %v as blob: %w", file, err)
 	}
 	tp := b.Type()
 	if tp != schema.TypeFile {
@@ -223,7 +223,7 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 
 	offset := int64(0)
 	rc, wholeSize, err := wf.OpenWholeRef(fi.WholeRef, offset)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return fileInfo{whyNot: "WholeRefFetcher returned ErrNotexist"}, false
 	}
 	if wholeSize != fi.Size {
@@ -345,7 +345,7 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 			text, err := isText(fi.rs)
 			if err != nil {
 				// TODO: https://perkeep.org/issues/1060
-				httputil.ServeError(w, r, fmt.Errorf("cannot verify MIME type of file: %v", err))
+				httputil.ServeError(w, r, fmt.Errorf("cannot verify MIME type of file: %w", err))
 				return
 			}
 			if text {
@@ -388,7 +388,7 @@ func isText(rs io.ReadSeeker) (ok bool, err error) {
 	}()
 	var buf bytes.Buffer
 	if _, err := io.CopyN(&buf, rs, 1e6); err != nil {
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			return false, err
 		}
 	}
@@ -438,12 +438,12 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 	for _, br := range fileRefs {
 		rc, _, err := dh.Fetcher.Fetch(ctx, br)
 		if err != nil {
-			return fmt.Errorf("could not fetch %v: %v", br, err)
+			return fmt.Errorf("could not fetch %v: %w", br, err)
 		}
 		b, err := schema.BlobFromReader(br, rc)
 		rc.Close()
 		if err != nil {
-			return fmt.Errorf("could not read %v as blob: %v", br, err)
+			return fmt.Errorf("could not read %v as blob: %w", br, err)
 		}
 		tp := b.Type()
 		if _, ok := allowedFileTypes[tp]; !ok && tp != schema.TypeDirectory {
@@ -452,11 +452,11 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 		if tp == schema.TypeDirectory {
 			dr, err := b.NewDirReader(ctx, dh.Fetcher)
 			if err != nil {
-				return fmt.Errorf("could not open %v as directory: %v", br, err)
+				return fmt.Errorf("could not open %v as directory: %w", br, err)
 			}
 			children, err := dr.StaticSet(ctx)
 			if err != nil {
-				return fmt.Errorf("could not get dir entries of %v: %v", br, err)
+				return fmt.Errorf("could not get dir entries of %v: %w", br, err)
 			}
 			if err := dh.checkFiles(ctx, filepath.Join(parentPath, b.FileName()), children); err != nil {
 				return err
@@ -471,12 +471,12 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 		}
 		fr, err := b.NewFileReader(dh.Fetcher)
 		if err != nil {
-			return fmt.Errorf("could not open %v: %v", br, err)
+			return fmt.Errorf("could not open %v: %w", br, err)
 		}
 		_, err = io.Copy(io.Discard, fr)
 		fr.Close()
 		if err != nil {
-			return fmt.Errorf("could not read %v: %v", br, err)
+			return fmt.Errorf("could not read %v: %w", br, err)
 		}
 		dh.pathByRef[br] = filepath.Join(parentPath, b.FileName())
 	}

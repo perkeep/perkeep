@@ -40,6 +40,7 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/pkg/webserver"
 
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -123,6 +124,13 @@ type Properties struct {
 	// For example, this is "foursquare" for "swarm", so "swarm" shows
 	// in the UI and URLs, but it's "foursquare" in permanodes.
 	PermanodeImporterType string
+
+	// HasSomePaidAPI specifies whether this service has part of
+	// its API requiring payment or quota for optional bits of data
+	// (such as Swarm venue photos).
+	// Whether or not to use such paid API(s) is determined for each
+	// run of each importer's account by the user.
+	HasSomePaidAPI bool
 }
 
 // LongPoller is optionally implemented by importers which can long
@@ -224,7 +232,7 @@ func NewHost(hc HostConfig) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	h.tmpl = h.tmpl.Funcs(map[string]interface{}{
+	h.tmpl = h.tmpl.Funcs(map[string]any{
 		"bloblink": func(br blob.Ref) template.HTML {
 			if h.uiPrefix == "" {
 				return template.HTML(br.String())
@@ -281,7 +289,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 				}
 			}
 			if err := impConf.Validate(); err != nil {
-				return nil, fmt.Errorf("Invalid static configuration for importer %q: %v", k, err)
+				return nil, fmt.Errorf("Invalid static configuration for importer %q: %w", k, err)
 			}
 			ClientId[k] = clientId
 			ClientSecret[k] = clientSecret
@@ -341,6 +349,11 @@ type RunContext struct {
 	lastProgress *ProgressMessage
 }
 
+// UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
+func (rc *RunContext) UsePaidAPI() bool {
+	return rc.ia.UsePaidAPI()
+}
+
 // Context returns the run's context. It is always non-nil.
 func (rc *RunContext) Context() context.Context {
 	if rc.ctx != nil {
@@ -358,7 +371,7 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 	}
 	ia, err := imp.newAccount()
 	if err != nil {
-		return nil, fmt.Errorf("could not create new account for importer %v: %v", impl, err)
+		return nil, fmt.Errorf("could not create new account for importer %v: %w", impl, err)
 	}
 	rc := &RunContext{
 		Host: ia.im.host,
@@ -436,7 +449,7 @@ type accountStatus struct {
 
 // AccountsStatus returns the currently configured accounts and their status for
 // inclusion in the status.json document, as rendered by the web UI.
-func (h *Host) AccountsStatus() (interface{}, []camtypes.StatusError) {
+func (h *Host) AccountsStatus() (any, []camtypes.StatusError) {
 	h.didInit.Wait()
 	var s []accountStatus
 	var errs []camtypes.StatusError
@@ -592,12 +605,16 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 		setup = setuper.AccountSetupHTML(h)
 	}
 
+	isTailscale := webserver.TailscaleCtxKey.Value(r.Context())
+	isTLS := r.TLS != nil
+
 	h.execTemplate(w, r, importerPage{
 		Title: "Importer - " + imp.Name(),
 		Body: importerBody{
-			Host:      h,
-			Importer:  imp,
-			SetupHelp: template.HTML(setup),
+			Host:                       h,
+			ShowSecureTransportWarning: !isTailscale && !isTLS,
+			Importer:                   imp,
+			SetupHelp:                  template.HTML(setup),
 		},
 	})
 }
@@ -844,10 +861,6 @@ func (im *importer) ShowClientAuthEditForm() bool {
 		return false
 	}
 	return im.props.NeedsAPIKey
-}
-
-func (im *importer) InsecureForm() bool {
-	return !strings.HasPrefix(im.host.ImporterBaseURL(), "https://")
 }
 
 func (im *importer) CanAddNewAccount() bool {
@@ -1131,6 +1144,7 @@ type importerAcct struct {
 	lastRunErr   error
 	lastRunStart time.Time
 	lastRunDone  time.Time
+	usePaidAPI   bool // whether to use the paid API(s) when retrieving data
 }
 
 func (ia *importerAcct) String() string {
@@ -1187,6 +1201,11 @@ func (ia *importerAcct) RefreshInterval() time.Duration {
 	return d
 }
 
+// UsePaidAPI reports whether the importer is going to use the paid API(s) when retrieving data.
+func (ia *importerAcct) UsePaidAPI() bool {
+	return ia.usePaidAPI
+}
+
 func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		ia.serveHTTPPost(w, r)
@@ -1198,6 +1217,11 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Acct:     ia,
 		AcctType: fmt.Sprintf("%T", ia.im.impl),
 	}
+
+	if ia.im.props.HasSomePaidAPI {
+		body.HasSomePaidAPI = true
+	}
+
 	if run := ia.current; run != nil {
 		body.Running = true
 		body.StartedAgo = time.Since(ia.lastRunStart)
@@ -1240,6 +1264,11 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+	case "togglepaidapi":
+		ia.mu.Lock()
+		ia.usePaidAPI = r.FormValue("usePaidAPI") == "on"
+		// TODO(bradfitz,radkat): persist this to the account permanode
+		ia.mu.Unlock()
 	case "delete":
 		ia.stop() // can't hurt
 		if err := ia.delete(); err != nil {

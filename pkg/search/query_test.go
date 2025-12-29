@@ -44,6 +44,7 @@ import (
 	. "perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/types/ptr"
 )
 
 var ctxbg = context.Background()
@@ -156,6 +157,9 @@ func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
 				qt.t.Fatalf("unexpected candidateSource: got %v, want %v", pickedCandidate, qt.candidateSource)
 			}
 		})
+		qt.t.Cleanup(func() {
+			ExportSetCandidateSourceHook(nil)
+		})
 	}
 	res, err := qt.Handler().Query(ctxbg, req)
 	if err != nil {
@@ -229,6 +233,22 @@ func TestQueryBlobSize(t *testing.T) {
 				BlobSize: &IntConstraint{
 					Min: 4 << 10,
 					Max: 6 << 10,
+				},
+			},
+		}
+		qt.wantRes(sq, smallFileRef)
+	})
+}
+
+func TestIntConstraintEqual(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		const size = 1234
+		_, smallFileRef := qt.id.UploadFile("file.txt", strings.Repeat("x", size), time.Unix(1382073153, 0))
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				BlobSize: &IntConstraint{
+					Equals: ptr.To(int64(size)),
 				},
 			},
 		}
@@ -1549,7 +1569,7 @@ func testAroundUnsortedSource(limit, pos int, t *testing.T) {
 			unsorted[p.String()] = p
 			sorted = append(sorted, p.String())
 		}
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			addToSorted(i)
 		}
 		sort.Strings(sorted)
@@ -1557,14 +1577,8 @@ func testAroundUnsortedSource(limit, pos int, t *testing.T) {
 		// Predict the results
 		var want []blob.Ref
 		var around blob.Ref
-		lowLimit := pos - limit/2
-		if lowLimit < 0 {
-			lowLimit = 0
-		}
-		highLimit := lowLimit + limit
-		if highLimit > len(sorted) {
-			highLimit = len(sorted)
-		}
+		lowLimit := max(pos-limit/2, 0)
+		highLimit := min(lowLimit+limit, len(sorted))
 		// Make the permanodes actually exist.
 		for k, v := range sorted {
 			pn := unsorted[v]
@@ -1811,7 +1825,7 @@ func testLimitDoesntDeadlock(t *testing.T, sortType SortType) {
 	})
 }
 
-func prettyJSON(v interface{}) string {
+func prettyJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		panic(err)
@@ -1974,7 +1988,7 @@ func BenchmarkQueryRecentPermanodes(b *testing.B) {
 		h := qt.Handler()
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			*req.Describe = DescribeRequest{}
 			_, err := h.Query(ctxbg, req)
 			if err != nil {
@@ -1997,7 +2011,7 @@ func benchmarkQueryPermanodes(b *testing.B, describe bool) {
 	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {
 		id := qt.id
 
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			pn := id.NewPlannedPermanode(fmt.Sprint(i))
 			id.SetAttribute(pn, "foo", fmt.Sprint(i))
 		}
@@ -2014,7 +2028,7 @@ func benchmarkQueryPermanodes(b *testing.B, describe bool) {
 		h := qt.Handler()
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			if describe {
 				*req.Describe = DescribeRequest{}
 			}
@@ -2056,18 +2070,18 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		pn := id.NewPlannedPermanode("photo")
 		id.SetAttribute(pn, "camliContent", fileRef.String())
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			pn := newPn()
 			id.SetAttribute(pn, "camliNodeType", "foursquare.com:venue")
 			id.SetAttribute(pn, "latitude", fmt.Sprint(50-i))
 			id.SetAttribute(pn, "longitude", fmt.Sprint(i))
-			for j := 0; j < 5; j++ {
+			for range 5 {
 				qn := newPn()
 				id.SetAttribute(qn, "camliNodeType", "foursquare.com:checkin")
 				id.SetAttribute(qn, "foursquareVenuePermanode", pn.String())
 			}
 		}
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			pn := newPn()
 			id.SetAttribute(pn, "foo", fmt.Sprint(i))
 		}
@@ -2083,7 +2097,7 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		h := qt.Handler()
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := h.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatal(err)
@@ -2186,7 +2200,7 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		// create 3K tweets, all with locations
 		lat := 45.18
 		long := 5.72
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			pn := newPn()
 			id.SetAttribute(pn, "camliNodeType", "twitter.com:tweet")
 			id.SetAttribute(pn, "latitude", fmt.Sprintf("%f", lat))
@@ -2196,7 +2210,7 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		}
 
 		// create 5K additional permanodes, but no location. Just as "noise".
-		for i := 0; i < 5000; i++ {
+		for range 5000 {
 			newPn()
 		}
 
@@ -2215,7 +2229,7 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		locations := []string{
 			"canada", "scotland", "france", "sweden", "germany", "poland", "russia", "algeria", "congo", "china", "india", "australia", "mexico", "brazil", "argentina",
 		}
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			for _, loc := range locations {
 				req := &SearchQuery{
 					Expression: "loc:" + loc,
@@ -2433,7 +2447,7 @@ func TestBestByLocation(t *testing.T) {
 	const numResults = 5000
 	const limit = 117
 	const scale = 1000
-	for i := 0; i < numResults; i++ {
+	for i := range numResults {
 		br := blob.RefFromString(fmt.Sprintf("foo %d", i))
 		res.Blobs = append(res.Blobs, &SearchResultBlob{Blob: br})
 		locm[br] = camtypes.Location{

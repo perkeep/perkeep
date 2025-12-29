@@ -239,7 +239,7 @@ func (s *storage) String() string {
 	return `"blobpacked" storage`
 }
 
-func (s *storage) Logf(format string, args ...interface{}) {
+func (s *storage) Logf(format string, args ...any) {
 	s.logger().Printf(format, args...)
 }
 
@@ -281,11 +281,11 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	}
 	small, err := ld.GetStorage(smallPrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load smallBlobs at %s: %v", smallPrefix, err)
+		return nil, fmt.Errorf("failed to load smallBlobs at %s: %w", smallPrefix, err)
 	}
 	large, err := ld.GetStorage(largePrefix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load largeBlobs at %s: %v", largePrefix, err)
+		return nil, fmt.Errorf("failed to load largeBlobs at %s: %w", largePrefix, err)
 	}
 	largeSubber, ok := large.(subFetcherStorage)
 	if !ok {
@@ -294,7 +294,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	}
 	meta, err := sorted.NewKeyValueMaybeWipe(metaConf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %v", err)
+		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %w", err)
 	}
 	sto := &storage{
 		small: small,
@@ -305,7 +305,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()
-	condFatalf := func(pattern string, args ...interface{}) {
+	condFatalf := func(pattern string, args ...any) {
 		log.Printf(pattern, args...)
 		if !keepGoing {
 			os.Exit(1)
@@ -329,7 +329,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 				return nil, fmt.Errorf("blobpacked meta index of type %T needs to be wiped, but does not support automatic wiping. It should be removed manually.", kv)
 			}
 			if err := wiper.Wipe(); err != nil {
-				return nil, fmt.Errorf("blobpacked meta index of type %T could not be wiped: %v", kv, err)
+				return nil, fmt.Errorf("blobpacked meta index of type %T could not be wiped: %w", kv, err)
 			}
 			return kv, nil
 		}
@@ -414,7 +414,7 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 			return enumFunc(sb)
 		}
 		if _, err := parseZipMetaRow(t.ValueBytes()); err != nil {
-			return fmt.Errorf("error parsing row from meta: %v", err)
+			return fmt.Errorf("error parsing row from meta: %w", err)
 		}
 		inLarge++
 		return nil
@@ -432,7 +432,7 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		return FullRecovery, fmt.Errorf("%d large blobs in index but not actually in storage", len(extra))
 	}
 	if err := t.Close(); err != nil {
-		return FullRecovery, fmt.Errorf("error reading or closing index: %v", err)
+		return FullRecovery, fmt.Errorf("error reading or closing index: %w", err)
 	}
 	if len(missing) > 0 {
 		return FastRecovery, fmt.Errorf("%d large blobs missing from index", len(missing))
@@ -500,7 +500,7 @@ func (s *storage) fileName(ctx context.Context, zipRef blob.Ref) (string, error)
 func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, error)) error {
 	meta, err := newMeta()
 	if err != nil {
-		return fmt.Errorf("failed to create new blobpacked meta index: %v", err)
+		return fmt.Errorf("failed to create new blobpacked meta index: %w", err)
 	}
 
 	zipMetaByWholeRef := make(map[blob.Ref][]zipMetaInfo)
@@ -645,7 +645,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			// missing at least one full zip for the whole file to be complete.
 			fileName, err := s.fileName(ctx, zipMetas[0].zipRef)
 			if err != nil {
-				return fmt.Errorf("could not get filename of file in zip %v: %v", zipMetas[0].zipRef, err)
+				return fmt.Errorf("could not get filename of file in zip %v: %w", zipMetas[0].zipRef, err)
 			}
 			log.Printf(
 				"blobpacked: file %q (wholeRef %v) is incomplete: sum of all zips (%d bytes) does not match manifest's WholeSize (%d bytes)",
@@ -840,11 +840,11 @@ func (m *meta) isPacked() bool { return m.largeRef.Valid() }
 // if not found, err == nil.
 func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 	v, err := s.meta.Get(blobMetaPrefix + br.String())
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return meta{}, nil
 	}
 	if err != nil {
-		return meta{}, fmt.Errorf("blobpacked.getMetaRow(%v) = %v", br, err)
+		return meta{}, fmt.Errorf("blobpacked.getMetaRow(%v) = %w", br, err)
 	}
 	return parseMetaRow([]byte(v))
 }
@@ -879,7 +879,7 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	m.largeRef = largeRef
 	off, err := strutil.ParseUintBytes(v[sp+1:], 10, 32)
 	if err != nil {
-		return meta{}, fmt.Errorf("invalid metarow %q: bad offset: %v", row, err)
+		return meta{}, fmt.Errorf("invalid metarow %q: bad offset: %w", row, err)
 	}
 	m.largeOff = uint32(off)
 	return m, nil
@@ -1020,7 +1020,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var grp syncutil.Group
 	delGate := syncutil.NewGate(removeLookups)
 	for _, br := range blobs {
-		br := br
 		delGate.Start()
 		grp.Go(func() error {
 			defer delGate.Done()
@@ -1226,7 +1225,7 @@ func (pk *packer) pack(ctx context.Context) error {
 	if err == nil {
 		// Nil error means there was some knowledge of this wholeref.
 		return fmt.Errorf("already have wholeref %v packed; not packing again", pk.wholeRef)
-	} else if err != sorted.ErrNotFound {
+	} else if !errors.Is(err, sorted.ErrNotFound) {
 		return err
 	}
 
@@ -1235,8 +1234,9 @@ func (pk *packer) pack(ctx context.Context) error {
 MakingZips:
 	for len(pk.chunksRemain) > 0 {
 		if err := pk.writeAZip(ctx, trunc); err != nil {
-			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
-				trunc = needTrunc.Ref
+			var needTruncErr needsTruncatedAfterError
+			if errors.As(err, &needTruncErr) {
+				trunc = needTruncErr.Ref
 				if fn := testHookSawTruncate; fn != nil {
 					fn(trunc)
 				}
@@ -1250,7 +1250,7 @@ MakingZips:
 	// Record the final wholeMetaPrefix record:
 	err = pk.s.meta.Set(wholeKey, fmt.Sprintf("%d %d", pk.wholeSize, len(pk.zips)))
 	if err != nil {
-		return fmt.Errorf("Error setting %s: %v", wholeKey, err)
+		return fmt.Errorf("Error setting %s: %w", wholeKey, err)
 	}
 
 	return nil
@@ -1389,7 +1389,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		}
 		if n, err := io.Copy(io.MultiWriter(fw, chunkWholeHash), rc); err != nil || n != int64(size) {
 			rc.Close()
-			return fmt.Errorf("copy to zip = %v, %v; want %v bytes", n, err, size)
+			return fmt.Errorf("copy to zip = %v, %w; want %v bytes", n, err, size)
 		}
 		rc.Close()
 

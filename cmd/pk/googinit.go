@@ -96,7 +96,7 @@ func (c *googinitCmd) RunCommand(args []string) error {
 		},
 	}).Token()
 	if err != nil {
-		return fmt.Errorf("could not acquire token: %v", err)
+		return fmt.Errorf("could not acquire token: %w", err)
 	}
 
 	fmt.Fprintf(cmdmain.Stdout, "\nYour Google auth object:\n\n")

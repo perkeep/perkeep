@@ -122,7 +122,7 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	if refresh, _ := strconv.ParseBool(r.FormValue("refresh")); refresh {
 		if err := a.refreshDomainBlobs(); err != nil {
-			if err == errRefreshSuppress {
+			if errors.Is(err, errRefreshSuppress) {
 				http.Error(w, "too many refresh requests", http.StatusTooManyRequests)
 			} else {
 				http.Error(w, fmt.Sprintf("%v", err), 500)
@@ -171,7 +171,7 @@ func (a *Handler) refreshDomainBlobs() error {
 	sq.Describe = sq.Describe.Clone()
 	sr, err := a.sh.Query(context.TODO(), &sq)
 	if err != nil {
-		return fmt.Errorf("error running master query: %v", err)
+		return fmt.Errorf("error running master query: %w", err)
 	}
 	a.domainBlobs = make(map[blob.Ref]bool, len(sr.Describe.Meta))
 	for _, v := range sr.Describe.Meta {
@@ -269,7 +269,7 @@ var portMap = map[string]string{
 func baseURL(serverBaseURL, listenAddr string) (string, error) {
 	backendURL, err := url.Parse(serverBaseURL)
 	if err != nil {
-		return "", fmt.Errorf("invalid baseURL %q: %v", serverBaseURL, err)
+		return "", fmt.Errorf("invalid baseURL %q: %w", serverBaseURL, err)
 	}
 	scheme := backendURL.Scheme
 	host := backendURL.Host
@@ -375,7 +375,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 			}
 			parsedUrl, err := url.Parse(cfg.ServerBaseURL)
 			if err != nil {
-				return nil, fmt.Errorf("app: could not initialize Handler for %q: unparseable ServerBaseURL %q: %v", name, cfg.ServerBaseURL, err)
+				return nil, fmt.Errorf("app: could not initialize Handler for %q: unparseable ServerBaseURL %q: %w", name, cfg.ServerBaseURL, err)
 			}
 			serverListen = parsedUrl.Host
 		}
@@ -402,7 +402,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 
 	proxyURL, err := url.Parse(backendURL)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse backendURL %q: %v", backendURL, err)
+		return nil, fmt.Errorf("could not parse backendURL %q: %w", backendURL, err)
 	}
 
 	username, password := auth.RandToken(20), auth.RandToken(20)
@@ -496,7 +496,7 @@ func (a *Handler) Start() error {
 	}
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("could not start app %v: %v", name, err)
+		return fmt.Errorf("could not start app %v: %w", name, err)
 	}
 	a.process = cmd.Process
 	return nil
@@ -517,7 +517,7 @@ func (a *Handler) AuthMode() auth.AuthMode {
 
 // AppConfig returns the optional configuration parameters object that the app
 // can request from the app handler. It can be nil.
-func (a *Handler) AppConfig() map[string]interface{} {
+func (a *Handler) AppConfig() map[string]any {
 	return a.appConfig
 }
 

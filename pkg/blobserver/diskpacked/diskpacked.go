@@ -64,13 +64,13 @@ type debugT bool
 
 var debug = debugT(false)
 
-func (d debugT) Printf(format string, args ...interface{}) {
+func (d debugT) Printf(format string, args ...any) {
 	if bool(d) {
 		log.Printf(format, args...)
 	}
 }
 
-func (d debugT) Println(args ...interface{}) {
+func (d debugT) Println(args ...any) {
 	if bool(d) {
 		log.Println(args...)
 	}
@@ -124,6 +124,7 @@ func IsDir(dir string) (bool, error) {
 func New(dir string) (blobserver.Storage, error) {
 	var maxSize int64
 	if dh, err := os.Open(dir); err == nil {
+		defer dh.Close()
 		var nBlobFiles, atMax int
 		if fis, err := dh.Readdir(-1); err == nil {
 			// Detect existing max size from size of files, if obvious, and set maxSize to that
@@ -422,7 +423,6 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	batch := s.index.BeginBatch()
 	var wg syncutil.Group
 	for _, br := range blobs {
-		br := br
 		removeGate.Start()
 		batch.Delete(br.String())
 		wg.Go(func() error {

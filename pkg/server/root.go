@@ -121,7 +121,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	if root.BlobRoot != "" {
 		bs, err := ld.GetStorage(root.BlobRoot)
 		if err != nil {
-			return nil, fmt.Errorf("Root handler's blobRoot of %q error: %v", root.BlobRoot, err)
+			return nil, fmt.Errorf("Root handler's blobRoot of %q error: %w", root.BlobRoot, err)
 		}
 		root.Storage = bs
 	}
@@ -205,7 +205,7 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := func(p string, a ...interface{}) {
+	f := func(p string, a ...any) {
 		fmt.Fprintf(w, p, a...)
 	}
 	f("<html><body><p>This is perkeepd (%s), a "+

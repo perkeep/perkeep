@@ -119,7 +119,7 @@ type run struct {
 func (imp) Run(ctx *importer.RunContext) error {
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
-		return fmt.Errorf("no API credentials: %v", err)
+		return fmt.Errorf("no API credentials: %w", err)
 	}
 	accountNode := ctx.AccountNode()
 	accessToken := accountNode.Attr(importer.AcctAttrAccessToken)
@@ -385,7 +385,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 		log.Printf("Flickr importer: problem with date taken of photo %v, defaulting to published date instead.", photo.Id)
 		seconds, err := strconv.ParseInt(photo.DateUpload, 10, 64)
 		if err != nil {
-			return fmt.Errorf("could not parse date upload time %q for image %v: %v", photo.DateUpload, photo.Id, err)
+			return fmt.Errorf("could not parse date upload time %q for image %v: %w", photo.DateUpload, photo.Id, err)
 		}
 		dateTaken = time.Unix(seconds, 0)
 	}
@@ -408,13 +408,13 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	// lastupdate is a Unix timestamp according to https://www.flickr.com/services/api/flickr.photos.getInfo.html
 	seconds, err := strconv.ParseInt(photo.LastUpdate, 10, 64)
 	if err != nil {
-		return fmt.Errorf("could not parse lastupdate time for image %v: %v", photo.Id, err)
+		return fmt.Errorf("could not parse lastupdate time for image %v: %w", photo.Id, err)
 	}
 	lastUpdate := time.Unix(seconds, 0)
 	if lastUpdateString := photoNode.Attr(nodeattr.DateModified); lastUpdateString != "" {
 		oldLastUpdate, err := time.Parse(time.RFC3339, lastUpdateString)
 		if err != nil {
-			return fmt.Errorf("could not parse last stored update time for image %v: %v", photo.Id, err)
+			return fmt.Errorf("could not parse last stored update time for image %v: %w", photo.Id, err)
 		}
 		if lastUpdate.Equal(oldLastUpdate) {
 			if err := r.updatePrimaryPhoto(photoNode); err != nil {
@@ -460,18 +460,18 @@ func (r *run) updatePrimaryPhoto(photoNode *importer.Object) error {
 		}
 		setsNode, err := r.getTopLevelNode("sets", "Sets")
 		if err != nil {
-			return fmt.Errorf("could not set %v as primary photo of %v, no root sets: %v", photoId, album, err)
+			return fmt.Errorf("could not set %v as primary photo of %v, no root sets: %w", photoId, album, err)
 		}
 		setNode, err := setsNode.ChildPathObject(album)
 		if err != nil {
-			return fmt.Errorf("could not set %v as primary photo of %v, no album: %v", photoId, album, err)
+			return fmt.Errorf("could not set %v as primary photo of %v, no album: %w", photoId, album, err)
 		}
 		fileRef := photoNode.Attr(nodeattr.CamliContent)
 		if fileRef == "" {
 			return fmt.Errorf("could not set %v as primary photo of %v: fileRef of photo is unknown", photoId, album)
 		}
 		if err := setNode.SetAttr(nodeattr.CamliContentImage, fileRef); err != nil {
-			return fmt.Errorf("could not set %v as primary photo of %v: %v", photoId, album, err)
+			return fmt.Errorf("could not set %v as primary photo of %v: %w", photoId, album, err)
 		}
 		delete(r.primaryPhoto, album)
 	}
@@ -494,7 +494,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return photos, nil
 }
 
-func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
+func (r *run) flickrAPIRequest(result any, method string, keyval ...string) error {
 	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
@@ -515,13 +515,13 @@ func (r *run) fetch(url string, form url.Values) (*http.Response, error) {
 func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
-		err = fmt.Errorf("error getting OAuth client: %v", err)
+		err = fmt.Errorf("error getting OAuth client: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
 	tempCred, err := oauthClient.RequestTemporaryCredentials(ctxutil.Client(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
-		err = fmt.Errorf("Error getting temp cred: %v", err)
+		err = fmt.Errorf("Error getting temp cred: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -529,7 +529,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 		importer.AcctAttrTempToken, tempCred.Token,
 		importer.AcctAttrTempSecret, tempCred.Secret,
 	); err != nil {
-		err = fmt.Errorf("Error saving temp creds: %v", err)
+		err = fmt.Errorf("Error saving temp creds: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -554,7 +554,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 	}
 	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
-		err = fmt.Errorf("error getting OAuth client: %v", err)
+		err = fmt.Errorf("error getting OAuth client: %w", err)
 		httputil.ServeError(w, r, err)
 		return
 	}
@@ -567,17 +567,17 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		r.FormValue("oauth_verifier"),
 	)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %v ", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %w", err))
 		return
 	}
 	userID := vals.Get("user_nsid")
 	if userID == "" {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %w", err))
 		return
 	}
 	username := vals.Get("username")
 	if username == "" {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user name: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user name: %w", err))
 		return
 	}
 
@@ -588,7 +588,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		importer.AcctAttrUserID, userID,
 		importer.AcctAttrUserName, username,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting basic account attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting basic account attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -73,7 +74,7 @@ type handlerLoader struct {
 	installer   HandlerInstaller
 	baseURL     string
 	config      map[string]*handlerConfig // prefix -> config
-	handler     map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
+	handler     map[string]any            // prefix -> http.Handler / func / blobserver.Storage
 	curPrefix   string
 	closers     []io.Closer
 	prefixStack []string
@@ -193,7 +194,7 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 	})
 }
 
-func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
+func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler any, err error) {
 	nFound := 0
 	for pfx, config := range hl.config {
 		if config.htype == htype {
@@ -213,9 +214,9 @@ func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler
 	return
 }
 
-func (hl *handlerLoader) AllHandlers() (types map[string]string, handlers map[string]interface{}) {
+func (hl *handlerLoader) AllHandlers() (types map[string]string, handlers map[string]any) {
 	types = make(map[string]string)
-	handlers = make(map[string]interface{})
+	handlers = make(map[string]any)
 	for pfx, config := range hl.config {
 		types[pfx] = config.htype
 		handlers[pfx] = hl.handler[pfx]
@@ -252,7 +253,7 @@ func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, error) {
 	return nil, fmt.Errorf("bogus storage handler referenced as %q", prefix)
 }
 
-func (hl *handlerLoader) GetHandler(prefix string) (interface{}, error) {
+func (hl *handlerLoader) GetHandler(prefix string) (any, error) {
 	hl.setupHandler(prefix)
 	if s, ok := hl.handler[prefix].(blobserver.Storage); ok {
 		return s, nil
@@ -267,7 +268,7 @@ func (hl *handlerLoader) GetHandlerType(prefix string) string {
 	return hl.configType(prefix)
 }
 
-func exitFailure(pattern string, args ...interface{}) {
+func exitFailure(pattern string, args ...any) {
 	if !strings.HasSuffix(pattern, "\n") {
 		pattern = pattern + "\n"
 	}
@@ -308,9 +309,9 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 
 	hl.curPrefix = prefix
 
-	if strings.HasPrefix(h.htype, "storage-") {
+	if after, ok0 := strings.CutPrefix(h.htype, "storage-"); ok0 {
 		// Assume a storage interface:
-		stype := strings.TrimPrefix(h.htype, "storage-")
+		stype := after
 		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
 		if err != nil {
 			exitFailure("error instantiating storage for prefix %q, type %q: %v",
@@ -534,12 +535,12 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 	// struct later.
 	highExpandedJSON, err := json.Marshal(m)
 	if err != nil {
-		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %v", err)
+		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %w", err)
 	}
 
 	var hiLevelConf serverconfig.Config
 	if err := json.Unmarshal(highExpandedJSON, &hiLevelConf); err != nil {
-		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %v", err)
+		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %w", err)
 	}
 
 	// At this point, conf.jconf.UnknownKeys() contains all the names found in
@@ -597,12 +598,12 @@ func (c *Config) checkValidAuth() error {
 }
 
 func (c *Config) SetReindex(v bool) {
-	prefixes, _ := c.jconf["prefixes"].(map[string]interface{})
+	prefixes, _ := c.jconf["prefixes"].(map[string]any)
 	for prefix, vei := range prefixes {
 		if prefix == "_knownkeys" {
 			continue
 		}
-		pmap, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -611,7 +612,7 @@ func (c *Config) SetReindex(v bool) {
 		if typ != "storage-index" {
 			continue
 		}
-		opts, ok := pconf["handlerArgs"].(map[string]interface{})
+		opts, ok := pconf["handlerArgs"].(map[string]any)
 		if ok {
 			opts["reindex"] = v
 		}
@@ -622,12 +623,12 @@ func (c *Config) SetReindex(v bool) {
 // indicates that validation, reindexing, or recovery behavior should not cause
 // the process to end.
 func (c *Config) SetKeepGoing(v bool) {
-	prefixes, _ := c.jconf["prefixes"].(map[string]interface{})
+	prefixes, _ := c.jconf["prefixes"].(map[string]any)
 	for prefix, vei := range prefixes {
 		if prefix == "_knownkeys" {
 			continue
 		}
-		pmap, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -636,7 +637,7 @@ func (c *Config) SetKeepGoing(v bool) {
 		if typ != "storage-index" && typ != "storage-blobpacked" {
 			continue
 		}
-		opts, ok := pconf["handlerArgs"].(map[string]interface{})
+		opts, ok := pconf["handlerArgs"].(map[string]any)
 		if ok {
 			opts["keepGoing"] = v
 		}
@@ -662,11 +663,11 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 	}()
 
 	if err := config.checkValidAuth(); err != nil {
-		return nil, fmt.Errorf("error while configuring auth: %v", err)
+		return nil, fmt.Errorf("error while configuring auth: %w", err)
 	}
 	prefixes := config.jconf.RequiredObject("prefixes")
 	if err := config.jconf.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration error in root object's keys: %v", err)
+		return nil, fmt.Errorf("configuration error in root object's keys: %w", err)
 	}
 
 	if v := os.Getenv("CAMLI_PPROF_START"); v != "" {
@@ -683,7 +684,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		installer: hi,
 		baseURL:   baseURL,
 		config:    make(map[string]*handlerConfig),
-		handler:   make(map[string]interface{}),
+		handler:   make(map[string]any),
 	}
 
 	for prefix, vei := range prefixes {
@@ -696,7 +697,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		if !strings.HasSuffix(prefix, "/") {
 			exitFailure("prefix %q doesn't end with /", prefix)
 		}
-		pmap, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(map[string]any)
 		if !ok {
 			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
 		}
@@ -740,17 +741,13 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {
-				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
+				return nil, fmt.Errorf("Error calling InitHandler on %s: %w", pfx, err)
 			}
 		}
 	}
 
-	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_EXPVAR")); v {
-		hi.Handle("/debug/vars", expvarHandler{})
-	}
-	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
-		hi.Handle("/debug/pprof/", profileHandler{})
-	}
+	hi.Handle("/debug/vars", expvarHandler{})
+	hi.Handle("/debug/pprof/", profileHandler{})
 	hi.Handle("/debug/goroutines", auth.RequireAuth(http.HandlerFunc(dumpGoroutines), auth.OpRead))
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
 	hi.Handle("/debug/logs/", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
@@ -772,7 +769,7 @@ func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 func (c *Config) StartApps() error {
 	for _, ap := range c.apps {
 		if err := ap.Start(); err != nil {
-			return fmt.Errorf("error starting app %v: %v", ap.ProgramName(), err)
+			return fmt.Errorf("error starting app %v: %w", ap.ProgramName(), err)
 		}
 	}
 	return nil
@@ -881,7 +878,7 @@ func logsHandler(w http.ResponseWriter, r *http.Request) {
 	case "perkeepd":
 		projID, err := metadata.ProjectID()
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %w", err))
 			return
 		}
 		http.Redirect(w, r,
@@ -963,14 +960,12 @@ func (c *Config) KeyRingAndId() (keyRing, keyId string, err error) {
 //
 // Deprecated: this is provided for debugging only and will be going away
 // as the move to TOML-based configuration progresses. Do not depend on this.
-func (c *Config) LowLevelJSONConfig() map[string]interface{} {
+func (c *Config) LowLevelJSONConfig() map[string]any {
 	// Make a shallow clone of c.jconf so we can mutate the
 	// handlerConfig key to make it explicitly true, without
 	// modifying anybody's else view of it.
-	ret := map[string]interface{}{}
-	for k, v := range c.jconf {
-		ret[k] = v
-	}
+	ret := map[string]any{}
+	maps.Copy(ret, c.jconf)
 	ret["handlerConfig"] = true
 	return ret
 }

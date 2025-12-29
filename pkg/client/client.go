@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -228,7 +229,7 @@ func NewOrFail(opts ...ClientOption) *Client {
 func (c *Client) NewPathClient(path string) (*Client, error) {
 	u, err := url.Parse(c.server)
 	if err != nil {
-		return nil, fmt.Errorf("bogus server %q for NewPathClient receiver: %v", c.server, err)
+		return nil, fmt.Errorf("bogus server %q for NewPathClient receiver: %w", c.server, err)
 	}
 	u.Path = path
 	pc, err := New(OptionServer(u.String()))
@@ -433,7 +434,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	if m == nil {
 		return nil, blob.Ref{}, fmt.Errorf("Unknown share URL base")
 	}
-	c, err = New(append(opts[:len(opts):cap(opts)], OptionServer(m[1]))...)
+	c, err = New(append(slices.Clone(opts), OptionServer(m[1]))...)
 	if err != nil {
 		return nil, blob.Ref{}, err
 	}
@@ -448,7 +449,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	req := c.newRequest(ctx, "GET", shareBlobURL, nil)
 	res, err := c.expect2XX(req)
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %w", shareBlobURL, err)
 	}
 	defer res.Body.Close()
 	var buf bytes.Buffer
@@ -458,7 +459,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	}
 	b, err := schema.BlobFromReader(rootbr, io.TeeReader(res.Body, &buf))
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %v , with response: %q", shareBlobURL, err, buf.Bytes())
+		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %w, with response: %q", shareBlobURL, err, buf.Bytes())
 	}
 	if b.ShareAuthType() != schema.ShareHaveRef {
 		return nil, blob.Ref{}, fmt.Errorf("unknown share authType of %q", b.ShareAuthType())
@@ -503,7 +504,7 @@ func (c *Client) SetHaveCache(cache HaveCache) {
 	c.haveCache = cache
 }
 
-func (c *Client) printf(format string, v ...interface{}) {
+func (c *Client) printf(format string, v ...any) {
 	if c.Verbose && c.Logger != nil {
 		c.Logger.Printf(format, v...)
 	}
@@ -845,7 +846,7 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 		} else if mismatch {
 			return blob.Ref{}, fmt.Errorf("Client is too recent for this server. Use a client built before 2018-01-13-6e8a5930c9, or upgrade the server to after that revision.")
 		}
-		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
+		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %w", url, err)
 	}
 	if len(ress.Files) == 0 {
 		return blob.Ref{}, nil
@@ -871,7 +872,7 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 	version = version[:10] // keep only the date part
 	clientDate, err := time.Parse(shortRFC3339, version)
 	if err != nil {
-		return false, fmt.Errorf("could not parse date from version %q: %v", version, err)
+		return false, fmt.Errorf("could not parse date from version %q: %w", version, err)
 	}
 	apiChangeDate, _ := time.Parse(shortRFC3339, "2018-01-13")
 	if !clientDate.After(apiChangeDate) {
@@ -893,12 +894,12 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 		Version string `json:"version"`
 	}
 	if err := httputil.DecodeJSON(res, &status); err != nil {
-		return false, fmt.Errorf("error parsing JSON from URL %s: %v", url, err)
+		return false, fmt.Errorf("error parsing JSON from URL %s: %w", url, err)
 	}
 	serverVersion := status.Version[:10]
 	serverDate, err := time.Parse(shortRFC3339, serverVersion)
 	if err != nil {
-		return false, fmt.Errorf("could not parse date from server version %q: %v", status.Version, err)
+		return false, fmt.Errorf("could not parse date from server version %q: %w", status.Version, err)
 	}
 	if serverDate.After(apiChangeDate) {
 		// server is recent enough, all good.
@@ -1097,7 +1098,7 @@ func (c *Client) doDiscovery() error {
 
 	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {
-		return fmt.Errorf("client: error resolving blobRoot: %v", err)
+		return fmt.Errorf("client: error resolving blobRoot: %w", err)
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
 
@@ -1138,7 +1139,7 @@ func (c *Client) doDiscovery() error {
 // GetJSON sends a GET request to url, and unmarshals the returned
 // JSON response into data. The URL's host must match the client's
 // configured server.
-func (c *Client) GetJSON(ctx context.Context, url string, data interface{}) error {
+func (c *Client) GetJSON(ctx context.Context, url string, data any) error {
 	if !strings.HasPrefix(url, c.discoRoot()) {
 		return fmt.Errorf("wrong URL (%q) for this server", url)
 	}
@@ -1271,10 +1272,8 @@ func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) 
 			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
 		}
 		sig := hashutil.SHA256Prefix(certs[0].Raw)
-		for _, v := range trustedCerts {
-			if v == sig {
-				return conn, nil
-			}
+		if slices.Contains(trustedCerts, sig) {
+			return conn, nil
 		}
 		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}
@@ -1344,10 +1343,8 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
 		}
 		sig := hashutil.SHA256Prefix(certs[0].Raw)
-		for _, v := range trustedCerts {
-			if v == sig {
-				return conn, nil
-			}
+		if slices.Contains(trustedCerts, sig) {
+			return conn, nil
 		}
 		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}

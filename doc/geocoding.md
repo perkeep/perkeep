@@ -11,4 +11,4 @@ Google and place it in your Perkeep configuration directory (run `pk env
 configdir` to find your configuration directory) in a file named
 `google-geocode.key`.
 
-To get the Google API key, see https://developers.google.com/maps/documentation/geocoding/get-api-key
+To get the Google API key, see [Set up the Geocoding API](https://developers.google.com/maps/documentation/geocoding/get-api-key).

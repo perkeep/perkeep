@@ -246,8 +246,8 @@ func (kv *KeyValue) Close() error { return kv.DB.Close() }
 
 // Something we can make queries on. This will either be an *sql.DB or an *sql.Tx.
 type queryObject interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
-	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Query(query string, args ...any) (*sql.Rows, error)
 }
 
 // Common logic for KeyValue.Find and batchTx.Find.
@@ -274,7 +274,7 @@ func find(kv *KeyValue, qobj queryObject, start, end string) *iter {
 // Common logic for KeyValue.Get and batchTx.Get
 func get(kv *KeyValue, qobj queryObject, key string) (value string, err error) {
 	err = qobj.QueryRow(kv.sql("SELECT v FROM /*TPRE*/rows WHERE k=?"), key).Scan(&value)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = sorted.ErrNotFound
 	}
 	return

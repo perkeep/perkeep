@@ -19,6 +19,7 @@ limitations under the License.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -296,7 +297,7 @@ func Main() {
 		// We want -h to behave as -help, but without having to define another flag for
 		// it, so we handle it here.
 		// TODO(mpl): maybe even remove -help and just let them both be handled here?
-		if err == flag.ErrHelp {
+		if errors.Is(err, flag.ErrHelp) {
 			help(mode)
 			return
 		}
@@ -308,10 +309,9 @@ func Main() {
 		}
 		err = cmd.RunCommand(cmdFlags.Args())
 	}
-	if ue, isUsage := err.(UsageError); isUsage {
-		if isUsage {
-			Errorf("%s\n", ue)
-		}
+	var ue UsageError
+	if errors.As(err, &ue) {
+		Errorf("%s\n", ue)
 		cmd.Usage()
 		Errorf("\nGlobal options:\n")
 		flag.PrintDefaults()
@@ -366,19 +366,19 @@ func shiftFlags(mode string) []string {
 }
 
 // Errorf prints to Stderr, regardless of FlagVerbose.
-func Errorf(format string, args ...interface{}) {
+func Errorf(format string, args ...any) {
 	fmt.Fprintf(Stderr, format, args...)
 }
 
 // Printf prints to Stderr if FlagVerbose, and is silent otherwise.
-func Printf(format string, args ...interface{}) {
+func Printf(format string, args ...any) {
 	if *FlagVerbose {
 		fmt.Fprintf(Stderr, format, args...)
 	}
 }
 
 // Logf logs to Stderr if FlagVerbose, and is silent otherwise.
-func Logf(format string, v ...interface{}) {
+func Logf(format string, v ...any) {
 	if !*FlagVerbose {
 		return
 	}
@@ -392,7 +392,7 @@ var sysExec func(argv0 string, argv []string, envv []string) (err error)
 // for it to finish.
 func runExec(bin string, args []string, e *env) error {
 	if sysExec != nil {
-		sysExec(bin, append([]string{filepath.Base(bin)}, args...), e.flat())
+		return sysExec(bin, append([]string{filepath.Base(bin)}, args...), e.flat())
 	}
 
 	cmd := exec.Command(bin, args...)

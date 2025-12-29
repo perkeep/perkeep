@@ -27,24 +27,24 @@ import (
 func TestParseFields(t *testing.T) {
 	tests := []struct {
 		in   string
-		want []interface{}
+		want []any
 		err  string
 	}{
-		{in: "5 17", want: []interface{}{uint64(5), uint32(17)}},
-		{in: "1", want: []interface{}{uint64(1)}},
-		{in: "1", want: []interface{}{int64(1)}},
+		{in: "5 17", want: []any{uint64(5), uint32(17)}},
+		{in: "1", want: []any{uint64(1)}},
+		{in: "1", want: []any{int64(1)}},
 		{in: "5 sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33 8",
-			want: []interface{}{
+			want: []any{
 				int64(5),
 				blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"),
 				uint32(8),
 			},
 		},
-		{in: "-5", want: []interface{}{int64(-5)}, err: "invalid syntax"},
+		{in: "-5", want: []any{int64(-5)}, err: "invalid syntax"},
 	}
 
 	for i, tt := range tests {
-		var gotp []interface{}
+		var gotp []any
 		var gotrv []reflect.Value
 		for _, wantv := range tt.want {
 			rv := reflect.New(reflect.TypeOf(wantv))
@@ -63,7 +63,7 @@ func TestParseFields(t *testing.T) {
 			t.Errorf("%d. error = %v; want substring %q", i, gotErr, tt.err)
 			continue
 		}
-		var got []interface{}
+		var got []any
 		for _, rv := range gotrv {
 			got = append(got, rv.Elem().Interface())
 		}

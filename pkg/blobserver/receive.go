@@ -81,7 +81,7 @@ type checkHashReader struct {
 func (c *checkHashReader) Read(p []byte) (n int, err error) {
 	n, err = c.src.Read(p)
 	c.h.Write(p[:n])
-	if err == io.EOF && !c.br.HashMatches(c.h) {
+	if errors.Is(err, io.EOF) && !c.br.HashMatches(c.h) {
 		err = ErrCorruptBlob
 		c.corrupt = true
 	}

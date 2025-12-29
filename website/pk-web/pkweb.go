@@ -88,13 +88,13 @@ var fmap = template.FuncMap{
 }
 
 // Template formatter for "html" format.
-func htmlFmt(w io.Writer, format string, x ...interface{}) string {
+func htmlFmt(w io.Writer, format string, x ...any) string {
 	writeAny(w, true, x[0])
 	return ""
 }
 
 // Template formatter for "htmlesc" format.
-func htmlEscFmt(w io.Writer, format string, x ...interface{}) string {
+func htmlEscFmt(w io.Writer, format string, x ...any) string {
 	var buf bytes.Buffer
 	writeAny(&buf, false, x[0])
 	template.HTMLEscape(w, buf.Bytes())
@@ -102,7 +102,7 @@ func htmlEscFmt(w io.Writer, format string, x ...interface{}) string {
 }
 
 // Write anything to w; optionally html-escaped.
-func writeAny(w io.Writer, html bool, x interface{}) {
+func writeAny(w io.Writer, html bool, x any) {
 	switch v := x.(type) {
 	case []byte:
 		writeText(w, v, html)
@@ -128,7 +128,7 @@ func writeText(w io.Writer, text []byte, html bool) {
 	w.Write(text)
 }
 
-func applyTemplate(t *template.Template, name string, data interface{}) []byte {
+func applyTemplate(t *template.Template, name string, data any) []byte {
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, data); err != nil {
 		log.Printf("%s.Execute: %s", name, err)
@@ -153,8 +153,8 @@ type pageParams struct {
 
 // pageTmplData is the template data passed to page.html.
 type pageTmplData struct {
-	Title    string
-	Subtitle string
+	Title    template.HTML
+	Subtitle template.HTML
 	Content  template.HTML
 
 	// For the "go-import" meta header:
@@ -178,8 +178,8 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
 	if err := pageHTML.ExecuteTemplate(w, "page", &pageTmplData{
-		Title:            title,
-		Subtitle:         subtitle,
+		Title:            template.HTML(title),
+		Subtitle:         template.HTML(subtitle),
 		Content:          template.HTML(content),
 		GoImportDomain:   domain,
 		GoImportUpstream: upstream,
@@ -237,8 +237,7 @@ func redirectPath(u *url.URL) string {
 		}
 	}
 
-	if strings.HasPrefix(u.Path, "/gw/") {
-		path := strings.TrimPrefix(u.Path, "/gw/")
+	if path, ok := strings.CutPrefix(u.Path, "/gw/"); ok {
 		if commitHash.MatchString(path) {
 			// Assume it's a commit
 			return viewCommitPrefix + path
@@ -246,8 +245,8 @@ func redirectPath(u *url.URL) string {
 		return viewFilePrefix + "master/" + path
 	}
 
-	if strings.HasPrefix(u.Path, "/docs/") {
-		return "/doc/" + strings.TrimPrefix(u.Path, "/docs/")
+	if after, ok := strings.CutPrefix(u.Path, "/docs/"); ok {
+		return "/doc/" + after
 	}
 
 	// strip directory index files
@@ -483,7 +482,7 @@ func runDemoBlobServerContainer(name string) error {
 	// stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
 	// cmd.Stderr = stderr
 	// if err := cmd.Run(); err != nil {
-	// 	return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+	// 	return fmt.Errorf("failed to run demo blob server: %w, stderr: %v", err, string(stderr.Bytes()))
 	// }
 	return nil
 }

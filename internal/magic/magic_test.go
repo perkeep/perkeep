@@ -49,6 +49,7 @@ var tests = []magicTest{
 	{fileName: "hello.mov", want: "video/quicktime"},
 	{fileName: "silence.wav", want: "audio/x-wav"},
 	{fileName: "silence.flac", want: "audio/x-flac"},
+	{fileName: "heap.svg", want: "image/svg+xml"},
 	{data: "<html>foo</html>", want: "text/html"},
 	{data: "\xff", want: ""},
 	{fileName: "park.heic", want: "image/heic"}, // truncated file for header only
@@ -140,7 +141,7 @@ func TestMIMETypeFromReader(t *testing.T) {
 	if string(slurp) != "<html>foobar" {
 		t.Errorf("read = %q; want %q", slurp, content)
 	}
-	if err != someErr {
+	if !errors.Is(err, someErr) {
 		t.Errorf("read error = %v; want %v", err, someErr)
 	}
 }

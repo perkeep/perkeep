@@ -223,42 +223,44 @@ func TestRescaleEXIF(t *testing.T) {
 		if !strings.Contains(v, "exif") {
 			continue
 		}
-		name := filepath.Join(datadir, v)
-		t.Logf("rescaling %s with half-width and half-height", name)
-		f, err := os.Open(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		rescaledIm, _, err := Decode(f, &DecodeOpts{ScaleWidth: 0.5, ScaleHeight: 0.5})
-		if err != nil {
-			t.Fatal(err)
-		}
+		t.Run(v, func(t *testing.T) {
+			name := filepath.Join(datadir, v)
+			t.Logf("rescaling %s with half-width and half-height", name)
+			f, err := os.Open(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			rescaledIm, _, err := Decode(f, &DecodeOpts{ScaleWidth: 0.5, ScaleHeight: 0.5})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		gotB, wantB := rescaledIm.Bounds(), smallStraightF.Bounds()
-		if !gotB.Eq(wantB) {
-			t.Errorf("(scale) %v bounds not equal, got %v want %v", name, gotB, wantB)
-		}
-		if !equals(rescaledIm, smallStraightF) {
-			t.Errorf("(scale) %v pixels not equal", name)
-		}
+			gotB, wantB := rescaledIm.Bounds(), smallStraightF.Bounds()
+			if !gotB.Eq(wantB) {
+				t.Errorf("(scale) bounds not equal, got %v want %v", gotB, wantB)
+			}
+			if !equals(rescaledIm, smallStraightF) {
+				t.Errorf("(scale) pixels not equal")
+			}
 
-		_, err = f.Seek(0, io.SeekStart)
-		if err != nil {
-			t.Fatal(err)
-		}
-		rescaledIm, _, err = Decode(f, &DecodeOpts{MaxWidth: 2000, MaxHeight: 40})
-		if err != nil {
-			t.Fatal(err)
-		}
+			_, err = f.Seek(0, io.SeekStart)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rescaledIm, _, err = Decode(f, &DecodeOpts{MaxWidth: 2000, MaxHeight: 40})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		gotB = rescaledIm.Bounds()
-		if !gotB.Eq(wantB) {
-			t.Errorf("(max) %v bounds not equal, got %v want %v", name, gotB, wantB)
-		}
-		if !equals(rescaledIm, smallStraightF) {
-			t.Errorf("(max) %v pixels not equal", name)
-		}
+			gotB = rescaledIm.Bounds()
+			if !gotB.Eq(wantB) {
+				t.Errorf("(max) bounds not equal, got %v want %v", gotB, wantB)
+			}
+			if !equals(rescaledIm, smallStraightF) {
+				t.Errorf("(max) pixels not equal")
+			}
+		})
 	}
 }
 
@@ -378,36 +380,6 @@ func TestIssue513(t *testing.T) {
 	}
 }
 
-func TestHEIFToJPEG(t *testing.T) {
-	filename := filepath.Join("testdata", "IMG_8062.HEIC")
-	f, err := os.Open(filename)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	// image is in portrait orientation, so dimensions are swapped
-	wantWidth, wantHeight := 756, 1008
-	max := 1008
-	data, err := HEIFToJPEG(f, &Dimensions{MaxWidth: max, MaxHeight: max})
-	if err != nil {
-		if _, ok := err.(NoHEICTOJPEGError); ok {
-			t.Skipf("skipping test; missing program: %v", err)
-		}
-		t.Fatal(err)
-	}
-	conf, tp, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tp != "jpeg" {
-		t.Fatalf("%v not converted into a jpeg", filename)
-	}
-	if conf.Width != wantWidth || conf.Height != wantHeight {
-		t.Fatalf("wrong width or height, wanted (%d, %d), got (%d, %d)", wantWidth, wantHeight, conf.Width, conf.Height)
-	}
-}
-
 func TestDecodeHEIC_WithJPEGInHeader(t *testing.T) {
 	filename := filepath.Join("testdata", "river-truncated.heic")
 	f, err := os.Open(filename)
@@ -424,5 +396,116 @@ func TestDecodeHEIC_WithJPEGInHeader(t *testing.T) {
 	want := "Width:6302 Height:3912 Format:heic HEIC:1046 bytes"
 	if got != want {
 		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
+	}
+}
+
+func TestDecodeSVG(t *testing.T) {
+	filename := filepath.Join("testdata", "heap.svg")
+	f, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	conf, err := DecodeConfig(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmt.Sprintf("Width:%d Height:%d Format:%v", conf.Width, conf.Height, conf.Format)
+	want := "Width:500 Height:600 Format:svg"
+	if got != want {
+		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
+	}
+}
+
+func TestDecodePortraitHEIC(t *testing.T) {
+	type dimensions struct {
+		Width, Height int
+	}
+
+	for _, baseName := range sampleNames(t) {
+		var wantDim dimensions
+		switch {
+		case strings.HasPrefix(baseName, "ski-throne"):
+			wantDim = dimensions{3024, 4032}
+		case strings.HasPrefix(baseName, "f") && strings.HasSuffix(baseName, "-exif.jpg"):
+			wantDim = dimensions{40, 80}
+		default:
+			continue
+		}
+
+		wantFormat := strings.TrimPrefix(filepath.Ext(baseName), ".")
+		if wantFormat == "jpg" {
+			wantFormat = "jpeg"
+		}
+
+		t.Run(baseName, func(t *testing.T) {
+			filename := filepath.Join("testdata", baseName)
+
+			check := func(t *testing.T, d dimensions) {
+				t.Helper()
+				if d != wantDim {
+					t.Errorf("got %+v; want %+v", d, wantDim)
+				}
+			}
+
+			open := func() *os.File {
+				f, err := os.Open(filename)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { f.Close() })
+				return f
+			}
+
+			t.Run("images.Decode", func(t *testing.T) {
+				im, conf, err := Decode(open(), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if conf.Format != wantFormat {
+					t.Fatalf("Got format %q; want %q", conf.Format, wantFormat)
+				}
+				t.Run("Image", func(t *testing.T) {
+					check(t, dimensions{im.Bounds().Dx(), im.Bounds().Dy()})
+				})
+				t.Run("Config", func(t *testing.T) {
+					check(t, dimensions{conf.Width, conf.Height})
+				})
+			})
+			t.Run("image.DecodeConfig", func(t *testing.T) {
+				conf, format, err := image.DecodeConfig(open())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if format != wantFormat {
+					t.Logf("Got format %q; want %q", format, wantFormat)
+				}
+				got := dimensions{conf.Width, conf.Height}
+				if got != wantDim && wantFormat == "jpeg" {
+					t.Logf("[expected] std image package jpeg dimensions = %v (not %v post-EXIF)", got, wantDim)
+				}
+			})
+			t.Run("images.DecodeConfig", func(t *testing.T) {
+				conf, err := DecodeConfig(open())
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(t, dimensions{conf.Width, conf.Height})
+			})
+			t.Run("decodeHEIFConfig", func(t *testing.T) {
+				if wantFormat != "heic" {
+					t.Skipf("skipping heic-specific test for format %q", wantFormat)
+				}
+				conf, err := decodeHEIFConfig(open())
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(t, dimensions{conf.Width, conf.Height})
+				if len(conf.HEICEXIF) == 0 {
+					t.Errorf("expected non-empty HEICEXIF")
+				}
+			})
+		})
 	}
 }

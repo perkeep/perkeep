@@ -27,7 +27,7 @@ import (
 	"perkeep.org/pkg/blob"
 )
 
-func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data interface{}) {
+func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data any) {
 	tmplName := strings.TrimPrefix(fmt.Sprintf("%T", data), "importer.")
 	var buf bytes.Buffer
 	err := h.tmpl.ExecuteTemplate(&buf, tmplName, data)
@@ -54,9 +54,10 @@ type importerPage struct {
 }
 
 type importerBody struct {
-	Host      *Host
-	Importer  *importer
-	SetupHelp template.HTML
+	Host                       *Host
+	Importer                   *importer
+	ShowSecureTransportWarning bool
+	SetupHelp                  template.HTML
 }
 
 type acctPage struct {
@@ -65,16 +66,17 @@ type acctPage struct {
 }
 
 type acctBody struct {
-	Acct       *importerAcct
-	AcctType   string
-	Running    bool
-	LastStatus string
-	StartedAgo time.Duration // or zero if !Running
-	LastAgo    time.Duration // non-zero if previous run && !Running
-	LastError  string
+	Acct           *importerAcct
+	AcctType       string
+	Running        bool
+	LastStatus     string
+	StartedAgo     time.Duration // or zero if !Running
+	LastAgo        time.Duration // non-zero if previous run && !Running
+	LastError      string
+	HasSomePaidAPI bool
 }
 
-var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
+var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 	"bloblink": func(br blob.Ref) string {
 		panic("should be overridden; this one won't be called")
 	},
@@ -128,7 +130,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
 </ul>
 
 {{if .Importer.ShowClientAuthEditForm}}
-	{{if .Importer.InsecureForm}}
+	{{if .ShowSecureTransportWarning}}
 	<h1 style="color:red;">This page is not served securely (no https). Proceed at your own risk.</h1>
 	{{end}}
     <h1>Client ID &amp; Client Secret</h1>
@@ -184,6 +186,13 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
         <li>Previous run: {{.LastAgo}} ago{{if .LastError}}: {{.LastError}}{{else}} (success){{end}}</li>
      {{end}}
    {{end}}
+  {{if .HasSomePaidAPI}}
+    <form method='post' style='display: inline'>
+        <input type='hidden' name='mode' value='togglepaidapi'>
+        <input type='checkbox' name='usePaidAPI' {{if .Acct.UsePaidAPI}}checked{{end}} onchange='this.form.submit()'>
+          <label>Use Paid API</label>
+      </form>
+  {{end}}
 </ul>
 
 {{if .Acct.IsAccountReady}}

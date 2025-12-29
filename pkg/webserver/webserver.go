@@ -41,9 +41,23 @@ import (
 	"golang.org/x/net/http2"
 	"perkeep.org/pkg/webserver/listen"
 	"tailscale.com/tsnet"
+	"tailscale.com/util/ctxkey"
 )
 
 const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
+
+// Context keys
+var (
+	// TSNetCtxKey is the context key for the Tailscale tsnet.Server.
+	TSNetCtxKey = ctxkey.New("tsnet", (*tsnet.Server)(nil))
+
+	// TailscaleCtxKey is the context key for whether the server is running in
+	// Tailscale tsnet mode.
+	//
+	// It is semantically equivalent to whether [TSNetCtxKey] is non-nil, but
+	// exists for convenience.
+	TailscaleCtxKey = ctxkey.New("tailscale", false)
+)
 
 type Server struct {
 	mux       *http.ServeMux
@@ -78,7 +92,7 @@ func New() *Server {
 	}
 }
 
-func (s *Server) printf(format string, v ...interface{}) {
+func (s *Server) printf(format string, v ...any) {
 	if s.Logger != nil {
 		s.Logger.Printf(format, v...)
 		return
@@ -86,7 +100,7 @@ func (s *Server) printf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
-func (s *Server) fatalf(format string, v ...interface{}) {
+func (s *Server) fatalf(format string, v ...any) {
 	if s.Logger != nil {
 		s.Logger.Fatalf(format, v...)
 		return
@@ -202,7 +216,7 @@ func (s *Server) Listen(addr string) error {
 		s.listener, err = listen.Listen(addr)
 	}
 	if err != nil {
-		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
+		return fmt.Errorf("Failed to listen on %s: %w", addr, err)
 	}
 	base := s.ListenURL()
 	s.printf("Starting to listen on %s\n", base)
@@ -236,7 +250,7 @@ func (s *Server) Listen(addr string) error {
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 			if err != nil {
-				return fmt.Errorf("Failed to load TLS cert: %v", err)
+				return fmt.Errorf("Failed to load TLS cert: %w", err)
 			}
 			s.listener = tls.NewListener(s.listener, config)
 			return nil
@@ -270,7 +284,7 @@ func (s *Server) listenTailscale(addr string, withTLS bool) (net.Listener, error
 	if dir == "" {
 		confDir, err := os.UserConfigDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to find user config dir: %v", err)
+			return nil, fmt.Errorf("failed to find user config dir: %w", err)
 		}
 		dir = filepath.Join(confDir, "tsnet-"+name)
 	}
@@ -339,6 +353,14 @@ func (s *Server) Serve() {
 
 	srv := &http.Server{
 		Handler: s,
+		BaseContext: func(ln net.Listener) context.Context {
+			ctx := context.Background()
+			if s.tsnetServer != nil {
+				ctx = TailscaleCtxKey.WithValue(ctx, true)
+				ctx = TSNetCtxKey.WithValue(ctx, s.tsnetServer)
+			}
+			return ctx
+		},
 	}
 	// TODO: allow configuring src.ErrorLog (and plumb through to
 	// Google Cloud Logging when run on GCE, eventually)

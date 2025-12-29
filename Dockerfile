@@ -2,16 +2,11 @@
 # Generic purpose Perkeep image, that builds the server (perkeepd)
 # and the command-line clients (pk, pk-put, pk-get, and pk-mount).
 
-# TODO: add the HEIC-supporting imagemagick to this Dockerfile too, in
-# some way that's minimally gross and not duplicating
-# misc/docker/heiftojpeg's Dockerfile entirely. Not decided best way.
-# TODO: likewise, djpeg binary? maybe. https://perkeep.org/issue/1142
+FROM golang:1.25 AS pkbuild
 
-FROM golang:1.18 AS pkbuild
+LABEL maintainer="Perkeep Authors perkeep@googlegroups.com"
 
-MAINTAINER Perkeep Authors <perkeep@googlegroups.com>
-
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /go/src/perkeep.org
 
@@ -22,12 +17,15 @@ COPY . .
 
 RUN go run make.go -v
 
+###########################################################################
 
+FROM debian:trixie-slim
 
-FROM gcr.io/distroless/base
+ENV HOME=/home/keepy
+ENV PATH=/home/keepy/bin:$PATH
+ENV PK_IN_CONTAINER=1
 
-ENV HOME /home/keepy
-ENV PATH /home/keepy/bin:$PATH
+RUN apt-get update && apt-get install -y imagemagick libjpeg-turbo-progs libheif-dev libheif1 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=pkbuild /go/bin/pk* /home/keepy/bin/
 COPY --from=pkbuild /go/bin/perkeepd /home/keepy/bin/

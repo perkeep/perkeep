@@ -48,10 +48,7 @@ func reArmor(line string) string {
 	payload := line[0:lastEq]
 	crc := line[lastEq:]
 	for len(payload) > 0 {
-		chunkLen := len(payload)
-		if chunkLen > 60 {
-			chunkLen = 60
-		}
+		chunkLen := min(len(payload), 60)
 		fmt.Fprintf(buf, "%s\n", payload[0:chunkLen])
 		payload = payload[chunkLen:]
 	}
@@ -74,8 +71,8 @@ type VerifyRequest struct {
 	PublicKeyPacket *packet.PublicKey
 
 	// set if Verify() returns true:
-	PayloadMap  map[string]interface{} // The JSON values from BPJ
-	SignerKeyId string                 // e.g. "2931A67C26F5ABDA"
+	PayloadMap  map[string]any // The JSON values from BPJ
+	SignerKeyId string         // e.g. "2931A67C26F5ABDA"
 
 	Err error // last error encountered
 }
@@ -86,7 +83,7 @@ func (vr *VerifyRequest) fail(msg string) bool {
 }
 
 func (vr *VerifyRequest) ParseSigMap() bool {
-	sigMap := make(map[string]interface{})
+	sigMap := make(map[string]any)
 	if err := json.Unmarshal(vr.bs, &sigMap); err != nil {
 		return vr.fail("invalid JSON in signature")
 	}
@@ -110,7 +107,7 @@ func (vr *VerifyRequest) ParseSigMap() bool {
 }
 
 func (vr *VerifyRequest) ParsePayloadMap() bool {
-	vr.PayloadMap = make(map[string]interface{})
+	vr.PayloadMap = make(map[string]any)
 	pm := vr.PayloadMap
 
 	if err := json.Unmarshal(vr.bpj, &pm); err != nil {
@@ -141,7 +138,7 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 	reader, _, err := vr.fetcher.Fetch(ctx, vr.CamliSigner)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return camerrors.ErrMissingKeyBlob
 		}
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
@@ -150,7 +147,7 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
 	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
-		return fmt.Errorf("error opening public key file: %v", err)
+		return fmt.Errorf("error opening public key file: %w", err)
 	}
 	vr.PublicKeyPacket = pk
 	return nil

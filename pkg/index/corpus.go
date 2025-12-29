@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -119,18 +120,13 @@ type Corpus struct {
 	ss []string
 }
 
-func (c *Corpus) logf(format string, args ...interface{}) {
+func (c *Corpus) logf(format string, args ...any) {
 	log.Printf("index/corpus: "+format, args...)
 }
 
 // blobMatches reports whether br is in the set.
 func (srs SignerRefSet) blobMatches(br blob.Ref) bool {
-	for _, v := range srs {
-		if br.EqualString(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(srs, br.EqualString)
 }
 
 // signerFromBlobrefMap maps a signer blobRef to the signer's GPG ID (e.g.
@@ -485,7 +481,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
 	if err := c.initDeletes(s); err != nil {
-		return fmt.Errorf("Could not populate the corpus deletes: %v", err)
+		return fmt.Errorf("Could not populate the corpus deletes: %w", err)
 	}
 
 	if logCorpusStats {
@@ -618,7 +614,7 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 	}
 	for _, cl := range mm.deletes {
 		if err := c.updateDeletes(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
 		}
 	}
 	return nil
@@ -631,16 +627,14 @@ func (c *Corpus) updateDeletes(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("Could not get date of delete claim %v: %w", deleteClaim, err)
 	}
 	del := deletion{
 		deleter: c.br(deleter.BlobRef()),
 		when:    when,
 	}
-	for _, v := range c.deletes[target] {
-		if v == del {
-			return nil
-		}
+	if slices.Contains(c.deletes[target], del) {
+		return nil
 	}
 	targetDeletions := append(c.deletes[target], del)
 	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
@@ -1517,12 +1511,7 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 		return false
 	}
 	if values, ok := pm.valuesAtSigner(at, ""); ok {
-		for _, v := range values[attr] {
-			if v == val {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(values[attr], val)
 	}
 	if at.IsZero() {
 		at = time.Now()

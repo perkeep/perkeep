@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -62,12 +63,12 @@ type IndexDeps struct {
 }
 
 type Fataler interface {
-	Fatalf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
 }
 
 type logFataler struct{}
 
-func (logFataler) Fatalf(format string, args ...interface{}) {
+func (logFataler) Fatalf(format string, args ...any) {
 	log.Fatalf(format, args...)
 }
 
@@ -671,13 +672,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 				got, want)
 		}
 		for _, w := range want {
-			found := false
-			for _, g := range got {
-				if w == g {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(got, w)
 			if !found {
 				t.Errorf("GetDirMembers: %v was not found.", w)
 			}
@@ -698,7 +693,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			}
 		}
 		_, err = id.Index.GetBlobMeta(ctx, blob.ParseOrZero("abc-123"))
-		if err != os.ErrNotExist {
+		if !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("GetBlobMeta(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
 	}

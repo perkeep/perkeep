@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -59,7 +60,14 @@ func check(err error) {
 
 func (r *Request) GetPIN() (pin string, outerr error) {
 	defer catch(&outerr)
-	bin, err := exec.LookPath("pinentry")
+	var bin string
+	var err error
+	if runtime.GOOS == "darwin" {
+		bin, err = exec.LookPath("pinentry-mac")
+	}
+	if err != nil || bin == "" {
+		bin, err = exec.LookPath("pinentry")
+	}
 	if err != nil {
 		return r.getPINNaïve()
 	}
@@ -67,8 +75,14 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
 	check(cmd.Start())
-	defer cmd.Wait()
+
+	defer func() {
+		if werr := cmd.Wait(); werr != nil && outerr == nil {
+			outerr = werr
+		}
+	}()
 	defer stdin.Close()
+
 	br := bufio.NewReader(stdout)
 	lineb, _, err := br.ReadLine()
 	if err != nil {
@@ -104,7 +118,7 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	fmt.Fprintf(stdin, "GETPIN\n")
 	lineb, _, err = br.ReadLine()
 	if err != nil {
-		return "", fmt.Errorf("Failed to read line after GETPIN: %v", err)
+		return "", fmt.Errorf("Failed to read line after GETPIN: %w", err)
 	}
 	line = string(lineb)
 	if strings.HasPrefix(line, "D ") {
@@ -120,12 +134,12 @@ func runPass(bin string, args ...string) error {
 	cmd := exec.Command(bin, args...)
 	cmd.Stdin = os.Stdin
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%v error: %v, %s", bin, err, out)
+		return fmt.Errorf("%v error: %w, %s", bin, err, out)
 	}
 	return nil
 }
 
-func (r *Request) getPINNaïve() (string, error) {
+func (r *Request) getPINNaïve() (pin string, outerr error) {
 	stty, err := exec.LookPath("stty")
 	if err != nil {
 		return "", errors.New("no pinentry or stty found")
@@ -133,7 +147,11 @@ func (r *Request) getPINNaïve() (string, error) {
 	if err := runPass(stty, "-echo"); err != nil {
 		return "", err
 	}
-	defer runPass(stty, "echo")
+	defer func() {
+		if err := runPass(stty, "echo"); err != nil && outerr == nil {
+			outerr = err
+		}
+	}()
 
 	if r.Desc != "" {
 		fmt.Printf("%s\n\n", r.Desc)

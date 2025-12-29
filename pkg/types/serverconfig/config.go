@@ -84,7 +84,7 @@ type Config struct {
 	PostgreSQL string `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
 	SQLite     string `json:"sqlite,omitempty"`      // path to the SQLite file, for indexing with SQLite.
 
-	ReplicateTo []interface{} `json:"replicateTo,omitempty"` // NOOP for now.
+	ReplicateTo []any `json:"replicateTo,omitempty"` // NOOP for now.
 	// Publish maps a URL prefix path used as a root for published paths (a.k.a. a camliRoot path), to the configuration of the publish handler that serves all the published paths under this root.
 	Publish map[string]*Publish `json:"publish,omitempty"`
 	ScanCab *ScanCab            `json:"scancab,omitempty"` // Scanning cabinet app configuration.

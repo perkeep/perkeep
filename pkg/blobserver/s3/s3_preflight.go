@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -126,7 +127,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 		}
 		var b bytes.Buffer
 		if _, err := io.Copy(&b, r.HTTPResponse.Body); err != nil {
-			r.Error = fmt.Errorf("error reading body: %v", err)
+			r.Error = fmt.Errorf("error reading body: %w", err)
 			return
 		}
 
@@ -152,7 +153,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 				return determineEndpoint(ctx, svc, endpoint, bucket, newRegion)
 			}
 		}
-		return "", "", fmt.Errorf("s3: could not determine endpoint: %v", err)
+		return "", "", fmt.Errorf("s3: could not determine endpoint: %w", err)
 	}
 	// this indicates the UnmarshalError handler wasn't called, and since the
 	// above branch didn't happen there wasn't an error. That means our current
@@ -209,7 +210,8 @@ var malformedAuthHeaderMessageRegexp = regexp.MustCompile("region '[^']+' is wro
 // In an attempt to retain that functionality, we parse the error message
 // telling us we hit the wrong region and auto-correct it.
 func regionFromMalformedAuthHeaderError(err error) string {
-	if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "AuthorizationHeaderMalformed" {
+	var aerr awserr.Error
+	if errors.As(err, &aerr) && aerr.Code() == "AuthorizationHeaderMalformed" {
 		matches := malformedAuthHeaderMessageRegexp.FindStringSubmatch(aerr.Message())
 		if len(matches) == 2 {
 			return matches[1]

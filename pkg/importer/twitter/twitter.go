@@ -208,7 +208,7 @@ var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_TWITTER_FULL_IMPORT"
 func (im *imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
-		return fmt.Errorf("no API credentials: %v", err)
+		return fmt.Errorf("no API credentials: %w", err)
 	}
 	acctNode := ctx.AccountNode()
 	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
@@ -250,7 +250,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 	acctNode, err = ctx.Host.ObjectFromRef(acctNode.PermanodeRef())
 	if err != nil {
-		return fmt.Errorf("error reloading account node: %v", err)
+		return fmt.Errorf("error reloading account node: %w", err)
 	}
 	importLikes, err := strconv.ParseBool(acctNode.Attr(acctAttrImportLikes))
 	if err == nil && importLikes {
@@ -268,12 +268,12 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		}
 		fr, err := schema.NewFileReader(r.Context(), r.Host.BlobSource(), zipbr)
 		if err != nil {
-			return fmt.Errorf("error opening zip %v: %v", zipbr, err)
+			return fmt.Errorf("error opening zip %v: %w", zipbr, err)
 		}
 		defer fr.Close()
 		zr, err := zip.NewReader(fr, fr.Size())
 		if err != nil {
-			return fmt.Errorf("Error opening twitter zip file %v: %v", zipRef, err)
+			return fmt.Errorf("Error opening twitter zip file %v: %w", zipRef, err)
 		}
 		if err := r.importTweetsFromZip(userID, zr); err != nil {
 			return err
@@ -353,14 +353,14 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 	return errors.New("twitter: got EOF without a tweet")
 }
 
-func (r *run) errorf(format string, args ...interface{}) {
+func (r *run) errorf(format string, args ...any) {
 	log.Printf("twitter: "+format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.anyErr = true
 }
 
-func (r *run) doAPI(result interface{}, apiPath string, keyval ...string) error {
+func (r *run) doAPI(result any, apiPath string, keyval ...string) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,
@@ -483,7 +483,7 @@ func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
 	}
 	slurp = slurp[i:]
 	if err := json.Unmarshal(slurp, &tweets); err != nil {
-		return nil, fmt.Errorf("JSON error: %v", err)
+		return nil, fmt.Errorf("JSON error: %w", err)
 	}
 	return
 }
@@ -507,7 +507,7 @@ func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 		}
 		tweets, err := tweetsFromZipFile(zf)
 		if err != nil {
-			return fmt.Errorf("error reading tweets from %s: %v", zf.Name, err)
+			return fmt.Errorf("error reading tweets from %s: %w", zf.Name, err)
 		}
 
 		for i := range tweets {
@@ -566,7 +566,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	// e.g. "2014-06-12 19:11:51 +0000"
 	createdTime, err := timeParseFirstFormat(tweet.CreatedAt(), time.RubyDate, "2006-01-02 15:04:05 -0700")
 	if err != nil {
-		return false, fmt.Errorf("could not parse time %q: %v", tweet.CreatedAt(), err)
+		return false, fmt.Errorf("could not parse time %q: %w", tweet.CreatedAt(), err)
 	}
 
 	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
@@ -608,7 +608,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			tried++
 			res, err := ctxutil.Client(r.Context()).Get(mediaURL)
 			if err != nil {
-				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
+				return false, fmt.Errorf("Error fetching %s for tweet %s: %w", mediaURL, url, err)
 			}
 			if res.StatusCode == http.StatusNotFound {
 				continue
@@ -622,7 +622,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 			res.Body.Close()
 			if err != nil {
-				return false, fmt.Errorf("Error fetching media %s for tweet %s: %v", mediaURL, url, err)
+				return false, fmt.Errorf("Error fetching media %s for tweet %s: %w", mediaURL, url, err)
 			}
 			attrs = append(attrs, "camliPath:"+filename, fileRef.String())
 			if i == 0 {
@@ -688,13 +688,13 @@ func getUserInfo(ctx importer.OAuthContext) (userInfo, error) {
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
-		err = fmt.Errorf("error getting OAuth client: %v", err)
+		err = fmt.Errorf("error getting OAuth client: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
 	tempCred, err := oauthClient.RequestTemporaryCredentials(ctxutil.Client(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
-		err = fmt.Errorf("Error getting temp cred: %v", err)
+		err = fmt.Errorf("Error getting temp cred: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -702,7 +702,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		importer.AcctAttrTempToken, tempCred.Token,
 		importer.AcctAttrTempSecret, tempCred.Secret,
 	); err != nil {
-		err = fmt.Errorf("Error saving temp creds: %v", err)
+		err = fmt.Errorf("Error saving temp creds: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -727,7 +727,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
-		err = fmt.Errorf("error getting OAuth client: %v", err)
+		err = fmt.Errorf("error getting OAuth client: %w", err)
 		httputil.ServeError(w, r, err)
 		return
 	}
@@ -740,25 +740,25 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		r.FormValue("oauth_verifier"),
 	)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %v ", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %w", err))
 		return
 	}
 	userid := vals.Get("user_id")
 	if userid == "" {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %w", err))
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
 		importer.AcctAttrAccessToken, tokenCred.Token,
 		importer.AcctAttrAccessTokenSecret, tokenCred.Secret,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting token attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting token attributes: %w", err))
 		return
 	}
 
 	u, err := getUserInfo(importer.OAuthContext{Ctx: ctx.Context, Client: oauthClient, Creds: tokenCred})
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user info: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user info: %w", err))
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
@@ -767,7 +767,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserName, u.ScreenName,
 		nodeattr.Title, fmt.Sprintf("%s's Twitter Account", u.ScreenName),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

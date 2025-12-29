@@ -127,7 +127,7 @@ func (is *kvis) Wipe() error {
 
 	db, err := kv.Create(is.path, is.opts)
 	if err != nil {
-		return fmt.Errorf("error creating %s: %v", is.path, err)
+		return fmt.Errorf("error creating %s: %w", is.path, err)
 	}
 	is.db = db
 	return nil
@@ -254,7 +254,7 @@ func (it *iter) Next() bool {
 	it.skey, it.sval = nil, nil
 	var err error
 	it.key, it.val, err = it.enum.Next()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		it.err = nil
 		return it.end()
 	}

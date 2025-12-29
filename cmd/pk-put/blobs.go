@@ -88,6 +88,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 			return cmdmain.UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
+	defer up.Close() // release resources when done; let Windows tests clean up temp dirs
 
 	var (
 		handle    *client.UploadHandle
@@ -113,7 +114,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 	if c.makePermanode {
 		permaNode, err = up.UploadNewPermanode(ctxbg)
 		if err != nil {
-			return fmt.Errorf("Uploading permanode: %v", err)
+			return fmt.Errorf("Uploading permanode: %w", err)
 		}
 	}
 
@@ -127,8 +128,8 @@ func (c *blobCmd) RunCommand(args []string) error {
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
-			tags := strings.Split(c.tag, ",")
-			for _, tag := range tags {
+			tags := strings.SplitSeq(c.tag, ",")
+			for tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)

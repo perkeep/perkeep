@@ -97,7 +97,7 @@ var (
 	_ Interface          = (*Index)(nil)
 )
 
-func (x *Index) logf(format string, args ...interface{}) {
+func (x *Index) logf(format string, args ...any) {
 	log.Printf("index: "+format, args...)
 }
 
@@ -122,7 +122,7 @@ type Owner struct {
 func NewOwner(keyID string, ref blob.Ref) *Owner {
 	return &Owner{
 		keyID:       []string{keyID},
-		blobByKeyID: map[string]SignerRefSet{keyID: SignerRefSet{ref.String()}},
+		blobByKeyID: map[string]SignerRefSet{keyID: {ref.String()}},
 	}
 }
 
@@ -204,7 +204,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 		// New index.
 		err := idx.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 		if err != nil {
-			return nil, fmt.Errorf("Could not write index schema version %q: %v", requiredSchemaVersion, err)
+			return nil, fmt.Errorf("Could not write index schema version %q: %w", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
@@ -222,10 +222,10 @@ func New(s sorted.KeyValue) (*Index, error) {
 			schemaVersion, requiredSchemaVersion, tip)
 	}
 	if err := idx.initDeletesCache(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's deletes cache: %v", err)
+		return nil, fmt.Errorf("Could not initialize index's deletes cache: %w", err)
 	}
 	if err := idx.initNeededMaps(); err != nil {
-		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
+		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %w", err)
 	}
 	return idx, nil
 }
@@ -318,7 +318,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 		}
 		size, err := strconv.Atoi(size_s)
 		if err != nil {
-			return fmt.Errorf("bogus size in keyFileInfo value %v: %v", it.Value(), err)
+			return fmt.Errorf("bogus size in keyFileInfo value %v: %w", it.Value(), err)
 		}
 		mutations[keyFileInfo.Key(br)] = keyFileInfo.Val(size, filename, mimetype, wholeRef)
 		fixedEntries++
@@ -353,7 +353,8 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 
 	kv, err := sorted.NewKeyValue(kvConfig)
 	if err != nil {
-		if _, ok := err.(sorted.NeedWipeError); !ok {
+		var nwe sorted.NeedWipeError
+		if !errors.As(err, &nwe) {
 			return nil, err
 		}
 		if !reindex {
@@ -367,7 +368,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 			return nil, fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", kv)
 		}
 		if err := wiper.Wipe(); err != nil {
-			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %v", kv, err)
+			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %w", kv, err)
 		}
 		log.Printf("Index wiped.")
 	}
@@ -381,12 +382,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	// TODO(mpl): next time we need to do another fix, make a new error
 	// type that lets us apply the needed fix depending on its value or
 	// something. For now just one value/fix.
-	if err == errMissingWholeRef {
+	if errors.Is(err, errMissingWholeRef) {
 		// TODO: maybe we don't want to do that automatically. Brad says
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
 			ix.Close()
-			return nil, fmt.Errorf("could not fix missing wholeRef entries: %v", err)
+			return nil, fmt.Errorf("could not fix missing wholeRef entries: %w", err)
 		}
 		ix, err = New(kv)
 	}
@@ -467,7 +468,7 @@ func (x *Index) Reindex() error {
 		}
 		log.Printf("Wiping index storage type %T ...", x.s)
 		if err := wiper.Wipe(); err != nil {
-			return fmt.Errorf("error wiping index's sorted key/value type %T: %v", x.s, err)
+			return fmt.Errorf("error wiping index's sorted key/value type %T: %w", x.s, err)
 		}
 		log.Printf("Index wiped.")
 	}
@@ -510,9 +511,7 @@ func (x *Index) Reindex() error {
 	}()
 	var wg sync.WaitGroup
 	for i := 0; i < reindexMaxProcs.v; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for br := range blobc {
 				if err := x.indexBlob(ctx, br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
@@ -523,7 +522,7 @@ func (x *Index) Reindex() error {
 					// there's any error with reindexing?
 				}
 			}
-		}()
+		})
 	}
 	if err := <-enumErr; err != nil {
 		return err
@@ -634,11 +633,11 @@ func (x *Index) queryPrefixString(prefix string) sorted.Iterator {
 	return queryPrefixString(x.s, prefix)
 }
 
-func queryPrefix(s sorted.KeyValue, key *keyType, args ...interface{}) sorted.Iterator {
+func queryPrefix(s sorted.KeyValue, key *keyType, args ...any) sorted.Iterator {
 	return queryPrefixString(s, key.Prefix(args...))
 }
 
-func (x *Index) queryPrefix(key *keyType, args ...interface{}) sorted.Iterator {
+func (x *Index) queryPrefix(key *keyType, args ...any) sorted.Iterator {
 	return x.queryPrefixString(key.Prefix(args...))
 }
 
@@ -654,7 +653,7 @@ func closeIterator(it sorted.Iterator, perr *error) {
 func (x *Index) schemaVersion() int {
 	schemaVersionStr, err := x.s.Get(keySchemaVersion.name)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			return 0
 		}
 		panic(fmt.Sprintf("Could not get index schema version: %v", err))
@@ -803,7 +802,7 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 	defer close(dest)
 
 	keyId, err := x.KeyId(ctx, owner)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		x.logf("no recent permanodes because keyId for owner %v not found", owner)
 		return nil
 	}
@@ -956,7 +955,7 @@ func (x *Index) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta
 	}
 	key := "meta:" + br.String()
 	meta, err := x.s.Get(key)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -1019,7 +1018,7 @@ func (x *Index) signerRefs(ctx context.Context, keyID string) (SignerRefSet, err
 
 func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {
 	keyId, err := x.KeyId(ctx, signer)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return blob.Ref{}, os.ErrNotExist
 	}
 	if err != nil {
@@ -1053,7 +1052,7 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 	}
 
 	keyId, err := x.KeyId(ctx, request.Signer)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
@@ -1139,7 +1138,7 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(ctx, signer)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			err = nil
 		}
 		return
@@ -1226,7 +1225,7 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(ctx, signer)
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			err = nil
 		}
 		return
@@ -1387,7 +1386,7 @@ func (x *Index) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Fil
 	go x.loadKey(tkey, &tv, &terr, wg)
 	wg.Wait()
 
-	if ierr == sorted.ErrNotFound {
+	if errors.Is(ierr, sorted.ErrNotFound) {
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	if ierr != nil {
@@ -1460,7 +1459,7 @@ func (x *Index) GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Im
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
 	v, err := x.s.Get(key)
-	if err == sorted.ErrNotFound {
+	if errors.Is(err, sorted.ErrNotFound) {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -1728,7 +1727,7 @@ func (x *Index) EnumerateBlobMeta(ctx context.Context, fn func(camtypes.BlobMeta
 			return nil
 		}
 	})
-	if err == errStopIteration {
+	if errors.Is(err, errStopIteration) {
 		err = nil
 	}
 	return err
@@ -1789,7 +1788,7 @@ var camliTypeMIMEPrefixBytes = []byte(camliTypeMIMEPrefix)
 // "application/json; camliType=file" => "file"
 // "image/gif" => ""
 func camliTypeFromMIME(mime string) schema.CamliType {
-	if v := strings.TrimPrefix(mime, camliTypeMIMEPrefix); v != mime {
+	if v, ok := strings.CutPrefix(mime, camliTypeMIMEPrefix); ok {
 		return schema.CamliType(v)
 	}
 	return ""

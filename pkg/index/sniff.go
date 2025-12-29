@@ -52,10 +52,7 @@ func (sn *BlobSniffer) Write(d []byte) (int, error) {
 	}
 	sn.written += int64(len(d))
 	if len(sn.contents) < schema.MaxSchemaBlobSize {
-		n := schema.MaxSchemaBlobSize - len(sn.contents)
-		if len(d) < n {
-			n = len(d)
-		}
+		n := min(len(d), schema.MaxSchemaBlobSize-len(sn.contents))
 		sn.contents = append(sn.contents, d[:n]...)
 	}
 	return len(d), nil

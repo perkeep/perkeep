@@ -58,13 +58,13 @@ func (c *indexCmd) RunCommand(args []string) error {
 	dc := c.discoClient()
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
-		return fmt.Errorf("sync handlers discovery failed: %v", err)
+		return fmt.Errorf("sync handlers discovery failed: %w", err)
 	}
 
 	for _, sh := range syncHandlers {
 		if sh.ToIndex {
 			if err := c.sync(sh.From, sh.To); err != nil {
-				return fmt.Errorf("Error while indexing from %v to %v: %v", sh.From, sh.To, err)
+				return fmt.Errorf("Error while indexing from %v to %v: %w", sh.From, sh.To, err)
 			}
 		}
 	}

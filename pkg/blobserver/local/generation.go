@@ -23,7 +23,6 @@ package local // import "perkeep.org/pkg/blobserver/local"
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -49,8 +48,8 @@ func (g Generationer) generationFile() string {
 func (g Generationer) StorageGeneration() (initTime time.Time, random string, err error) {
 	f, err := os.Open(g.generationFile())
 	if os.IsNotExist(err) {
-		if err = g.ResetStorageGeneration(); err != nil {
-			return
+		if err := g.ResetStorageGeneration(); err != nil {
+			return time.Time{}, "", err
 		}
 		f, err = os.Open(g.generationFile())
 	}
@@ -68,20 +67,14 @@ func (g Generationer) StorageGeneration() (initTime time.Time, random string, er
 	if fi, err := f.Stat(); err == nil {
 		initTime = fi.ModTime()
 	}
-	random = string(bs)
-	return
+	return initTime, string(bs), nil
 }
 
 // ResetStorageGeneration reinitializes the generation by recreating the
 // GENERATION.dat file with a new random string
 func (g Generationer) ResetStorageGeneration() error {
 	var buf bytes.Buffer
-	if _, err := io.CopyN(&buf, rand.Reader, 20); err != nil {
-		return err
-	}
-	hex := fmt.Sprintf("%x", buf.Bytes())
-	buf.Reset()
-	buf.WriteString(hex)
+	buf.WriteString(rand.Text())
 	buf.WriteString(`
 
 This file's random string on the first line is an optimization and

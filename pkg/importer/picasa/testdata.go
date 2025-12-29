@@ -18,6 +18,7 @@ package picasa
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -99,10 +100,7 @@ func fakeAlbumsList(index, nTotal, nEntries int, cached map[int]string) string {
 		return cl
 	}
 
-	max := index + nEntries
-	if max > nTotal+1 {
-		max = nTotal + 1
-	}
+	max := min(index+nEntries, nTotal+1)
 	var entries []picago.Entry
 	for i := index; i < max; i++ {
 		entries = append(entries, fakeAlbum(i))
@@ -148,10 +146,7 @@ func fakeAlbum(counter int) picago.Entry {
 // index, and ends at index + nEntries (exclusive), or at nTotal (inclusive),
 // whichever is the lowest.
 func fakePhotosList(index, nTotal, nEntries int) string {
-	max := index + nEntries
-	if max > nTotal+1 {
-		max = nTotal + 1
-	}
+	max := min(index+nEntries, nTotal+1)
 	var entries []picago.Entry
 	for i := index; i < max; i++ {
 		entries = append(entries, fakePhotoEntry(i, nTotal))
@@ -229,7 +224,7 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 // TODO(mpl): refactor with twitter
 func fakePhoto() string {
 	srcRoot, err := osutil.PkSourceRoot()
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {

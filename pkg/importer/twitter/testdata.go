@@ -18,6 +18,7 @@ package twitter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -93,10 +94,7 @@ func fakeTimeLine(maxId, minId int64, cached map[int64]string) string {
 	if tl, ok := cached[maxId]; ok {
 		return tl
 	}
-	min := maxId - int64(tweetRequestLimit)
-	if min <= minId {
-		min = minId
-	}
+	min := max(maxId-int64(tweetRequestLimit), minId)
 	var tweets []*apiTweetItem
 	entitiesCounter := 0
 	geoCounter := 0
@@ -257,7 +255,7 @@ func fakeEntities(counter int) entities {
 
 func fakePicture() string {
 	camliDir, err := osutil.PkSourceRoot()
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {

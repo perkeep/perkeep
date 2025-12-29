@@ -162,7 +162,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		db, err = sql.Open("mysql", c.mysqlDSN(dbname))
 	}
 	if err != nil {
-		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)
+		return fmt.Errorf("Connecting to the %s %s database: %w", dbname, c.dbType, err)
 	}
 	defer db.Close()
 
@@ -251,7 +251,7 @@ func check(err error, query string) {
 	exitf("SQL error for query %q: %v", query, err)
 }
 
-func exitf(format string, args ...interface{}) {
+func exitf(format string, args ...any) {
 	if !strings.HasSuffix(format, "\n") {
 		format = format + "\n"
 	}

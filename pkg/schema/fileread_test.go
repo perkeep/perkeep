@@ -333,7 +333,7 @@ func TestReaderForeachChunk(t *testing.T) {
 		}
 		rc, size, err := sto.Fetch(ctxbg, p.BlobRef)
 		if err != nil {
-			return fmt.Errorf("Error fetching blobref of chunk %+v: %v", p, err)
+			return fmt.Errorf("Error fetching blobref of chunk %+v: %w", p, err)
 		}
 		defer rc.Close()
 		totSize += p.Size
@@ -438,10 +438,7 @@ type summary []byte
 
 func (s summary) String() string {
 	const prefix = 10
-	plen := prefix
-	if len(s) < plen {
-		plen = len(s)
-	}
+	plen := min(len(s), prefix)
 	return fmt.Sprintf("%d bytes, starting with %q", len(s), []byte(s[:plen]))
 }
 
@@ -454,9 +451,9 @@ func TestReadDirs(t *testing.T) {
 
 	// small directory, no splitting needed.
 	testReadDir(t, []*test.Blob{
-		&test.Blob{Contents: "AAAAAaaaaa"},
-		&test.Blob{Contents: "BBBBBbbbbb"},
-		&test.Blob{Contents: "CCCCCccccc"},
+		{Contents: "AAAAAaaaaa"},
+		{Contents: "BBBBBbbbbb"},
+		{Contents: "CCCCCccccc"},
 	})
 
 	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.

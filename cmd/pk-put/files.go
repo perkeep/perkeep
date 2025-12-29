@@ -181,7 +181,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 		permaNode, err = up.UploadNewPermanode(ctxbg)
 		if err != nil {
-			return fmt.Errorf("Uploading permanode: %v", err)
+			return fmt.Errorf("Uploading permanode: %w", err)
 		}
 	}
 	if c.diskUsage {
@@ -218,7 +218,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 			if path = strings.TrimSpace(path); path != "" {
 				tu.Enqueue(path)
 			}
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				android.PreExit()
 				os.Exit(0)
 			}
@@ -278,8 +278,8 @@ func (c *fileCmd) RunCommand(args []string) error {
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
-			tags := strings.Split(c.tag, ",")
-			for _, tag := range tags {
+			tags := strings.SplitSeq(c.tag, ",")
+			for tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)
@@ -361,7 +361,7 @@ func (n *node) directoryStaticSet() ([]*schema.Blob, error) {
 	for _, c := range n.children {
 		pr, err := c.PutResult()
 		if err != nil {
-			return nil, fmt.Errorf("Error populating directory static set for child %q: %v", c.fullPath, err)
+			return nil, fmt.Errorf("Error populating directory static set for child %q: %w", c.fullPath, err)
 		}
 		members = append(members, pr.BlobRef)
 	}
@@ -677,7 +677,7 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 		}
 		err = up.uploadFilePermanode(ctx, wholeRef[0].String(), br, claimTime)
 		if err != nil {
-			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
+			return nil, fmt.Errorf("Error uploading permanode for node %v: %w", n, err)
 		}
 	}
 
@@ -704,7 +704,7 @@ func (up *Uploader) uploadFilePermanode(ctx context.Context, sum string, fileRef
 	permaNodeSigTime := time.Unix(0, 0)
 	permaNode, err := up.UploadPlannedPermanode(ctx, sum, permaNodeSigTime)
 	if err != nil {
-		return fmt.Errorf("Error uploading planned permanode: %v", err)
+		return fmt.Errorf("Error uploading planned permanode: %w", err)
 	}
 	handleResult("node-permanode", permaNode, nil)
 
@@ -716,11 +716,11 @@ func (up *Uploader) uploadFilePermanode(ctx context.Context, sum string, fileRef
 	}
 	signed, err := contentAttr.SignAt(ctx, signer, claimTime)
 	if err != nil {
-		return fmt.Errorf("Failed to sign content claim: %v", err)
+		return fmt.Errorf("Failed to sign content claim: %w", err)
 	}
 	put, err := up.uploadString(ctx, signed)
 	if err != nil {
-		return fmt.Errorf("Error uploading permanode's attribute: %v", err)
+		return fmt.Errorf("Error uploading permanode's attribute: %w", err)
 	}
 
 	handleResult("node-permanode-contentattr", put, nil)
@@ -732,12 +732,12 @@ func (up *Uploader) uploadFilePermanode(ctx context.Context, sum string, fileRef
 				m.SetClaimDate(claimTime)
 				signed, err := m.SignAt(ctx, signer, claimTime)
 				if err != nil {
-					errch <- fmt.Errorf("Failed to sign tag claim: %v", err)
+					errch <- fmt.Errorf("Failed to sign tag claim: %w", err)
 					return
 				}
 				put, err := up.uploadString(ctx, signed)
 				if err != nil {
-					errch <- fmt.Errorf("Error uploading permanode's tag attribute %v: %v", tag, err)
+					errch <- fmt.Errorf("Error uploading permanode's tag attribute %v: %w", tag, err)
 					return
 				}
 				handleResult("node-permanode-tag", put, nil)
@@ -981,7 +981,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 }
 
 // testHookStatCache, if non-nil, runs first in the checkStatCache worker.
-var testHookStatCache func(el interface{}, ok bool)
+var testHookStatCache func(el any, ok bool)
 
 func (t *TreeUpload) run() {
 	defer close(t.donec)
@@ -1025,10 +1025,10 @@ func (t *TreeUpload) run() {
 	skippedc := make(chan *node)  // didn't even hit blobserver; trusted our stat cache
 
 	uploadsdonec := make(chan bool)
-	var upload chan<- interface{}
+	var upload chan<- any
 	withPermanode := t.up.fileOpts.wantFilePermanode()
 	if t.DiskUsageMode {
-		upload = chanworker.NewWorker(1, func(el interface{}, ok bool) {
+		upload = chanworker.NewWorker(1, func(el any, ok bool) {
 			if !ok {
 				uploadsdonec <- true
 				return
@@ -1042,7 +1042,7 @@ func (t *TreeUpload) run() {
 		// dirUpload is unbounded because directories can depend on directories.
 		// We bound the number of HTTP requests in flight instead.
 		// TODO(bradfitz): remove this chanworker stuff?
-		dirUpload := chanworker.NewWorker(-1, func(el interface{}, ok bool) {
+		dirUpload := chanworker.NewWorker(-1, func(el any, ok bool) {
 			if !ok {
 				cmdmain.Logf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
@@ -1057,7 +1057,7 @@ func (t *TreeUpload) run() {
 			uploadedc <- n
 		})
 
-		upload = chanworker.NewWorker(uploadWorkers, func(el interface{}, ok bool) {
+		upload = chanworker.NewWorker(uploadWorkers, func(el any, ok bool) {
 			if !ok {
 				cmdmain.Logf("done with all uploads.")
 				close(dirUpload)
@@ -1082,7 +1082,7 @@ func (t *TreeUpload) run() {
 		})
 	}
 
-	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el interface{}, ok bool) {
+	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el any, ok bool) {
 		if hook := testHookStatCache; hook != nil {
 			hook(el, ok)
 		}

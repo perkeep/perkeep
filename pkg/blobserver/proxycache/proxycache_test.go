@@ -18,6 +18,7 @@ package proxycache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -107,7 +108,7 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	foo := &test.Blob{Contents: "foo"}
 
 	blob, _, err := px.Fetch(ctxbg, foo.BlobRef())
-	if err != os.ErrNotExist {
+	if !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected ErrNotExist; got %v", err)
 	}
 	if blob != nil {

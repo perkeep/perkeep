@@ -18,6 +18,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -48,7 +49,7 @@ func showSplits(file string) {
 	for {
 		c, err := bufr.ReadByte()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if n != last {
 					spans = append(spans, span{from: last, to: n})
 				}

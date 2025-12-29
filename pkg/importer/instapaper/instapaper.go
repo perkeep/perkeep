@@ -170,7 +170,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %w", err))
 		return
 	}
 
@@ -183,13 +183,13 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 	creds, _, err := oauthClient.RequestTokenXAuth(ctxutil.Client(ctx), nil, username, password)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Failed to get access token: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Failed to get access token: %w", err))
 		return
 	}
 
 	user, err := getUserInfo(importer.OAuthContext{Ctx: ctx.Context, Client: oauthClient, Creds: creds})
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Failed to verify credentials: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Failed to verify credentials: %w", err))
 		return
 	}
 
@@ -200,7 +200,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserName, user.Username,
 		importer.AcctAttrUserID, fmt.Sprint(user.UserId),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -209,7 +209,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 func (im *imp) Run(ctx *importer.RunContext) (err error) {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
-		return fmt.Errorf("no API credentials: %v", err)
+		return fmt.Errorf("no API credentials: %w", err)
 	}
 	acctNode := ctx.AccountNode()
 	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
@@ -400,8 +400,8 @@ func (r *run) importBookmark(parent *importer.Object, b *bookmark, folder string
 		func() (*importer.Object, error) {
 			found, err := r.findExistingBookmark(fmt.Sprint(b.BookmarkId))
 			if err != nil {
-				if err != os.ErrNotExist {
-					return nil, fmt.Errorf("searching for node with %v %v: %v", attrBookmarkId, b.BookmarkId, err)
+				if !errors.Is(err, os.ErrNotExist) {
+					return nil, fmt.Errorf("searching for node with %v %v: %w", attrBookmarkId, b.BookmarkId, err)
 				}
 				return r.Host.NewObject()
 			}
@@ -461,7 +461,7 @@ func (r *run) importBookmarkText(req txtReq) error {
 	defer resp.Body.Close()
 	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, resp.Body)
 	if err != nil {
-		return fmt.Errorf("error storing bookmark content: %v", err)
+		return fmt.Errorf("error storing bookmark content: %w", err)
 	}
 	err = req.bmNode.SetAttr("camliContent", fileRef.String())
 	if err == nil {
@@ -540,7 +540,7 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	return obj, obj.SetAttr(nodeattr.Title, title)
 }
 
-func (r *run) doAPI(result interface{}, apiUrl string, keyval ...string) error {
+func (r *run) doAPI(result any, apiUrl string, keyval ...string) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,

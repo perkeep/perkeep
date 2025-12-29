@@ -117,7 +117,7 @@ func (w *World) Build() error {
 		log.Print("Running make.go to build perkeep binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("Error building world: %v, %s", err, string(out))
+			return fmt.Errorf("Error building world: %w, %s", err, string(out))
 		}
 		if testing.Verbose() {
 			log.Printf("%s\n", out)
@@ -179,7 +179,7 @@ func (w *World) Start() error {
 		)
 
 		if err := w.server.Start(); err != nil {
-			w.serverErr = fmt.Errorf("starting perkeepd: %v", err)
+			w.serverErr = fmt.Errorf("starting perkeepd: %w", err)
 			return w.serverErr
 		}
 
@@ -187,7 +187,7 @@ func (w *World) Start() error {
 		waitc := make(chan error, 1)
 		go func() {
 			err := w.server.Wait()
-			w.serverErr = fmt.Errorf("%v: %s", err, buf.String())
+			w.serverErr = fmt.Errorf("%w: %s", err, buf.String())
 			atomic.StoreInt32(&w.isRunning, 0)
 			waitc <- w.serverErr
 		}()
@@ -196,19 +196,19 @@ func (w *World) Start() error {
 		go func() {
 			c, err := getPortListener.Accept()
 			if err != nil {
-				upErr <- fmt.Errorf("waiting for child to report its port: %v", err)
+				upErr <- fmt.Errorf("waiting for child to report its port: %w", err)
 				return
 			}
 			defer c.Close()
 			br := bufio.NewReader(c)
 			addr, err := br.ReadString('\n')
 			if err != nil {
-				upErr <- fmt.Errorf("ReadString: %v", err)
+				upErr <- fmt.Errorf("ReadString: %w", err)
 				return
 			}
 			w.addr = strings.TrimSpace(addr)
 
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				res, err := http.Get("http://" + w.addr)
 				if err == nil {
 					res.Body.Close()

@@ -154,7 +154,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	if devBlockStartupPrefix != "" {
 		_, err := ld.GetHandler(devBlockStartupPrefix)
 		if err != nil {
-			return nil, fmt.Errorf("search handler references bogus devBlockStartupOn handler %s: %v", devBlockStartupPrefix, err)
+			return nil, fmt.Errorf("search handler references bogus devBlockStartupOn handler %s: %w", devBlockStartupPrefix, err)
 		}
 	}
 
@@ -172,7 +172,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		SecringFile: ownerSecring,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create Owner %v", err)
+		return nil, fmt.Errorf("could not create Owner %w", err)
 	}
 	h := NewHandler(indexer, owner)
 
@@ -182,7 +182,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		corpus, err := ii.KeepInMemory()
 		if err != nil {
 			ii.Unlock()
-			return nil, fmt.Errorf("error slurping index to memory: %v", err)
+			return nil, fmt.Errorf("error slurping index to memory: %w", err)
 		}
 		h.SetCorpus(corpus)
 		ii.Unlock()
@@ -650,7 +650,7 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	var claims []camtypes.Claim
 	claims, err := h.index.AppendClaims(ctx, claims, req.Permanode, h.owner.KeyID(), req.AttrFilter)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
+		return nil, fmt.Errorf("Error getting claims of %s: %w", req.Permanode.String(), err)
 	}
 	sort.Sort(camtypes.ClaimsByDate(claims))
 	var jclaims []*ClaimsItem
@@ -889,7 +889,7 @@ func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse,
 
 	paths, err := h.index.PathsOfSignerTarget(ctx, req.Signer, req.Target)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting paths of %s: %v", req.Target.String(), err)
+		return nil, fmt.Errorf("Error getting paths of %s: %w", req.Target.String(), err)
 	}
 	var jpaths []*SignerPathsItem
 	for _, path := range paths {

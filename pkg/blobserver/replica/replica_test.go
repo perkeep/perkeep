@@ -54,8 +54,8 @@ func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.Sized
 }
 
 func TestReceiveGood(t *testing.T) {
-	sto := newReplica(t, map[string]interface{}{
-		"backends": []interface{}{"/good-1/", "/good-2/"},
+	sto := newReplica(t, map[string]any{
+		"backends": []any{"/good-1/", "/good-2/"},
 	})
 	tb := &test.Blob{Contents: "stuff"}
 	sb := mustReceive(t, sto, tb)
@@ -74,8 +74,8 @@ func TestReceiveGood(t *testing.T) {
 }
 
 func TestReceiveOneGoodOneFail(t *testing.T) {
-	sto := newReplica(t, map[string]interface{}{
-		"backends":            []interface{}{"/good-1/", "/fail-1/"},
+	sto := newReplica(t, map[string]any{
+		"backends":            []any{"/good-1/", "/fail-1/"},
 		"minWritesForSuccess": float64(1),
 	})
 	tb := &test.Blob{Contents: "stuff"}
@@ -98,8 +98,8 @@ func TestReceiveOneGoodOneFail(t *testing.T) {
 
 func TestReplica(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
-		return newReplica(t, map[string]interface{}{
-			"backends": []interface{}{"/good-1/", "/good-2/"},
+		return newReplica(t, map[string]any{
+			"backends": []any{"/good-1/", "/good-2/"},
 		})
 	})
 }

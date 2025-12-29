@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -83,6 +84,9 @@ func (c *searchCmd) RunCommand(args []string) error {
 	}
 	q = strings.TrimSpace(q)
 
+	dec := json.NewDecoder(strings.NewReader(q))
+	dec.DisallowUnknownFields()
+
 	req := &search.SearchQuery{
 		Limit:    c.limit,
 		Continue: c.cont,
@@ -91,8 +95,9 @@ func (c *searchCmd) RunCommand(args []string) error {
 		req.Limit = 0     // clear it if they provided it
 		req.Continue = "" // clear this as well
 
-		if err := json.NewDecoder(strings.NewReader(q)).Decode(&req); err != nil {
-			if se, ok := err.(*json.SyntaxError); ok {
+		if err := dec.Decode(&req); err != nil {
+			var se *json.SyntaxError
+			if errors.As(err, &se) {
 				line, col, msg := errorutil.HighlightBytePosition(strings.NewReader(q), se.Offset)
 				fmt.Fprintf(os.Stderr, "JSON syntax error at line %d, column %d parsing SearchQuery (https://godoc.org/perkeep.org/pkg/search#SearchQuery):\n%s\n", line, col, msg)
 			}
@@ -106,8 +111,9 @@ func (c *searchCmd) RunCommand(args []string) error {
 		}
 	} else if strutil.IsPlausibleJSON(q) {
 		cs := new(search.Constraint)
-		if err := json.NewDecoder(strings.NewReader(q)).Decode(&cs); err != nil {
-			if se, ok := err.(*json.SyntaxError); ok {
+		if err := dec.Decode(&cs); err != nil {
+			var se *json.SyntaxError
+			if errors.As(err, &se) {
 				line, col, msg := errorutil.HighlightBytePosition(strings.NewReader(q), se.Offset)
 				fmt.Fprintf(os.Stderr, "JSON syntax error at line %d, column %d parsing Constraint (https://godoc.org/perkeep.org/pkg/search#Constraint):\n%s\n", line, col, msg)
 			}

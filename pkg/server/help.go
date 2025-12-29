@@ -116,7 +116,7 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 	clientConfig, err := clientconfig.GenerateClientConfig(hh.serverConfig)
 	if err != nil {
-		return fmt.Errorf("error generating client config: %v", err)
+		return fmt.Errorf("error generating client config: %w", err)
 	}
 	hh.clientConfig = clientConfig
 
@@ -125,7 +125,7 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 	tmpl, err := template.New("help").Parse(helpHTML)
 	if err != nil {
-		return fmt.Errorf("error creating template: %v", err)
+		return fmt.Errorf("error creating template: %w", err)
 	}
 	hh.goTemplate = tmpl
 
@@ -164,13 +164,13 @@ func (hh *HelpHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWriter, req *http.Request) {
 	jsonBytes, err := json.MarshalIndent(cc, "", "  ")
 	if err != nil {
-		httputil.ServeError(rw, req, fmt.Errorf("could not serialize client config JSON: %v", err))
+		httputil.ServeError(rw, req, fmt.Errorf("could not serialize client config JSON: %w", err))
 		return
 	}
 
 	var hint template.HTML
-	if strings.HasPrefix(hh.serverSecRing, "/gcs/") {
-		bucketdir := strings.TrimPrefix(hh.serverSecRing, "/gcs/")
+	if after, ok := strings.CutPrefix(hh.serverSecRing, "/gcs/"); ok {
+		bucketdir := after
 		bucketdir = strings.TrimSuffix(bucketdir, "/identity-secring.gpg")
 		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://perkeep.org/doc/client-config'>Perkeep client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Perkeep claims as your identity.</p>\n",
 			bucketdir, bucketdir))

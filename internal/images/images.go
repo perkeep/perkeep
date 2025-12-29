@@ -18,56 +18,48 @@ package images // import "perkeep.org/internal/images"
 
 import (
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/gif"
 	"image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	_ "image/gif"
-	_ "image/png"
-
-	"perkeep.org/internal/images/fastjpeg"
-	"perkeep.org/internal/images/resize"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
 	"go4.org/media/heif"
 	"go4.org/readerutil"
-	"go4.org/syncutil"
+	"perkeep.org/internal/images/fastjpeg"
+	"perkeep.org/internal/images/resize"
+	"perkeep.org/internal/magic"
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
 	// so we don't mess up the import order again.
 	// See https://camlistore-review.googlesource.com/5196 comments.
 
+	_ "image/gif" // register GIF support
+	_ "image/png" // register PNG support
+
+	_ "github.com/perkeep/heic" // register HEIC format
+
 	// tiff package must be imported after any image packages that decode
 	// tiff-like formats, i.e. CR2 or DNG
 	_ "golang.org/x/image/tiff"
+
+	_ "golang.org/x/image/webp"
 )
 
-var ErrHEIC = errors.New("HEIC decoding not implemented yet")
-
-func init() {
-	image.RegisterFormat("heic",
-		"????ftypheic",
-		func(io.Reader) (image.Image, error) {
-			return nil, ErrHEIC
-		},
-		func(r io.Reader) (image.Config, error) {
-			return decodeHEIFConfig(readerutil.NewBufferingReaderAt(io.LimitReader(r, 8<<20)))
-		})
-}
-
-var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
+var disableThumbCache, _ = strconv.ParseBool(os.Getenv("PK_DISABLE_THUMB_CACHE"))
 
 // thumbnailVersion should be incremented whenever we want to
 // invalidate the cache of previous thumbnails on the server's
@@ -115,12 +107,12 @@ type DecodeOpts struct {
 	// If an int, Rotate is the number of degrees to rotate
 	// counter clockwise and must be one of 0, 90, -90, 180, or
 	// -180.
-	Rotate interface{}
+	Rotate any
 
 	// Flip specifies how to flip the image.
 	// If nil, the image is flipped automatically based on EXIF metadata.
 	// Otherwise, Flip is a FlipDirection bitfield indicating how to flip.
-	Flip interface{}
+	Flip any
 
 	// MaxWidgth and MaxHeight optionally specify bounds on the
 	// image's size. Rescaling is done before flipping or rotating.
@@ -141,9 +133,11 @@ type DecodeOpts struct {
 	//   Stretch bool
 }
 
-// Config is like the standard library's image.Config as used by DecodeConfig.
+// Config is like the standard library's image.Config as used by DecodeConfig,
+// except that its Width & Height are post-rotation, and it has some extra fields
+// and omits the color model.
 type Config struct {
-	Width, Height int
+	Width, Height int // visual Width and Height of the image (after any EXIF/etc rotation)
 	Format        string
 	Modified      bool   // true if Decode actually rotated or flipped the image.
 	HEICEXIF      []byte // if not nil, the part of the HEIC file that contains EXIF metadata
@@ -163,24 +157,24 @@ func rotate(im image.Image, angle int) image.Image {
 	case 90:
 		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(newH-1-y, x))
 			}
 		}
 	case -90:
 		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(y, newW-1-x))
 			}
 		}
 	case 180, -180:
 		newW, newH := im.Bounds().Dx(), im.Bounds().Dy()
 		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
-		for y := 0; y < newH; y++ {
-			for x := 0; x < newW; x++ {
+		for y := range newH {
+			for x := range newW {
 				rotated.Set(x, y, im.At(newW-1-x, newH-1-y))
 			}
 		}
@@ -217,7 +211,7 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 		}
 	}
 	if dir&FlipHorizontal != 0 {
-		for y := 0; y < dy; y++ {
+		for y := range dy {
 			for x := 0; x < dx/2; x++ {
 				old := im.At(x, y)
 				di.Set(x, y, im.At(dx-1-x, y))
@@ -227,7 +221,7 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 	}
 	if dir&FlipVertical != 0 {
 		for y := 0; y < dy/2; y++ {
-			for x := 0; x < dx; x++ {
+			for x := range dx {
 				old := im.At(x, y)
 				di.Set(x, y, im.At(x, dy-1-y))
 				di.Set(x, dy-1-y, old)
@@ -369,21 +363,105 @@ func imageDebug(msg string) {
 	}
 }
 
-func decodeHEIFConfig(rat io.ReaderAt) (image.Config, error) {
-	var c image.Config
+func decodeHEIFConfig(rat io.ReaderAt) (Config, error) {
+	var c Config
 	hf := heif.Open(rat)
 	it, err := hf.PrimaryItem()
 	if err != nil {
 		return c, err
 	}
-	w, h, ok := it.SpatialExtents()
+	w, h, ok := it.VisualDimensions()
 	if !ok {
 		return c, errors.New("no spacial extents found for primary item")
 	}
-	return image.Config{
-		Width:  w,
-		Height: h,
+	exifBytes, err := hf.EXIF()
+	if err != nil && err != heif.ErrNoEXIF {
+		return c, fmt.Errorf("error reading HEIF EXIF data: %w", err)
+	}
+	return Config{
+		Format:   "heic",
+		Width:    w,
+		Height:   h,
+		HEICEXIF: exifBytes,
 	}, nil
+}
+
+// parseLeadingNumber strips any unit suffix and converts the leading
+// number to float64.  Returns ok=false if it can’t.
+func parseLeadingNumber(s string) (v float64, ok bool) {
+	s = strings.TrimSpace(s)
+	i := 0
+
+	for _, r := range s {
+		if r >= utf8.RuneSelf {
+			break
+		}
+
+		if unicode.IsDigit(r) || r == '+' || r == '-' || r == '.' {
+			i++
+		} else {
+			break
+		}
+	}
+
+	if i == 0 {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(s[:i], 64)
+	return n, err == nil
+}
+
+// dimsFromSVG reads XML tokens from SVG file r until it can compute
+// the dimensions of the image (in "abstract user units").
+func dimsFromSVG(r io.Reader) (w, h float64, err error) {
+	dec := xml.NewDecoder(r)
+	dec.Strict = false
+
+	for {
+		tok, errTok := dec.Token()
+		if errTok != nil {
+			if errTok == io.EOF {
+				return 0, 0, errors.New("no <svg> element found")
+			}
+			return 0, 0, errTok
+		}
+
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "svg" {
+			continue // not the root <svg> yet
+		}
+
+		var widthAttr, heightAttr, viewBoxAttr string
+		for _, a := range se.Attr {
+			switch a.Name.Local {
+			case "width":
+				widthAttr = a.Value
+			case "height":
+				heightAttr = a.Value
+			case "viewBox":
+				viewBoxAttr = a.Value
+			}
+		}
+
+		// Try width & height first
+		if w, ok := parseLeadingNumber(widthAttr); ok {
+			if h, ok := parseLeadingNumber(heightAttr); ok {
+				return w, h, nil
+			}
+		}
+
+		// Fallback: viewBox="minX minY width height"
+		fields := strings.Fields(viewBoxAttr)
+		if len(fields) == 4 {
+			if w, ok := parseLeadingNumber(fields[2]); ok {
+				if h, ok := parseLeadingNumber(fields[3]); ok {
+					return w, h, nil
+				}
+			}
+		}
+
+		return 0, 0, errors.New("could not determine dimensions")
+	}
 }
 
 // DecodeConfig returns the image Config similarly to
@@ -395,10 +473,38 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	var buf bytes.Buffer
 	tr := io.TeeReader(io.LimitReader(r, 8<<20), &buf)
 
-	conf, format, err := image.DecodeConfig(tr)
+	// Read 1KB of the image for MIME type detection.
+	io.CopyN(io.Discard, tr, 1<<10)
+
+	mr := io.MultiReader(bytes.NewReader(buf.Bytes()), r)
+
+	mimeType := magic.MIMETypeFromReaderAt(bytes.NewReader(buf.Bytes()))
+	switch mimeType {
+	case "":
+		if debug {
+			log.Printf("internal/images: magic.MIMETypeFromReader failed")
+		}
+		return Config{}, errors.New("unknown image format")
+	case "image/svg+xml":
+		w, h, err := dimsFromSVG(mr)
+		if err != nil {
+			return Config{}, err
+		}
+		return Config{
+			Format: "svg",
+			Width:  int(w),
+			Height: int(h),
+		}, nil
+	case "image/heic":
+		// decodeHEIFConfig handles flipping the width/height as needed for any
+		// EXIF orientation. No need to do it below (which is for JPEG primarily)
+		return decodeHEIFConfig(readerutil.NewBufferingReaderAt(mr))
+	}
+
+	conf, format, err := image.DecodeConfig(mr)
 	if err != nil {
 		if debug {
-			log.Printf("internal/images: DecodeConfig failed after reading %d bytes: %v", buf.Len(), err)
+			log.Printf("internal/images: DecodeConfig failed after reading %d bytes for mime type %q: %v", buf.Len(), mimeType, err)
 		}
 		return Config{}, err
 	}
@@ -407,17 +513,8 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		Width:  conf.Width,
 		Height: conf.Height,
 	}
-	mr := io.LimitReader(io.MultiReader(&buf, r), 8<<20)
-	if format == "heic" {
-		hf := heif.Open(readerutil.NewBufferingReaderAt(mr))
-		exifBytes, err := hf.EXIF()
-		if err != nil {
-			return c, err
-		}
-		c.HEICEXIF = exifBytes
-		mr = bytes.NewReader(exifBytes)
-	}
 
+	mr = io.MultiReader(bytes.NewReader(buf.Bytes()), r)
 	ex, err := exif.Decode(mr)
 	// trigger a retry when there isn't enough data for reading exif data from a tiff file
 	if exif.IsShortReadTagValueError(err) {
@@ -492,16 +589,16 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			var buf bytes.Buffer
 			tr := io.TeeReader(mr, &buf)
 			im, err = fastjpeg.DecodeDownsample(tr, factor)
-			switch err.(type) {
-			case fastjpeg.DjpegFailedError:
+			var derr fastjpeg.DjpegFailedError
+			if errors.As(err, &derr) {
 				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
 				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
 				if err != nil {
 					return nil, format, err, false
 				}
-			case nil:
+			} else if err == nil {
 				// fallthrough to rescale() below.
-			default:
+			} else {
 				return nil, format, err, false
 			}
 			return rescale(im, sw, sh), format, err, true
@@ -614,124 +711,4 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	c.Format = format
 	c.setBounds(im)
 	return im, c, nil
-}
-
-// Dimensions is the desired max width and height of an image.
-type Dimensions struct {
-	MaxWidth  int
-	MaxHeight int
-}
-
-var convertGate = syncutil.NewGate(10) // bounds number of HEIF to JPEG subprocesses
-
-var magickHasHEIC struct {
-	sync.Mutex
-	checked bool
-	heic    bool
-}
-
-// localImageMagick returns the path to the local ImageMagick "magick" binary,
-// if it's new enough. Otherwise it returns the empty string.
-func localImageMagick() string {
-	bin, err := exec.LookPath("magick")
-	if err != nil {
-		return ""
-	}
-	magickHasHEIC.Lock()
-	defer magickHasHEIC.Unlock()
-	if magickHasHEIC.checked {
-		if magickHasHEIC.heic {
-			return bin
-		}
-		return ""
-	}
-	magickHasHEIC.checked = true
-	out, err := exec.Command(bin, "-version").CombinedOutput()
-	if err != nil {
-		log.Printf("internal/images: error checking local machine's imagemagick version: %v, %s", err, out)
-		return ""
-	}
-	if strings.Contains(string(out), " heic") {
-		magickHasHEIC.heic = true
-		return bin
-	}
-	return ""
-}
-
-type NoHEICTOJPEGError struct {
-	error
-}
-
-// HEIFToJPEG converts the HEIF file in fr to JPEG. It optionally resizes it
-// to the given maxSize argument, if any. It returns the contents of the JPEG file.
-func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
-	convertGate.Start()
-	defer convertGate.Done()
-	useDocker := false
-	bin := localImageMagick()
-	if bin == "" {
-		if err := setUpThumbnailContainer(); err != nil {
-			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)}
-		}
-		bin = "docker"
-		useDocker = true
-	}
-
-	outDir, err := os.MkdirTemp("", "perkeep-heif")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(outDir)
-	inFile := filepath.Join(outDir, "input.heic")
-	outFile := filepath.Join(outDir, "output.jpg")
-
-	// first create the input file in tmp as heiftojpeg cannot take a piped stdin
-	f, err := os.Create(inFile)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := io.Copy(f, fr); err != nil {
-		f.Close()
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, err
-	}
-
-	// now actually run ImageMagick
-	var args []string
-	outFileArg := outFile
-	if useDocker {
-		args = append(args, "run",
-			"--rm",
-			"-v", outDir+":/out/",
-			thumbnailImage,
-			"/usr/local/bin/magick",
-		)
-		inFile = "/out/input.heic"
-		outFileArg = "/out/output.jpg"
-	}
-	args = append(args, "convert")
-	if maxSize != nil {
-		args = append(args, "-thumbnail", fmt.Sprintf("%dx%d", maxSize.MaxWidth, maxSize.MaxHeight))
-	}
-	args = append(args, inFile, "-colorspace", "RGB", "-auto-orient", outFileArg)
-
-	cmd := exec.Command(bin, args...)
-	t0 := time.Now()
-	if debug {
-		log.Printf("internal/images: running imagemagick heic conversion: %q %q", bin, args)
-	}
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if err = cmd.Run(); err != nil {
-		if debug {
-			log.Printf("internal/images: error running imagemagick heic conversion: %s", buf.Bytes())
-		}
-		return nil, fmt.Errorf("error running imagemagick: %v, %s", err, buf.Bytes())
-	}
-	if debug {
-		log.Printf("internal/images: ran imagemagick heic conversion in %v", time.Since(t0))
-	}
-	return os.ReadFile(outFile)
 }

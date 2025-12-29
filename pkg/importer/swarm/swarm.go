@@ -18,14 +18,17 @@ limitations under the License.
 package swarm // import "perkeep.org/pkg/importer/swarm"
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,7 +58,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "2"
+	runCompleteVersion = "3"
 
 	// Permanode attributes on account node:
 	acctAttrUserId      = "foursquareUserId"
@@ -79,6 +82,8 @@ func init() {
 
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
+var ErrPaymentRequired = errors.New("payment required for API calls")
+
 type imp struct {
 	mu           sync.Mutex          // guards following
 	imageFileRef map[string]blob.Ref // url to file schema blob
@@ -93,6 +98,7 @@ func (*imp) Properties() importer.Properties {
 		SupportsIncremental:   true,
 		NeedsAPIKey:           true,
 		PermanodeImporterType: "foursquare", // old brand name
+		HasSomePaidAPI:        true,
 	}
 }
 
@@ -136,22 +142,41 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im          *imp
-	incremental bool // whether we've completed a run in the past
+	im                       *imp
+	ignoreCreatedAtBeforeSec int64 // checkItem.CreatedAt less than this are already imported
+	lastCompletedVersion     string
+	forceFullRun             bool
 
-	mu     sync.Mutex // guards anyErr
-	anyErr bool
+	mu            sync.Mutex // guards anyErr
+	anyErr        bool
+	highWaterItem *checkinItem // most recent checkin imported
 }
 
 func (r *run) token() string {
 	return r.RunContext.AccountNode().Attr(acctAttrAccessToken)
 }
 
+// attrLastFullImportMaxCreatedAtSec is the account attribute
+// where we store the max createdAt timestamp (in seconds since epoch)
+// of the max checkin item we saw, recorded only after a full successful
+// import.
+const attrLastFullImportMaxCreatedAtSec = "lastFullImportMaxCreatedAtSec"
+
 func (im *imp) Run(ctx *importer.RunContext) error {
 	r := &run{
-		RunContext:  ctx,
-		im:          im,
-		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		RunContext: ctx,
+		im:         im,
+
+		lastCompletedVersion: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion),
+	}
+
+	if v := ctx.AccountNode().Attr(attrLastFullImportMaxCreatedAtSec); v != "" {
+		if sec, err := strconv.ParseInt(v, 10, 64); err == nil {
+			r.ignoreCreatedAtBeforeSec = sec
+		}
+	}
+	if v, _ := strconv.ParseBool(os.Getenv("PK_IMPORTER_FORCE_FULL_RUN")); v {
+		r.forceFullRun = true
 	}
 
 	if err := r.importCheckins(); err != nil {
@@ -160,10 +185,19 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 	r.mu.Lock()
 	anyErr := r.anyErr
+	highWaterItem := r.highWaterItem
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		var maxCreatedAtSec int64
+		if highWaterItem != nil {
+			maxCreatedAtSec = highWaterItem.CreatedAt
+		}
+
+		if err := r.AccountNode().SetAttrs(
+			importer.AcctAttrCompletedVersion, runCompleteVersion,
+			attrLastFullImportMaxCreatedAtSec, fmt.Sprint(maxCreatedAtSec),
+		); err != nil {
 			return err
 		}
 	}
@@ -171,7 +205,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	return nil
 }
 
-func (r *run) errorf(format string, args ...interface{}) {
+func (r *run) errorf(format string, args ...any) {
 	log.Printf(format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -211,55 +245,69 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	return fileRef.String()
 }
 
-type byCreatedAt []*checkinItem
-
-func (s byCreatedAt) Less(i, j int) bool {
-	return s[i].CreatedAt < s[j].CreatedAt
-}
-func (s byCreatedAt) Len() int {
-	return len(s)
-}
-func (s byCreatedAt) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func (r *run) importCheckins() error {
-	limit := checkinsRequestLimit
 	offset := 0
 	continueRequests := true
 
+	if r.RunContext.UsePaidAPI() {
+		log.Printf("swarm: importing photos will be done via paid API")
+	} else {
+		log.Printf("swarm: will skip importing photos via paid API")
+	}
+
+	checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
+	if err != nil {
+		return err
+	}
+
+	placesNode, err := r.getTopLevelNode("places", "Places")
+	if err != nil {
+		return err
+	}
+
+	pplNode, err := r.getTopLevelNode("people", "People")
+	if err != nil {
+		return err
+	}
+
+	var sawPaidErr bool
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(checkinsRequestLimit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
+		isFirstPage := offset == 0
 
-		itemcount := len(resp.Response.Checkins.Items)
-		log.Printf("swarm: importing %d checkins (offset %d)", itemcount, offset)
-		if itemcount < limit {
+		items := resp.Response.Checkins.Items
+		itemCount := len(items)
+		if itemCount < checkinsRequestLimit {
 			continueRequests = false
 		} else {
-			offset += itemcount
+			offset += itemCount
 		}
-
-		checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
-		if err != nil {
-			return err
+		if itemCount == 0 {
+			break
 		}
+		slices.SortFunc(items, func(a, b *checkinItem) int {
+			return cmp.Compare(b.CreatedAt, a.CreatedAt) // most recent first
+		})
+		log.Printf("swarm: importing %d checkins (offset %d, %v)", itemCount, offset, time.Unix(items[0].CreatedAt, 0).Format(time.RFC3339))
 
-		placesNode, err := r.getTopLevelNode("places", "Places")
-		if err != nil {
-			return err
-		}
-
-		pplNode, err := r.getTopLevelNode("people", "People")
-		if err != nil {
-			return err
-		}
-
-		sort.Sort(byCreatedAt(resp.Response.Checkins.Items))
 		sawOldItem := false
-		for _, checkin := range resp.Response.Checkins.Items {
+		sawNewItem := false
+		for i, checkin := range items {
+			if i == 0 && isFirstPage {
+				r.mu.Lock()
+				r.highWaterItem = checkin
+				r.mu.Unlock()
+			}
+			if checkin.CreatedAt < r.ignoreCreatedAtBeforeSec {
+				sawOldItem = true
+				if !r.forceFullRun {
+					continue
+				}
+			}
+
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
 				r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
@@ -278,17 +326,30 @@ func (r *run) importCheckins() error {
 				continue
 			}
 
+			checkinTime := time.Unix(checkin.CreatedAt, 0)
 			if dup {
 				sawOldItem = true
+				log.Printf("swarm: checkin %s from %v already imported; skipping", checkin.Id, checkinTime.Format(time.RFC3339))
+			} else {
+				sawNewItem = true
 			}
 
-			err = r.importPhotos(placeNode, dup)
-			if err != nil {
-				r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
-				continue
+			if r.RunContext.UsePaidAPI() && !sawPaidErr {
+				err = r.importPhotos(placeNode, dup)
+				if err != nil {
+					isPaidErr := errors.Is(err, ErrPaymentRequired)
+					if isPaidErr {
+						sawPaidErr = true
+						r.errorf("Foursquare importer: error importing photos: API calls require payment: %v", err)
+					} else {
+						r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
+					}
+					continue
+				}
 			}
 		}
-		if sawOldItem && r.incremental {
+		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion && !r.forceFullRun {
+			log.Printf("swarm: all checkins in this page are old; stopping import")
 			break
 		}
 	}
@@ -303,7 +364,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	if err := photosNode.SetAttrs(
-		nodeattr.Title, "Photos of "+placeNode.Attr("title"),
+		nodeattr.Title, "Photos of "+placeNode.Attr(nodeattr.Title),
 		nodeattr.DefaultVisibility, "hide"); err != nil {
 		return err
 	}
@@ -477,7 +538,7 @@ func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error
 
 // doUserAPI makes requests to the Foursquare API with a user token.
 // https://developer.foursquare.com/overview/auth#requests
-func (im *imp) doUserAPI(ctx context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doUserAPI(ctx context.Context, accessToken string, result any, apiPath string, keyval ...string) error {
 	form := url.Values{}
 	form.Set("oauth_token", accessToken)
 	return im.doAPI(ctx, form, result, apiPath, keyval...)
@@ -487,14 +548,14 @@ func (im *imp) doUserAPI(ctx context.Context, accessToken string, result interfa
 // quota than user requests for some endpoints.
 // https://developer.foursquare.com/overview/auth#userless
 // https://developer.foursquare.com/overview/ratelimits
-func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result any, apiPath string, keyval ...string) error {
 	form := url.Values{}
 	form.Set("client_id", clientID)
 	form.Set("client_secret", clientSecret)
 	return im.doAPI(ctx, form, result, apiPath, keyval...)
 }
 
-func (im *imp) doAPI(ctx context.Context, form url.Values, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doAPI(ctx context.Context, form url.Values, result any, apiPath string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		panic("Incorrect number of keyval arguments")
 	}
@@ -528,7 +589,13 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", requestURL, res.Status)
+		errStr := fmt.Sprintf("Get request on %s failed with: %s", requestURL, res.Status)
+		switch res.StatusCode {
+		case http.StatusPaymentRequired:
+			return nil, fmt.Errorf("%s: %w", errStr, ErrPaymentRequired)
+		default:
+			return nil, errors.New(errStr)
+		}
 	}
 	return res, nil
 }
@@ -568,7 +635,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %w", err))
 		return
 	}
 
@@ -601,7 +668,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrUserLast, u.LastName,
 		acctAttrAccessToken, token.AccessToken,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

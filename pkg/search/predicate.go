@@ -652,7 +652,7 @@ func (l location) Predicate(ctx context.Context, args []string) (*Constraint, er
 	for k, v := range coords {
 		coo, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			return nil, fmt.Errorf("could not convert location area coordinate as a float: %v", err)
+			return nil, fmt.Errorf("could not convert location area coordinate as a float: %w", err)
 		}
 		asFloat[k] = coo
 	}

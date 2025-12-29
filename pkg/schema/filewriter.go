@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"go4.org/rollsum"
+
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 
@@ -97,7 +99,7 @@ func serverHasBlob(ctx context.Context, bs blobserver.BlobStatter, br blob.Ref) 
 	_, err = blobserver.StatBlob(ctx, bs, br)
 	if err == nil {
 		have = true
-	} else if err == os.ErrNotExist {
+	} else if errors.Is(err, os.ErrNotExist) {
 		err = nil
 	}
 	return
@@ -131,7 +133,7 @@ type noteEOFReader struct {
 
 func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	n, err = r.r.Read(p)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		r.sawEOF = true
 	}
 	return
@@ -330,7 +332,7 @@ func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Buil
 
 	for {
 		c, err := bufr.ReadByte()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			if n != last {
 				spans = append(spans, span{from: last, to: n})
 				if !uploadLastSpan() {
@@ -396,7 +398,7 @@ func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Buil
 	// see if any generated errors.
 	// Once this loop is done, we own all the tokens in gatec, so nobody
 	// else can have one outstanding.
-	for i := 0; i < chunksInFlight; i++ {
+	for range chunksInFlight {
 		gatec.Start()
 	}
 	select {
