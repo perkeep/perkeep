@@ -262,14 +262,10 @@ func NewHost(hc HostConfig) (*Host, error) {
 	sort.Strings(h.importers)
 
 	h.target = hc.Target
-	h.targetStorage, _ = hc.Target.(blobserver.Storage)
 	h.blobSource = hc.BlobSource
 	h.signer = hc.Signer
 	h.search = hc.Search
 	h.client = hc.HTTPClient
-	if h.targetStorage != nil {
-		h.targetClient, err = client.New(client.OptionUseStorageClient(h.targetStorage))
-	}
 
 	return h, nil
 }
@@ -532,6 +528,17 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	h.target = rh.Storage
 	h.targetStorage = rh.Storage
 	h.blobSource = rh.Storage
+
+	h.targetStorage, _ = h.target.(blobserver.Storage)
+	if h.targetStorage != nil {
+		var err error
+		h.targetClient, err = client.New(client.OptionUseStorageClient(h.targetStorage))
+		if err != nil {
+			log.Printf("Raindrop importer: error creating client: %v", err)
+		}
+	} else {
+		log.Printf("Raindrop importer: Host does not have client")
+	}
 
 	_, handler, _ = hl.FindHandlerByType("jsonsign")
 	if sigh, ok := handler.(*signhandler.Handler); ok {
