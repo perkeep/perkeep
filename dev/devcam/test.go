@@ -148,6 +148,7 @@ func (c *testCmd) runTests(args []string) error {
 	}
 	env := c.env()
 	env.Set("SKIP_DEP_TESTS", "1")
+	env.Set("CAMLI_DISABLE_CLIENT_CONFIG_FILE", "1")
 	return runExec("go", targs, env)
 }
 
