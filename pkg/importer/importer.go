@@ -35,6 +35,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
@@ -261,10 +262,14 @@ func NewHost(hc HostConfig) (*Host, error) {
 	sort.Strings(h.importers)
 
 	h.target = hc.Target
+	h.targetStorage, _ = hc.Target.(blobserver.Storage)
 	h.blobSource = hc.BlobSource
 	h.signer = hc.Signer
 	h.search = hc.Search
 	h.client = hc.HTTPClient
+	if h.targetStorage != nil {
+		h.targetClient, err = client.New(client.OptionUseStorageClient(h.targetStorage))
+	}
 
 	return h, nil
 }
@@ -411,16 +416,18 @@ func (rc *RunContext) RootNode() *Object { return rc.ia.root }
 // Host is the HTTP handler and state for managing all the importers
 // linked into the binary, even if they're not configured.
 type Host struct {
-	tmpl         *template.Template
-	importers    []string // sorted; e.g. dummy flickr foursquare picasa twitter
-	imp          map[string]*importer
-	baseURL      string
-	importerBase string
-	target       blobserver.StatReceiver
-	blobSource   blob.Fetcher // e.g. twitter reading zip file
-	search       search.QueryDescriber
-	signer       *schema.Signer
-	uiPrefix     string // or empty if no UI handler
+	tmpl          *template.Template
+	importers     []string // sorted; e.g. dummy flickr foursquare picasa twitter
+	imp           map[string]*importer
+	baseURL       string
+	importerBase  string
+	target        blobserver.StatReceiver
+	targetStorage blobserver.Storage // if non-nil, same as target, but wider interface
+	targetClient  *client.Client
+	blobSource    blob.Fetcher // e.g. twitter reading zip file
+	search        search.QueryDescriber
+	signer        *schema.Signer
+	uiPrefix      string // or empty if no UI handler
 
 	// didInit is incremented by newFromConfig and marked done
 	// after InitHandler. Any method on Host that requires Init
@@ -523,6 +530,7 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		return errors.New("importer requires a 'root' handler with 'blobRoot' defined")
 	}
 	h.target = rh.Storage
+	h.targetStorage = rh.Storage
 	h.blobSource = rh.Storage
 
 	_, handler, _ = hl.FindHandlerByType("jsonsign")
@@ -793,6 +801,14 @@ func (h *Host) ImporterBaseURL() string {
 
 func (h *Host) Target() blobserver.StatReceiver {
 	return h.target
+}
+
+// TargetClient returns a client to upload to the target storage.
+//
+// It may return nil if the Host is not configured with
+// a blobserver.Storage as its target.
+func (h *Host) TargetClient() *client.Client {
+	return h.targetClient
 }
 
 func (h *Host) BlobSource() blob.Fetcher {

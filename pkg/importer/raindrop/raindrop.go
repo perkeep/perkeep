@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -24,11 +25,7 @@ import (
 )
 
 func init() {
-	cl, err := client.New()
-	if err != nil {
-		panic(err)
-	}
-	importer.Register("raindrop", imp{cl: cl})
+	importer.Register("raindrop", imp{})
 }
 
 const (
@@ -45,19 +42,17 @@ const (
 	runCompleteVersion = "1"
 )
 
-type imp struct {
-	cl *client.Client
-}
+type imp struct{}
 
-func (im imp) CallbackRequestAccount(r *http.Request) (blob.Ref, error) {
+func (imp) CallbackRequestAccount(r *http.Request) (blob.Ref, error) {
 	return importer.OAuth1{}.CallbackRequestAccount(r)
 }
 
-func (im imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
+func (imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	return importer.OAuth1{}.CallbackURLParameters(acctRef)
 }
 
-func (im imp) Properties() importer.Properties {
+func (imp) Properties() importer.Properties {
 	return importer.Properties{
 		Title:               "Raindrop",
 		Description:         "import your raindrop.io bookmarks",
@@ -66,7 +61,7 @@ func (im imp) Properties() importer.Properties {
 	}
 }
 
-func (im imp) IsAccountReady(acct *importer.Object) (ready bool, err error) {
+func (imp) IsAccountReady(acct *importer.Object) (ready bool, err error) {
 	ready = acct.Attr(attrAuthToken) != ""
 	return ready, nil
 }
@@ -82,7 +77,7 @@ func (im imp) SummarizeAccount(acct *importer.Object) string {
 	return fmt.Sprintf("Raindrop account for %s", acct.Attr(importer.AcctAttrUserName))
 }
 
-func (im imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
+func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	return tmpl.ExecuteTemplate(w, "serveSetup", ctx)
 }
 
@@ -118,7 +113,13 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 
-	ures, err := im.cl.Upload(ctx, client.NewUploadHandleFromString(string(body)))
+	cl := ctx.Host.TargetClient()
+	if cl == nil {
+		httputil.ServeError(w, r, errors.New("raindrop: no client available for uploading"))
+		return
+	}
+
+	ures, err := cl.Upload(ctx, client.NewUploadHandleFromString(string(body)))
 	if err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error uploading user info: %v", err))
 		return
@@ -326,7 +327,12 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 		return err
 	}
 
-	ures, err := r.im.cl.Upload(r.Context(), client.NewUploadHandleFromString(string(json)))
+	cl := r.Host.TargetClient()
+	if cl == nil {
+		return fmt.Errorf("raindrop: no client available for uploading")
+	}
+
+	ures, err := cl.Upload(r.Context(), client.NewUploadHandleFromString(string(json)))
 	if err != nil {
 		return err
 	}
@@ -366,17 +372,17 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 			return fmt.Errorf("raindrop: unexpected status code %v fetching cover image %s for %s", resp.StatusCode, coverURL, bookmark.Link)
 		}
 
-		coverRef, err := r.im.cl.UploadFile(r.Context(), coverURL, resp.Body, nil)
+		coverRef, err := cl.UploadFile(r.Context(), coverURL, resp.Body, nil)
 		if err != nil {
 			return err
 		}
 		attrs = append(attrs, nodeattr.CamliContentImage, coverRef.String())
 	}
 
-	if err = bookmarkNode.SetAttrs(attrs...); err != nil {
+	if err := bookmarkNode.SetAttrs(attrs...); err != nil {
 		return err
 	}
-	if err = bookmarkNode.SetAttrValues("tag", bookmark.Tags); err != nil {
+	if err := bookmarkNode.SetAttrValues("tag", bookmark.Tags); err != nil {
 		return err
 	}
 

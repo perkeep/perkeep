@@ -127,7 +127,8 @@ func parseStatResponse(res *http.Response) (*statResponse, error) {
 	return s, nil
 }
 
-// NewUploadHandleFromString returns an upload handle
+// NewUploadHandleFromString returns an upload handle to upload
+// the provided string as a blob.
 func NewUploadHandleFromString(data string) *UploadHandle {
 	bref := blob.RefFromString(data)
 	r := strings.NewReader(data)
