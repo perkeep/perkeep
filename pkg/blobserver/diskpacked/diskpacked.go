@@ -87,16 +87,15 @@ type storage struct {
 
 	*local.Generationer
 
-	writer      *os.File
-	fdCache     *sieve.Sieve[string, *os.File]
 	root        string
 	maxFileSize int64
 
+	mu        sync.Mutex // Guards all I/O state.
+	writer    *os.File
+	fdCache   *sieve.Sieve[int, *os.File]
 	fileCount int
 	size      int64
-
-	mu     sync.Mutex // Guards all I/O state.
-	closed bool
+	closed    bool
 }
 
 func (s *storage) String() string {
@@ -209,7 +208,7 @@ func newStorage(root string, maxFileSize int64, fdCacheLimit int, indexConf json
 		root:        root,
 		index:       index,
 		maxFileSize: maxFileSize,
-		fdCache: sieve.New[string, *os.File](
+		fdCache: sieve.New[int, *os.File](
 			fdCacheLimit, // Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Perkeep.
 			func(fh *os.File) {
 				if fh != nil {
@@ -258,12 +257,12 @@ func (s *storage) openForRead(n int) (*os.File, error) {
 		panic(fmt.Sprintf("openForRead called out of order got %d, expected %d", n, s.fileCount))
 	}
 
-	fn := s.filename(n)
-	if f, ok := s.fdCache.Get(fn); ok {
-		debug.Printf("cache hit for %q", fn)
+	if f, ok := s.fdCache.Get(n); ok {
+		debug.Printf("cache hit for %d", n)
 		return f, nil
 	}
 
+	fn := s.filename(n)
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -273,7 +272,7 @@ func (s *storage) openForRead(n int) (*os.File, error) {
 	}
 	openFdsVar.Add(s.root, 1)
 	debug.Printf("diskpacked: opened for read %q, count=%d, cache=%d", fn, s.fileCount, s.fdCache.Len())
-	s.fdCache.Add(fn, f)
+	s.fdCache.Add(n, f)
 	return f, nil
 }
 
@@ -383,8 +382,8 @@ func (s *storage) Close() error {
 	}
 
 	for {
-		k, _ := s.fdCache.RemoveOldest()
-		if k == "" {
+		_, v := s.fdCache.RemoveOldest()
+		if v == nil {
 			break
 		}
 	}
