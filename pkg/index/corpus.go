@@ -679,13 +679,10 @@ func (c *Corpus) mergeSignerKeyIdRow(k, v []byte) error {
 }
 
 func (c *Corpus) mergeClaimRow(k, v []byte) error {
-	cl, ok := kvClaimBytes(k, v, c.blobParse)
+	cl, ok := c.kvClaimBytes(k, v)
 	if !ok || !cl.Permanode.Valid() {
 		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
-	cl.Type = c.str(cl.Type)
-	cl.Attr = c.str(cl.Attr)
-	cl.Value = c.str(cl.Value) // less likely to intern, but some (tags) do
 
 	pn := c.br(cl.Permanode)
 	pm, ok := c.permanodes[pn]
@@ -889,22 +886,20 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 	return nil
 }
 
-// This enables the blob.Parse fast path cache, which reduces CPU (via
-// reduced GC from new garbage), but increases memory usage, even
-// though it shouldn't.  The GC should fully discard the brOfStr map
-// (which we nil out at the end of parsing), but the Go GC doesn't
-// seem to clear it all.
-// TODO: investigate / file bugs.
-const useBlobParseCache = false
-
 func (c *Corpus) blobParse(v []byte) (br blob.Ref, ok bool) {
-	if useBlobParseCache {
-		br, ok = c.brOfStr[string(v)]
-		if ok {
-			return
-		}
+	br, ok = c.brOfStr[string(v)]
+	if ok {
+		return
 	}
-	return blob.ParseBytes(v)
+	br, ok = blob.ParseBytes(v)
+	if !ok {
+		return
+	}
+	if c.brOfStr == nil {
+		c.brOfStr = make(map[string]blob.Ref)
+	}
+	c.brOfStr[string(v)] = br
+	return br, true
 }
 
 // str returns s, interned.
@@ -918,6 +913,22 @@ func (c *Corpus) str(s string) string {
 	if c.strs == nil {
 		c.strs = make(map[string]string)
 	}
+	c.strs[s] = s
+	return s
+}
+
+// strB returns string(b), interned.
+func (c *Corpus) strB(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	if s, ok := c.strs[string(b)]; ok {
+		return s
+	}
+	if c.strs == nil {
+		c.strs = make(map[string]string)
+	}
+	s := string(b)
 	c.strs[s] = s
 	return s
 }

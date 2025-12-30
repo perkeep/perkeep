@@ -27,10 +27,10 @@ import (
 type kv struct{ K, V string }
 
 var testKvClaims = map[kv]camtypes.Claim{
-	kv{
+	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-60c6ad71a30be964f8d8a6f148a053af238de0d9c300bea7fe93fdf0",
 		V: "set-attribute|tag|foo1|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-60c6ad71a30be964f8d8a6f148a053af238de0d9c300bea7fe93fdf0"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:37.000123456Z"),
@@ -38,100 +38,100 @@ var testKvClaims = map[kv]camtypes.Claim{
 		Permanode: blob.MustParse("sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221"),
 	},
 
-	kv{
+	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:38.000123456Z|sha224-9ca71b6ffbb46cda3d5cc4c1ef68ab3860cc2638febd1254cd4c5891",
 		V: "set-attribute|tag|foo2|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-9ca71b6ffbb46cda3d5cc4c1ef68ab3860cc2638febd1254cd4c5891"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:38.000123456Z"),
 		Type:    "set-attribute", Attr: "tag", Value: "foo2",
 		Permanode: blob.MustParse("sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221"),
 	},
-	kv{
+	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:39.000123456Z|sha224-79aca6e3cafa70ec76603a62acacf98722d561490664af378cdadef6",
 		V: "set-attribute|camliRoot|rootval|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-79aca6e3cafa70ec76603a62acacf98722d561490664af378cdadef6"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:39.000123456Z"),
 		Type:    "set-attribute", Attr: "camliRoot", Value: "rootval",
 		Permanode: blob.MustParse("sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221"),
 	},
-	kv{
+	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:42.000123456Z|sha224-755a6cb33d2dd321c9d84be933273dee704f7b49ad0de31a778c10bf",
 		V: "add-attribute|camliMember|sha224-ebc479bcb179797980b20e7bc7946b0c74cec7c0aec253632f009d3a|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-755a6cb33d2dd321c9d84be933273dee704f7b49ad0de31a778c10bf"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:42.000123456Z"),
 		Type:    "add-attribute", Attr: "camliMember", Value: "sha224-ebc479bcb179797980b20e7bc7946b0c74cec7c0aec253632f009d3a",
 		Permanode: blob.MustParse("sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221"),
 	},
-	kv{
+	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:43.000123456Z|sha224-00331f51dd359449e5ad95d42bbe3d770d5ed22e0894bb46a0bb2afb",
 		V: "del-attribute|title|pony|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-00331f51dd359449e5ad95d42bbe3d770d5ed22e0894bb46a0bb2afb"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:43.000123456Z"),
 		Type:    "del-attribute", Attr: "title", Value: "pony",
 		Permanode: blob.MustParse("sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-dd2b8122938d91f22e1e680e1c0fd7bcba74c1e7b8e81943e38aa91c",
 		V: "set-attribute|tag|foo1|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-dd2b8122938d91f22e1e680e1c0fd7bcba74c1e7b8e81943e38aa91c"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:37.000123456Z"),
 		Type:    "set-attribute", Attr: "tag", Value: "foo1",
 		Permanode: blob.MustParse("sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:38.000123456Z|sha224-ac330e06f01f8859a606ec9d994a4a908e464bf3f5f3d64aeb4d7622",
 		V: "delete|||sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-ac330e06f01f8859a606ec9d994a4a908e464bf3f5f3d64aeb4d7622"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:38.000123456Z"),
 		Type:    "delete", Attr: "", Value: "",
 		Permanode: blob.MustParse("sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:39.000123456Z|sha224-d52d4a25c0feb7c142f8d0adcc5f795a61122f0b1cc2ee65584d0495",
 		V: "delete|||sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-d52d4a25c0feb7c142f8d0adcc5f795a61122f0b1cc2ee65584d0495"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:39.000123456Z"),
 		Type:    "delete", Attr: "", Value: "",
 		Permanode: blob.MustParse("sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-dd2b8122938d91f22e1e680e1c0fd7bcba74c1e7b8e81943e38aa91c",
 		V: "set-attribute|tag|foo1|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-dd2b8122938d91f22e1e680e1c0fd7bcba74c1e7b8e81943e38aa91c"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:37.000123456Z"),
 		Type:    "set-attribute", Attr: "tag", Value: "foo1",
 		Permanode: blob.MustParse("sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:38.000123456Z|sha224-ac330e06f01f8859a606ec9d994a4a908e464bf3f5f3d64aeb4d7622",
 		V: "delete|||sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-ac330e06f01f8859a606ec9d994a4a908e464bf3f5f3d64aeb4d7622"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:38.000123456Z"),
 		Type:    "delete", Attr: "", Value: "",
 		Permanode: blob.MustParse("sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91"),
 	},
-	kv{
+	{
 		K: "claim|sha224-56d600f010ef4c88ab6f3828f7b2e990fa12d5b76ad20b252ddcac91|2931A67C26F5ABDA|2011-11-28T01:32:39.000123456Z|sha224-d52d4a25c0feb7c142f8d0adcc5f795a61122f0b1cc2ee65584d0495",
 		V: "delete|||sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
-	}: camtypes.Claim{
+	}: {
 		BlobRef: blob.MustParse("sha224-d52d4a25c0feb7c142f8d0adcc5f795a61122f0b1cc2ee65584d0495"),
 		Signer:  blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
 		Date:    mustTimeParse("2011-11-28T01:32:39.000123456Z"),
@@ -141,6 +141,7 @@ var testKvClaims = map[kv]camtypes.Claim{
 }
 
 func TestKvClaim(t *testing.T) {
+	var cp Corpus
 	for kv, claim := range testKvClaims {
 		kv, claim := kv, claim
 		t.Run(kv.String(), func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestKvClaim(t *testing.T) {
 				t.Errorf("got %+v, wanted %+v", c, claim)
 			}
 
-			c2, ok := kvClaimBytes([]byte(kv.K), []byte(kv.V), blob.ParseBytes)
+			c2, ok := cp.kvClaimBytes([]byte(kv.K), []byte(kv.V))
 			if !ok {
 				t.Errorf("got %t, wanted %t", ok, true)
 			}
@@ -198,9 +199,10 @@ func BenchmarkKvClaimBytes(b *testing.B) {
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
+	var cp Corpus
 	for b.Loop() {
 		for _, tC := range bb {
-			c, ok := kvClaimBytes(tC.k, tC.v, blob.ParseBytes)
+			c, ok := cp.kvClaimBytes(tC.k, tC.v)
 			if !ok {
 				b.Errorf("got %t, wanted %t", ok, true)
 			}
