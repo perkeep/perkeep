@@ -35,6 +35,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/escape"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
@@ -952,7 +953,7 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 	}, true
 }
 
-func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
+func (c *Corpus) kvClaimBytes(k, v []byte) (cl camtypes.Claim, ok bool) {
 	sep := []byte{'|'}
 	const nKeyPart, nValPart = 5, 4
 	if bytes.Count(k, sep) < nKeyPart-1 || bytes.Count(v, sep) < nValPart-1 {
@@ -977,15 +978,15 @@ func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camty
 	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
 		return
 	}
-	signerRef, ok := blobParse(valPart[3])
+	signerRef, ok := c.blobParse(valPart[3])
 	if !ok {
 		return
 	}
-	permaNode, ok := blobParse(keyPart[1])
+	permaNode, ok := c.blobParse(keyPart[1])
 	if !ok {
 		return
 	}
-	claimRef, ok := blobParse(keyPart[4])
+	claimRef, ok := c.blobParse(keyPart[4])
 	if !ok {
 		return
 	}
@@ -993,11 +994,15 @@ func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camty
 	if err != nil {
 		return
 	}
-	var buf strings.Builder
+	buf := byteBufPool.Get().(*bytes.Buffer)
+	defer byteBufPool.Put(buf)
+
 	urldBytes := func(p []byte) string {
 		buf.Reset()
-		buf.Write(p)
-		return urld(buf.String())
+		buf.Grow(100)
+		b := buf.Bytes()[:0]
+		got, _ := escape.QueryUnescapeAppend(b, p)
+		return c.strB(got)
 	}
 	return camtypes.Claim{
 		BlobRef:   claimRef,
@@ -1008,6 +1013,12 @@ func kvClaimBytes(k, v []byte, blobParse func([]byte) (blob.Ref, bool)) (c camty
 		Attr:      urldBytes(valPart[1]),
 		Value:     urldBytes(valPart[2]),
 	}, true
+}
+
+var byteBufPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
 }
 
 func (x *Index) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
