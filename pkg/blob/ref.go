@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -65,8 +67,7 @@ func (sr SizedRef) String() string {
 // which is a requirement for ref.
 type digestType interface {
 	bytes() []byte
-	digestName() string
-	newHash() hash.Hash
+	digestName() digestName
 	equalString(string) bool
 	hasPrefix(string) bool
 }
@@ -121,12 +122,12 @@ func (r Ref) appendString(buf []byte) []byte {
 }
 
 // HashName returns the lowercase hash function name of the reference.
-// It panics if r is zero.
+// It panics if r is invalid (the zero value).
 func (r Ref) HashName() string {
 	if r.digest == nil {
 		panic("HashName called on invalid Ref")
 	}
-	return r.digest.digestName()
+	return string(r.digest.digestName())
 }
 
 // Digest returns the lower hex digest of the blobref, without
@@ -179,9 +180,17 @@ func (r Ref) Sum64() uint64 {
 }
 
 // Hash returns a new hash.Hash of r's type.
-// It panics if r is zero.
+//
+// It panics if r is zero (invalid).
+//
+// It returns nil if Ref is valid, but of an unknown hash type.
 func (r Ref) Hash() hash.Hash {
-	return r.digest.newHash()
+	m, ok := metaFromString[r.digest.digestName()]
+	if !ok {
+		return nil
+	}
+	return m.newHash()
+
 }
 
 func (r Ref) HashMatches(h hash.Hash) bool {
@@ -221,7 +230,7 @@ func parse(s string, allowAll bool) (ref Ref, ok bool) {
 	if i < 0 {
 		return
 	}
-	name := s[:i] // e.g. "sha1", "sha224"
+	name := digestName(s[:i]) // e.g. "sha1", "sha224"
 	hex := s[i+1:]
 	meta, ok := metaFromString[name]
 	if !ok {
@@ -241,7 +250,7 @@ func parse(s string, allowAll bool) (ref Ref, ok bool) {
 	return Ref{dt}, true
 }
 
-var testRefType = map[string]bool{
+var testRefType = map[digestName]bool{
 	"fakeref": true,
 	"testref": true,
 	"perma":   true,
@@ -257,7 +266,7 @@ func ParseBytes(s []byte) (ref Ref, ok bool) {
 	hex := s[i+1:]
 	meta, ok := metaFromBytes(name)
 	if !ok {
-		return parseUnknown(string(name), string(hex))
+		return parseUnknown(digestName(name), string(hex))
 	}
 	if len(hex) != meta.size*2 {
 		ok = false
@@ -301,7 +310,7 @@ func hexVal(b byte, bad *bool) byte {
 	return 0
 }
 
-func validDigestName(name string) bool {
+func validDigestName(name digestName) bool {
 	if name == "" {
 		return false
 	}
@@ -319,7 +328,7 @@ func validDigestName(name string) bool {
 
 // parseUnknown parses a blobref where the digest type isn't known to this server.
 // e.g. ("foo-ababab")
-func parseUnknown(digest, hex string) (ref Ref, ok bool) {
+func parseUnknown(digest digestName, hex string) (ref Ref, ok bool) {
 	if !validDigestName(digest) {
 		return
 	}
@@ -358,20 +367,11 @@ func sha1FromBinary(b []byte) digestType {
 	return d
 }
 
-func sha1FromHexString(hex string) (digestType, bool) {
-	var d sha1Digest
-	var bad bool
-	for i := 0; i < len(hex); i += 2 {
-		d[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
-	}
-	if bad {
-		return nil, false
-	}
-	return d, true
+type stringOrBytes interface {
+	string | []byte
 }
 
-// yawn. exact copy of sha1FromHexString.
-func sha1FromHexBytes(hex []byte) (digestType, bool) {
+func sha1FromHex[T stringOrBytes](hex T) (digestType, bool) {
 	var d sha1Digest
 	var bad bool
 	for i := 0; i < len(hex); i += 2 {
@@ -392,7 +392,7 @@ func sha224FromBinary(b []byte) digestType {
 	return d
 }
 
-func sha224FromHexString(hex string) (digestType, bool) {
+func sha224FromHex[T stringOrBytes](hex T) (digestType, bool) {
 	var d sha224Digest
 	var bad bool
 	for i := 0; i < len(hex); i += 2 {
@@ -404,9 +404,17 @@ func sha224FromHexString(hex string) (digestType, bool) {
 	return d, true
 }
 
-// yawn. exact copy of sha224FromHexString.
-func sha224FromHexBytes(hex []byte) (digestType, bool) {
-	var d sha224Digest
+func sha256FromBinary(b []byte) digestType {
+	var d sha256Digest
+	if len(d) != len(b) {
+		panic("bogus sha-256 length")
+	}
+	copy(d[:], b)
+	return d
+}
+
+func sha256FromHex[T stringOrBytes](hex T) (digestType, bool) {
+	var d sha256Digest
 	var bad bool
 	for i := 0; i < len(hex); i += 2 {
 		d[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
@@ -443,19 +451,20 @@ func RefFromBytes(b []byte) Ref {
 	return RefFromHash(h)
 }
 
-type sha1Digest [20]byte
+const sha1StrLen = len("sha1-") + 2*sha1.Size // len("sha1-2aae6c35c94fcfb415dbe95f408b9ce91ee846ed")
 
-func (d sha1Digest) digestName() string { return "sha1" }
-func (d sha1Digest) bytes() []byte      { return d[:] }
-func (d sha1Digest) newHash() hash.Hash { return sha1.New() }
+type sha1Digest [sha1.Size]byte
+
+func (d sha1Digest) digestName() digestName { return "sha1" }
+func (d sha1Digest) bytes() []byte          { return d[:] }
 func (d sha1Digest) equalString(s string) bool {
-	if len(s) != 45 {
+	if len(s) != sha1StrLen {
 		return false
 	}
-	if !strings.HasPrefix(s, "sha1-") {
+	s, ok := strings.CutPrefix(s, "sha1-")
+	if !ok {
 		return false
 	}
-	s = s[len("sha1-"):]
 	for i, b := range d[:] {
 		if s[i*2] != hexDigit[b>>4] || s[i*2+1] != hexDigit[b&0xf] {
 			return false
@@ -465,16 +474,16 @@ func (d sha1Digest) equalString(s string) bool {
 }
 
 func (d sha1Digest) hasPrefix(s string) bool {
-	if len(s) > 45 {
+	if len(s) > sha1StrLen {
 		return false
 	}
-	if len(s) == 45 {
+	if len(s) == sha1StrLen {
 		return d.equalString(s)
 	}
-	if !strings.HasPrefix(s, "sha1-") {
+	s, ok := strings.CutPrefix(s, "sha1-")
+	if !ok {
 		return false
 	}
-	s = s[len("sha1-"):]
 	if len(s) == 0 {
 		// we want at least one digest char to match on
 		return false
@@ -498,21 +507,20 @@ func (d sha1Digest) hasPrefix(s string) bool {
 	return true
 }
 
-type sha224Digest [28]byte
+type sha224Digest [sha256.Size224]byte
 
-const sha224StrLen = 63 // len("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f")
+const sha224StrLen = len("sha224-") + 2*sha256.Size224 // len("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f")
 
-func (d sha224Digest) digestName() string { return "sha224" }
-func (d sha224Digest) bytes() []byte      { return d[:] }
-func (d sha224Digest) newHash() hash.Hash { return sha256.New224() }
+func (d sha224Digest) digestName() digestName { return "sha224" }
+func (d sha224Digest) bytes() []byte          { return d[:] }
 func (d sha224Digest) equalString(s string) bool {
 	if len(s) != sha224StrLen {
 		return false
 	}
-	if !strings.HasPrefix(s, "sha224-") {
+	s, ok := strings.CutPrefix(s, "sha224-")
+	if !ok {
 		return false
 	}
-	s = s[len("sha224-"):]
 	for i, b := range d[:] {
 		if s[i*2] != hexDigit[b>>4] || s[i*2+1] != hexDigit[b&0xf] {
 			return false
@@ -528,10 +536,66 @@ func (d sha224Digest) hasPrefix(s string) bool {
 	if len(s) == sha224StrLen {
 		return d.equalString(s)
 	}
-	if !strings.HasPrefix(s, "sha224-") {
+	s, ok := strings.CutPrefix(s, "sha224-")
+	if !ok {
 		return false
 	}
-	s = s[len("sha224-"):]
+	if len(s) == 0 {
+		// we want at least one digest char to match on
+		return false
+	}
+	for i, b := range d[:] {
+		even := i * 2
+		if even == len(s) {
+			break
+		}
+		if s[even] != hexDigit[b>>4] {
+			return false
+		}
+		odd := i*2 + 1
+		if odd == len(s) {
+			break
+		}
+		if s[odd] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
+
+type sha256Digest [sha256.Size]byte
+
+const sha256StrLen = len("sha256-") + 2*sha256.Size // len("sha256-b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c")
+
+func (d sha256Digest) digestName() digestName { return "sha256" }
+func (d sha256Digest) bytes() []byte          { return d[:] }
+func (d sha256Digest) equalString(s string) bool {
+	if len(s) != sha256StrLen {
+		return false
+	}
+	s, ok := strings.CutPrefix(s, "sha256-")
+	if !ok {
+		return false
+	}
+	for i, b := range d[:] {
+		if s[i*2] != hexDigit[b>>4] || s[i*2+1] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
+
+func (d sha256Digest) hasPrefix(s string) bool {
+	if len(s) > sha256StrLen {
+		return false
+	}
+	if len(s) == sha256StrLen {
+		return d.equalString(s)
+	}
+	s, ok := strings.CutPrefix(s, "sha256-")
+	if !ok {
+		return false
+	}
 	if len(s) == 0 {
 		// we want at least one digest char to match on
 		return false
@@ -558,21 +622,20 @@ func (d sha224Digest) hasPrefix(s string) bool {
 const maxOtherDigestLen = 128
 
 type otherDigest struct {
-	name   string
+	name   digestName
 	sum    [maxOtherDigestLen]byte
 	sumLen int  // bytes in sum that are valid
 	odd    bool // odd number of hex digits in input
 }
 
-func (d otherDigest) digestName() string { return d.name }
-func (d otherDigest) bytes() []byte      { return d.sum[:d.sumLen] }
-func (d otherDigest) newHash() hash.Hash { return nil }
+func (d otherDigest) digestName() digestName { return d.name }
+func (d otherDigest) bytes() []byte          { return d.sum[:d.sumLen] }
 func (d otherDigest) equalString(s string) bool {
 	wantLen := len(d.name) + len("-") + 2*d.sumLen
 	if d.odd {
 		wantLen--
 	}
-	if len(s) != wantLen || !strings.HasPrefix(s, d.name) || s[len(d.name)] != '-' {
+	if len(s) != wantLen || !strings.HasPrefix(s, string(d.name)) || s[len(d.name)] != '-' {
 		return false
 	}
 	s = s[len(d.name)+1:]
@@ -595,7 +658,7 @@ func (d otherDigest) hasPrefix(s string) bool {
 	if d.odd {
 		maxLen--
 	}
-	if len(s) > maxLen || !strings.HasPrefix(s, d.name) || s[len(d.name)] != '-' {
+	if len(s) > maxLen || !strings.HasPrefix(s, string(d.name)) || s[len(d.name)] != '-' {
 		return false
 	}
 	if len(s) == maxLen {
@@ -630,45 +693,54 @@ func (d otherDigest) hasPrefix(s string) bool {
 
 var (
 	sha1Meta = &digestMeta{
-		ctor:  sha1FromBinary,
-		ctors: sha1FromHexString,
-		ctorb: sha1FromHexBytes,
-		size:  sha1.Size,
+		newHash: sha1.New,
+		ctor:    sha1FromBinary,
+		ctors:   sha1FromHex[string],
+		ctorb:   sha1FromHex[[]byte],
+		size:    sha1.Size,
 	}
 	sha224Meta = &digestMeta{
-		ctor:  sha224FromBinary,
-		ctors: sha224FromHexString,
-		ctorb: sha224FromHexBytes,
-		size:  sha256.Size224,
+		newHash: sha256.New224,
+		ctor:    sha224FromBinary,
+		ctors:   sha224FromHex[string],
+		ctorb:   sha224FromHex[[]byte],
+		size:    sha256.Size224,
+	}
+	sha256Meta = &digestMeta{
+		newHash: sha256.New,
+		ctor:    sha256FromBinary,
+		ctors:   sha256FromHex[string],
+		ctorb:   sha256FromHex[[]byte],
+		size:    sha256.Size,
 	}
 )
 
-var metaFromString = map[string]*digestMeta{
+// digestName is a blob ref type name, like "sha1", "sha224", "sha256".
+type digestName string
+
+var metaFromString = map[digestName]*digestMeta{
 	"sha1":   sha1Meta,
 	"sha224": sha224Meta,
+	"sha256": sha256Meta,
 }
 
 type blobTypeAndMeta struct {
-	name []byte
+	name digestName
 	meta *digestMeta
 }
 
 var metas []blobTypeAndMeta
 
 func metaFromBytes(name []byte) (meta *digestMeta, ok bool) {
-	for _, bm := range metas {
-		if bytes.Equal(name, bm.name) {
-			return bm.meta, true
-		}
-	}
-	return
+	m, ok := metaFromString[digestName(name)]
+	return m, ok
 }
 
 func init() {
-	for name, meta := range metaFromString {
+	for _, name := range slices.Sorted(maps.Keys(metaFromString)) {
 		metas = append(metas, blobTypeAndMeta{
-			name: []byte(name),
-			meta: meta,
+			name: name,
+			meta: metaFromString[name],
 		})
 	}
 }
@@ -685,6 +757,7 @@ func HashFuncs() []string {
 var (
 	sha1Type   = reflect.TypeOf(sha1.New())
 	sha224Type = reflect.TypeOf(sha256.New224())
+	sha256Type = reflect.TypeOf(sha256.New())
 )
 
 // hashSig is the tuple (reflect.Type, hash size), for use as a map key.
@@ -698,13 +771,15 @@ type hashSig struct {
 var metaFromType = map[hashSig]*digestMeta{
 	{sha1Type, sha1.Size}:        sha1Meta,
 	{sha224Type, sha256.Size224}: sha224Meta,
+	{sha256Type, sha256.Size}:    sha256Meta,
 }
 
 type digestMeta struct {
-	ctor  func(binary []byte) digestType
-	ctors func(hex string) (digestType, bool)
-	ctorb func(hex []byte) (digestType, bool)
-	size  int // bytes of digest
+	newHash func() hash.Hash
+	ctor    func(binary []byte) digestType
+	ctors   func(hex string) (digestType, bool)
+	ctorb   func(hex []byte) (digestType, bool)
+	size    int // bytes of digest
 }
 
 var bufPool = make(chan []byte, 20)
@@ -733,6 +808,23 @@ func putBuf(b []byte) {
 // Currently this is SHA-224, but is subject to change over time.
 func NewHash() hash.Hash {
 	return sha256.New224()
+}
+
+// NewHashOfType returns a new hash.Hash for the provided hash type.
+// If alg is the empty string, it returns the default value (see [NewHash]).
+// It returns an error if the alg is unknown.
+func NewHashOfType(alg string) (hash.Hash, error) {
+	if alg == "" {
+		return NewHash(), nil
+	}
+	m, ok := metaFromString[digestName(alg)]
+	if !ok {
+		return nil, fmt.Errorf("blob: unsupported hash type %q", alg)
+	}
+	if m.newHash == nil {
+		return nil, fmt.Errorf("blob: hash type %q has no hash function", alg)
+	}
+	return m.newHash(), nil
 }
 
 func ValidRefString(s string) bool {
@@ -795,7 +887,7 @@ func (r *Ref) UnmarshalBinary(data []byte) error {
 		return errors.New("no digest name")
 	}
 
-	digName := string(data[:i])
+	digName := digestName(string(data[:i]))
 	buf := data[i+1:]
 
 	meta, ok := metaFromString[digName]
@@ -808,7 +900,7 @@ func (r *Ref) UnmarshalBinary(data []byte) error {
 		return nil
 	}
 	if len(buf) != meta.size {
-		return errors.New("wrong size of data for digest " + digName)
+		return errors.New("wrong size of data for digest " + string(digName))
 	}
 	r.digest = meta.ctor(buf)
 	return nil
@@ -841,15 +933,3 @@ type SizedByRef []SizedRef
 func (s SizedByRef) Len() int           { return len(s) }
 func (s SizedByRef) Less(i, j int) bool { return s[i].Less(s[j]) }
 func (s SizedByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
-// TypeAlphabet returns the valid characters in the given blobref type.
-// It returns the empty string if the typ is unknown.
-func TypeAlphabet(typ string) string {
-	switch typ {
-	case "sha1":
-		return hexDigit
-	case "sha224":
-		return hexDigit
-	}
-	return ""
-}
