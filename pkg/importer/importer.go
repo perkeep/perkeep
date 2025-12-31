@@ -534,10 +534,10 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		var err error
 		h.targetClient, err = client.New(client.OptionUseStorageClient(h.targetStorage))
 		if err != nil {
-			log.Printf("Raindrop importer: error creating client: %v", err)
+			log.Printf("importer: error creating client: %v", err)
 		}
 	} else {
-		log.Printf("Raindrop importer: Host does not have client")
+		log.Printf("importer: Host does not have client")
 	}
 
 	_, handler, _ = hl.FindHandlerByType("jsonsign")
