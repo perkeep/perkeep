@@ -212,6 +212,22 @@ func (r Ref) IsSupported() bool {
 	return ok
 }
 
+// FromBytes returns a ref object from a digest
+func FromBytes(digNameStr string, digest []byte) (Ref, error) {
+	r := Ref{}
+	digName := digestName(digNameStr)
+
+	meta, ok := metaFromString[digName]
+	if !ok {
+		return Ref{}, fmt.Errorf("unknown digest name: %s", digNameStr)
+	}
+	if len(digest) != meta.size {
+		return Ref{}, errors.New("wrong size of data for digest " + string(digName))
+	}
+	r.digest = meta.ctor(digest)
+	return r, nil
+}
+
 // ParseKnown is like Parse, but only parse blobrefs known to this
 // server. It returns ok == false for well-formed but unsupported
 // blobrefs.
