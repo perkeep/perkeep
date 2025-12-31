@@ -892,10 +892,11 @@ func (sh *SyncHandler) shardPrefixes() []string {
 	var pfx []string
 	// TODO(bradfitz): do limit=1 enumerates against sh.from and sh.to with varying
 	// "after" values to determine all the blobref types on both sides.
-	// For now, be lazy and assume only sha1 and sha224:
-	for i := range 256 {
-		pfx = append(pfx, fmt.Sprintf("sha1-%02x", i))
-		pfx = append(pfx, fmt.Sprintf("sha224-%02x", i))
+	// For now, be lazy and just add 256 prefixes for all known hash types:
+	for _, hashType := range blob.HashFuncs() {
+		for i := range 256 {
+			pfx = append(pfx, fmt.Sprintf("%s-%02x", hashType, i))
+		}
 	}
 	return pfx
 }
