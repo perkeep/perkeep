@@ -17,7 +17,9 @@ limitations under the License.
 package blob
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -35,6 +37,7 @@ var parseTests = []struct {
 }{
 	{in: "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"},
 	{in: "sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"},
+	{in: "sha256-b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"},
 	{in: "foo-0b"},
 	{in: "foo-0b0c"},
 
@@ -403,5 +406,60 @@ func BenchmarkHasPrefix(b *testing.B) {
 				b.Fatalf("ref %q HasPrefix(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
 			}
 		}
+	}
+}
+
+func TestSHA256(t *testing.T) {
+	h := sha256.New()
+	h.Write([]byte("hello world"))
+	ref := RefFromHash(h)
+	want, ok := Parse("sha256-b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9")
+	if !ok {
+		t.Fatal("failed to parse wanted sha256 blobref")
+	}
+	if ref != want {
+		t.Errorf("got %q; want %q", ref, want)
+	}
+}
+
+func TestHashFuncs(t *testing.T) {
+	got := HashFuncs()
+	want := []string{"sha1", "sha224", "sha256"}
+	if !slices.Equal(got, want) {
+		t.Errorf("HashFuncs = %q; want %q", got, want)
+	}
+}
+
+func TestDefaultHash(t *testing.T) {
+	got := RefFromString("hello world")
+	want := "sha224-2f05477fc24bb4faefd86517156dafdecec45b8ad3cf2522a563582b"
+	if got.String() != want {
+		t.Errorf("RefFromString = %q; want %q", got.String(), want)
+	}
+}
+
+func TestNewHashOfType(t *testing.T) {
+	tests := []struct {
+		hashType string
+		wantType string
+		wantSum  string
+	}{
+		{"", "sha224", "sha224-2f05477fc24bb4faefd86517156dafdecec45b8ad3cf2522a563582b"},
+		{"sha1", "sha1", "sha1-2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"},
+		{"sha224", "sha224", "sha224-2f05477fc24bb4faefd86517156dafdecec45b8ad3cf2522a563582b"},
+		{"sha256", "sha256", "sha256-b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.hashType, func(t *testing.T) {
+			h, err := NewHashOfType(tt.hashType)
+			if err != nil {
+				t.Fatalf("NewHashOfType(%q) error: %v", tt.hashType, err)
+			}
+			h.Write([]byte("hello world"))
+			gotRef := RefFromHash(h)
+			if gotRef.String() != tt.wantSum {
+				t.Errorf("got sum %q; want %q", gotRef.String(), tt.wantSum)
+			}
+		})
 	}
 }
