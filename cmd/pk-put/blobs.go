@@ -18,13 +18,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
-	"hash"
 	"io"
-	"log"
 	"os"
 	"strings"
 
@@ -99,7 +96,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 
 	for _, arg := range args {
 		if arg == "-" {
-			handle, err = stdinBlobHandle()
+			handle, err = c.stdinBlobHandle()
 		} else {
 			handle, err = c.fileBlobHandle(up, arg)
 		}
@@ -141,7 +138,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 	return nil
 }
 
-func stdinBlobHandle() (*client.UploadHandle, error) {
+func (c *blobCmd) stdinBlobHandle() (*client.UploadHandle, error) {
 	var buf bytes.Buffer
 	size, err := io.CopyN(&buf, cmdmain.Stdin, constants.MaxBlobSize+1)
 	if size > constants.MaxBlobSize {
@@ -150,7 +147,11 @@ func stdinBlobHandle() (*client.UploadHandle, error) {
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	h := blob.NewHash()
+	h, err := blob.NewHashOfType(c.hashFunc)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, err := h.Write(buf.Bytes()); err != nil {
 		return nil, err
 	}
@@ -183,7 +184,10 @@ func (c *blobCmd) fileBlobHandle(up *Uploader, path string) (*client.UploadHandl
 	if _, err := io.ReadFull(file, buf); err != nil {
 		return nil, err
 	}
-	h := c.newHash()
+	h, err := blob.NewHashOfType(c.hashFunc)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := h.Write(buf); err != nil {
 		return nil, err
 	}
@@ -192,17 +196,4 @@ func (c *blobCmd) fileBlobHandle(up *Uploader, path string) (*client.UploadHandl
 		Size:     uint32(size),
 		Contents: bytes.NewReader(buf),
 	}, nil
-}
-
-func (c *blobCmd) newHash() hash.Hash {
-	switch c.hashFunc {
-	case "":
-		return blob.NewHash()
-	case "sha1":
-		return sha1.New()
-	default:
-		// TODO: move all this into the blob package?
-		log.Fatalf("unsupported hash function %q", c.hashFunc)
-		panic("unreachable")
-	}
 }
