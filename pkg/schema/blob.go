@@ -216,7 +216,7 @@ func (c Claim) Blob() *Blob { return c.b }
 func (c Claim) ClaimDateString() string { return c.b.ss.ClaimDate.String() }
 
 // ClaimType returns the blob's "claimType" field.
-func (c Claim) ClaimType() string { return c.b.ss.ClaimType }
+func (c Claim) ClaimType() ClaimType { return c.b.ss.ClaimType }
 
 // Attribute returns the "attribute" field, if set.
 func (c Claim) Attribute() string { return c.b.ss.Attribute }

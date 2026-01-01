@@ -247,7 +247,7 @@ type superset struct {
 	Signer blob.Ref `json:"camliSigner"`
 	Sig    string   `json:"camliSig"`
 
-	ClaimType string         `json:"claimType"`
+	ClaimType ClaimType      `json:"claimType"`
 	ClaimDate types.Time3339 `json:"claimDate"`
 
 	Permanode blob.Ref `json:"permaNode"`
