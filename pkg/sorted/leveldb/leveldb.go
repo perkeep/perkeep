@@ -22,7 +22,6 @@ package leveldb // import "perkeep.org/pkg/sorted/leveldb"
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 
@@ -102,7 +101,6 @@ func (is *kvis) Get(key string) (string, error) {
 
 func (is *kvis) Set(key, value string) error {
 	if err := sorted.CheckSizes(key, value); err != nil {
-		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return nil
 	}
 	return is.db.Put([]byte(key), []byte(value), is.writeOpts)
@@ -235,7 +233,6 @@ func (lvb *lvbatch) Set(key, value string) {
 		return
 	}
 	if err := sorted.CheckSizes(key, value); err != nil {
-		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return
 	}
 	lvb.batch.Put([]byte(key), []byte(value))

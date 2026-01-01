@@ -106,7 +106,6 @@ func (b *batchTx) Set(key, value string) {
 		return
 	}
 	if err := sorted.CheckSizes(key, value); err != nil {
-		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return
 	}
 	if b.kv.BatchSetFunc != nil {
@@ -207,7 +206,6 @@ func (kv *KeyValue) Get(key string) (value string, err error) {
 
 func (kv *KeyValue) Set(key, value string) error {
 	if err := sorted.CheckSizes(key, value); err != nil {
-		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return nil
 	}
 	if kv.Gate != nil {
