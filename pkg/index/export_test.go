@@ -79,7 +79,7 @@ func Exp_schemaVersion() int { return requiredSchemaVersion }
 func (x *Index) Exp_noteBlobIndexed(br blob.Ref) {
 	x.Lock()
 	defer x.Unlock()
-	x.noteBlobIndexed(br)
+	x.noteBlobIndexedLocked(br)
 }
 
 func (x *Index) Exp_AwaitReindexing(t *testing.T) {

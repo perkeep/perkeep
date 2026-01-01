@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -39,11 +40,14 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/util/mak"
 
 	"go4.org/jsonconfig"
 	"go4.org/strutil"
 	"go4.org/types"
 )
+
+const verboseReindex = false
 
 func init() {
 	blobserver.RegisterStorageConstructor("index", newFromConfig)
@@ -68,6 +72,9 @@ type Index struct {
 
 	mu sync.RWMutex // guards following
 	//mu syncdebug.RWMutexTracker  // (when debugging)
+
+	pending    map[blob.Ref]*pendingBlobIndex
+	recentDone map[blob.Ref]bool // set of blobs recently indexed; non-empty only while len(pending) > 0
 
 	// needs maps from a blob to the missing blobs it needs to
 	// finish indexing.
@@ -222,10 +229,14 @@ func New(s sorted.KeyValue) (*Index, error) {
 		return nil, fmt.Errorf("index schema version is %d; required one is %d. You need to reindex. %s",
 			schemaVersion, requiredSchemaVersion, tip)
 	}
-	if err := idx.initDeletesCache(); err != nil {
+
+	idx.Lock() // useless but harmless; idx hasn't escaped yet but for consistency
+	defer idx.Unlock()
+
+	if err := idx.initDeletesCacheLocked(); err != nil {
 		return nil, fmt.Errorf("Could not initialize index's deletes cache: %w", err)
 	}
-	if err := idx.initNeededMaps(); err != nil {
+	if err := idx.initNeededMapsLocked(); err != nil {
 		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %w", err)
 	}
 	return idx, nil
@@ -477,13 +488,12 @@ func (x *Index) Reindex() error {
 
 	reindexStart, _ := blob.Parse(os.Getenv("CAMLI_REINDEX_START"))
 
-	err := x.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
+	err := x.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 	if err != nil {
 		return err
 	}
 
-	var nerrmu sync.Mutex
-	nerr := 0
+	var nerr atomic.Int64
 
 	blobc := make(chan blob.Ref, 32)
 
@@ -512,15 +522,19 @@ func (x *Index) Reindex() error {
 	}()
 	var wg sync.WaitGroup
 	for i := 0; i < reindexMaxProcs.v; i++ {
+		cpu := i
 		wg.Go(func() {
 			for br := range blobc {
+				if verboseReindex {
+					log.Printf("reindexer[%d]: indexing blob %v", cpu, br)
+				}
 				if err := x.indexBlob(ctx, br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
-					nerrmu.Lock()
-					nerr++
-					nerrmu.Unlock()
+					nerr.Add(1)
 					// TODO: flag (or default?) to stop the EnumerateAll above once
 					// there's any error with reindexing?
+				} else if verboseReindex {
+					log.Printf("reindexer[%d]: successfully indexed blob %v", cpu, br)
 				}
 			}
 		})
@@ -535,7 +549,30 @@ func (x *Index) Reindex() error {
 	x.RLock()
 	readyCount := len(x.readyReindex)
 	needed := len(x.needs)
-	var needSample bytes.Buffer
+	needSample := x.needSampleLocked()
+	x.RUnlock()
+	if readyCount > 0 {
+		return fmt.Errorf("%d blobs were ready to reindex in out-of-order queue, but not yet run", readyCount)
+	}
+	if needed > 0 {
+		return fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample)
+	}
+
+	if nerr.Load() != 0 {
+		return fmt.Errorf("%d blobs failed to re-index", nerr.Load())
+	}
+	x.Lock()
+	defer x.Unlock()
+	if err := x.initDeletesCacheLocked(); err != nil {
+		return err
+	}
+	log.Printf("Index rebuild complete.")
+	return nil
+}
+
+func (x *Index) needSampleLocked() string {
+	needed := len(x.needs)
+	var sb strings.Builder
 	if needed > 0 {
 		n := 0
 	Sample:
@@ -546,29 +583,13 @@ func (x *Index) Reindex() error {
 					break Sample
 				}
 				if n > 1 {
-					fmt.Fprintf(&needSample, ", ")
+					fmt.Fprintf(&sb, ", ")
 				}
-				fmt.Fprintf(&needSample, "%v needs %v", x, need)
+				fmt.Fprintf(&sb, "%v needs %v", x, need)
 			}
 		}
 	}
-	x.RUnlock()
-	if readyCount > 0 {
-		return fmt.Errorf("%d blobs were ready to reindex in out-of-order queue, but not yet ran", readyCount)
-	}
-	if needed > 0 {
-		return fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample.Bytes())
-	}
-
-	nerrmu.Lock() // no need to unlock
-	if nerr != 0 {
-		return fmt.Errorf("%d blobs failed to re-index", nerr)
-	}
-	if err := x.initDeletesCache(); err != nil {
-		return err
-	}
-	log.Printf("Index rebuild complete.")
-	return nil
+	return sb.String()
 }
 
 // integrityCheck enumerates blobs through x.blobSource during timeout, and
@@ -688,9 +709,11 @@ func newDeletionCache() *deletionCache {
 	}
 }
 
-// initDeletesCache creates and populates the deletion status cache used by the index
+// initDeletesCacheLocked creates and populates the deletion status cache used by the index
 // for faster calls to IsDeleted and DeletedAt. It is called by New.
-func (x *Index) initDeletesCache() (err error) {
+//
+// x.mu must be held by the caller.
+func (x *Index) initDeletesCacheLocked() (err error) {
 	x.deletes = newDeletionCache()
 	it := x.queryPrefix(keyDeleted)
 	defer closeIterator(it, &err)
@@ -1818,8 +1841,10 @@ func (x *Index) Close() error {
 	return nil
 }
 
-// initNeededMaps initializes x.needs and x.neededBy on start-up.
-func (x *Index) initNeededMaps() (err error) {
+// initNeededMapsLocked initializes x.needs and x.neededBy on start-up.
+//
+// x.mu must be held.
+func (x *Index) initNeededMapsLocked() (err error) {
 	x.deletes = newDeletionCache()
 	it := x.queryPrefix(keyMissing)
 	defer closeIterator(it, &err)
@@ -1835,20 +1860,29 @@ func (x *Index) initNeededMaps() (err error) {
 		if !ok1 || !ok2 {
 			return fmt.Errorf("Bogus missing key %q", key)
 		}
-		x.noteNeededMemory(have, missing)
+		x.noteNeededMemoryLocked(have, missing)
 	}
 	return
 }
 
 func (x *Index) noteNeeded(have, missing blob.Ref) error {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return x.noteNeededLocked(have, missing)
+}
+
+func (x *Index) noteNeededLocked(have, missing blob.Ref) error {
 	if err := x.s.Set(keyMissing.Key(have, missing), "1"); err != nil {
 		return err
 	}
-	x.noteNeededMemory(have, missing)
+	x.noteNeededMemoryLocked(have, missing)
 	return nil
 }
 
-func (x *Index) noteNeededMemory(have, missing blob.Ref) {
+func (x *Index) noteNeededMemoryLocked(have, missing blob.Ref) {
+	if verboseReindex {
+		log.Printf("reindex: have blob %v but it needs %v", have, missing)
+	}
 	x.needs[have] = append(x.needs[have], missing)
 	x.neededBy[missing] = append(x.neededBy[missing], have)
 }
@@ -1901,4 +1935,78 @@ func IsFulltextAttribute(attr string) bool {
 		return true
 	}
 	return false
+}
+
+// pendingBlobIndex represents a blob that is currently being indexed.
+//
+// It is used to coordinate multiple goroutines trying to index
+// blobs simultaneously when there are dependencies between blobs.
+type pendingBlobIndex struct {
+	blobRef blob.Ref
+	x       *Index
+
+	done chan struct{} // closed when err is valid
+}
+
+func (x *Index) getNewPendingBlobIndex(ctx context.Context, br blob.Ref) (*pendingBlobIndex, error) {
+	for {
+		x.mu.Lock()
+
+		// If recentDone has grown very large (many times the number of CPUs)
+		// that means we're probably in a big indexing batch. Apply some
+		// backpressure to allow the [Index.pending] map size to drop to zero
+		// so we can clear recentDone and process any pending dependencies.
+		if len(x.recentDone) > 5000 {
+			x.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+			continue
+		}
+
+		v, ok := x.pending[br]
+		if ok {
+			x.mu.Unlock()
+			select {
+			case <-v.done:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		v = &pendingBlobIndex{
+			blobRef: br,
+			x:       x,
+			done:    make(chan struct{}),
+		}
+		mak.Set(&x.pending, br, v)
+		x.mu.Unlock()
+		return v, nil
+	}
+}
+
+// MarkDone marks the pending blob index as done (successful or not),
+// and updates the index's needed/pending maps accordingly, possibly
+// kicking off further indexing work if dependencies are now satisfied.
+func (p *pendingBlobIndex) MarkDone() {
+	x := p.x
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	delete(x.pending, p.blobRef)
+
+	if len(x.pending) == 0 {
+		// See if any dependencies can be cleared now.
+		for missing := range x.neededBy {
+			if !x.recentDone[missing] {
+				continue
+			}
+			x.noteBlobIndexedLocked(missing)
+		}
+		clear(x.recentDone)
+	}
+
+	close(p.done)
 }
