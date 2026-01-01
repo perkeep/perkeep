@@ -19,6 +19,7 @@ package index
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"perkeep.org/pkg/blob"
@@ -80,16 +81,23 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...any) string 
 	if len(args) > len(parts) {
 		panic("too many arguments")
 	}
+	rvArgs := reflect.ValueOf(args)
 	for i, arg := range args {
 		if isKey || i > 0 {
 			buf.WriteString("|")
 		}
 		asStr := func() string {
 			s, ok := arg.(string)
-			if !ok {
-				s = arg.(fmt.Stringer).String()
+			if ok {
+				return s
 			}
-			return s
+			// See if it's something like a schema.ClaimType (a string).
+			rv := rvArgs.Index(i).Elem()
+			if rv.Kind() == reflect.String {
+				return rv.String()
+			}
+			// Otherwise assume it's a fmt.Stringer and blow up if not.
+			return arg.(fmt.Stringer).String()
 		}
 		switch parts[i].typ {
 		case typeIntStr:

@@ -224,7 +224,7 @@ func checkModtime() error {
 	for _, fi := range fis {
 		if fi.ModTime().After(binModtime) {
 			log.Printf("**************************************************************")
-			log.Printf("WARNING: your devcam binary is outdated, you should rebuild it")
+			log.Printf("WARNING: your devcam binary is outdated; you should rebuild it")
 			log.Printf("**************************************************************")
 			return nil
 		}

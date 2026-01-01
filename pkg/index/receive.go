@@ -879,7 +879,7 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 	mm.signerBlobRef = vr.CamliSigner
 	mm.Set(keySignerKeyID.name+":"+vr.CamliSigner.String(), verifiedKeyId)
 
-	if claim.ClaimType() == string(schema.DeleteClaim) {
+	if claim.ClaimType() == schema.DeleteClaim {
 		if err := ix.populateDeleteClaim(ctx, claim, vr, mm); err != nil {
 			return err
 		}
@@ -925,7 +925,7 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		}
 	}
 
-	if claim.ClaimType() != string(schema.DelAttributeClaim) && IsIndexedAttribute(attr) {
+	if claim.ClaimType() != schema.DelAttributeClaim && IsIndexedAttribute(attr) {
 		key := keySignerAttrValue.Key(verifiedKeyId, attr, value, claim.ClaimDateString(), br)
 		mm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
