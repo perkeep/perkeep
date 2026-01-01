@@ -21,7 +21,6 @@ package mongo // import "perkeep.org/pkg/sorted/mongo"
 import (
 	"bytes"
 	"errors"
-	"log"
 	"sync"
 	"time"
 
@@ -146,7 +145,6 @@ func (kv *keyValue) Find(start, end string) sorted.Iterator {
 
 func (kv *keyValue) Set(key, value string) error {
 	if err := sorted.CheckSizes(key, value); err != nil {
-		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return nil
 	}
 	kv.mu.Lock()
@@ -197,7 +195,6 @@ func (kv *keyValue) CommitBatch(bm sorted.BatchMutation) error {
 			}
 		} else {
 			if err := sorted.CheckSizes(m.Key(), m.Value()); err != nil {
-				log.Printf("Skipping storing (%q:%q): %v", m.Key(), m.Value(), err)
 				continue
 			}
 			if _, err := kv.db.Upsert(&bson.M{mgoKey: m.Key()}, &bson.M{mgoKey: m.Key(), mgoValue: m.Value()}); err != nil {

@@ -20,6 +20,7 @@ package sorted // import "perkeep.org/pkg/sorted"
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"go4.org/jsonconfig"
 )
@@ -296,9 +297,11 @@ func ForeachInRange(kv KeyValue, start, end string, fn func(key, value string) e
 // ErrValueTooLarge if value does not respect ValueMaxSize
 func CheckSizes(key, value string) error {
 	if len(key) > MaxKeySize {
+		log.Printf("sorted: key of %d bytes too large: %q...", len(key), key[:100])
 		return ErrKeyTooLarge
 	}
 	if len(value) > MaxValueSize {
+		log.Printf("sorted: key %q value too large (%d bytes)", key, len(value))
 		return ErrValueTooLarge
 	}
 	return nil
