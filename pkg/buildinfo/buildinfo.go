@@ -64,3 +64,20 @@ func DjpegStatus() string {
 	}
 	return "unknown"
 }
+
+var heicFunc func() string
+
+// RegisterHEICStatusFunc registers a function that reports the status of HEIC
+// image decoder variant.
+func RegisterHEICStatusFunc(fn func() string) {
+	heicFunc = fn
+}
+
+// HEICStatus returns a plaintext (non-HTML) string describing the
+// state of HEIC image decoder variant.
+func HEICStatus() string {
+	if heicFunc != nil {
+		return heicFunc()
+	}
+	return "unknown"
+}

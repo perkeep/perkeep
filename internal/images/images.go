@@ -42,6 +42,7 @@ import (
 	"perkeep.org/internal/images/fastjpeg"
 	"perkeep.org/internal/images/resize"
 	"perkeep.org/internal/magic"
+	"perkeep.org/pkg/buildinfo"
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
 	// so we don't mess up the import order again.
@@ -50,6 +51,7 @@ import (
 	_ "image/gif" // register GIF support
 	_ "image/png" // register PNG support
 
+	"github.com/perkeep/heic"
 	_ "github.com/perkeep/heic" // register HEIC format
 
 	// tiff package must be imported after any image packages that decode
@@ -58,6 +60,16 @@ import (
 
 	_ "golang.org/x/image/webp"
 )
+
+func init() {
+	buildinfo.RegisterHEICStatusFunc(func() string {
+		err := heic.Dynamic()
+		if err == nil {
+			return "libheif available (optimized)"
+		}
+		return "libheif not available (using WASM fallback)"
+	})
+}
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("PK_DISABLE_THUMB_CACHE"))
 
