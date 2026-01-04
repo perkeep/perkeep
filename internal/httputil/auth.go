@@ -61,21 +61,21 @@ func IsLocalhost(req *http.Request) bool {
 		log.Printf("perkeepd running as root. Don't do that.")
 		return false
 	}
-	if uid > 0 {
-		connUID, err := netutil.AddrPairUserid(from, to)
-		if err == nil {
-			if uid == connUID || connUID == 0 {
-				// If it's the same user who's running the server, allow it.
-				// Also allow root, so users can "sudo pk-put" files.
-				// Allowing root isn't a security problem because if root wants
-				// to mess with the local user, they already can. This whole mechanism
-				// is about protecting regular users from other regular users
-				// on shared computers.
-				return true
-			}
-			log.Printf("auth: local connection uid %d doesn't match server uid %d", connUID, uid)
-		}
+	connUID, err := netutil.AddrPairUserid(from, to)
+	if err != nil {
+		log.Printf("IsLocalhost: assuming false, as netutil.AddrPairUserid(%q, %q) failed: %v", from, to, err)
+		return false
 	}
+	if uid == connUID || connUID == 0 {
+		// If it's the same user who's running the server, allow it.
+		// Also allow root, so users can "sudo pk-put" files.
+		// Allowing root isn't a security problem because if root wants
+		// to mess with the local user, they already can. This whole mechanism
+		// is about protecting regular users from other regular users
+		// on shared computers.
+		return true
+	}
+	log.Printf("auth: local connection uid %d doesn't match server uid %d", connUID, uid)
 	return false
 }
 
