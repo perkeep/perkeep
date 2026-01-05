@@ -19,7 +19,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
-	github.com/perkeep/heic v0.0.0-20251225204104-663dcd1d2c16
+	github.com/perkeep/heic v0.0.0-20260105010044-a57ca1ce101f
 	github.com/pkg/sftp v1.13.9
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
