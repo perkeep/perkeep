@@ -249,8 +249,6 @@ These variables are yet to be documented:
 
 `CAMLI_SERVER` (todo)
 
-`CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO` (todo)
-
 `CAMLI_SYNC_VALIDATE` (todo)
 
 `CAMLI_TWITTER_FULL_IMPORT` (todo)

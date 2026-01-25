@@ -143,6 +143,7 @@ func (c *testCmd) runTests(args []string) error {
 			"./server/perkeepd",
 			"./cmd/...",
 			"./app/publisher/...",
+			"./app/webdav/...",
 			"./misc/docker/...",
 			"./website/pk-web",
 		}...)
