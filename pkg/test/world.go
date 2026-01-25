@@ -17,7 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -29,11 +28,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 )
@@ -99,6 +100,7 @@ var worldTargets = []string{
 	"perkeep.org/cmd/pk-get",
 	"perkeep.org/cmd/pk-put",
 	"perkeep.org/cmd/pk-mount",
+	"perkeep.org/app/webdav",
 }
 
 // BuildWorldBinaries builds the binaries a World needs from the source tree
@@ -170,13 +172,22 @@ func (w *World) Start() error {
 	}
 	// Start perkeepd.
 	{
+		// The listen address must be known before perkeepd starts so
+		// it can be used as the base URL, which perkeepd passes on to
+		// the apps it runs (as CAMLI_API_HOST) for reaching it.
+		port, err := netutil.RandPort()
+		if err != nil {
+			return err
+		}
+		w.addr = net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+
 		pkdbin := w.lookPathGobin("perkeepd")
 		w.server = exec.Command(
 			pkdbin,
 			"--openbrowser=false",
 			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
 			"--pollparent=true",
-			"--listen=127.0.0.1:0",
+			"--listen="+w.addr,
 		)
 		var buf bytes.Buffer
 		if testing.Verbose() {
@@ -187,20 +198,14 @@ func (w *World) Start() error {
 			w.server.Stderr = &buf
 		}
 
-		getPortListener, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return err
-		}
-		defer getPortListener.Close()
-
 		w.server.Dir = w.tempDir
 		w.server.Env = append(os.Environ(),
 			// "CAMLI_DEBUG=1", // <-- useful for testing
 			"CAMLI_MORE_FLAGS=1",
 			"CAMLI_ROOT="+w.tempDir,
 			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
-			"CAMLI_BASE_URL=http://127.0.0.0:tbd", // filled in later
-			"CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO="+getPortListener.Addr().String(),
+			"CAMLI_BASE_URL=http://"+w.addr,
+			"CAMLI_APP_BINDIR="+w.gobin,
 		)
 
 		if err := w.server.Start(); err != nil {
@@ -221,21 +226,7 @@ func (w *World) Start() error {
 		upc := make(chan bool)
 		upErr := make(chan error, 1)
 		go func() {
-			c, err := getPortListener.Accept()
-			if err != nil {
-				upErr <- fmt.Errorf("waiting for child to report its port: %w", err)
-				return
-			}
-			defer c.Close()
-			br := bufio.NewReader(c)
-			addr, err := br.ReadString('\n')
-			if err != nil {
-				upErr <- fmt.Errorf("ReadString: %w", err)
-				return
-			}
-			w.addr = strings.TrimSpace(addr)
-
-			for range 100 {
+			for range 600 {
 				res, err := http.Get("http://" + w.addr)
 				if err == nil {
 					res.Body.Close()

@@ -33,6 +33,19 @@
 			}
 		},
 
+		"/webdav/": {
+			"handler": "app",
+			"enabled": ["_env", "${CAMLI_WEBDAV_ENABLED}"],
+			"handlerArgs": {
+				"prefix": "/webdav/",
+				"serverListen": "localhost:3179",
+				"program": "webdav",
+				"appConfig": {
+					"camliRoot": "webdav-root"
+				}
+			}
+		},
+
 		"/scancab/": {
 			"handler": "app",
 			"enabled": ["_env", "${CAMLI_SCANCAB_ENABLED}"],

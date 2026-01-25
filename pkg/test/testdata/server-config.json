@@ -12,6 +12,7 @@
              "helpRoot": "/help/",
              "statusRoot": "/status/",
              "searchRoot": "/my-search/",
+             "jsonSignRoot": "/sighelper/",
              "stealth": false
          }
      },
@@ -88,6 +89,17 @@
           "handlerArgs": {
                "blobRoot": "/bs/",
                "index": "/index-mem/"
+          }
+     },
+
+     "/webdav/": {
+          "handler": "app",
+          "handlerArgs": {
+              "program": "webdav",
+              "prefix": "/webdav/",
+              "appConfig": {
+                  "camliRoot": "dev-webdav-root"
+              }
           }
      }
   }
