@@ -486,10 +486,11 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	tr := io.TeeReader(io.LimitReader(r, 8<<20), &buf)
 
 	// Read 1KB of the image for MIME type detection.
-	io.CopyN(io.Discard, tr, 1<<10)
+	// This advances r by 1KB and copies those bytes to buf.
+	mimeReadSize := int64(1 << 10)
+	io.CopyN(io.Discard, tr, mimeReadSize)
 
 	mr := io.MultiReader(bytes.NewReader(buf.Bytes()), r)
-
 	mimeType := magic.MIMETypeFromReaderAt(bytes.NewReader(buf.Bytes()))
 	switch mimeType {
 	case "":
@@ -524,6 +525,17 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		Format: format,
 		Width:  conf.Width,
 		Height: conf.Height,
+	}
+
+	// After image.DecodeConfig, r has been advanced past the position where
+	// EXIF data lives. For EXIF orientation reading, we need r to be back at
+	// position mimeReadSize (1KB) so the MultiReader can provide continuous data.
+	// If r is seekable, seek it back; otherwise EXIF reading may fail (which is
+	// non-fatal - we just won't be able to detect orientation).
+	if seeker, ok := r.(io.Seeker); ok {
+		if _, err := seeker.Seek(mimeReadSize, io.SeekStart); err != nil {
+			imageDebug(fmt.Sprintf("failed to seek for EXIF: %v", err))
+		}
 	}
 
 	mr = io.MultiReader(bytes.NewReader(buf.Bytes()), r)
