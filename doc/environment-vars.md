@@ -23,6 +23,11 @@ and
 : Path to the directory where Perkeep first looks for the server applications
   executables, when starting them. It looks in PATH otherwise.
 
+`CAMLI_APP_ROUTE_PREFIX` (string)
+: The route prefix (e.g., "/webdav/") that perkeepd uses when proxying requests
+  to an app. Set by perkeepd when launching apps, used by apps to generate
+  correct URLs in responses.
+
 `CAMLI_AUTH` (string)
 : See [server-config](server-config.md).
   Used as a fallback in pkg/client.Client (except on android) when
@@ -58,6 +63,11 @@ or
   Used by [pkg/server](/pkg/server) for finding static assests (js, css, html).
   Used as a signal by [pkg/index/\*](/pkg/index) and [pkg/server](/pkg/server)
   to output more helpful error message when run under devcam.
+
+`CAMLI_DEVMODE` (string)
+: If set to "1", indicates the server is running in development mode.
+  Enables dev-only features like the dummy importer and auto-creation of
+  camliRoot permanodes for apps.
 
 `CAMLI_DEV_CLOSURE_DIR` (string)
 : Path override for [pkg/server](/pkg/server). If specified, this path will be

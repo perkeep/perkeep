@@ -17,23 +17,20 @@ limitations under the License.
 package test
 
 import (
-	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 )
@@ -52,7 +49,6 @@ type World struct {
 	addr string // "127.0.0.1:35"
 
 	server    *exec.Cmd
-	isRunning int32 // state of the perkeepd server. Access with sync/atomic only.
 	serverErr error
 }
 
@@ -106,10 +102,9 @@ func (w *World) Build() error {
 				"perkeep.org/cmd/pk-get",
 				"perkeep.org/cmd/pk-put",
 				"perkeep.org/cmd/pk-mount",
+				"perkeep.org/app/webdav",
 			}, ","))
 		if testing.Verbose() {
-			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
-			// can be made true if devcam test -verbose ?
 			cmd.Args = append(cmd.Args, "-v=true")
 		}
 		cmd.Dir = w.srcRoot
@@ -133,7 +128,6 @@ func (w *World) Help() ([]byte, error) {
 		return nil, err
 	}
 	pkdbin := w.lookPathGobin("perkeepd")
-	// Run perkeepd -help.
 	cmd := exec.Command(pkdbin, "-help")
 	return cmd.CombinedOutput()
 }
@@ -143,116 +137,96 @@ func (w *World) Start() error {
 	if err := w.Build(); err != nil {
 		return err
 	}
-	// Start perkeepd.
-	{
-		pkdbin := w.lookPathGobin("perkeepd")
-		w.server = exec.Command(
-			pkdbin,
-			"--openbrowser=false",
-			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
-			"--pollparent=true",
-			"--listen=127.0.0.1:0",
-		)
-		var buf bytes.Buffer
-		if testing.Verbose() {
-			w.server.Stdout = os.Stdout
-			w.server.Stderr = os.Stderr
+
+	port, err := netutil.RandPort()
+	if err != nil {
+		return err
+	}
+	w.addr = fmt.Sprintf("127.0.0.1:%d", port)
+
+	pkdbin := w.lookPathGobin("perkeepd")
+	w.server = exec.Command(
+		pkdbin,
+		"--openbrowser=false",
+		"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
+		"--pollparent=true",
+		"--listen="+w.addr,
+	)
+	var buf bytes.Buffer
+	if testing.Verbose() {
+		w.server.Stdout = os.Stdout
+		w.server.Stderr = os.Stderr
+	} else {
+		w.server.Stdout = &buf
+		w.server.Stderr = &buf
+	}
+
+	w.server.Dir = w.tempDir
+	w.server.Env = append(os.Environ(),
+		"CAMLI_MORE_FLAGS=1",
+		"CAMLI_ROOT="+w.tempDir,
+		"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
+		"CAMLI_BASE_URL=http://"+w.addr,
+		"CAMLI_DEVMODE=1",
+		"CAMLI_APP_BINDIR="+w.gobin,
+	)
+
+	if err := w.server.Start(); err != nil {
+		w.serverErr = fmt.Errorf("starting perkeepd: %w", err)
+		return w.serverErr
+	}
+
+	waitc := make(chan error, 1)
+	go func() {
+		err := w.server.Wait()
+		w.serverErr = fmt.Errorf("%w: %s", err, buf.String())
+		waitc <- w.serverErr
+	}()
+
+	upc := make(chan bool)
+	upErr := make(chan error, 1)
+	go func() {
+		if ok := WaitFor(func() bool { return w.ping() == nil }, time.Minute, 1*time.Second); !ok {
+			upErr <- fmt.Errorf("server never became reachable")
 		} else {
-			w.server.Stdout = &buf
-			w.server.Stderr = &buf
+			upc <- true
 		}
+	}()
 
-		getPortListener, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return err
-		}
-		defer getPortListener.Close()
+	select {
+	case <-waitc:
+		return fmt.Errorf("server exited: %v", w.serverErr)
+	case err := <-upErr:
+		return err
+	case <-upc:
+		return nil
+	}
+}
 
-		w.server.Dir = w.tempDir
-		w.server.Env = append(os.Environ(),
-			// "CAMLI_DEBUG=1", // <-- useful for testing
-			"CAMLI_MORE_FLAGS=1",
-			"CAMLI_ROOT="+w.tempDir,
-			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
-			"CAMLI_BASE_URL=http://127.0.0.0:tbd", // filled in later
-			"CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO="+getPortListener.Addr().String(),
-		)
-
-		if err := w.server.Start(); err != nil {
-			w.serverErr = fmt.Errorf("starting perkeepd: %w", err)
-			return w.serverErr
-		}
-
-		atomic.StoreInt32(&w.isRunning, 1)
-		waitc := make(chan error, 1)
-		go func() {
-			err := w.server.Wait()
-			w.serverErr = fmt.Errorf("%w: %s", err, buf.String())
-			atomic.StoreInt32(&w.isRunning, 0)
-			waitc <- w.serverErr
-		}()
-		upc := make(chan bool)
-		upErr := make(chan error, 1)
-		go func() {
-			c, err := getPortListener.Accept()
-			if err != nil {
-				upErr <- fmt.Errorf("waiting for child to report its port: %w", err)
-				return
-			}
-			defer c.Close()
-			br := bufio.NewReader(c)
-			addr, err := br.ReadString('\n')
-			if err != nil {
-				upErr <- fmt.Errorf("ReadString: %w", err)
-				return
-			}
-			w.addr = strings.TrimSpace(addr)
-
-			for range 100 {
-				res, err := http.Get("http://" + w.addr)
-				if err == nil {
-					res.Body.Close()
-					upc <- true
-					return
-				}
-				time.Sleep(50 * time.Millisecond)
-			}
-			w.serverErr = errors.New(buf.String())
-			atomic.StoreInt32(&w.isRunning, 0)
-			upErr <- fmt.Errorf("server never became reachable: %v", w.serverErr)
-		}()
-
-		select {
-		case <-waitc:
-			return fmt.Errorf("server exited: %v", w.serverErr)
-		case err := <-upErr:
-			return err
-		case <-upc:
-			if err := w.Ping(); err != nil {
-				return err
-			}
-			// Success.
-		}
+func (w *World) ping() error {
+	res, err := http.Get(w.ServerBaseURL())
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status: %s", res.Status)
 	}
 	return nil
 }
 
 // Ping returns an error if the world's perkeepd is not running.
 func (w *World) Ping() error {
-	if atomic.LoadInt32(&w.isRunning) != 1 {
-		return fmt.Errorf("perkeepd not running: %v", w.serverErr)
-	}
-	return nil
+	return w.ping()
 }
 
 func (w *World) Stop() {
 	if w == nil {
 		return
 	}
-	if err := w.server.Process.Kill(); err != nil {
-		log.Fatalf("killed failed: %v", err)
+	if w.server != nil && w.server.Process != nil {
+		w.server.Process.Kill()
 	}
-
 	if d := w.tempDir; d != "" {
 		os.RemoveAll(d)
 	}
@@ -295,10 +269,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	var cmd *exec.Cmd
 	switch binary {
 	case "pk-get", "pk-put", "pk", "pk-mount":
-		// TODO(mpl): lift the pk-put restriction when we have a unified logging mechanism
 		if binary == "pk-put" && !hasVerbose() {
-			// pk-put and pk are the only ones to have a -verbose flag through cmdmain
-			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
 		binary := w.lookPathGobin(binary)
@@ -307,7 +278,6 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
 		cmd.Env = append(env,
 			"CAMLI_CONFIG_DIR="+clientConfigDir,
-			// Respected by env expansions in config/dev-client-dir/client-config.json:
 			"CAMLI_SERVER="+w.ServerBaseURL(),
 			"CAMLI_SECRET_RING="+w.SecretRingFile(),
 			"CAMLI_KEYID="+w.ClientIdentity(),

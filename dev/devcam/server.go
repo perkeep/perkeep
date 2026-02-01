@@ -69,6 +69,7 @@ type serverCmd struct {
 	publish     bool // whether to build and start the publisher app(s)
 	scancab     bool // whether to build and start the scancab app(s)
 	hello       bool // whether to build and start the hello demo app
+	webdav      bool // whether to build and start the webdav app
 
 	openBrowser      bool
 	flickrAPIKey     string
@@ -102,6 +103,7 @@ func init() {
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
 		flags.BoolVar(&cmd.scancab, "scancab", false, "Enable scancab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
+		flags.BoolVar(&cmd.webdav, "webdav", false, "Enable webdav app for photo sync")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
 		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the index storage. Excludes -mysql, -postgres, -sqlite, -memory, -kvfile.")
@@ -159,6 +161,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		c.publish = false
 		c.scancab = false
 		c.hello = false
+		c.webdav = false
 	}
 	if c.things && !c.wipe {
 		return cmdmain.UsageError("--makethings requires --wipe.")
@@ -235,6 +238,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_SCANCAB_ENABLED", strconv.FormatBool(c.scancab))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
+	setenv("CAMLI_WEBDAV_ENABLED", strconv.FormatBool(c.webdav))
 	setenv("CAMLI_SHA1_ENABLED", strconv.FormatBool(c.sha1))
 	switch {
 	case c.memory:
@@ -294,6 +298,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_BASEURL", base)
 
 	setenv("CAMLI_DEV_CAMLI_ROOT", camliSrcRoot)
+	setenv("CAMLI_DEVMODE", "1")
 	setenv("CAMLI_AUTH", "devauth:pass3179")
 	fullSuffix := func(name string) string {
 		return filepath.Join(c.root, name)
@@ -519,6 +524,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 		if c.publish {
 			targets = append(targets, "app/publisher")
+		}
+		if c.webdav {
+			targets = append(targets, "app/webdav")
 		}
 		targets = append(targets, "app/scanningcabinet")
 		err := build(targets...)

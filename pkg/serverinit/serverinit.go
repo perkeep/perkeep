@@ -363,6 +363,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 				exitFailure("Error looking/setting up root node for publisher on %v: %v", h.prefix, err)
 			}
 		}
+		if ap.ProgramName() == "webdav" {
+			if err := hl.initWebDAVRootNode(ap); err != nil {
+				exitFailure("Error looking/setting up root node for webdav on %v: %v", h.prefix, err)
+			}
+		}
 	} else {
 		var err error
 		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)

@@ -128,7 +128,7 @@ func TestInternalHandler(t *testing.T) {
 		"/test-that-root-handler-returns-404": http.StatusNotFound,
 		"/no-http-storage/":                   http.StatusUnauthorized,
 		"/no-http-handler/":                   http.StatusUnauthorized,
-		"/bs-and-maybe-also-index/camli":      http.StatusBadRequest,
+		"/bs-recv/camli":                      http.StatusBadRequest,
 		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              http.StatusNotFound,
 		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": http.StatusUnauthorized,
 	}

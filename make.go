@@ -95,6 +95,7 @@ func main() {
 		"perkeep.org/app/hello",
 		"perkeep.org/app/scanningcabinet",
 		"perkeep.org/app/scanningcabinet/scancab",
+		"perkeep.org/app/webdav",
 	}
 	switch *targets {
 	case "*":

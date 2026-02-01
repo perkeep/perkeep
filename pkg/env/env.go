@@ -88,7 +88,7 @@ func detectGCE() {
 }
 
 var (
-	isDev             = os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
+	isDev             = os.Getenv("CAMLI_DEVMODE") != ""
 	isDebug, _        = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 	isDebugUploads, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_UPLOADS"))
 )

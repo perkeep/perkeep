@@ -18,7 +18,6 @@ package serverinit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -33,6 +32,16 @@ import (
 )
 
 func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
+	return hl.initAppRootNode(ah, "publisher")
+}
+
+func (hl *handlerLoader) initWebDAVRootNode(ah *app.Handler) error {
+	return hl.initAppRootNode(ah, "webdav")
+}
+
+// initAppRootNode creates a camliRoot permanode for an app if it doesn't exist.
+// This is only done in dev mode.
+func (hl *handlerLoader) initAppRootNode(ah *app.Handler, appName string) error {
 	if !env.IsDev() {
 		return nil
 	}
@@ -56,16 +65,17 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 
 	appConfig := ah.AppConfig()
 	if appConfig == nil {
-		return errors.New("publisher app handler has no AppConfig")
+		return fmt.Errorf("%s app handler has no AppConfig", appName)
 	}
 	camliRoot, ok := appConfig["camliRoot"].(string)
 	if !ok {
-		return fmt.Errorf("camliRoot in publisher app handler appConfig is %T, want string", appConfig["camliRoot"])
+		// camliRoot not configured, skip initialization
+		return nil
 	}
 	result, err := camliRootQuery(camliRoot)
 	if err == nil && len(result.Blobs) > 0 && result.Blobs[0].Blob.Valid() {
 		// root node found, nothing more to do.
-		log.Printf("Found %v camliRoot node for publisher: %v", camliRoot, result.Blobs[0].Blob.String())
+		log.Printf("Found %v camliRoot node for %s: %v", camliRoot, appName, result.Blobs[0].Blob.String())
 		return nil
 	}
 
@@ -101,8 +111,14 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "camliRoot", camliRoot)); err != nil {
 		return fmt.Errorf("could not set camliRoot on new node %v: %w", pn, err)
 	}
-	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+camliRoot)); err != nil {
-		return fmt.Errorf("could not set camliRoot on new node %v: %w", pn, err)
+	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "title", fmt.Sprintf("Root node for %s (%s)", appName, camliRoot))); err != nil {
+		return fmt.Errorf("could not set title on new node %v: %w", pn, err)
+	}
+	// Mark it as a directory for webdav
+	if appName == "webdav" {
+		if _, err := signUpload(schema.NewSetAttributeClaim(pn, "camliNodeType", "directory")); err != nil {
+			return fmt.Errorf("could not set camliNodeType on new node %v: %w", pn, err)
+		}
 	}
 	return nil
 }

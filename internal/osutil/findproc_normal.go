@@ -27,7 +27,7 @@ import (
 func DieOnParentDeath() {
 	// TODO: on Linux, use PR_SET_PDEATHSIG later. For now, the portable way:
 	go func() {
-		pollParent(30 * time.Second)
+		pollParent(5 * time.Second)
 		os.Exit(0)
 	}()
 }
