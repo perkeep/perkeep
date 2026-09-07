@@ -164,8 +164,8 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	if err != nil {
 		return nil, 0, err
 	}
-	defer og.Close()
 	all, err := io.ReadAll(og)
+	og.Close()
 	if err != nil {
 		return nil, 0, err
 	}
