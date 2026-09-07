@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -123,9 +124,58 @@ func TestProxyCache(t *testing.T) {
 	})
 	px.origin = memory.NewCache(0)
 	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return px
+	})
+	px.origin = memory.NewCache(0)
+	px.populateOnSubFetch = true
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		t.Cleanup(func() { cleanUp(ds) })
 		return px
 	})
+}
+
+func TestProxyCachePopulateOnSubFetch(t *testing.T) {
+	px, ds := NewProxiedDisk(t)
+	defer cleanUp(ds)
+	px.populateOnSubFetch = true
+
+	// Upload to origin only, so the cache starts cold.
+	tb := &test.Blob{Contents: "Some big blob"}
+	tb.MustUpload(t, ds)
+
+	if _, _, err := px.cache.Fetch(ctxbg, tb.BlobRef()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("blob should not be in the cache yet; got err %v", err)
+	}
+
+	rc, err := px.SubFetch(ctxbg, tb.BlobRef(), 5, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err = rc.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	got, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "big" {
+		t.Errorf("SubFetch got %q; want %q", got, "big")
+	}
+
+	cached, size, err := px.cache.Fetch(ctxbg, tb.BlobRef())
+	if err != nil {
+		t.Fatalf("blob should have been populated into the cache: %v", err)
+	}
+	t.Cleanup(func() {
+		if err = cached.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if int(size) != len(tb.Contents) {
+		t.Errorf("cached blob size = %d; want %d", size, len(tb.Contents))
+	}
 }
 
 func TestConfig(t *testing.T) {
@@ -137,9 +187,11 @@ func TestConfig(t *testing.T) {
 	ld.SetStorage("cache", px)
 
 	cache, err := newFromConfig(ld, jsonconfig.Obj{
-		"origin":        "origin",
-		"cache":         "cache",
-		"maxCacheBytes": float64(maxBytes),
+		"origin":             "origin",
+		"cache":              "cache",
+		"maxCacheBytes":      float64(maxBytes),
+		"populateOnSubFetch": true,
+		"debug":              true,
 	})
 
 	if err != nil {
@@ -150,5 +202,11 @@ func TestConfig(t *testing.T) {
 	if sto.maxCacheBytes != maxBytes {
 		t.Fatalf("incorrectly read maxCacheBytes. saw: %d expected: %d",
 			sto.maxCacheBytes, maxBytes)
+	}
+	if !sto.populateOnSubFetch {
+		t.Error("incorrectly read populateOnSubFetch. saw: false expected: true")
+	}
+	if !sto.debug {
+		t.Error("incorrectly read debug. saw: false expected: true")
 	}
 }
