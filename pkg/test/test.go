@@ -37,13 +37,13 @@ func BrokenTest(t *testing.T) {
 	}
 }
 
-// TLog changes the log package's output to log to t and returns a function
-// to reset it back to stderr.
-func TLog(t testing.TB) func() {
+// TLog changes the log package's output to log to t and registers a
+// t.Cleanup function to reset it back to stderr.
+func TLog(t testing.TB) {
 	log.SetOutput(twriter{t: t})
-	return func() {
+	t.Cleanup(func() {
 		log.SetOutput(os.Stderr)
-	}
+	})
 }
 
 type twriter struct {

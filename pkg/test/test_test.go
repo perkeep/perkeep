@@ -26,16 +26,26 @@ import (
 
 type tbLogger struct {
 	testing.TB
-	log []string
+	log      []string
+	cleanups []func()
 }
 
 func (l *tbLogger) Log(args ...any) {
 	l.log = append(l.log, args[0].(string))
 }
 
+func (l *tbLogger) Cleanup(f func()) {
+	l.cleanups = append(l.cleanups, f)
+}
+
 func TestTLog(t *testing.T) {
 	tb := new(tbLogger)
-	defer TLog(tb)()
+	TLog(tb)
+	defer func() {
+		for i := len(tb.cleanups) - 1; i >= 0; i-- {
+			tb.cleanups[i]()
+		}
+	}()
 	defer log.SetFlags(log.Flags())
 	log.SetFlags(0)
 

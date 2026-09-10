@@ -46,7 +46,7 @@ func TestSorted_Kvfile(t *testing.T) {
 func indexTest(t *testing.T,
 	sortedGenfn func(t *testing.T) sorted.KeyValue,
 	tfn func(*testing.T, func() *index.Index)) {
-	defer test.TLog(t)()
+	test.TLog(t)
 
 	makeIndex := func() *index.Index {
 		s := sortedGenfn(t)
