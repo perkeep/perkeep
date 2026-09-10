@@ -35,13 +35,12 @@ import (
 )
 
 type shareTester struct {
-	t          *testing.T
-	sto        *test.Fetcher
-	signer     *schema.Signer
-	handler    *shareHandler
-	sleeps     int
-	rec        *httptest.ResponseRecorder
-	restoreLog func()
+	t       *testing.T
+	sto     *test.Fetcher
+	signer  *schema.Signer
+	handler *shareHandler
+	sleeps  int
+	rec     *httptest.ResponseRecorder
 }
 
 var ctxbg = context.Background()
@@ -82,12 +81,12 @@ func newShareTesterIdx(t *testing.T, withIndex bool) *shareTester {
 		}
 		sig, armorPub = newSigner(t)
 	}
+	test.TLog(t)
 	st := &shareTester{
-		t:          t,
-		sto:        sto,
-		signer:     sig,
-		handler:    &shareHandler{fetcher: sto, idx: idx},
-		restoreLog: test.TLog(t),
+		t:       t,
+		sto:     sto,
+		signer:  sig,
+		handler: &shareHandler{fetcher: sto, idx: idx},
 	}
 	if withIndex {
 		st.putRaw(blob.RefFromString(armorPub), armorPub)
@@ -100,7 +99,6 @@ func newShareTesterIdx(t *testing.T, withIndex bool) *shareTester {
 
 func (st *shareTester) done() {
 	timeSleep = time.Sleep
-	st.restoreLog()
 }
 
 func (st *shareTester) slept() bool {

@@ -104,7 +104,7 @@ func testQuery(t testing.TB, fn func(*queryTest)) {
 }
 
 func testQueryTypes(t testing.TB, types []indexType, fn func(*queryTest)) {
-	defer test.TLog(t)()
+	test.TLog(t)
 	for _, it := range types {
 		if *queryType == "" || *queryType == it.String() {
 			t.Logf("Testing: --querytype=%s ...", it)
