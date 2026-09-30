@@ -27,10 +27,10 @@ import (
 
 	"perkeep.org/internal/osutil"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 const publicKeyMaxSize = 256 * 1024
@@ -154,7 +154,10 @@ func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
 		return err
 	}
 	for _, ent := range el {
-		if err := ent.SerializePrivate(armoredWriter, nil); err != nil {
+		// Serialize the existing self-signatures as-is. SerializePrivate
+		// would re-sign them, which fails for keys whose self-signatures
+		// use SHA-1, as older GnuPG versions generated.
+		if err := ent.SerializePrivateWithoutSigning(armoredWriter, nil); err != nil {
 			return err
 		}
 	}

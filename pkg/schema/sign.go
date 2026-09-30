@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/jsonsign"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
 // A Signer signs the JSON schema blobs that require signing, such as claims
