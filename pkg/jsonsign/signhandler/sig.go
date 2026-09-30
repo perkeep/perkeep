@@ -36,8 +36,8 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"go4.org/jsonconfig"
-	"golang.org/x/crypto/openpgp"
 )
 
 const maxJSONLength = 1024 * 1024

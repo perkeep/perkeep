@@ -23,8 +23,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
-	"golang.org/x/crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	. "perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/test"
 )
@@ -183,7 +184,7 @@ func TestSigning(t *testing.T) {
 	if _, err := vr.Verify(ctxbg); err == nil {
 		t.Fatalf("unexpected verification of faked signature")
 	}
-	if substr := "openpgp: invalid signature: hash tag doesn't match"; !isErrorWithSubstring(vr.Err, substr) {
+	if substr := "openpgp: invalid signature:"; !isErrorWithSubstring(vr.Err, substr) {
 		t.Errorf("signature verification request: expected error containing %q, got %q instead", substr, vr.Err)
 	}
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
@@ -240,4 +241,23 @@ func entityString(ent *openpgp.Entity) string {
 		fmt.Fprintf(&buf, " id[%q]", k)
 	}
 	return buf.String()
+}
+
+// TestSignatureStable verifies that signatures are byte-identical to those
+// made by older Perkeep versions (which used golang.org/x/crypto/openpgp),
+// so identical claims signed at identical times have identical blobrefs.
+func TestSignatureStable(t *testing.T) {
+	sr := newRequest(1)
+	sr.UnsignedJSON = fmt.Sprintf(`{"camliVersion": 1, "foo": "x", "camliSigner": %q}`, pubKeyBlob1.BlobRef().String())
+	sr.SignatureTime = time.Unix(1300000000, 0)
+	signed, err := sr.Sign(ctxbg)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	const want = "wsBcBAABCAAQBQJNfG0ACRApMaZ8JvWr2gAA+eUIAAmHSiIZTOzziiISmgVp33/uqvc4eHMTJ5cAdbH+H4FDom2sv5gfQXElLlp2a/pKI63mxvxE7QaKEP/SRcB1Z95WEOZIFPnV/fK/z3d5Zjn3gYaF2cnE6pXo7aDszNAZc0swB2Kv6kyUmKKdjVZKTtH725Rvjoz3RDUAX5RMYxe/UTQKmyv/yb9kv2Wb+/y3m8s5aqJCOO+568uNXopWe5eETAvzZvED01sXvEZ6uemakBodPbYep7XCEBKhyUn6PLhHKXjDSeJ6J8i7sllyLG30MWoVTRiA5sm9xvhHucG5WofuxLlj13sTON838lTtJxI7RI06Wm+c631V6y26iTA==pWZE"
+	_, got, _ := strings.Cut(signed, `"camliSig":"`)
+	got = strings.TrimSuffix(got, "\"}\n")
+	if got != want {
+		t.Errorf("camliSig changed:\n got: %s\nwant: %s", got, want)
+	}
 }

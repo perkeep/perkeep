@@ -19,9 +19,12 @@ package jsonsign
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -30,9 +33,10 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 type EntityFetcher interface {
@@ -195,14 +199,12 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		return "", err
 	}
 
+	sigTime := sr.SignatureTime
+	if sigTime.IsZero() {
+		sigTime = time.Now()
+	}
 	var buf bytes.Buffer
-	err = openpgp.ArmoredDetachSign(
-		&buf,
-		signer,
-		strings.NewReader(trimmedJSON),
-		&packet.Config{Time: func() time.Time { return sr.SignatureTime }},
-	)
-	if err != nil {
+	if err := detachSign(&buf, signer, trimmedJSON, sigTime); err != nil {
 		return "", err
 	}
 
@@ -217,4 +219,97 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 	signature := strings.Replace(inner, "\n", "", -1)
 
 	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJSON, signature), nil
+}
+
+// deterministicSigs is a packet.Config option disabling the random salt
+// notation that ProtonMail's openpgp adds to v4 signatures by default.
+var deterministicSigs = false
+
+// detachSign writes to w an armored detached signature of msg made by
+// signer's primary key at time t.
+//
+// It builds the signature packet directly rather than using
+// openpgp.ArmoredDetachSign because the latter refuses to sign at a time
+// before the key's creation time (claims may be backdated, such as by
+// importers) and prefers signing subkeys, whereas signatures are always
+// verified against the primary key named by camliSigner.
+func detachSign(w io.Writer, signer *openpgp.Entity, msg string, t time.Time) error {
+	priv := signer.PrivateKey
+	if priv == nil {
+		return errors.New("jsonsign: signing entity has no private key")
+	}
+	if priv.Encrypted {
+		return errors.New("jsonsign: signing key is encrypted")
+	}
+	// Produce the same bytes as golang.org/x/crypto/openpgp did, so that
+	// identical claims keep identical blobrefs across Perkeep versions:
+	// no salt notation, a non-critical creation time subpacket, and no
+	// issuer fingerprint subpacket. The fork's Signature.Sign always emits
+	// the latter from the signing key's fingerprint, so sign with a copy
+	// of the key that lacks one; signing itself doesn't use it.
+	config := &packet.Config{
+		DefaultHash:                                      crypto.SHA256,
+		NonDeterministicSignaturesViaNotation:            &deterministicSigs,
+		InsecureGenerateNonCriticalSignatureCreationTime: true,
+	}
+	signingKey := *priv
+	signingKey.PublicKey.Fingerprint = nil
+	sig := &packet.Signature{
+		Version:      priv.PublicKey.Version,
+		SigType:      packet.SigTypeBinary,
+		PubKeyAlgo:   priv.PublicKey.PubKeyAlgo,
+		Hash:         config.Hash(),
+		CreationTime: t,
+		IssuerKeyId:  &priv.PublicKey.KeyId,
+	}
+	h, err := sig.PrepareSign(config)
+	if err != nil {
+		return err
+	}
+	io.WriteString(h, msg)
+	if err := sig.Sign(h, &signingKey, config); err != nil {
+		return err
+	}
+	if pub, ok := priv.PublicKey.PublicKey.(*rsa.PublicKey); ok {
+		sig.RSASignature = newPaddedMPI(sig.RSASignature.Bytes(), pub.Size())
+	}
+	aw, err := armor.Encode(w, openpgp.SignatureType, nil)
+	if err != nil {
+		return err
+	}
+	if err := sig.Serialize(aw); err != nil {
+		return err
+	}
+	return aw.Close()
+}
+
+// paddedMPI is an OpenPGP MPI encoded the way golang.org/x/crypto/openpgp
+// encoded RSA signatures: the value is left-padded with zeros to the
+// modulus size and the bit length is 8 times that size, even if the value
+// has leading zero bits. ProtonMail's openpgp instead uses the minimal
+// encoding, which would change about half of all signatures.
+// Both encodings are accepted by verifiers.
+type paddedMPI []byte
+
+func newPaddedMPI(b []byte, size int) paddedMPI {
+	if len(b) >= size {
+		return paddedMPI(b)
+	}
+	p := make([]byte, size)
+	copy(p[size-len(b):], b)
+	return paddedMPI(p)
+}
+
+func (m paddedMPI) Bytes() []byte     { return m }
+func (m paddedMPI) BitLength() uint16 { return uint16(8 * len(m)) }
+
+func (m paddedMPI) EncodedBytes() []byte {
+	bitLen := m.BitLength()
+	return append([]byte{byte(bitLen >> 8), byte(bitLen)}, m...)
+}
+
+func (m paddedMPI) EncodedLength() uint16 { return uint16(2 + len(m)) }
+
+func (m paddedMPI) ReadFrom(r io.Reader) (int64, error) {
+	return 0, errors.New("jsonsign: paddedMPI is write-only")
 }
