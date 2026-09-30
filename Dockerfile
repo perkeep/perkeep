@@ -2,7 +2,7 @@
 # Generic purpose Perkeep image, that builds the server (perkeepd)
 # and the command-line clients (pk, pk-put, pk-get, and pk-mount).
 
-FROM golang:1.25 AS pkbuild
+FROM golang:1.27 AS pkbuild
 
 LABEL maintainer="Perkeep Authors perkeep@googlegroups.com"
 
