@@ -314,7 +314,7 @@ func verifyPerkeepRoot() {
 }
 
 const (
-	goVersionMinor = 21
+	goVersionMinor = 27
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)

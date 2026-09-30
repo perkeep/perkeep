@@ -12,7 +12,7 @@ If you have downloaded one of the binary archives (for Darwin, Linux, or
 Windows), skip this section.
 
 [Download and install Go](http://golang.org/doc/install) if you don't
-have that installed already. Perkeep requires [Go 1.25 or newer](https://golang.org/dl/).
+have that installed already. Perkeep requires [Go 1.27 or newer](https://golang.org/dl/).
 
     $ cd perkeep.org
     $ go run make.go
