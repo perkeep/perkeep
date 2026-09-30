@@ -26,6 +26,7 @@ import (
 	"io"
 	"math/rand"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -490,22 +491,44 @@ func TestReindex(t *testing.T) {
 	pt.testOpenWholeRef(t, blob.RefFromHash(hash), files[0].size)
 
 	// Specifically check the z: rows.
-	zrows := []string{
-		"z:sha224-096fae492d8262946b2326efa93364fe15949b5fa9170691a7be4f79 | 16771653 sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 0 16709479",
-		"z:sha224-252be95ef0e2d7a20fd6091242bbcf9cde010fe7ec69e03480b59c7f | 1121155 sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 16709479 1116313",
-		"z:sha224-7e9a2b36e82f06d5e7091f6ba0342e4369e3a0f25b7eb28d130a1895 | 10521605 sha224-336161c04a4e2ea1ac15dd2fe81820b8a5254c7030d840b61a5deb85 10485760 0 10485760",
-		"z:sha224-df35a92fd7cf4c77c12f4b8d48e55f36ed74da5a7c6929945dc74033 | 5263814 sha224-440ee7ebd58d2adcf48089dfc5ba1ea00d7fb1c887b52874b1fb44a4 5242880 0 5242880",
+	//
+	// The zip blobrefs and sizes aren't hard-coded, as they depend on
+	// the output of compress/flate (used for the manifest), which can
+	// change between Go releases. Instead, verify that each row's zip
+	// size matches the actual zip blob, and compare the remaining
+	// (whole file) fields against known values.
+	wantWholeParts := []string{
+		"sha224-336161c04a4e2ea1ac15dd2fe81820b8a5254c7030d840b61a5deb85 10485760 0 10485760",
+		"sha224-440ee7ebd58d2adcf48089dfc5ba1ea00d7fb1c887b52874b1fb44a4 5242880 0 5242880",
+		"sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 0 16709479",
+		"sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 16709479 1116313",
 	}
+	var gotWholeParts []string
 	it := pt.sto.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
-	i := 0
 	for it.Next() {
-		got := it.Key() + " | " + it.Value()
-		if zrows[i] != got {
-			t.Errorf("for row %d;\n got: %v\n want: %v\n", i, got, zrows[i])
+		zipRef, ok := blob.Parse(strings.TrimPrefix(it.Key(), zipMetaPrefix))
+		if !ok {
+			t.Errorf("bogus z: row key %q", it.Key())
+			continue
 		}
-		i++
+		zipSize, wholePart, ok := strings.Cut(it.Value(), " ")
+		if !ok {
+			t.Errorf("bogus z: row value %q", it.Value())
+			continue
+		}
+		sb, err := blobserver.StatBlob(ctxbg, pt.large, zipRef)
+		if err != nil {
+			t.Errorf("stat of zip %v: %v", zipRef, err)
+		} else if fmt.Sprint(sb.Size) != zipSize {
+			t.Errorf("z: row for %v has size %s; actual zip size is %d", zipRef, zipSize, sb.Size)
+		}
+		gotWholeParts = append(gotWholeParts, wholePart)
 	}
 	it.Close()
+	sort.Strings(gotWholeParts)
+	if !slices.Equal(gotWholeParts, wantWholeParts) {
+		t.Errorf("z: rows whole file parts mismatch;\n got: %q\nwant: %q", gotWholeParts, wantWholeParts)
+	}
 
 	recoMode, err := pt.sto.checkLargeIntegrity()
 	if err != nil {
