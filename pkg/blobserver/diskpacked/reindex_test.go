@@ -61,7 +61,7 @@ func TestWalkPack(t *testing.T) {
 	}
 
 	if len(got) != len(want) {
-		t.Errorf("Got len %q want len %q", got, want)
+		t.Errorf("Got len %d want len %d", len(got), len(want))
 	}
 	for i, g := range got {
 		w := want[i]
