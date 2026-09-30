@@ -37,7 +37,7 @@ require (
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.249.0
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
-	honnef.co/go/tools v0.7.0
+	honnef.co/go/tools v0.8.1
 	modernc.org/kv v1.0.4
 	modernc.org/sqlite v1.28.0
 	rsc.io/pdf v0.1.1
