@@ -21,6 +21,10 @@ blobserver.
 
 If the provided maxCacheBytes is unspecified, the default is 512MB.
 
+If populateOnSubFetch is set, a SubFetch that misses the cache fetches
+and caches the whole blob rather than passing the ranged read through to
+origin.
+
 Example config:
 
 	      "/cache/": {
@@ -28,7 +32,9 @@ Example config:
 	          "handlerArgs": {
 			  "origin": "/cloud-blobs/",
 			  "cache": "/local-ssd/",
-			  "maxCacheBytes": 536870912
+			  "maxCacheBytes": 536870912,
+			  "populateOnSubFetch": false,
+			  "debug": false
 	          }
 	      },
 */
@@ -56,8 +62,9 @@ type Storage struct {
 	origin blobserver.Storage
 	cache  blobserver.Storage
 
-	debug         bool
-	maxCacheBytes int64
+	debug              bool
+	populateOnSubFetch bool
+	maxCacheBytes      int64
 
 	mu         sync.Mutex // guards following
 	lru        *lru.Cache
@@ -89,9 +96,11 @@ func init() {
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
-		origin        = config.RequiredString("origin")
-		cache         = config.RequiredString("cache")
-		maxCacheBytes = config.OptionalInt64("maxCacheBytes", 512<<20)
+		origin             = config.RequiredString("origin")
+		cache              = config.RequiredString("cache")
+		maxCacheBytes      = config.OptionalInt64("maxCacheBytes", 512<<20)
+		populateOnSubFetch = config.OptionalBool("populateOnSubFetch", false)
+		debug              = config.OptionalBool("debug", false)
 	)
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -104,7 +113,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
-	return New(maxCacheBytes, cacheSto, originSto), nil
+	sto := New(maxCacheBytes, cacheSto, originSto)
+	sto.populateOnSubFetch = populateOnSubFetch
+	sto.debug = debug
+	return sto, nil
 }
 
 // must hold sto.mu.
@@ -151,6 +163,24 @@ func (sto *Storage) touch(sb blob.SizedRef) {
 	}
 }
 
+func (sto *Storage) fetchAndPopulate(ctx context.Context, b blob.Ref) (all []byte, size uint32, err error) {
+	og, size, err := sto.origin.Fetch(ctx, b)
+	if err != nil {
+		return nil, 0, err
+	}
+	all, err = io.ReadAll(og)
+	og.Close()
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := blobserver.Receive(ctx, sto.cache, b, bytes.NewReader(all)); err != nil {
+		log.Printf("populating proxycache cache for %v: %v", b, err)
+	} else {
+		sto.touch(blob.SizedRef{Ref: b, Size: size})
+	}
+	return all, size, nil
+}
+
 func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	rc, size, err = sto.cache.Fetch(ctx, b)
 	if err == nil {
@@ -160,23 +190,17 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	if !errors.Is(err, os.ErrNotExist) {
 		log.Printf("warning: proxycache cache fetch error for %v: %v", b, err)
 	}
-	rc, size, err = sto.origin.Fetch(ctx, b)
+	all, size, err := sto.fetchAndPopulate(ctx, b)
 	if err != nil {
-		return
-	}
-	all, err := io.ReadAll(rc)
-	if err != nil {
-		return
-	}
-	if _, err := blobserver.Receive(ctx, sto.cache, b, bytes.NewReader(all)); err != nil {
-		log.Printf("populating proxycache cache for %v: %v", b, err)
-	} else {
-		sto.touch(blob.SizedRef{Ref: b, Size: size})
+		return nil, 0, err
 	}
 	return io.NopCloser(bytes.NewReader(all)), size, nil
 }
 
 func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
+	}
 	if sf, ok := sto.cache.(blob.SubFetcher); ok {
 		rc, err := sf.SubFetch(ctx, ref, offset, length)
 		if err == nil {
@@ -185,6 +209,22 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, blob.ErrUnimplemented) {
 			log.Printf("proxycache: error fetching from cache %T: %v", sto.cache, err)
 		}
+	}
+	if sto.populateOnSubFetch {
+		if sto.debug {
+			log.Printf("proxycache: populating cache for %v on SubFetch", ref)
+		}
+		all, size, err := sto.fetchAndPopulate(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		if sto.debug {
+			log.Printf("proxycache: populated cache for %v (%d bytes) on SubFetch", ref, size)
+		}
+		if offset > int64(len(all)) {
+			return nil, blob.ErrOutOfRangeOffsetSubFetch
+		}
+		return io.NopCloser(io.NewSectionReader(bytes.NewReader(all), offset, length)), nil
 	}
 	if sf, ok := sto.origin.(blob.SubFetcher); ok {
 		return sf.SubFetch(ctx, ref, offset, length)
