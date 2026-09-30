@@ -75,20 +75,20 @@ func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.R
 	}
 	rc, _, err := fetcher.Fetch(ctx, fileBlobRef)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %w", err)
+		return nil, fmt.Errorf("schema/filereader: fetching file schema blob %v: %w", fileBlobRef, err)
 	}
 	defer rc.Close()
 	ss, err := parseSuperset(rc)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %w", err)
+		return nil, fmt.Errorf("schema/filereader: decoding file schema blob %v: %w", fileBlobRef, err)
 	}
 	ss.BlobRef = fileBlobRef
 	if ss.Type != "file" && ss.Type != "bytes" {
-		return nil, fmt.Errorf("schema/filereader: expected \"file\" or \"bytes\" schema blob, got %q", ss.Type)
+		return nil, fmt.Errorf("schema/filereader: expected \"file\" or \"bytes\" schema blob %v, got %q", fileBlobRef, ss.Type)
 	}
 	fr, err := ss.NewFileReader(fetcher)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: creating FileReader for %s: %w", fileBlobRef, err)
+		return nil, fmt.Errorf("schema/filereader: creating FileReader for %v: %w", fileBlobRef, err)
 	}
 	return fr, nil
 }
