@@ -105,7 +105,7 @@ func writePack(t *testing.T, dir string, i int, p pack) {
 }
 
 func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
-	restoreLogging := test.TLog(t)
+	test.TLog(t)
 	dir := t.TempDir()
 
 	for i, p := range packs {
@@ -125,7 +125,6 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 
 	clean = func() {
 		s.Close()
-		restoreLogging()
 	}
 	return s, clean
 }

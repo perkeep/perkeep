@@ -28,7 +28,7 @@ import (
 )
 
 func TestSorted(t *testing.T, kv sorted.KeyValue) {
-	defer test.TLog(t)()
+	test.TLog(t)
 	if !isEmpty(t, kv) {
 		t.Fatal("kv for test is expected to be initially empty")
 	}
