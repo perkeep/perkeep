@@ -97,7 +97,7 @@ func (id *IndexDeps) Sign(m *schema.Builder) *test.Blob {
 	m.SetSigner(id.SignerBlobRef)
 	unsigned, err := m.JSON()
 	if err != nil {
-		id.Fatalf("uploadAndSignMap: " + err.Error())
+		id.Fatalf("uploadAndSignMap: %v", err)
 	}
 	sr := &jsonsign.SignRequest{
 		UnsignedJSON:  unsigned,
@@ -107,7 +107,7 @@ func (id *IndexDeps) Sign(m *schema.Builder) *test.Blob {
 	}
 	signed, err := sr.Sign(ctxbg)
 	if err != nil {
-		id.Fatalf("problem signing: " + err.Error())
+		id.Fatalf("problem signing: %v", err)
 	}
 	tb := &test.Blob{Contents: signed}
 	return tb

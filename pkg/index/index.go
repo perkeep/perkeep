@@ -212,7 +212,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 		// New index.
 		err := idx.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 		if err != nil {
-			return nil, fmt.Errorf("Could not write index schema version %q: %w", requiredSchemaVersion, err)
+			return nil, fmt.Errorf("Could not write index schema version %d: %w", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
