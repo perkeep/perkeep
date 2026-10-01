@@ -160,13 +160,14 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	if !errors.Is(err, os.ErrNotExist) {
 		log.Printf("warning: proxycache cache fetch error for %v: %v", b, err)
 	}
-	rc, size, err = sto.origin.Fetch(ctx, b)
+	og, size, err := sto.origin.Fetch(ctx, b)
 	if err != nil {
-		return
+		return nil, 0, err
 	}
-	all, err := io.ReadAll(rc)
+	all, err := io.ReadAll(og)
+	og.Close()
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 	if _, err := blobserver.Receive(ctx, sto.cache, b, bytes.NewReader(all)); err != nil {
 		log.Printf("populating proxycache cache for %v: %v", b, err)
