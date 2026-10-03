@@ -19,7 +19,7 @@ value, such as:
 {
     "publicKey": "/sighelper/camli/sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
     "publicKeyBlobRef": "sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
-    "publicKeyId": "94DE83C46401800C",
+    "publicKeyFingerprint": "FBB89AA320A2806FE497C0492931A67C26F5ABDA",
     "signHandler": "/sighelper/camli/sig/sign",
     "verifyHandler": "/sighelper/camli/sig/verify"
 }
