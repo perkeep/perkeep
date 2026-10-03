@@ -17,6 +17,7 @@ limitations under the License.
 goog.provide('cam.BlobItemAudioContent');
 
 goog.require('goog.math.Size');
+goog.require('cam.BlobItemGenericContent');
 
 // Renders audio blob items.
 cam.BlobItemAudioContent = React.createClass({
@@ -44,27 +45,19 @@ cam.BlobItemAudioContent = React.createClass({
 				onMouseEnter: this.handleMouseOver_,
 				onMouseLeave: this.handleMouseOut_,
 			},
-			React.DOM.a({
-					className: 'cam-unstyled-button',
-					href: this.props.href
-				},
-				this.getAudio_(),
-				this.getPoster_()
-			),
+			this.getAudio_(),
+			React.createElement(cam.BlobItemGenericContent, {
+				href: this.props.href,
+				size: this.props.size,
+				thumbFAIcon: 'volume-up',
+				// TODO(oac): When server indexes audio and provides a poster image, add it here
+				// thumbSrc: ,
+				// thumbAspect: ,
+				title: this.getTitle_(),
+			}),
+			this.getTrackInfo_(),
 			this.getPlayPauseButton_(),
 		);
-	},
-
-	getPoster_: function() {
-		// TODO(oac): When server indexes audio and provides a poster image, render it here.
-		return React.DOM.i({
-			className: 'fa fa-volume-up',
-			style: {
-				fontSize: this.props.size.height / 1.5 + 'px',
-				lineHeight: this.props.size.height + 'px',
-				width: this.props.size.width,
-			},
-		});
 	},
 
 	getAudio_: function() {
@@ -78,8 +71,27 @@ cam.BlobItemAudioContent = React.createClass({
 		});
 	},
 
+	getTitle_: function() {
+		var mediaTags = this.props.mediaTags;
+		if (mediaTags) {
+			return mediaTags.title || '[No Title]';
+		} else {
+			return this.props.filename || 'Audio File';
+		}
+	},
+
+	getTrackInfo_: function() {
+		var mediaTags = this.props.mediaTags;
+		if (mediaTags) {
+			return React.DOM.span({
+				className:'cam-blobitem-thumbtitle cam-blobitem-audio-trackinfo',
+				style: { width: this.props.size.width }
+			}, (mediaTags.artist || '[No Artist]') + ' / ' + (mediaTags.album || '[No Album]'));
+		}
+	},
+
 	getPlayPauseButton_: function() {
-		if (!this.state.mouseover) {
+		if (!this.state.playing && !this.state.mouseover) {
 			return null;
 		}
 		return (
@@ -106,7 +118,13 @@ cam.BlobItemAudioContent = React.createClass({
 	},
 
 	setAudioRef_: function(audio) {
-		this.audioRef_ = audio;
+		var self = this;
+		if (audio) {
+			self.audioRef_ = audio;
+			audio.addEventListener('pause', function() {
+				self.setState({ playing: false })
+			})
+		}
 	},
 
 	handlePlayPauseClick_: function(e) {
@@ -174,5 +192,6 @@ cam.BlobItemAudioContent.Handler.prototype.createContent = function(size) {
 		filename: this.rm_.file.fileName,
 		href: this.href_,
 		size: size,
+		mediaTags: this.rm_.mediaTags
 	});
 };
