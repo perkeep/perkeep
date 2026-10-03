@@ -22,6 +22,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,9 +37,16 @@ import (
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
+
+	"perkeep.org/internal/lru"
+	"perkeep.org/internal/sieve"
 )
 
 var ctxbg = context.Background()
+
+func init() {
+	debug = debugT(env.IsDebug())
+}
 
 func newTempDiskpacked(t *testing.T) blobserver.Storage {
 	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{})
@@ -57,7 +65,7 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) blobserv
 		t.Fatal(err)
 	}
 	t.Logf("diskpacked test dir is %q", dir)
-	s, err := newStorage(dir, 1<<20, indexConf)
+	s, err := newStorage(dir, 8192, 3, indexConf)
 	if err != nil {
 		t.Fatalf("newStorage: %v", err)
 	}
@@ -335,7 +343,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestBadDir(t *testing.T) {
-	s, err := newStorage("hopefully this is a not existing directory", 1<<20, jsonconfig.Obj{"type": "memory"})
+	s, err := newStorage("hopefully this is a not existing directory", 1<<20, 1, jsonconfig.Obj{"type": "memory"})
 	if err == nil {
 		s.Close()
 		t.Errorf("expected error for non-existing directory")
@@ -358,9 +366,78 @@ func TestWriteError(t *testing.T) {
 	if err := os.Symlink("/non existing file", fn); err != nil {
 		t.Fatal(err)
 	}
-	s, err := newStorage(dir, 1, jsonconfig.Obj{"type": "memory"})
+	s, err := newStorage(dir, 1, 1, jsonconfig.Obj{"type": "memory"})
 	if err == nil {
 		s.Close()
 		t.Fatal("expected error for non-existing directory")
 	}
+}
+
+func BenchmarkCacheRandom(b *testing.B) {
+	c := newRandomCache[string, *os.File](1024)
+	benchmarkCache(b, c.Add, c.Get)
+}
+func BenchmarkCacheLRU(b *testing.B) {
+	c := lru.New(1024)
+	benchmarkCache(b,
+		func(k string, v *os.File) { c.Add(k, v) },
+		func(k string) (*os.File, bool) {
+			v, ok := c.Get(k)
+			if ok {
+				return v.(*os.File), true
+			}
+			return nil, false
+		})
+}
+func BenchmarkCacheSIEVE(b *testing.B) {
+	c := sieve.New[string, *os.File](1024, func(fh *os.File) {
+		if fh != nil {
+			fh.Close()
+		}
+	})
+	benchmarkCache(b,
+		func(k string, v *os.File) { c.Add(k, v) },
+		c.Get)
+}
+
+func benchmarkCache(b *testing.B,
+	add func(string, *os.File),
+	get func(string) (*os.File, bool),
+) {
+	rnd := rand.New(rand.NewSource(0))
+	var hit, all int64
+	for i := 0; i < b.N*1000; i++ {
+		k := strconv.Itoa(rnd.Intn(8192))
+		if _, ok := get(k); ok {
+			hit++
+		} else {
+			add(strconv.Itoa(i), nil)
+		}
+		all++
+	}
+	b.Logf("%s hit ratio: (%d/%d)=%.03f%%", b.Name(), hit, all, float64(hit*100)/float64(all))
+}
+
+type randomCache[K comparable, V any] struct {
+	m    map[K]V
+	size int
+}
+
+func newRandomCache[K comparable, V any](size int) randomCache[K, V] {
+	return randomCache[K, V]{m: make(map[K]V, size), size: size}
+}
+func (c randomCache[K, V]) Add(k K, v V) {
+	if len(c.m) >= c.size {
+		for k := range c.m {
+			delete(c.m, k)
+			if len(c.m) < c.size {
+				break
+			}
+		}
+	}
+	c.m[k] = v
+}
+func (c randomCache[K, V]) Get(k K) (V, bool) {
+	v, ok := c.m[k]
+	return v, ok
 }
