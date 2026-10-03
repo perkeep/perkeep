@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -322,28 +323,12 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 		return nil
 	}
 
-	json, err := json.MarshalIndent(bookmark, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	cl := r.Host.TargetClient()
-	if cl == nil {
-		return fmt.Errorf("raindrop: no client available for uploading")
-	}
-
-	ures, err := cl.Upload(r.Context(), client.NewUploadHandleFromString(string(json)))
-	if err != nil {
-		return err
-	}
-
 	attrs := []string{
 		nodeattr.Type, "raindrop.io:bookmark",
 		nodeattr.DateCreated, schema.RFC3339FromTime(bookmark.Created),
 		nodeattr.DateModified, schema.RFC3339FromTime(bookmark.LastUpdate),
 		nodeattr.Title, bookmark.Title,
 		nodeattr.URL, bookmark.Link,
-		nodeattr.CamliContent, ures.BlobRef.String(),
 	}
 
 	coverURL := bookmark.Cover
@@ -354,6 +339,7 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 		}
 
 		if (err != nil || resp.StatusCode != http.StatusOK) && !strings.HasPrefix(coverURL, "https://rdl.ink/") {
+			log.Printf("raindrop: failed to fetch cover image %s for %s: %v", coverURL, bookmark.Link, err)
 			if resp != nil {
 				_ = resp.Body.Close()
 			}
@@ -372,7 +358,7 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 			return fmt.Errorf("raindrop: unexpected status code %v fetching cover image %s for %s", resp.StatusCode, coverURL, bookmark.Link)
 		}
 
-		coverRef, err := cl.UploadFile(r.Context(), coverURL, resp.Body, nil)
+		coverRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), path.Base(coverURL), resp.Body)
 		if err != nil {
 			return err
 		}
