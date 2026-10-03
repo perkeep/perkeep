@@ -30,6 +30,7 @@ import (
 	_ "perkeep.org/pkg/importer/plaid"
 	_ "perkeep.org/pkg/importer/raindrop"
 	_ "perkeep.org/pkg/importer/swarm"
+	_ "perkeep.org/pkg/importer/takeout"
 	_ "perkeep.org/pkg/importer/twitter"
 )
 
