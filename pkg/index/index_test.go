@@ -228,6 +228,31 @@ func TestMergeFileInfoRow(t *testing.T) {
 	testMergeFileInfoRow(t, "sha224-7032b0e01d39d3eac638f74512e19580212fc13bf846524d5eb6d1cb")
 }
 
+// TestDeletesSurviveReopen verifies that an Index opened on existing
+// storage knows about deletions recorded before it was opened.
+func TestDeletesSurviveReopen(t *testing.T) {
+	kv := sorted.NewMemoryKeyValue()
+	ix, err := index.New(kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := indextest.NewIndexDeps(ix)
+	id.Fataler = t
+	pn := id.NewPermanode()
+	id.Delete(pn)
+	if !ix.IsDeleted(pn) {
+		t.Fatalf("IsDeleted(%v) = false before reopen; want true", pn)
+	}
+
+	ix2, err := index.New(kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ix2.IsDeleted(pn) {
+		t.Errorf("IsDeleted(%v) = false after reopening index; want true", pn)
+	}
+}
+
 func TestInitNeededMaps(t *testing.T) {
 	s := sorted.NewMemoryKeyValue()
 

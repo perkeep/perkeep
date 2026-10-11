@@ -1845,7 +1845,6 @@ func (x *Index) Close() error {
 //
 // x.mu must be held.
 func (x *Index) initNeededMapsLocked() (err error) {
-	x.deletes = newDeletionCache()
 	it := x.queryPrefix(keyMissing)
 	defer closeIterator(it, &err)
 	for it.Next() {
