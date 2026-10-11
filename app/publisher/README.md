@@ -1,5 +1,4 @@
 # Deprecated
 
-This contains the remnants of the "publisher" app. It was built on
-GopherJS, though, which hasn't been keeping up with upstream Go for
-years, so the publisher no longer builds.
+This contains the remnants of the "publisher" app. Its client-side
+JavaScript has been removed, so only the server-rendered pages remain.

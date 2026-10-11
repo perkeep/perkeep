@@ -148,12 +148,6 @@ type Client struct {
 	transportConfig *TransportConfig // or nil
 
 	noExtConfig bool // no external config; config file and env vars are ignored.
-
-	// sameOrigin indicates whether URLs in requests should be stripped from
-	// their scheme and HostPort parts. This is meant for when using the client
-	// through gopherjs in the web UI. Because we'll run into CORS errors if
-	// requests have a Host part.
-	sameOrigin bool
 }
 
 const maxParallelHTTP_h1 = 5
@@ -954,15 +948,6 @@ func (c *Client) blobPrefix() (string, error) {
 // discoRoot returns the user defined server for this client. It prepends "https://" if no scheme was specified.
 func (c *Client) discoRoot() string {
 	s := c.server
-	if c.sameOrigin {
-		s = strings.TrimPrefix(s, "http://")
-		s = strings.TrimPrefix(s, "https://")
-		parts := strings.SplitN(s, "/", 1)
-		if len(parts) < 2 {
-			return "/"
-		}
-		return "/" + parts[1]
-	}
 	if !strings.HasPrefix(s, "http") {
 		s = "https://" + s
 	}
@@ -1180,7 +1165,7 @@ func (c *Client) Sign(ctx context.Context, server string, r io.Reader) (signed [
 }
 
 func (c *Client) post(ctx context.Context, url string, bodyType string, body io.Reader) (*http.Response, error) {
-	if !c.sameOrigin && !strings.HasPrefix(url, c.discoRoot()) {
+	if !strings.HasPrefix(url, c.discoRoot()) {
 		return nil, fmt.Errorf("wrong URL (%q) for this server", url)
 	}
 	req := c.newRequest(ctx, "POST", url, body)

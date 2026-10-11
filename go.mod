@@ -13,8 +13,6 @@ require (
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
 	github.com/go-sql-driver/mysql v1.9.2
-	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00
-	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
 	github.com/lib/pq v1.10.9

@@ -327,8 +327,7 @@ func verifyGoModules() {
 	}
 }
 
-// verifyGoVersion runs "go version" and parses the output.  If the version is
-// acceptable a check for gopherjs versions are also done. If problems
+// verifyGoVersion runs "go version" and parses the output. If problems
 // are found a message is logged and we abort.
 func verifyGoVersion() {
 	_, err := exec.LookPath("go")

@@ -14,14 +14,10 @@ _go_.[568]
 _cgo*
 .goroot
 .DS_Store
-app/publisher/publisher.js
-app/publisher/publisher.js.map
-app/publisher/js/zsearch.go
 bin/*_*
 bin/cam*
 bin/devcam
 bin/genfileembed
-bin/gopherjs
 bin/hello
 bin/pk*
 bin/perkeepd

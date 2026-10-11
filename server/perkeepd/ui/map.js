@@ -224,10 +224,6 @@ cam.MapAspect = React.createClass({
 		this.mapQuery.send();
 	},
 
-	// TODO(mpl): if we add caching of the results to the gopherjs searchsession,
-	// then getMeta, getResolvedMeta, and getTitle can become methods on the Session
-	// type, and we can remove the searchResults argument.
-
 	getMeta: function(br, searchResults) {
 		if (!searchResults || !searchResults.description || !searchResults.description.meta) {
 			return null;

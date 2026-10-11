@@ -26,7 +26,6 @@ goog.require('cam.blob');
 goog.require('cam.ServerType');
 goog.require('cam.WorkerMessageRouter');
 
-// TODO(mpl): directly get it from the auth pkg if we use gopherjs.
 var OMIT_AUTH_TOKEN = "OmitAuthToken";
 
 // @fileoverview Connection to the blob server and API for the RPCs it provides. All blob index UI code should use this connection to contact the server.
