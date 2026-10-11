@@ -46,6 +46,7 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -197,18 +198,45 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 	return nil
 }
 
+// ReceiveBlob implements blobserver.BlobReceiver.
+//
+// Blobs are content-addressed and thus immutable, so if the blob is
+// already present it's not uploaded again. Besides saving bandwidth,
+// this avoids GCS's limit on the rate of writes to a single object
+// name, which repeated uploads of the same blob can exceed.
 func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	sb, err := s.statBlob(ctx, br)
+	if err == nil {
+		return sb, nil
+	}
+	if !errors.Is(err, storage.ErrObjectNotExist) {
+		return blob.SizedRef{}, err
+	}
+
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, source)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
+	sb = blob.SizedRef{Ref: br, Size: uint32(size)}
 
-	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(ctx)
+	// The DoesNotExist condition covers the case of the blob
+	// being created since the statBlob call above. It can't
+	// replace that call, though: GCS only checks the condition
+	// after the data's been sent.
+	obj := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String())
+	w := obj.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
 	if _, err := io.Copy(w, bytes.NewReader(buf.Bytes())); err != nil {
+		w.Close()
+		if isPreconditionFailed(err) {
+			return sb, nil
+		}
 		return blob.SizedRef{}, err
 	}
 	if err := w.Close(); err != nil {
+		if isPreconditionFailed(err) {
+			return sb, nil
+		}
 		return blob.SizedRef{}, err
 	}
 
@@ -217,27 +245,40 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		// without errors on the io.Copy above.
 		blobserver.ReceiveNoHash(ctx, s.cache, br, bytes.NewReader(buf.Bytes()))
 	}
-	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+	return sb, nil
+}
+
+// isPreconditionFailed reports whether err is GCS reporting that a
+// write's conditions weren't met.
+func isPreconditionFailed(err error) bool {
+	var gerr *googleapi.Error
+	return errors.As(err, &gerr) && gerr.Code == http.StatusPreconditionFailed
 }
 
 var statGate = syncutil.NewGate(20) // arbitrary cap
 
 func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	// TODO: use cache
-	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (blob.SizedRef, error) {
+		sb, err := s.statBlob(ctx, br)
 		if errors.Is(err, storage.ErrObjectNotExist) {
-			return sb, nil
+			return blob.SizedRef{}, nil
 		}
-		if err != nil {
-			return sb, err
-		}
-		size := attrs.Size
-		if size > constants.MaxBlobSize {
-			return sb, fmt.Errorf("blob %s stat size too large (%d)", br, size)
-		}
-		return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+		return sb, err
 	})
+}
+
+// statBlob returns the size of br, or an error wrapping
+// storage.ErrObjectNotExist if it's not present.
+func (s *Storage) statBlob(ctx context.Context, br blob.Ref) (blob.SizedRef, error) {
+	attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
+	if attrs.Size > constants.MaxBlobSize {
+		return blob.SizedRef{}, fmt.Errorf("blob %s stat size too large (%d)", br, attrs.Size)
+	}
+	return blob.SizedRef{Ref: br, Size: uint32(attrs.Size)}, nil
 }
 
 func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
