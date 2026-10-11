@@ -58,6 +58,12 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err != nil {
 		return nil, err
 	}
+	success := false
+	defer func() {
+		if !success {
+			db.Close()
+		}
+	}()
 	kv := &keyValue{
 		file: file,
 		db:   db,
@@ -86,6 +92,10 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			version, requiredSchemaVersion)
 	}
 
+	if err := kv.Prepare(); err != nil {
+		return nil, fmt.Errorf("preparing SQLite key/value statements: %w", err)
+	}
+	success = true
 	return kv, nil
 
 }
