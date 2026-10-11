@@ -202,19 +202,6 @@ func (h *handler) createDocument(ctx context.Context, doc document) (blob.Ref, e
 	return pn, nil
 }
 
-// persistDocAndPdf creates a new Document struct that represents
-// the given pdfObject struct and stores it in the datastore,
-// the pdfObject in the datastore with a reference back to the new Document struct
-// and returns the key to the new document entity
-func (h *handler) persistDocAndPdf(ctx context.Context, newDoc document) (blob.Ref, error) {
-	br := blob.Ref{}
-	pn, err := h.createDocument(ctx, newDoc)
-	if err != nil {
-		return br, err
-	}
-	return pn, nil
-}
-
 func (h *handler) searchDocument(ctx context.Context, pn blob.Ref) (*search.SearchResult, error) {
 	q := &search.SearchQuery{
 		Constraint: &search.Constraint{
@@ -525,37 +512,4 @@ func (h *handler) describeDocument(b *search.DescribedBlob) (*document, error) {
 		tags:      newSeparatedString(strings.Join(b.Permanode.Attr["tag"], ",")),
 		dueDate:   dueDate,
 	}, nil
-}
-
-// breakAndDeleteDoc deletes the given document struct and marks its
-// associated pdfObject as not being part of a document
-func (h *handler) breakAndDeleteDoc(ctx context.Context, docRef blob.Ref) error {
-	doc, err := h.fetchDocument(docRef)
-	if err != nil {
-		return fmt.Errorf("document %v not found: %v", docRef, err)
-	}
-	if err := h.deleteNode(ctx, docRef); err != nil {
-		return fmt.Errorf("could not delete document %v: %v", docRef, err)
-	}
-	if err := h.delAttribute(ctx, doc.pdf, "document", ""); err != nil {
-		return fmt.Errorf("could not unset document of pdf %v: %v", doc.pdf, err)
-	}
-
-	return nil
-}
-
-// deleteDocAndImages deletes the given document struct and marks all of its
-// associated pdfObjects as not being part of a document
-func (h *handler) deleteDocAndPDF(ctx context.Context, docRef blob.Ref) error {
-	doc, err := h.fetchDocument(docRef)
-	if err != nil {
-		return fmt.Errorf("document %v not found: %v", docRef, err)
-	}
-	if err := h.deleteNode(ctx, docRef); err != nil {
-		return fmt.Errorf("could not delete document %v: %v", docRef, err)
-	}
-	if err := h.deleteNode(ctx, doc.pdf); err != nil {
-		return fmt.Errorf("could not delete pdf %v: %v", doc.pdf, err)
-	}
-	return nil
 }

@@ -14,22 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The pdf cabinet program is a server application to store scanned
+// The pdf cabinet program is a server application to store PDF
 // documents in Perkeep, and to manage them. It is a slightly
-// different take on app/scanningcabinet.
+// different take on app/scanningcabinet, where each document is
+// exactly one PDF file.
 //
 // The data schema is roughly as follows:
 //
-// A pdf is a permanode, with the node type: "pdfcabinet:pdf". A pdf's
-// camliContent attribute is set to the actual pdf file. A pdf also holds the
-// "dateCreated" attribute, as well as the "document" attribute, which references
-// the document this pdf is a part of (if any).
-//
 // A document is a permanode, with the node type: "pdfcabinet:doc".
-// The pdfcabinet:pdf permanode is referenced by the CamliContent
-// attribute of the pdfcabinet:doc node.  A document can also hold the
-// following attributes: "dateCreated", "tag", "locationText",
-// "title", "startDate", and "paymentDueDate".
+// Its camliContent attribute references the uploaded PDF file. A
+// document can also hold the following attributes: "dateCreated",
+// "tag", "title", "startDate", and "paymentDueDate".
 package main
 
 import (

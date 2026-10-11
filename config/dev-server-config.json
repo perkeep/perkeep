@@ -49,9 +49,9 @@
 			"handler": "app",
 			"enabled": ["_env", "${CAMLI_PDFCAB_ENABLED}"],
 			"handlerArgs": {
-			        "prefix": "/pdfcab/",
+				"prefix": "/pdfcab/",
 				"serverListen": "localhost:3179",
-			        "program": "pdfcabinet",
+				"program": "pdfcabinet",
 				"appConfig": {
 					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}/app/pdfcabinet/ui", ""]
 				}
