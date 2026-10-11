@@ -75,6 +75,11 @@ type mutationMap struct {
 	// TODO(mpl): we only need to keep track of one claim so far,
 	// but I chose a slice for when we need to do multi-claims?
 	deletes []schema.Claim
+
+	// deps are blobs that must be indexed before this blob can be
+	// fully indexed, discovered from the index rather than from a
+	// failed fetch (e.g. the target of a delete claim).
+	deps []blob.Ref
 }
 
 func (mm *mutationMap) Set(k, v string) {
@@ -119,69 +124,131 @@ func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 	return nil
 }
 
-// indexReadyBlobs indexes blobs that have been recently marked as ready to be
-// reindexed, after the blobs they depend on eventually were indexed.
-func (ix *Index) indexReadyBlobs(ctx context.Context) {
-	defer ix.reindexWg.Done()
+// indexOp tracks one in-progress ReceiveBlob call.
+type indexOp struct {
+	// indexed is the set of blobs that finished indexing while this
+	// op was in progress. ix.mu must be held to access it.
+	indexed map[blob.Ref]bool
+}
 
-	popReadyReindex := func() (blob.Ref, bool) {
+func (ix *Index) beginIndexOp() *indexOp {
+	op := new(indexOp)
+	ix.Lock()
+	defer ix.Unlock()
+	mak.Set(&ix.inFlight, op, true)
+	return op
+}
+
+func (ix *Index) endIndexOp(op *indexOp) {
+	ix.Lock()
+	defer ix.Unlock()
+	delete(ix.inFlight, op)
+}
+
+// enqueueReadyLocked queues br to be indexed again now that the blobs
+// it depends on have been indexed, starting the worker that does so
+// if it's not already running.
+//
+// ix.mu must be held.
+func (ix *Index) enqueueReadyLocked(br blob.Ref) {
+	ix.readyReindex[br] = true
+	if ix.readyWorkerDone == nil {
+		done := make(chan struct{})
+		ix.readyWorkerDone = done
+		go ix.indexReadyBlobs(done)
+	}
+}
+
+// indexReadyBlobs indexes the blobs in ix.readyReindex until it's empty,
+// then closes done and returns.
+func (ix *Index) indexReadyBlobs(done chan struct{}) {
+	ctx := context.Background()
+	for {
 		ix.Lock()
-		defer ix.Unlock()
-
-		if len(ix.readyReindex) == 0 {
-			return blob.Ref{}, false
-		}
 		var br blob.Ref
 		for br = range ix.readyReindex {
 			break
 		}
-		delete(ix.readyReindex, br)
-
-		return br, true
-	}
-
-	failed := make(map[blob.Ref]bool)
-	for {
-		br, ok := popReadyReindex()
-		if !ok {
-			break
+		if !br.Valid() {
+			ix.readyWorkerDone = nil
+			close(done)
+			ix.Unlock()
+			return
 		}
+		delete(ix.readyReindex, br)
+		ix.Unlock()
+
 		if verboseReindex {
 			log.Printf("reindex: reindexing blob %v now that its dependencies are satisfied", br)
 		}
-		if err := ix.indexBlob(ctx, br); err != nil {
+		err := ix.indexBlob(ctx, br)
+		if err != nil {
 			log.Printf("out-of-order indexBlob(%v) = %v", br, err)
-			failed[br] = true
 		}
-	}
-
-	ix.Lock()
-	defer ix.Unlock()
-	for br := range failed {
-		ix.readyReindex[br] = true
+		ix.Lock()
+		if err != nil {
+			mak.Set(&ix.readyFailed, br, true)
+		} else {
+			delete(ix.readyFailed, br)
+		}
+		ix.Unlock()
 	}
 }
 
-// noteBlobIndexed checks if the recent indexing of br now allows the blobs that
-// were depending on br, to be indexed in turn. If yes, they're reindexed
-// asynchronously by indexReadyBlobs.
+// awaitReadyIdle waits until there are no blobs waiting to be indexed
+// by indexReadyBlobs.
+func (ix *Index) awaitReadyIdle() {
+	for {
+		ix.RLock()
+		done := ix.readyWorkerDone
+		ix.RUnlock()
+		if done == nil {
+			return
+		}
+		<-done
+	}
+}
+
+// noteBlobIndexedLocked records that br was just fully indexed, queueing
+// the blobs that were only waiting for br to be indexed again.
 //
 // ix.mu must be held.
 func (ix *Index) noteBlobIndexedLocked(br blob.Ref) {
+	for op := range ix.inFlight {
+		mak.Set(&op.indexed, br, true)
+	}
 	for _, needer := range ix.neededBy[br] {
 		newNeeds := blobsFilteringOut(ix.needs[needer], br)
 		if len(newNeeds) == 0 {
-			ix.readyReindex[needer] = true
 			delete(ix.needs, needer)
-			ix.reindexWg.Add(1)
-			go ix.indexReadyBlobs(context.Background())
+			ix.enqueueReadyLocked(needer)
 		} else {
 			ix.needs[needer] = newNeeds
 		}
 	}
 	delete(ix.neededBy, br)
+}
 
-	mak.Set(&ix.recentDone, br, true)
+// noteDepsLocked records that have, being indexed by op, can't be
+// fully indexed until deps are. Deps that were indexed while op was in
+// progress are skipped, as they were indexed too late for op to see
+// them but too early to wake have up. If no deps remain, have is queued
+// to be indexed again right away.
+//
+// ix.mu must be held.
+func (ix *Index) noteDepsLocked(op *indexOp, have blob.Ref, deps []blob.Ref) error {
+	for _, dep := range deps {
+		if op.indexed[dep] {
+			continue
+		}
+		if err := ix.noteNeededLocked(have, dep); err != nil {
+			return err
+		}
+	}
+	if len(ix.needs[have]) == 0 {
+		ix.enqueueReadyLocked(have)
+	}
+	return nil
 }
 
 func (ix *Index) removeAllMissingEdges(br blob.Ref) {
@@ -202,11 +269,8 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 }
 
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
-	pendVal, err := ix.getNewPendingBlobIndex(ctx, blobRef)
-	if err != nil {
-		return blob.SizedRef{}, err
-	}
-	defer func() { pendVal.MarkDone() }()
+	op := ix.beginIndexOp()
+	defer ix.endIndexOp(op)
 
 	// Read from source before acquiring ix.Lock (Issue 878):
 	sniffer := NewBlobSniffer(blobRef)
@@ -262,20 +326,13 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		if len(fetcher.missing) == 0 {
 			panic("errMissingDep happened, but no fetcher.missing recorded")
 		}
-		allRecorded := true
-		for _, missing := range fetcher.missing {
-			if err := ix.noteNeededLocked(blobRef, missing); err != nil {
-				allRecorded = false
-			}
+		if noteErr := ix.noteDepsLocked(op, blobRef, fetcher.missing); noteErr != nil {
+			return blob.SizedRef{}, fmt.Errorf("%w; and recording its missing dependencies failed: %w", err, noteErr)
 		}
-		if allRecorded {
-			// Lie and say things are good. We've
-			// successfully recorded that the blob isn't
-			// indexed, but we'll reindex it later once
-			// the dependent blobs arrive.
-			return sbr, nil
-		}
-		return blob.SizedRef{}, err
+		// Lie and say things are good. We've successfully
+		// recorded that the blob isn't indexed, but we'll
+		// reindex it later once the dependent blobs arrive.
+		return sbr, nil
 	}
 
 	if err := ix.commit(mm); err != nil {
@@ -286,6 +343,15 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		if err := c.addBlob(ctx, blobRef, mm); err != nil {
 			return blob.SizedRef{}, err
 		}
+	}
+
+	if len(mm.deps) > 0 {
+		// Partially indexed; mm says so in its "have:" row. As above,
+		// we'll reindex it once its dependencies are indexed.
+		if err := ix.noteDepsLocked(op, blobRef, mm.deps); err != nil {
+			return blob.SizedRef{}, err
+		}
+		return sbr, nil
 	}
 
 	ix.noteBlobIndexedLocked(blobRef)
@@ -398,9 +464,9 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 	if len(fetcher.missing) == 0 {
 		// If err == nil, we're good. Else (err == errMissingDep), we
 		// know the error did not come from a fetching miss (because
-		// len(fetcher.missing) == 0) , but from an index miss. Therefore
-		// we know the miss has already been noted and will be dealt with
-		// later, so we can also pretend everything's fine.
+		// len(fetcher.missing) == 0), but from an index miss, which
+		// is in mm.deps for ReceiveBlob to note. So we can also
+		// pretend everything's fine.
 		return mm, nil
 	}
 	return mm, err
@@ -862,9 +928,7 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	meta, err := ix.GetBlobMeta(ctx, target)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if err := ix.noteNeeded(br, target); err != nil {
-				return fmt.Errorf("could not note that delete claim %v depends on %v: %w", br, target, err)
-			}
+			mm.deps = append(mm.deps, target)
 			return errMissingDep
 		}
 		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %w", target, err))

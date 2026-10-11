@@ -23,6 +23,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -261,12 +262,13 @@ func TestInitNeededMaps(t *testing.T) {
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk1ref), "1")
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk2ref), "1")
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk3ref), "1")
-	// Add fileBlob to the blobSource, so the out-of-order indexing can
-	// succeed when the chunk3ref is finally added to the index. We technically
-	// don't need to do that for this unit test, but that's one less log
-	// message to deal with (the ooo indexing failing) if we do.
+	// Add fileBlob and its chunks to the blobSource, so the out-of-order
+	// indexing can succeed when the chunk3ref is finally marked indexed.
 	bs := new(test.Fetcher)
 	bs.AddBlob(fileBlob)
+	bs.AddBlob(chunk1)
+	bs.AddBlob(chunk2)
+	bs.AddBlob(chunk3)
 	ix, err := index.New(s)
 	if err != nil {
 		t.Fatal(err)
@@ -332,6 +334,8 @@ func TestInitNeededMaps(t *testing.T) {
 
 	ix.Exp_noteBlobIndexed(chunk3ref)
 
+	ix.Exp_AwaitAsyncIndexing(t)
+
 	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
 		needsWant := map[blob.Ref][]blob.Ref{}
 		neededByWant := map[blob.Ref][]blob.Ref{}
@@ -341,13 +345,18 @@ func TestInitNeededMaps(t *testing.T) {
 		if !reflect.DeepEqual(neededBy, neededByWant) {
 			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
 		}
-		if !ready[fileBlobRef] {
-			t.Error("fileBlobRef not ready")
+		if len(ready) != 0 {
+			t.Errorf("ready = %v; want nothing", ready)
 		}
 	})
-	// We also technically don't need to wait for the ooo indexing goroutine
-	// to finish for this unit test, but it's cleaner.
-	ix.Exp_AwaitAsyncIndexing(t)
+	if got, err := s.Get("have:" + fileBlobRef.String()); err != nil || !strings.HasSuffix(got, "|indexed") {
+		t.Errorf("have:%v = %q, %v; want it indexed", fileBlobRef, got, err)
+	}
+	foreachSorted(t, s, func(k, v string) {
+		if strings.HasPrefix(k, "missing|") {
+			t.Errorf("Shouldn't have missing key: %q", k)
+		}
+	})
 	dumpSorted(t, s)
 }
 
@@ -452,6 +461,95 @@ func TestOutOfOrderIndexingDirectory(t *testing.T) {
 			wait: true,
 		},
 	})
+}
+
+// hookFetcher is a test.Fetcher that calls onMiss, once, the first time
+// a Fetch of missRef fails.
+type hookFetcher struct {
+	*test.Fetcher
+	missRef blob.Ref
+	onMiss  func()
+}
+
+func (f *hookFetcher) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	rc, size, err := f.Fetcher.Fetch(ctx, br)
+	if br == f.missRef && errors.Is(err, os.ErrNotExist) && f.onMiss != nil {
+		onMiss := f.onMiss
+		f.onMiss = nil
+		onMiss()
+	}
+	return rc, size, err
+}
+
+// TestOutOfOrderIndexingDepArrivesMidIndex tests that a dependency
+// indexed after a blob fails to fetch it, but before that blob records
+// that it needs it, doesn't leave the blob waiting forever.
+func TestOutOfOrderIndexingDepArrivesMidIndex(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tf := &hookFetcher{Fetcher: new(test.Fetcher), missRef: chunk3ref}
+	ix.InitBlobSource(tf)
+
+	add := func(b *test.Blob) {
+		t.Helper()
+		tf.AddBlob(b)
+		if _, err := ix.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
+			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
+		}
+	}
+	tf.onMiss = func() { add(chunk3) }
+
+	add(chunk1)
+	add(chunk2)
+	add(fileBlob)
+	ix.Exp_AwaitAsyncIndexing(t)
+
+	if got, err := s.Get("have:" + fileBlobRef.String()); err != nil || !strings.HasSuffix(got, "|indexed") {
+		t.Errorf("have:%v = %q, %v; want it indexed", fileBlobRef, got, err)
+	}
+	foreachSorted(t, s, func(k, v string) {
+		if strings.HasPrefix(k, "missing|") {
+			t.Errorf("Shouldn't have missing key: %q", k)
+		}
+	})
+}
+
+// TestDeleteBeforeTargetSurvivesReopen tests that a delete claim indexed
+// before its target is applied once the target arrives, even if the
+// index was reopened in between.
+func TestDeleteBeforeTargetSurvivesReopen(t *testing.T) {
+	kv := sorted.NewMemoryKeyValue()
+	ix, err := index.New(kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := indextest.NewIndexDeps(ix)
+	id.Fataler = t
+
+	pn := id.Sign(schema.NewPlannedPermanode("target"))
+	del := schema.NewDeleteClaim(pn.BlobRef())
+	del.SetClaimDate(test.ClockOrigin)
+	id.Upload(id.Sign(del))
+	if ix.IsDeleted(pn.BlobRef()) {
+		t.Fatalf("IsDeleted(%v) = true before target was indexed", pn.BlobRef())
+	}
+
+	ix2, err := index.New(kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix2.KeyFetcher = ix.KeyFetcher
+	ix2.InitBlobSource(id.BlobSource)
+	id.Index = ix2
+	id.Upload(pn)
+	ix2.Exp_AwaitAsyncIndexing(t)
+
+	if !ix2.IsDeleted(pn.BlobRef()) {
+		t.Errorf("IsDeleted(%v) = false after target was indexed; want true", pn.BlobRef())
+	}
 }
 
 func TestIndexingPermanodeBadSignature(t *testing.T) {

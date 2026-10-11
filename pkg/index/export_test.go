@@ -82,22 +82,8 @@ func (x *Index) Exp_noteBlobIndexed(br blob.Ref) {
 	x.noteBlobIndexedLocked(br)
 }
 
-func (x *Index) Exp_AwaitReindexing(t *testing.T) {
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		x.RLock()
-		n := len(x.readyReindex)
-		x.RUnlock()
-		if n == 0 {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatal("timeout waiting for readyReindex to drain")
-}
-
 func (x *Index) Exp_AwaitAsyncIndexing(t *testing.T) {
-	x.reindexWg.Wait()
+	x.awaitReadyIdle()
 }
 
 type ExpPnAndTime pnAndTime

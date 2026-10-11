@@ -26,6 +26,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,7 +41,6 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
-	"tailscale.com/util/mak"
 
 	"go4.org/jsonconfig"
 	"go4.org/strutil"
@@ -73,8 +73,8 @@ type Index struct {
 	mu sync.RWMutex // guards following
 	//mu syncdebug.RWMutexTracker  // (when debugging)
 
-	pending    map[blob.Ref]*pendingBlobIndex
-	recentDone map[blob.Ref]bool // set of blobs recently indexed; non-empty only while len(pending) > 0
+	// inFlight is the set of ReceiveBlob calls currently in progress.
+	inFlight map[*indexOp]bool
 
 	// needs maps from a blob to the missing blobs it needs to
 	// finish indexing.
@@ -83,9 +83,10 @@ type Index struct {
 	// and the value(s) are blobs waiting to be reindexed.
 	neededBy     map[blob.Ref][]blob.Ref
 	readyReindex map[blob.Ref]bool // set of things ready to be re-indexed
-	// reindexWg is used to make sure that we wait for all asynchronous, out
-	// of order, indexing to be finished, at the end of reindexing.
-	reindexWg sync.WaitGroup
+	readyFailed  map[blob.Ref]bool // ready blobs whose re-indexing failed
+	// readyWorkerDone is non-nil while the goroutine running
+	// indexReadyBlobs is running, and is closed when it exits.
+	readyWorkerDone chan struct{}
 	// blobSource is used for fetching blobs when indexing files and other
 	// blobs types that reference other objects.
 	// The only write access to blobSource should be its initialization (transition
@@ -544,15 +545,15 @@ func (x *Index) Reindex() error {
 	}
 
 	wg.Wait()
-	x.reindexWg.Wait()
+	x.awaitReadyIdle()
 
 	x.RLock()
-	readyCount := len(x.readyReindex)
+	failedCount := len(x.readyFailed)
 	needed := len(x.needs)
 	needSample := x.needSampleLocked()
 	x.RUnlock()
-	if readyCount > 0 {
-		return fmt.Errorf("%d blobs were ready to reindex in out-of-order queue, but not yet run", readyCount)
+	if failedCount > 0 {
+		return fmt.Errorf("%d blobs failed to reindex after their dependencies were indexed", failedCount)
 	}
 	if needed > 0 {
 		return fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample)
@@ -1864,12 +1865,6 @@ func (x *Index) initNeededMapsLocked() (err error) {
 	return
 }
 
-func (x *Index) noteNeeded(have, missing blob.Ref) error {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	return x.noteNeededLocked(have, missing)
-}
-
 func (x *Index) noteNeededLocked(have, missing blob.Ref) error {
 	if err := x.s.Set(keyMissing.Key(have, missing), "1"); err != nil {
 		return err
@@ -1879,6 +1874,9 @@ func (x *Index) noteNeededLocked(have, missing blob.Ref) error {
 }
 
 func (x *Index) noteNeededMemoryLocked(have, missing blob.Ref) {
+	if slices.Contains(x.needs[have], missing) {
+		return
+	}
 	if verboseReindex {
 		log.Printf("reindex: have blob %v but it needs %v", have, missing)
 	}
@@ -1934,78 +1932,4 @@ func IsFulltextAttribute(attr string) bool {
 		return true
 	}
 	return false
-}
-
-// pendingBlobIndex represents a blob that is currently being indexed.
-//
-// It is used to coordinate multiple goroutines trying to index
-// blobs simultaneously when there are dependencies between blobs.
-type pendingBlobIndex struct {
-	blobRef blob.Ref
-	x       *Index
-
-	done chan struct{} // closed when err is valid
-}
-
-func (x *Index) getNewPendingBlobIndex(ctx context.Context, br blob.Ref) (*pendingBlobIndex, error) {
-	for {
-		x.mu.Lock()
-
-		// If recentDone has grown very large (many times the number of CPUs)
-		// that means we're probably in a big indexing batch. Apply some
-		// backpressure to allow the [Index.pending] map size to drop to zero
-		// so we can clear recentDone and process any pending dependencies.
-		if len(x.recentDone) > 5000 {
-			x.Unlock()
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(100 * time.Millisecond):
-			}
-			continue
-		}
-
-		v, ok := x.pending[br]
-		if ok {
-			x.mu.Unlock()
-			select {
-			case <-v.done:
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-			continue
-		}
-		v = &pendingBlobIndex{
-			blobRef: br,
-			x:       x,
-			done:    make(chan struct{}),
-		}
-		mak.Set(&x.pending, br, v)
-		x.mu.Unlock()
-		return v, nil
-	}
-}
-
-// MarkDone marks the pending blob index as done (successful or not),
-// and updates the index's needed/pending maps accordingly, possibly
-// kicking off further indexing work if dependencies are now satisfied.
-func (p *pendingBlobIndex) MarkDone() {
-	x := p.x
-
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	delete(x.pending, p.blobRef)
-
-	if len(x.pending) == 0 {
-		// See if any dependencies can be cleared now.
-		for missing := range x.neededBy {
-			if !x.recentDone[missing] {
-				continue
-			}
-			x.noteBlobIndexedLocked(missing)
-		}
-		clear(x.recentDone)
-	}
-
-	close(p.done)
 }
