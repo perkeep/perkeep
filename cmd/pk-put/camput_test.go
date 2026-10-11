@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"perkeep.org/pkg/cmdmain"
@@ -34,19 +35,15 @@ type env struct {
 	// stdin is the standard input, or /dev/null if nil
 	stdin io.Reader
 
-	// Timeout optionally specifies the timeout on the command.
+	// Timeout optionally specifies a timeout on the command.
+	// It should only be set in a synctest bubble, where time only
+	// advances while all goroutines are blocked, so the timeout
+	// detects deadlocks but not slow machines.
 	Timeout time.Duration
 
 	// TODO(bradfitz): vfs files.
 }
 
-func (e *env) timeout() time.Duration {
-	if e.Timeout != 0 {
-		return e.Timeout
-	}
-	return 15 * time.Second
-
-}
 func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	outbuf := new(bytes.Buffer)
 	errbuf := new(bytes.Buffer)
@@ -66,10 +63,14 @@ func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 		cmdmain.Main()
 		cmdmain.Exit(0)
 	}()
-	select {
-	case exitCode = <-exitc:
-	case <-time.After(e.timeout()):
-		panic("timeout running command")
+	if e.Timeout == 0 {
+		exitCode = <-exitc
+	} else {
+		select {
+		case exitCode = <-exitc:
+		case <-time.After(e.Timeout):
+			panic("timeout running command")
+		}
 	}
 	out = outbuf.Bytes()
 	err = errbuf.Bytes()
@@ -134,12 +135,19 @@ func testWithTempDir(t *testing.T, fn func(tempDir string)) {
 }
 
 // Tests that uploads of deep directory trees don't deadlock.
-// See commit ee4550bff453526ebae460da1ad59f6e7f3efe77 for backstory
+// See commit ee4550bff453526ebae460da1ad59f6e7f3efe77 for backstory.
+//
+// It runs in a synctest bubble, so the simulated slow lookups below
+// take no real time, and a deadlock trips the command's timeout no
+// matter how slow the machine is.
 func TestUploadDirectories(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode.")
 	}
+	synctest.Test(t, testUploadDirectories)
+}
 
+func testUploadDirectories(t *testing.T) {
 	testWithTempDir(t, func(tempDir string) {
 		uploadRoot := filepath.Join(tempDir, "to_upload") // read from here
 		mustMkdir(t, uploadRoot, 0700)
@@ -185,7 +193,7 @@ func TestUploadDirectories(t *testing.T) {
 		defer setAndRestore(&statCacheWorkers, 5)()
 
 		e := &env{
-			Timeout: 5 * time.Second,
+			Timeout: time.Minute,
 		}
 		stdout, stderr, exit := e.Run(
 			"--blobdir="+blobDestDir,
@@ -196,6 +204,11 @@ func TestUploadDirectories(t *testing.T) {
 		if exit != 0 {
 			t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
 		}
+
+		// The diskpacked storage's goleveldb index, though closed,
+		// leaves a goroutine draining its memory pool for up to a
+		// second, which must exit before the synctest bubble ends.
+		time.Sleep(2 * time.Second)
 	})
 }
 
@@ -209,8 +222,7 @@ func TestCamputBlob(t *testing.T) {
 		mustMkdir(t, blobDestDir, 0700)
 
 		e := &env{
-			Timeout: 5 * time.Second,
-			stdin:   strings.NewReader("foo"),
+			stdin: strings.NewReader("foo"),
 		}
 		stdout, stderr, exit := e.Run(
 			"--blobdir="+blobDestDir,
