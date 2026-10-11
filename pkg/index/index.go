@@ -461,6 +461,8 @@ func ReindexMaxProcs() int {
 func (x *Index) WantsReindex() bool   { return x.reindex }
 func (x *Index) WantsKeepGoing() bool { return x.keepGoing }
 
+// Reindex rebuilds the index from a stable blob source. Other callers must not
+// receive blobs or mutate the index or its blob source until it returns.
 func (x *Index) Reindex() error {
 	x.Lock()
 	if x.blobSource == nil {
@@ -540,12 +542,12 @@ func (x *Index) Reindex() error {
 			}
 		})
 	}
-	if err := <-enumErr; err != nil {
-		return err
-	}
-
+	enumError := <-enumErr
 	wg.Wait()
 	x.awaitReadyIdle()
+	if enumError != nil {
+		return enumError
+	}
 
 	x.RLock()
 	failedCount := len(x.readyFailed)
