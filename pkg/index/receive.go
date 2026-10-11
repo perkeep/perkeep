@@ -124,7 +124,7 @@ func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 	return nil
 }
 
-// indexOp tracks one in-progress ReceiveBlob call.
+// indexOp tracks dependency discovery during a ReceiveBlob call.
 type indexOp struct {
 	// indexed is the set of blobs that finished indexing while this
 	// op was in progress. ix.mu must be held to access it.
@@ -251,28 +251,42 @@ func (ix *Index) noteDepsLocked(op *indexOp, have blob.Ref, deps []blob.Ref) err
 	return nil
 }
 
+// removeAllMissingEdges cleans up persisted dependencies after br is indexed.
+// ix.mu must be held, including while clearing hasMissing, so recording a new
+// edge cannot race with cleanup.
 func (ix *Index) removeAllMissingEdges(br blob.Ref) {
+	if !ix.hasMissing[br] {
+		return
+	}
 	var toDelete []string
 	it := ix.queryPrefix(keyMissing, br)
 	for it.Next() {
 		toDelete = append(toDelete, it.Key())
 	}
 	if err := it.Close(); err != nil {
-		// TODO: Care? Can lazily clean up later.
 		log.Printf("Iterator close error: %v", err)
+		return
 	}
-	for _, k := range toDelete {
-		if err := ix.s.Delete(k); err != nil {
-			log.Printf("Error deleting key %s: %v", k, err)
+	if len(toDelete) > 0 {
+		bm := ix.s.BeginBatch()
+		for _, k := range toDelete {
+			bm.Delete(k)
+		}
+		if err := ix.s.CommitBatch(bm); err != nil {
+			log.Printf("Error deleting missing edges for %v: %v", br, err)
+			return
 		}
 	}
+	delete(ix.hasMissing, br)
 }
 
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	// Remember completions during the source read too. A replica may index a
+	// dependency before publishing its raw write; a later fetch can still miss it.
 	op := ix.beginIndexOp()
 	defer ix.endIndexOp(op)
 
-	// Read from source before acquiring ix.Lock (Issue 878):
+	// Do not hold ix.mu while reading from source (Issue 878).
 	sniffer := NewBlobSniffer(blobRef)
 	written, err := io.Copy(sniffer, source)
 	if err != nil {
@@ -356,8 +370,6 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 
 	ix.noteBlobIndexedLocked(blobRef)
 
-	// TODO(bradfitz): this removeAllMissingEdges need not hold ix.Lock
-	// and could be done in the background.
 	ix.removeAllMissingEdges(blobRef)
 
 	// TODO(bradfitz): log levels? These are generally noisy

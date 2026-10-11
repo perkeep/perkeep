@@ -45,6 +45,7 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/strutil"
 	"go4.org/types"
+	"tailscale.com/util/mak"
 )
 
 const verboseReindex = false
@@ -79,6 +80,10 @@ type Index struct {
 	// needs maps from a blob to the missing blobs it needs to
 	// finish indexing.
 	needs map[blob.Ref][]blob.Ref
+	// hasMissing marks blobs that may have persisted missing| rows.
+	// Unlike needs, it survives queueing a blob for retry and is cleared
+	// only after successful cleanup of those rows.
+	hasMissing map[blob.Ref]bool
 	// neededBy is the inverse of needs. The keys are missing blobs
 	// and the value(s) are blobs waiting to be reindexed.
 	neededBy     map[blob.Ref][]blob.Ref
@@ -1844,7 +1849,7 @@ func (x *Index) Close() error {
 	return nil
 }
 
-// initNeededMapsLocked initializes x.needs and x.neededBy on start-up.
+// initNeededMapsLocked initializes x.needs, x.neededBy, and x.hasMissing on start-up.
 //
 // x.mu must be held.
 func (x *Index) initNeededMapsLocked() (err error) {
@@ -1862,12 +1867,16 @@ func (x *Index) initNeededMapsLocked() (err error) {
 		if !ok1 || !ok2 {
 			return fmt.Errorf("Bogus missing key %q", key)
 		}
+		mak.Set(&x.hasMissing, have, true)
 		x.noteNeededMemoryLocked(have, missing)
 	}
 	return
 }
 
 func (x *Index) noteNeededLocked(have, missing blob.Ref) error {
+	// Keep the cleanup marker even if Set fails: the write might have
+	// reached storage before the error was reported.
+	mak.Set(&x.hasMissing, have, true)
 	if err := x.s.Set(keyMissing.Key(have, missing), "1"); err != nil {
 		return err
 	}
