@@ -19,6 +19,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	_ "image/png"
@@ -27,7 +28,8 @@ import (
 	"strconv"
 	"strings"
 
-	"rsc.io/pdf"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 // pageCountPoppler calls the tool pdfinfo from the Poppler project for
@@ -63,19 +65,16 @@ func pageCountNative(filename string) (int, error) {
 		return 0, err
 	}
 	defer f.Close()
-	fi, err := f.Stat()
+	// A stateless configuration, unlike pdfcpu's default one, doesn't
+	// create a pdfcpu config directory in the user's home.
+	c, err := api.PageCount(context.Background(), f, model.NewStatelessConfiguration())
 	if err != nil {
 		return 0, err
 	}
-	p, err := pdf.NewReader(f, fi.Size())
-	if err != nil {
-		return 0, err
-	}
-	c := p.NumPage()
 	if c < 1 {
 		return 0, errors.New("encountered PDF without any pages")
 	}
-	return p.NumPage(), nil
+	return c, nil
 }
 
 // pageCount returns the number of pages in the given PDF file, or an error if
