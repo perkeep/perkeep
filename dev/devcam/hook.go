@@ -31,18 +31,37 @@ import (
 	"perkeep.org/pkg/cmdmain"
 )
 
-var hookPath = ".git/hooks/"
 var hookFiles = []string{
 	"pre-commit",
 	"commit-msg",
 }
 
-func (c *hookCmd) installHook() error {
+// hookDir returns the git hooks directory. It asks git rather than
+// assuming .git/hooks, since in a git worktree .git is a file and the
+// hooks live in the main repository's git directory.
+func hookDir() (string, error) {
 	root, err := repoRoot()
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command("git", "rev-parse", "--git-path", "hooks")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("finding git hooks directory: %w", err)
+	}
+	dir := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	return dir, nil
+}
+
+func (c *hookCmd) installHook() error {
+	hookDir, err := hookDir()
 	if err != nil {
 		return err
 	}
-	hookDir := filepath.Join(root, hookPath)
 	if _, err := os.Stat(hookDir); err != nil {
 		if !os.IsNotExist(err) {
 			return err
