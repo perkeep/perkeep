@@ -22,11 +22,6 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// Make sure that the perkeepd process started
-// by the World gets terminated when all the tests
-// are done.
-// This works only as long as TestZLastTest is the
-// last test to run in the package.
-func TestZLastTest(t *testing.T) {
-	test.GetWorldMaybe(t).Stop()
+func TestMain(m *testing.M) {
+	test.Main(m)
 }

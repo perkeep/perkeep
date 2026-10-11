@@ -51,9 +51,10 @@ type World struct {
 
 	addr string // "127.0.0.1:35"
 
-	server    *exec.Cmd
-	isRunning int32 // state of the perkeepd server. Access with sync/atomic only.
-	serverErr error
+	server     *exec.Cmd
+	serverDone chan struct{} // closed when server has exited; non-nil once it's started
+	isRunning  int32         // state of the perkeepd server. Access with sync/atomic only.
+	serverErr  error
 }
 
 // NewWorld returns a new test world.
@@ -117,6 +118,7 @@ func (w *World) Build() error {
 		log.Print("Running make.go to build perkeep binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
+			w.removeTempDir()
 			return fmt.Errorf("Error building world: %w, %s", err, string(out))
 		}
 		if testing.Verbose() {
@@ -132,6 +134,7 @@ func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
+	defer w.removeTempDir()
 	pkdbin := w.lookPathGobin("perkeepd")
 	// Run perkeepd -help.
 	cmd := exec.Command(pkdbin, "-help")
@@ -185,7 +188,9 @@ func (w *World) Start() error {
 
 		atomic.StoreInt32(&w.isRunning, 1)
 		waitc := make(chan error, 1)
+		w.serverDone = make(chan struct{})
 		go func() {
+			defer close(w.serverDone)
 			err := w.server.Wait()
 			w.serverErr = fmt.Errorf("%w: %s", err, buf.String())
 			atomic.StoreInt32(&w.isRunning, 0)
@@ -245,16 +250,30 @@ func (w *World) Ping() error {
 	return nil
 }
 
+// Stop stops w's perkeepd, if running, and removes w's temporary
+// directory. It's a no-op if w is nil or already stopped.
 func (w *World) Stop() {
 	if w == nil {
 		return
 	}
-	if err := w.server.Process.Kill(); err != nil {
-		log.Fatalf("killed failed: %v", err)
+	if theWorld == w {
+		theWorld = nil
 	}
+	if w.serverDone != nil {
+		// Kill fails if perkeepd already exited, which is fine.
+		w.server.Process.Kill()
+		<-w.serverDone
+		w.serverDone = nil
+	}
+	w.removeTempDir()
+}
 
-	if d := w.tempDir; d != "" {
-		os.RemoveAll(d)
+func (w *World) removeTempDir() {
+	if w.tempDir != "" {
+		if err := os.RemoveAll(w.tempDir); err != nil {
+			log.Printf("removing test world's temp dir: %v", err)
+		}
+		w.tempDir = ""
 	}
 }
 
@@ -325,8 +344,18 @@ func (w *World) ServerBaseURL() string {
 
 var theWorld *World
 
+// Main runs the tests in m and then stops the singleton World started
+// by GetWorld, if any. Packages whose tests use GetWorld should call it
+// from their TestMain.
+func Main(m *testing.M) {
+	m.Run()
+	theWorld.Stop()
+}
+
 // GetWorld returns (creating if necessary) a test singleton world.
 // It calls Fatal on the provided test if there are problems.
+// Callers should arrange for it to be stopped, typically by calling
+// Main from TestMain.
 func GetWorld(t *testing.T) *World {
 	w := theWorld
 	if w == nil {
@@ -342,11 +371,6 @@ func GetWorld(t *testing.T) *World {
 		theWorld = w
 	}
 	return w
-}
-
-// GetWorldMaybe returns the current World. It might be nil.
-func GetWorldMaybe(t *testing.T) *World {
-	return theWorld
 }
 
 // RunCmd runs c (which is assumed to be something short-lived, like a
