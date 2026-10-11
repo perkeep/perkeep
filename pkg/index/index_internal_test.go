@@ -17,10 +17,17 @@ limitations under the License.
 package index
 
 import (
+	"context"
+	"errors"
+	"io"
+	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
 )
 
@@ -222,3 +229,112 @@ func mustTimeParse(s string) time.Time {
 }
 
 func (kv kv) String() string { return kv.K + "," + kv.V }
+
+type reindexEnumerationErrorSource struct {
+	*test.Fetcher
+	enumerate func(chan<- blob.SizedRef) error
+	onFetch   func(blob.Ref)
+}
+
+func (s *reindexEnumerationErrorSource) EnumerateBlobs(_ context.Context, dest chan<- blob.SizedRef, _ string, _ int) error {
+	defer close(dest)
+	return s.enumerate(dest)
+}
+
+func (s *reindexEnumerationErrorSource) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	s.onFetch(br)
+	return s.Fetcher.Fetch(ctx, br)
+}
+
+func TestReindexWaitsForWorkersOnEnumerationError(t *testing.T) {
+	t.Setenv("CAMLI_REINDEX_START", "")
+	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
+	synctest.Test(t, func(t *testing.T) {
+		// Use the memory backend directly so Reindex can use its Wiper.
+		s := sorted.NewMemoryKeyValue()
+		ix, err := New(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := ix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		primary := &test.Blob{Contents: "raw enumeration-error dependency"}
+		ready := &test.Blob{Contents: `{"camliVersion":1,"camliType":"static-set","members":[]}`}
+		primaryStarted, releasePrimary := make(chan struct{}), make(chan struct{})
+		readyStarted, releaseReady := make(chan struct{}), make(chan struct{})
+		enumErr := errors.New("enumeration failed after one blob")
+		src := &reindexEnumerationErrorSource{
+			Fetcher: new(test.Fetcher),
+			enumerate: func(dest chan<- blob.SizedRef) error {
+				dest <- primary.SizedRef()
+				// Ensure EnumerateAll has delivered the ref to a worker
+				// before reporting its error.
+				<-primaryStarted
+				return enumErr
+			},
+			onFetch: func(br blob.Ref) {
+				switch br {
+				case primary.BlobRef():
+					close(primaryStarted)
+					<-releasePrimary
+				case ready.BlobRef():
+					close(readyStarted)
+					<-releaseReady
+				default:
+					t.Errorf("unexpected Fetch(%v)", br)
+				}
+			},
+		}
+		src.AddBlob(primary)
+		src.AddBlob(ready)
+		ix.InitBlobSource(src)
+		// Simulate a blob waiting for primary. Its raw completion must queue
+		// ready work, which must also finish before Reindex returns.
+		ix.Lock()
+		err = ix.noteNeededLocked(ready.BlobRef(), primary.BlobRef())
+		ix.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var reindexErr error
+		returned := false
+		go func() {
+			reindexErr = ix.Reindex()
+			returned = true
+		}()
+		synctest.Wait()
+		if returned {
+			t.Error("Reindex returned while a primary worker was blocked in Fetch")
+		}
+		close(releasePrimary)
+		synctest.Wait()
+		select {
+		case <-readyStarted:
+		default:
+			t.Error("primary completion did not start the ready worker")
+		}
+		if returned {
+			t.Error("Reindex returned while the ready worker was blocked in Fetch")
+		}
+		close(releaseReady)
+		synctest.Wait()
+		if !returned || !errors.Is(reindexErr, enumErr) {
+			t.Errorf("Reindex returned = %v, error = %v; want true, %v", returned, reindexErr, enumErr)
+		}
+		for _, b := range []*test.Blob{primary, ready} {
+			value, err := s.Get("have:" + b.BlobRef().String())
+			if err != nil || !strings.HasSuffix(value, "|indexed") {
+				t.Errorf("have:%v = %q, %v; want indexed", b.BlobRef(), value, err)
+			}
+		}
+		ix.RLock()
+		defer ix.RUnlock()
+		if len(ix.inFlight) != 0 || ix.readyWorkerDone != nil || len(ix.needs) != 0 {
+			t.Errorf("undrained indexing state: inFlight=%d, readyWorkerDone=%v, needs=%d",
+				len(ix.inFlight), ix.readyWorkerDone, len(ix.needs))
+		}
+	})
+}
