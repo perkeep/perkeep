@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -36,6 +38,7 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 )
 
@@ -43,7 +46,6 @@ const (
 	maxPdf = 50 // number of pdfs fetched/displayed. arbitrary.
 	maxDue = 30 // number of due documents fetched
 
-	pdfNodeType      = "pdfcabinet:pdf"
 	documentNodeType = "pdfcabinet:doc"
 )
 
@@ -110,7 +112,7 @@ func newHandler() (*handler, error) {
 	}
 
 	// Serve files from source root when running devcam
-	if config.SourceRoot != "" {
+	if config != nil && config.SourceRoot != "" {
 		logf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
 		h.uiFiles = os.DirFS(config.SourceRoot)
 	}
@@ -120,8 +122,8 @@ func newHandler() (*handler, error) {
 	mux.HandleFunc("/ui/", h.handleUiFile)
 	mux.HandleFunc("/uploadurl", h.handleUploadURL)
 	mux.HandleFunc("/upload", h.handleUpload)
-	mux.HandleFunc("/makedoc", h.handleMakedoc)
 	mux.HandleFunc("/doc/", h.handleDoc)
+	mux.HandleFunc("/pdf/", h.handlePDF)
 	mux.HandleFunc("/changedoc", h.handleChangedoc)
 	mux.HandleFunc("/robots.txt", handleRobots)
 	h.mux = mux
@@ -205,8 +207,8 @@ func (h *handler) disco() error {
 
 func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 	topMessage := ""
-	if saved_doc := r.FormValue("saved_doc"); saved_doc != "" {
-		topMessage = fmt.Sprintf("Saved <a href='doc/%s'>doc %s</a>", saved_doc, saved_doc)
+	if savedDoc, ok := blob.Parse(r.FormValue("saved_doc")); ok {
+		topMessage = fmt.Sprintf("Saved <a href='doc/%s'>doc %s</a>", savedDoc, savedDoc)
 	}
 	errorMessage := r.FormValue("error_message")
 
@@ -309,9 +311,13 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		fileName := path.Base(name)
-		cr := countingReader{}
-		cr.r = part
-		br, err := h.cl.UploadFile(ctx, fileName, &cr, nil)
+		bufr := bufio.NewReader(part)
+		hdr, _ := bufr.Peek(1024)
+		if magic.MIMEType(hdr) != "application/pdf" {
+			http.Error(w, fmt.Sprintf("%v is not a PDF", fileName), http.StatusBadRequest)
+			return
+		}
+		br, err := h.cl.UploadFile(ctx, fileName, bufr, nil)
 		if err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("could not write %v to blobserver: %v", fileName, err))
 			return
@@ -327,103 +333,18 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		title := fileName
-		parts := strings.Split(title, ".")
-		if len(parts) > 0 {
-			title = parts[0]
-		}
-
 		docRef, err := h.createDocument(ctx, document{
 			pdf:      br,
 			creation: time.Now(),
-			title:    title,
+			title:    strings.TrimSuffix(fileName, path.Ext(fileName)),
 		})
-
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not create pdf object for %v: %v", fileName, err))
+			httputil.ServeError(w, r, fmt.Errorf("could not create document for %v: %v", fileName, err))
 			return
 		}
 		io.WriteString(w, docRef.String())
 		return
 	}
-}
-
-type countingReader struct {
-	hdr []byte
-	n   int
-	r   io.Reader
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
-	if c.n < 1024 {
-		c.hdr = append(c.hdr, p...)
-	}
-	c.n += n
-	return n, err
-}
-
-func (c *countingReader) Mime() string {
-	return magic.MIMEType(c.hdr)
-}
-
-func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if r.Method != "POST" {
-		http.Error(w, "not a POST", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if r.Form == nil {
-		r.ParseMultipartForm(1)
-	}
-	if len(r.Form) != 1 {
-		httputil.ServeError(w, r, fmt.Errorf("expected one blobref but found %v", len(r.Form)))
-		return
-	}
-	// our pdf ref is in the key of the map (the map only has one
-	// entry). This weirdness allows us to have one html button per pdf,
-	// with the button name identifying the pdf
-	var ref = ""
-	for k := range r.Form {
-		ref = k
-		break
-	}
-	pdfRef, ok := blob.Parse(ref)
-	if !ok {
-		httputil.ServeError(w, r, fmt.Errorf("invalid pdf blobRef %q", ref))
-		return
-	}
-
-	var doc *document
-	var err error
-	doc, err = h.fetchDocumentByPDF(pdfRef)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			httputil.ServeError(w, r, fmt.Errorf("could not check if document already existed: %v", err))
-			return
-		}
-		newDoc := document{
-			pdf:      pdfRef,
-			creation: time.Now(),
-		}
-		docRef, err := h.persistDocAndPdf(ctx, newDoc)
-		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not create new document: %v", err))
-			return
-		}
-		newDoc.permanode = docRef
-		doc = &newDoc
-
-	}
-
-	noUI := r.Form["noui"]
-	if len(noUI) == 1 && noUI[0] == "1" {
-		// For when we just want to get the doc's blobRef as a response.
-		w.Write([]byte(doc.permanode.String()))
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("%s%s?size=1200", baseURL(r), doc.displayURL()), http.StatusFound)
 }
 
 func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
@@ -443,8 +364,6 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("%s?error_message=DocRef+%s+not+found", baseURL(r), docRef), http.StatusFound)
 		return
 	}
-
-	// TODO(gina), before submit, fetch the pdf blob
 
 	allTags, err := h.fetchTags()
 	if err != nil {
@@ -480,21 +399,12 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mode := r.FormValue("mode")
-	if mode == "break" {
-		if err := h.breakAndDeleteDoc(ctx, docRef); err != nil {
+	if r.FormValue("mode") == "delete" {
+		if err := h.deleteNode(ctx, docRef); err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("could not delete document %v: %v", docRef, err))
 			return
 		}
-		fmt.Fprintf(w, "<html><body>[&lt;&lt; <a href='%s'>Back</a>] Doc %s deleted and pdf broken out as un-annotated.</body></html>", baseURL(r), docRef)
-		return
-	}
-	if mode == "delete" {
-		if err := h.deleteDocAndPDF(ctx, docRef); err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("could not do full delete of %v: %v", docRef, err))
-			return
-		}
-		fmt.Fprintf(w, "<html><body>[&lt;&lt; <a href='%s'>Back</a>] Doc %s and its pdf deleted.</body></html>", baseURL(r), docRef)
+		fmt.Fprintf(w, "<html><body>[&lt;&lt; <a href='%s'>Back</a>] Doc %s deleted.</body></html>", baseURL(r), docRef)
 		return
 	}
 
@@ -522,6 +432,34 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("%s?saved_doc=%s", baseURL(r), docRef), http.StatusFound)
+}
+
+// handlePDF serves the contents of the PDF file of a document, as
+// /pdf/<file blobref>.
+func (h *handler) handlePDF(w http.ResponseWriter, r *http.Request) {
+	ref := strings.TrimPrefix(r.URL.Path, "/pdf/")
+	pdfRef, ok := blob.Parse(ref)
+	if !ok {
+		http.Error(w, fmt.Sprintf("invalid pdf blobref: %q", ref), http.StatusBadRequest)
+		return
+	}
+	// Only serve files that are the content of a document.
+	if _, err := h.fetchDocumentByPDF(pdfRef); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		httputil.ServeError(w, r, err)
+		return
+	}
+	fr, err := schema.NewFileReader(r.Context(), h.cl, pdfRef)
+	if err != nil {
+		httputil.ServeError(w, r, fmt.Errorf("could not read pdf %v: %v", pdfRef, err))
+		return
+	}
+	defer fr.Close()
+	w.Header().Set("Content-Type", "application/pdf")
+	http.ServeContent(w, r, fr.FileName(), fr.ModTime(), fr)
 }
 
 func handleRobots(w http.ResponseWriter, r *http.Request) {

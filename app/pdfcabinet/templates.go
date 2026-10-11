@@ -161,16 +161,15 @@ var docHTML = `
     <td><input type='submit' value="Save" />
       Other action: <select name='mode'>
         <option value="">(other options)</option>
-        <option value="break">Break; delete doc, keep pdf</option>
-        <option value="delete">Delete; delete doc &amp; pdf</option>
+        <option value="delete">Delete document</option>
       </select>
     </td>
   </tr>
 </table>
 </form>
 
-<p><a href="/ui/{{.Doc.Pdf}}">PDF:</a></p>
-<object class="embeddedPdf" data="/ui/{{.Doc.Pdf}}?inline=1" type="application/pdf">
+<p><a href="pdf/{{.Doc.Pdf}}">PDF:</a></p>
+<object class="embeddedPdf" data="pdf/{{.Doc.Pdf}}" type="application/pdf">
   <div>No PDF Viewer Installed</div>
 </object>
 

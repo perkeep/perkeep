@@ -29,13 +29,14 @@ const (
 	dateformatYyyyMmDd = "2006-01-02"
 )
 
-// Document is a structure that groups adds information to a pdf.
+// document adds information to a PDF file.
 // It is stored as a permanode with the "pdfcabinet:doc" camliNodeType value.
 type document struct {
 	// permanode for this document.
 	permanode blob.Ref
 
-	// PDF for this document
+	// pdf is the file schema blob of the PDF for this document.
+	// Stored as nodeattr.CamliContent.
 	pdf blob.Ref
 
 	// Creation is the date the Document struct was created
