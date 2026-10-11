@@ -118,7 +118,7 @@ func newHandler() (*handler, error) {
 	}
 
 	// Serve files from source root when running devcam
-	if config.SourceRoot != "" {
+	if config != nil && config.SourceRoot != "" {
 		logf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
 		h.uiFiles = os.DirFS(config.SourceRoot)
 	}
@@ -215,8 +215,8 @@ func (h *handler) disco() error {
 
 func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 	topMessage := ""
-	if saved_doc := r.FormValue("saved_doc"); saved_doc != "" {
-		topMessage = fmt.Sprintf("Saved <a href='doc/%s'>doc %s</a>", saved_doc, saved_doc)
+	if savedDoc, ok := blob.Parse(r.FormValue("saved_doc")); ok {
+		topMessage = fmt.Sprintf("Saved <a href='doc/%s'>doc %s</a>", savedDoc, savedDoc)
 	}
 	errorMessage := r.FormValue("error_message")
 
@@ -403,7 +403,7 @@ type countingReader struct {
 func (c *countingReader) Read(p []byte) (int, error) {
 	n, err := c.r.Read(p)
 	if c.n < 1024 {
-		c.hdr = append(c.hdr, p...)
+		c.hdr = append(c.hdr, p[:n]...)
 	}
 	c.n += n
 	return n, err
