@@ -34,6 +34,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"perkeep.org/internal/hashutil"
@@ -124,6 +125,10 @@ type Client struct {
 	initSignerPublicKeyBlobrefOnce sync.Once
 	signerPublicKeyRef             blob.Ref
 	publicKeyArmored               string
+
+	// pubKeyUploaded is whether UploadPublicKey has made sure
+	// the server has the public key.
+	pubKeyUploaded atomic.Bool
 
 	statsMutex sync.Mutex
 	stats      Stats
@@ -1381,18 +1386,24 @@ func (c *Client) signBlob(ctx context.Context, bb schema.Buildable, sigTime time
 
 // UploadPublicKey uploads the public key (if one is defined), so
 // subsequent (likely synchronous) indexing of uploaded signed blobs
-// will have access to the public key to verify it. In the normal
-// case, the stat cache prevents this from doing anything anyway.
+// will have access to the public key to verify it. The key is only
+// uploaded if the server doesn't already have it, and only checked
+// for once per Client.
 func (c *Client) UploadPublicKey(ctx context.Context) error {
+	if c.pubKeyUploaded.Load() {
+		return nil
+	}
 	sigRef := c.SignerPublicKeyBlobref()
 	if !sigRef.Valid() {
 		return nil
 	}
-	var err error
 	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
-		_, err = c.uploadString(ctx, c.publicKeyArmored, false)
+		if _, err := c.uploadString(ctx, c.publicKeyArmored, true); err != nil {
+			return err
+		}
 	}
-	return err
+	c.pubKeyUploaded.Store(true)
+	return nil
 }
 
 // checkMatchingKeys compares the client's and the server's keys and logs if they differ.

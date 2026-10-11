@@ -272,7 +272,16 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	pr := &PutResult{BlobRef: h.BlobRef, Size: uint32(bodySize)}
 
 	if c.sto != nil {
-		// TODO: stat first so we can show skipped?
+		if !h.SkipStat {
+			_, err := blobserver.StatBlob(ctx, c.sto, h.BlobRef)
+			if err == nil {
+				pr.Skipped = true
+				return pr, nil
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		}
 		_, err := blobserver.Receive(ctx, c.sto, h.BlobRef, bodyReader)
 		if err != nil {
 			return nil, err
