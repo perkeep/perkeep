@@ -399,6 +399,44 @@ func TestDecodeHEIC_WithJPEGInHeader(t *testing.T) {
 	}
 }
 
+// TestDecodeConfigEXIFPastFirstKB tests that DecodeConfig finds the EXIF
+// orientation even when the EXIF segment starts well past the first 1KB
+// sniffed for MIME type detection, for both seekable and non-seekable
+// readers.
+func TestDecodeConfigEXIFPastFirstKB(t *testing.T) {
+	orig, err := os.ReadFile(filepath.Join(datadir, "f6-exif.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert a 25KB APP2 segment right after the SOI marker, ahead of the
+	// APP1 EXIF segment.
+	const padLen = 25 << 10
+	var big []byte
+	big = append(big, orig[:2]...)
+	big = append(big, 0xFF, 0xE2, (padLen+2)>>8, (padLen+2)&0xFF)
+	big = append(big, make([]byte, padLen)...)
+	big = append(big, orig[2:]...)
+
+	for _, tt := range []struct {
+		name string
+		r    io.Reader
+	}{
+		{"seekable", bytes.NewReader(big)},
+		{"non-seekable", struct{ io.Reader }{bytes.NewReader(big)}},
+	} {
+		conf, err := DecodeConfig(tt.r)
+		if err != nil {
+			t.Errorf("%s: %v", tt.name, err)
+			continue
+		}
+		// f6-exif.jpg is stored as 80x40 with orientation 6 (rotate 90°).
+		if conf.Width != 40 || conf.Height != 80 {
+			t.Errorf("%s: got %dx%d; want 40x80", tt.name, conf.Width, conf.Height)
+		}
+	}
+}
+
 func TestDecodeSVG(t *testing.T) {
 	filename := filepath.Join("testdata", "heap.svg")
 	f, err := os.Open(filename)
