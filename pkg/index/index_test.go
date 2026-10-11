@@ -122,6 +122,7 @@ var (
 		"export_test.go",
 		"index_test.go",
 		"keys_test.go",
+		"missing_cleanup_test.go",
 		"util_test.go",
 	}
 	// A map is used in hasAllRequiredTests to note which required
@@ -513,6 +514,67 @@ func TestOutOfOrderIndexingDepArrivesMidIndex(t *testing.T) {
 	foreachSorted(t, s, func(k, v string) {
 		if strings.HasPrefix(k, "missing|") {
 			t.Errorf("Shouldn't have missing key: %q", k)
+		}
+	})
+}
+
+type firstReadHook struct {
+	io.Reader
+	hook func()
+}
+
+func (r *firstReadHook) Read(p []byte) (int, error) {
+	if hook := r.hook; hook != nil {
+		r.hook = nil
+		hook()
+	}
+	return r.Reader.Read(p)
+}
+
+// TestOutOfOrderIndexingDepArrivesWhileReading covers replica writes that finish
+// indexing a dependency before its raw-store write is visible. Its completion
+// must be remembered even if it occurs while the parent is still being read,
+// before the parent's first dependency lookup.
+func TestOutOfOrderIndexingDepArrivesWhileReading(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ix.Close() })
+	tf := &hookFetcher{Fetcher: new(test.Fetcher), missRef: chunk3ref}
+	ix.InitBlobSource(tf)
+	for _, b := range []*test.Blob{chunk1, chunk2} {
+		tf.AddBlob(b)
+		if _, err := ix.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tf.AddBlob(fileBlob) // available for the background retry
+	tf.onMiss = func() {
+		// Publish the raw blob after the failed fetch, without another index
+		// completion notification. A replica's two writes can finish this way.
+		tf.AddBlob(chunk3)
+	}
+	r := &firstReadHook{
+		Reader: fileBlob.Reader(),
+		hook: func() {
+			// Index only: the raw-store write is not yet visible to Fetch.
+			if _, err := ix.ReceiveBlob(ctxbg, chunk3ref, chunk3.Reader()); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	if _, err := ix.ReceiveBlob(ctxbg, fileBlobRef, r); err != nil {
+		t.Fatal(err)
+	}
+	ix.Exp_AwaitAsyncIndexing(t)
+	if got, err := s.Get("have:" + fileBlobRef.String()); err != nil || !strings.HasSuffix(got, "|indexed") {
+		t.Errorf("have:%v = %q, %v; want it indexed", fileBlobRef, got, err)
+	}
+	foreachSorted(t, s, func(k, v string) {
+		if strings.HasPrefix(k, "missing|") {
+			t.Errorf("unexpected missing key after retry: %q", k)
 		}
 	})
 }
