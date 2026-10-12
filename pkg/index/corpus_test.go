@@ -333,11 +333,11 @@ func testDeletePermanodes(t *testing.T,
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
-	foopn := idxd.NewPlannedPermanode("foo")
+	foopn := idxd.NewDeterministicPermanodeForTest("foo")
 	idxd.SetAttribute(foopn, "tag", "foo")
-	barpn := idxd.NewPlannedPermanode("bar")
+	barpn := idxd.NewDeterministicPermanodeForTest("bar")
 	idxd.SetAttribute(barpn, "tag", "bar")
-	bazpn := idxd.NewPlannedPermanode("baz")
+	bazpn := idxd.NewDeterministicPermanodeForTest("baz")
 	idxd.SetAttribute(bazpn, "tag", "baz")
 	idxd.Delete(barpn)
 	c, err := idxd.Index.KeepInMemory()
@@ -430,14 +430,14 @@ func testEnumerateOrder(t *testing.T,
 	idxd.Fataler = t
 
 	// permanode with no contents
-	foopn := idxd.NewPlannedPermanode("foo")
+	foopn := idxd.NewDeterministicPermanodeForTest("foo")
 	idxd.SetAttribute(foopn, "tag", "foo")
 	// permanode with file contents
 	// we set the time of the contents 1 second older than the modtime of foopn
 	fooModTime := idxd.LastTime()
 	fileTime := fooModTime.Add(-1 * time.Second)
 	fileRef, _ := idxd.UploadFile("foo.html", "<html>I am an html file.</html>", fileTime)
-	barpn := idxd.NewPlannedPermanode("bar")
+	barpn := idxd.NewDeterministicPermanodeForTest("bar")
 	idxd.SetAttribute(barpn, "camliContent", fileRef.String())
 
 	c, err := idxd.Index.KeepInMemory()
@@ -505,9 +505,9 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	go func() {
 		for i := range 100 {
 			nth := fmt.Sprintf("%d", i)
-			// No need to lock the index here. It is already done within NewPlannedPermanode,
-			// because it calls idxd.Index.ReceiveBlob.
-			pn := idxd.NewPlannedPermanode(nth)
+			// No need to lock the index here. NewDeterministicPermanodeForTest
+			// already does so through its call to idxd.Index.ReceiveBlob.
+			pn := idxd.NewDeterministicPermanodeForTest(nth)
 			idxd.SetAttribute(pn, "tag", nth)
 		}
 		donec <- struct{}{}
@@ -540,7 +540,7 @@ func TestLazySortedPermanodes(t *testing.T) {
 		t.Fatal("LazySortedPermanodes cache should be empty on startup")
 	}
 
-	pn := idxd.NewPlannedPermanode("one")
+	pn := idxd.NewDeterministicPermanodeForTest("one")
 	idxd.SetAttribute(pn, "tag", "one")
 
 	enum := func(reverse bool) {
@@ -566,7 +566,7 @@ func TestLazySortedPermanodes(t *testing.T) {
 		t.Fatalf("LazySortedPermanodes reversed after 2nd enum: got %v items, wanted 1", len(lsp))
 	}
 
-	pn = idxd.NewPlannedPermanode("two")
+	pn = idxd.NewDeterministicPermanodeForTest("two")
 	idxd.SetAttribute(pn, "tag", "two")
 
 	enum(true)
@@ -579,7 +579,7 @@ func TestLazySortedPermanodes(t *testing.T) {
 		t.Fatalf("LazySortedPermanodes reversed after 2nd permanode: got %v items, wanted 2", len(lsp))
 	}
 
-	pn = idxd.NewPlannedPermanode("three")
+	pn = idxd.NewDeterministicPermanodeForTest("three")
 	idxd.SetAttribute(pn, "tag", "three")
 
 	enum(false)

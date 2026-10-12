@@ -395,9 +395,9 @@ func TestDescribeRace(t *testing.T) {
 	go func() {
 		for i := 0; i < headstart*2; i++ {
 			nth := fmt.Sprintf("%d", i)
-			// No need to lock the index here. It is already done within NewPlannedPermanode,
-			// because it calls idxd.Index.ReceiveBlob.
-			pn := idxd.NewPlannedPermanode(nth)
+			// No need to lock the index here. NewDeterministicPermanodeForTest
+			// already does so through its call to idxd.Index.ReceiveBlob.
+			pn := idxd.NewDeterministicPermanodeForTest(nth)
 			idxd.SetAttribute(pn, "tag", nth)
 			if i > headstart {
 				continue
@@ -501,7 +501,7 @@ func TestDescribePermNoAttr(t *testing.T) {
 	}
 	h.SetCorpus(corpus)
 	id := indextest.NewIndexDeps(ix)
-	br := id.NewPlannedPermanode("noattr-0")
+	br := id.NewDeterministicPermanodeForTest("noattr-0")
 
 	ix.RLock()
 	defer ix.RUnlock()
@@ -532,7 +532,7 @@ func TestDescribeEmptyDir(t *testing.T) {
 	id := indextest.NewIndexDeps(ix)
 
 	dir := id.UploadDir("empty", nil, time.Now().UTC())
-	pn := id.NewPlannedPermanode("empty_dir")
+	pn := id.NewDeterministicPermanodeForTest("empty_dir")
 	id.SetAttribute(pn, "camliContent", dir.String())
 
 	ix.RLock()
