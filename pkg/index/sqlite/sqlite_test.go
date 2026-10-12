@@ -18,17 +18,23 @@ package sqlite_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
-	_ "perkeep.org/pkg/sorted/sqlite"
+	sqlitekv "perkeep.org/pkg/sorted/sqlite"
+	"perkeep.org/pkg/test"
 
 	"go4.org/jsonconfig"
 	_ "modernc.org/sqlite"
@@ -98,6 +104,107 @@ func TestEdgesTo_SQLite(t *testing.T) {
 
 func TestDelete_SQLite(t *testing.T) {
 	tester{}.test(t, indextest.Delete)
+}
+
+func TestReindex_SQLite(t *testing.T) {
+	tester{}.test(t, indextest.Reindex)
+}
+
+// Force delete-before-target enumeration with one primary worker, while keeping
+// the rebuild small enough that all logical writes share an uncommitted group.
+// The delete's retry must see its target's provisional meta row, then all rows
+// and the rebuilt deletion cache must survive reopening the real SQLite store.
+func TestReindexSQLiteDeleteBeforeTargetReopen(t *testing.T) {
+	t.Setenv("CAMLI_REINDEX_START", "")
+	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
+	oldProcs := index.ReindexMaxProcs()
+	index.SetReindexMaxProcs(1)
+	defer index.SetReindexMaxProcs(oldProcs)
+
+	path := filepath.Join(t.TempDir(), "reindex.sqlite")
+	kv, err := sqlitekv.NewStorage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx := indextest.MustNew(t, kv)
+	t.Cleanup(func() {
+		if err := idx.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	id := indextest.NewIndexDeps(idx)
+	id.Fataler = t
+	var target, deletion *test.Blob
+	for n := range 100 {
+		target = id.Sign(schema.NewPlannedPermanode(fmt.Sprintf("sqlite-reindex-target-%d", n)))
+		del := schema.NewDeleteClaim(target.BlobRef())
+		del.SetClaimDate(test.ClockOrigin)
+		deletion = id.Sign(del)
+		if deletion.BlobRef().Less(target.BlobRef()) {
+			break
+		}
+	}
+	if !deletion.BlobRef().Less(target.BlobRef()) {
+		t.Fatal("could not construct a delete sorting before its target")
+	}
+	id.Upload(target)
+	id.SetAttribute(target.BlobRef(), "tag", "reindex-reopen")
+	id.Upload(deletion)
+	if !idx.IsDeleted(target.BlobRef()) {
+		t.Fatal("target should be deleted before rebuilding")
+	}
+	want := reindexSQLiteRows(t, idx.Storage())
+	for attempt := range 2 {
+		if err := idx.Reindex(); err != nil {
+			t.Fatalf("Reindex attempt %d: %v", attempt, err)
+		}
+		if !idx.IsDeleted(target.BlobRef()) {
+			t.Fatalf("target not deleted after Reindex attempt %d", attempt)
+		}
+		if got := reindexSQLiteRows(t, idx.Storage()); !reflect.DeepEqual(got, want) {
+			t.Fatalf("Reindex attempt %d changed index rows:\n got: %v\nwant: %v", attempt, got, want)
+		}
+	}
+	if err := idx.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := sqlitekv.NewStorage(path)
+	if err != nil {
+		t.Fatalf("ordinary reopen after completed rebuild: %v", err)
+	}
+	idx = indextest.MustNew(t, reopened)
+	if !idx.IsDeleted(target.BlobRef()) {
+		t.Error("reopened index lost target deletion")
+	}
+	if got := reindexSQLiteRows(t, idx.Storage()); !reflect.DeepEqual(got, want) {
+		t.Errorf("reopened index rows differ:\n got: %v\nwant: %v", got, want)
+	}
+	for _, b := range []*test.Blob{target, deletion} {
+		value, err := idx.Storage().Get("have:" + b.BlobRef().String())
+		if err != nil || !strings.HasSuffix(value, "|indexed") {
+			t.Errorf("reopened have:%v = %q, %v; want indexed", b.BlobRef(), value, err)
+		}
+	}
+	if _, err := idx.Storage().Get("missing|" + deletion.BlobRef().String() + "|" + target.BlobRef().String()); !errors.Is(err, sorted.ErrNotFound) {
+		t.Errorf("reopened delete dependency row: %v; want ErrNotFound", err)
+	}
+}
+
+func reindexSQLiteRows(t *testing.T, kv sorted.KeyValue) map[string]string {
+	t.Helper()
+	rows := make(map[string]string)
+	it := kv.Find("", "")
+	for it.Next() {
+		if strings.HasPrefix(it.Key(), "missing|") {
+			t.Errorf("unexpected unresolved dependency: %q", it.Key())
+		}
+		rows[it.Key()] = it.Value()
+	}
+	if err := it.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return rows
 }
 
 func TestConcurrency(t *testing.T) {

@@ -130,6 +130,7 @@ var (
 		"ready_reindex_bench_test.go",
 		"receive_buffers_test.go",
 		"receive_exif_test.go",
+		"reindex_session_test.go",
 		"util_test.go",
 	}
 	// A map is used in hasAllRequiredTests to note which required

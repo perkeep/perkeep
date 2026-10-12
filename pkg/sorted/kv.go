@@ -95,6 +95,35 @@ type Wiper interface {
 	Wipe() error
 }
 
+// Reindexer optionally supports batching writes to a disposable index.
+// Only offline reindexing may use this interface; ordinary KeyValue mutations
+// retain their normal durability guarantees.
+type Reindexer interface {
+	KeyValue
+
+	// BeginReindex atomically discards the old rows and durably marks the
+	// index incomplete. No other access to this storage is allowed until
+	// the returned session is finished. An interrupted build must not be
+	// accepted on an ordinary reopen; it requires another reindex or Wipe.
+	BeginReindex() (ReindexSession, error)
+}
+
+// ReindexSession is a private, concurrent-safe view of a rebuilding index.
+// Unlike an ordinary KeyValue, individual successful mutations may not yet be
+// durable. Reads see those mutations, including complete logical batches.
+// The view must not be published to readers or used for live upload acks.
+type ReindexSession interface {
+	KeyValue
+
+	// Finish(true) durably commits all remaining writes and marks the index
+	// complete, returning any previously encountered storage error as well.
+	// Finish(false), or Close, aborts the pending group and leaves the index
+	// marked incomplete; earlier committed groups may remain. In either
+	// case Finish releases the session's resources, not the underlying KV.
+	// A failed build's Index and caches must be discarded, not reused.
+	Finish(success bool) error
+}
+
 // NeedWipeError is returned by NewKeyValue when the returned KeyValue is not
 // usable until Wipe has been called on it.
 type NeedWipeError struct {

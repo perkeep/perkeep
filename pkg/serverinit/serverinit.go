@@ -320,9 +320,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		if ix, ok := pstorage.(*index.Index); ok && ix.WantsReindex() {
 			log.Printf("Reindexing %s ...", h.prefix)
 			if err := ix.Reindex(); err != nil {
-				if ix.WantsKeepGoing() {
+				if ix.WantsKeepGoing() && !errors.Is(err, index.ErrReindexIncomplete) {
 					log.Printf("Error reindexing %s: %v", h.prefix, err)
 				} else {
+					if closeErr := ix.Close(); closeErr != nil {
+						log.Printf("Closing failed index %s: %v", h.prefix, closeErr)
+					}
 					exitFailure("Error reindexing %s: %v", h.prefix, err)
 				}
 			}

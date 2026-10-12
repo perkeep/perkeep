@@ -98,7 +98,7 @@ type Index struct {
 	// from nil to non-nil), once, and protected by mu.
 	blobSource blobserver.FetcherEnumerator
 
-	hasWiped bool // whether Wipe has been called on s. So we don't redo it in Reindex() for nothing.
+	reindexFailed bool // a failed batched rebuild makes this Index unusable
 }
 
 func (x *Index) Lock()    { x.mu.Lock() }
@@ -114,8 +114,6 @@ var (
 func (x *Index) logf(format string, args ...any) {
 	log.Printf("index: "+format, args...)
 }
-
-var aboutToReindex = false
 
 // SignerRefSet is the set of all blob Refs (of different hashes) that represent
 // the same signer GPG identity. They are stored as strings for allocation reasons:
@@ -201,12 +199,16 @@ func (x *Index) InitBlobSource(blobSource blobserver.FetcherEnumerator) {
 
 // New returns a new index using the provided key/value storage implementation.
 func New(s sorted.KeyValue) (*Index, error) {
+	return newIndex(s, false)
+}
+
+func newIndex(s sorted.KeyValue, rebuilding bool) (*Index, error) {
 	idx := &Index{
 		s:        s,
 		needs:    make(map[blob.Ref][]blob.Ref),
 		neededBy: make(map[blob.Ref][]blob.Ref),
 	}
-	if aboutToReindex {
+	if rebuilding {
 		idx.deletes = newDeletionCache()
 		return idx, nil
 	}
@@ -375,27 +377,25 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 			return nil, err
 		}
 		if !reindex {
+			kv.Close()
 			return nil, err
 		}
 	}
-	if reindex {
-		aboutToReindex = true
-		wiper, ok := kv.(sorted.Wiper)
-		if !ok {
-			return nil, fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", kv)
+	installed := false
+	defer func() {
+		if !installed {
+			kv.Close()
 		}
-		if err := wiper.Wipe(); err != nil {
-			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %w", kv, err)
-		}
-		log.Printf("Index wiped.")
-	}
+	}()
 
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
 	}
 
-	ix, err := New(kv)
+	// Reindex owns the wipe. In particular, a batching backend must atomically
+	// install its incomplete-build marker with that destructive operation.
+	ix, err := newIndex(kv, reindex)
 	// TODO(mpl): next time we need to do another fix, make a new error
 	// type that lets us apply the needed fix depending on its value or
 	// something. For now just one value/fix.
@@ -403,19 +403,15 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		// TODO: maybe we don't want to do that automatically. Brad says
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
-			ix.Close()
 			return nil, fmt.Errorf("could not fix missing wholeRef entries: %w", err)
 		}
 		ix, err = New(kv)
 	}
-	ix.keepGoing = keepGoing
-	ix.reindex = reindex
-	if reindex {
-		ix.hasWiped = true
-	}
 	if err != nil {
 		return nil, err
 	}
+	ix.keepGoing = keepGoing
+	ix.reindex = reindex
 	ix.InitBlobSource(sto)
 
 	if !reindex {
@@ -424,7 +420,8 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		}
 	}
 
-	return ix, err
+	installed = true
+	return ix, nil
 }
 
 func (x *Index) String() string {
@@ -465,9 +462,20 @@ func ReindexMaxProcs() int {
 func (x *Index) WantsReindex() bool   { return x.reindex }
 func (x *Index) WantsKeepGoing() bool { return x.keepGoing }
 
-// Reindex rebuilds the index from a stable blob source. Other callers must not
-// receive blobs or mutate the index or its blob source until it returns.
-func (x *Index) Reindex() error {
+// ErrReindexIncomplete means a batched rebuild failed. Its Index (including
+// provisional caches) must be discarded; startup must not honor keep-going.
+var ErrReindexIncomplete = errors.New("index: incomplete batched reindex; close and rebuild a fresh index")
+
+// Reindex rebuilds the index from a stable blob source. The caller must provide
+// exclusive access: no other reads, receives, mutations, Storage handles, corpus
+// access, or Close calls until it returns. A batched rebuild requires no existing
+// corpus. After ErrReindexIncomplete, only Close is permitted on this Index;
+// recovery requires reopening the store for another complete reindex.
+//
+// If individual blobs fail to index, a batched rebuild is incomplete,
+// unless keepGoing is set: then the rebuild completes without those blobs,
+// and Reindex returns their errors, not wrapped in ErrReindexIncomplete.
+func (x *Index) Reindex() (retErr error) {
 	x.Lock()
 	if x.blobSource == nil {
 		x.Unlock()
@@ -480,7 +488,39 @@ func (x *Index) Reindex() error {
 
 	ctx := context.Background()
 
-	if !x.hasWiped {
+	original := x.s
+	var session sorted.ReindexSession
+	if batcher, ok := original.(sorted.Reindexer); ok {
+		// Ready work from preceding receives must finish before replacing the
+		// storage view. Other primary callers must already have stopped.
+		x.awaitReadyIdle()
+		x.Lock()
+		switch {
+		case x.reindexFailed:
+			x.Unlock()
+			return ErrReindexIncomplete
+		case x.corpus != nil:
+			x.Unlock()
+			return errors.New("index: batched reindex requires an index without a corpus")
+		case x.inFlight.Len() != 0:
+			x.Unlock()
+			return errors.New("index: cannot reindex while receiving blobs")
+		}
+		x.Unlock()
+		var err error
+		session, err = batcher.BeginReindex()
+		if err != nil {
+			x.reindexFailed = true
+			return fmt.Errorf("%w: %w", ErrReindexIncomplete, err)
+		}
+		x.s = session
+		x.needs = make(map[blob.Ref][]blob.Ref)
+		x.neededBy = make(map[blob.Ref][]blob.Ref)
+		x.hasMissing = nil
+		x.readyFailed = nil
+		x.readyReindex = queueSet[blob.Ref]{}
+		x.deletes = newDeletionCache()
+	} else {
 		wiper, ok := x.s.(sorted.Wiper)
 		if !ok {
 			return fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", x.s)
@@ -491,6 +531,29 @@ func (x *Index) Reindex() error {
 		}
 		log.Printf("Index wiped.")
 	}
+	completed := false
+	defer func() {
+		if session != nil {
+			// All paths below either precede worker startup or join both the
+			// primary workers and dependency retries before returning.
+			// A completed rebuild may still return keepGoing's per-blob
+			// errors; only an incomplete one or a failed commit is fatal.
+			err := session.Finish(completed)
+			x.s = original
+			if !completed || err != nil {
+				retErr = errors.Join(retErr, err)
+				if retErr == nil {
+					retErr = errors.New("reindex did not complete")
+				}
+				x.reindexFailed = true
+				retErr = fmt.Errorf("%w: %w", ErrReindexIncomplete, retErr)
+			}
+		}
+		if completed && retErr == nil {
+			// Includes the final durable commit, not just worker completion.
+			log.Printf("Index rebuild complete.")
+		}
+	}()
 	log.Printf("Rebuilding index...")
 
 	reindexStart, _ := blob.Parse(os.Getenv("CAMLI_REINDEX_START"))
@@ -558,23 +621,30 @@ func (x *Index) Reindex() error {
 	needed := len(x.needs)
 	needSample := x.needSampleLocked()
 	x.RUnlock()
+	// Errors about individual blobs. With keepGoing, they don't stop the
+	// rebuild from completing: the index holds everything else, as with an
+	// unbatched rebuild, and they're returned without ErrReindexIncomplete.
+	var blobErrs []error
 	if failedCount > 0 {
-		return fmt.Errorf("%d blobs failed to reindex after their dependencies were indexed", failedCount)
+		blobErrs = append(blobErrs, fmt.Errorf("%d blobs failed to reindex after their dependencies were indexed", failedCount))
 	}
 	if needed > 0 {
-		return fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample)
+		blobErrs = append(blobErrs, fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample))
 	}
-
-	if nerr.Load() != 0 {
-		return fmt.Errorf("%d blobs failed to re-index", nerr.Load())
+	if n := nerr.Load(); n != 0 {
+		blobErrs = append(blobErrs, fmt.Errorf("%d blobs failed to re-index", n))
+	}
+	blobErr := errors.Join(blobErrs...)
+	if blobErr != nil && !x.keepGoing {
+		return blobErr
 	}
 	x.Lock()
 	defer x.Unlock()
 	if err := x.initDeletesCacheLocked(); err != nil {
 		return err
 	}
-	log.Printf("Index rebuild complete.")
-	return nil
+	completed = true
+	return blobErr
 }
 
 func (x *Index) needSampleLocked() string {
