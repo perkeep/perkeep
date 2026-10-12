@@ -500,6 +500,22 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// jpegAPP1Finder watches the entire file, not just its retained image prefix.
+// goexif searches raw bytes for FF E1, even past SOS or EOI. Only the absence
+// of that pair proves there is no APP1 section for it to decode.
+type jpegAPP1Finder struct {
+	found  bool
+	lastFF bool
+}
+
+func (w *jpegAPP1Finder) Write(p []byte) (int, error) {
+	if !w.found && len(p) != 0 {
+		w.found = (w.lastFF && p[0] == 0xe1) || bytes.Contains(p, []byte("\xff\xe1"))
+		w.lastFF = p[len(p)-1] == 0xff
+	}
+	return len(p), nil
+}
+
 // missTrackFetcher is a blob.Fetcher that records which blob(s) it
 // failed to load from src.
 type missTrackFetcher struct {
@@ -600,6 +616,9 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	}
 	defer fr.Close()
 	mimeType, mr := magic.MIMETypeFromReader(fr)
+	// Use the sniffed type, not the extension: a .jpg file could contain
+	// raw EXIF or TIFF, which does not need a JPEG APP1 marker.
+	isJPEG := mimeType == "image/jpeg"
 	if mimeType == "" {
 		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
 	}
@@ -607,9 +626,14 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	h := blob.NewHash()
 	var copyDest io.Writer = h
 	var imageBuf *keepFirstN // or nil
+	var app1 jpegAPP1Finder
 	if strings.HasPrefix(mimeType, "image/") {
 		imageBuf = &keepFirstN{N: 512 << 10}
-		copyDest = io.MultiWriter(copyDest, imageBuf)
+		if isJPEG {
+			copyDest = io.MultiWriter(copyDest, imageBuf, &app1)
+		} else {
+			copyDest = io.MultiWriter(copyDest, imageBuf)
+		}
 	}
 	size, err := io.Copy(copyDest, mr)
 	if err != nil {
@@ -619,6 +643,10 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		return err
 	}
 	wholeRef := blob.RefFromHash(h)
+	// The whole file was read for its hash. A truncated prefix alone cannot
+	// rule out EXIF. If the complete JPEG byte stream has no APP1 marker,
+	// avoid the two redundant scans and the otherwise fruitless full-file retry.
+	noEXIF := isJPEG && size == fr.Size() && !app1.found
 
 	if imageBuf != nil {
 		var conf images.Config
@@ -632,33 +660,35 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 			log.Printf("index: WARNING: image decodeConfig: %v", err)
 		}
 
-		exifData := imageBuf.Bytes
-		if conf.HEICEXIF != nil {
-			exifData = conf.HEICEXIF
-		}
-		var ft time.Time
-		fileTime := func(r filePrefixReader) error {
-			ft, err = schema.FileTime(r)
-			return err
-		}
+		if !noEXIF {
+			exifData := imageBuf.Bytes
+			if conf.HEICEXIF != nil {
+				exifData = conf.HEICEXIF
+			}
+			var ft time.Time
+			fileTime := func(r filePrefixReader) error {
+				ft, err = schema.FileTime(r)
+				return err
+			}
 
-		if err = readPrefixOrFile(exifData, fetcher, b, fileTime); err == nil {
-			times = append(times, ft)
-		} else if debugEnv {
-			log.Printf("index: WARNING: image fileTime: %v", err)
+			if err = readPrefixOrFile(exifData, fetcher, b, fileTime); err == nil {
+				times = append(times, ft)
+			} else if debugEnv {
+				log.Printf("index: WARNING: image fileTime: %v", err)
 
-		}
-		if exifDebug {
-			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
-		}
-
-		// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
-		indexEXIFData := func(r filePrefixReader) error {
-			return indexEXIF(wholeRef, r, mm)
-		}
-		if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil {
+			}
 			if exifDebug {
-				log.Printf("error parsing EXIF: %v", err)
+				log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
+			}
+
+			// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
+			indexEXIFData := func(r filePrefixReader) error {
+				return indexEXIF(wholeRef, r, mm)
+			}
+			if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil {
+				if exifDebug {
+					log.Printf("error parsing EXIF: %v", err)
+				}
 			}
 		}
 	}
