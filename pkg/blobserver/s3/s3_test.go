@@ -19,6 +19,7 @@ package s3
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -30,8 +31,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -153,7 +154,7 @@ func testStorage(t *testing.T, bucketDir string) {
 				if err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
-				if _, err := sto.(*s3Storage).client.PutObject(&s3.PutObjectInput{
+				if _, err := sto.(*s3Storage).client.PutObject(ctxbg, &s3.PutObjectInput{
 					Bucket: &sto.(*s3Storage).bucket,
 					Key:    aws.String(key),
 					Body:   strings.NewReader(key),
@@ -179,13 +180,13 @@ func testStorage(t *testing.T, bucketDir string) {
 				if bucketWithDir != *bucket {
 					// checking that "a" and "c" at the root were left untouched.
 					for _, key := range []string{"a", "c"} {
-						if _, err := sto.(*s3Storage).client.GetObject(&s3.GetObjectInput{
+						if _, err := sto.(*s3Storage).client.GetObject(ctxbg, &s3.GetObjectInput{
 							Bucket: &sto.(*s3Storage).bucket,
 							Key:    aws.String(key),
 						}); err != nil {
 							t.Fatalf("could not find object %s after tests: %v", key, err)
 						}
-						if _, err := sto.(*s3Storage).client.DeleteObject(&s3.DeleteObjectInput{
+						if _, err := sto.(*s3Storage).client.DeleteObject(ctxbg, &s3.DeleteObjectInput{
 							Bucket: &sto.(*s3Storage).bucket,
 							Key:    aws.String(key),
 						}); err != nil {
@@ -201,60 +202,58 @@ func testStorage(t *testing.T, bucketDir string) {
 	})
 }
 
-func TestS3EndpointRedirect(t *testing.T) {
+// TestS3BucketRegion tests that the bucket's region is detected from
+// AWS's response, even when the configured region (or hostname) is wrong.
+func TestS3BucketRegion(t *testing.T) {
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
 		{
-			URLRegex: regexp.QuoteMeta("https://s3.amazonaws.com/mock_bucket/?location") + ".*",
+			URLRegex: regexp.QuoteMeta("https://s3.us-east-1.amazonaws.com/mock_bucket") + ".*",
 			Fn: func() *http.Response {
 				return &http.Response{
 					Status:     "301 Moved Permanently",
 					StatusCode: http.StatusMovedPermanently,
-					Header: http.Header(map[string][]string{
-						"X-Amz-Bucket-Region": {"us-east-1"},
-					}),
-					Body: io.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
-<LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-west-1</LocationConstraint>`)),
+					Header: http.Header{
+						"X-Amz-Bucket-Region": {"us-west-1"},
+					},
+					Body: http.NoBody,
 				}
 			},
 		},
 		{
-			URLRegex: regexp.QuoteMeta("https://s3.amazonaws.com/mock_bucket") + ".*",
-			Fn: func() *http.Response {
-				return &http.Response{
-					Status:     "301 Moved Permanently",
-					StatusCode: http.StatusMovedPermanently,
-					Header: http.Header(map[string][]string{
-						"X-Amz-Bucket-Region": {"us-east-1"},
-					}),
-					Body: io.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
-<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint. Please send all future requests to this endpoint.</Message><Bucket>mock_bucket</Bucket><Endpoint>mock_bucket.s3.amazonaws.com</Endpoint><RequestId>123</RequestId><HostId>abc</HostId></Error>`)),
-				}
-			},
-		},
-		{
-			URLRegex: regexp.QuoteMeta("https://s3-us-west-1.amazonaws.com/mock_bucket") + ".*",
+			URLRegex: regexp.QuoteMeta("https://s3.us-west-1.amazonaws.com/mock_bucket") + ".*",
 			Fn: func() *http.Response {
 				return &http.Response{
 					Status:     "200 OK",
 					StatusCode: 200,
-					Body: io.NopCloser(strings.NewReader(`
-<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock_bucket</Name><Prefix></Prefix><MaxKeys>1</MaxKeys><Marker></Marker><IsTruncated>false</IsTruncated><Contents></Contents></ListBucketResult>
-					`)),
+					Header: http.Header{
+						"X-Amz-Bucket-Region": {"us-west-1"},
+					},
+					Body: http.NoBody,
 				}
 			},
 		},
 	})
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
-	_, err = newFromConfigWithTransport(nil, jsonconfig.Obj{
-		"aws_access_key":        "key",
-		"aws_secret_access_key": "secret",
-		"bucket":                "mock_bucket",
-	}, transport)
-	if err != nil {
-		t.Fatalf("newFromConfig error: %v", err)
+	for _, cfg := range []jsonconfig.Obj{
+		{},
+		{"aws_region": "us-west-1"},
+		{"hostname": "s3-us-west-2.amazonaws.com"},
+	} {
+		cfg["aws_access_key"] = "key"
+		cfg["aws_secret_access_key"] = "secret"
+		cfg["bucket"] = "mock_bucket"
+		cfg["cacheSize"] = float64(0)
+		desc := fmt.Sprint(cfg)
+		sto, err := newFromConfigWithTransport(nil, cfg, transport)
+		if err != nil {
+			t.Fatalf("%v: newFromConfig error: %v", desc, err)
+		}
+		if got, want := sto.(*s3Storage).client.Options().Region, "us-west-1"; got != want {
+			t.Errorf("%v: region = %q; want %q", desc, got, want)
+		}
 	}
 }
 

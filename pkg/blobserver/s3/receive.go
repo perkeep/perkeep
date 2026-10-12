@@ -17,12 +17,12 @@ limitations under the License.
 package s3
 
 import (
+	"bytes"
 	"context"
 	"io"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"go4.org/readerutil"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"perkeep.org/pkg/blob"
 )
 
@@ -31,34 +31,21 @@ func (sto *s3Storage) ReceiveBlob(ctx context.Context, b blob.Ref, source io.Rea
 		return
 	}
 
-	// unfortunately, the s3manager doesn't tell us the size of the file it uploads.
-	// It's still worth using because it handles multipart uploads correctly.
-	// In order to still get the size, we check if the given reader provides its
-	// size, and if not count the data uploaded as we go.
-	if size, ok := readerutil.Size(source); ok {
-		if err := sto.doUpload(ctx, b, source); err != nil {
-			return sr, err
-		}
-		return blob.SizedRef{Ref: b, Size: uint32(size)}, nil
-	}
-
-	cr := readerutil.CountingReader{
-		Reader: source,
-		N:      aws.Int64(0),
-	}
-	if err = sto.doUpload(ctx, b, cr); err != nil {
+	// Blobs are at most blobserver.MaxBlobSize, so buffer the whole
+	// thing. That gives us its size and a seekable body for signing,
+	// without needing multipart uploads.
+	data, err := io.ReadAll(source)
+	if err != nil {
 		return sr, err
 	}
-	return blob.SizedRef{Ref: b, Size: uint32(*cr.N)}, nil
-}
-
-func (sto *s3Storage) doUpload(ctx context.Context, b blob.Ref, r io.Reader) error {
-	uploader := s3manager.NewUploaderWithClient(sto.client)
-
-	_, err := uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: &sto.bucket,
-		Key:    aws.String(sto.dirPrefix + b.String()),
-		Body:   r,
+	_, err = sto.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        &sto.bucket,
+		Key:           aws.String(sto.dirPrefix + b.String()),
+		Body:          bytes.NewReader(data),
+		ContentLength: aws.Int64(int64(len(data))),
 	})
-	return err
+	if err != nil {
+		return sr, err
+	}
+	return blob.SizedRef{Ref: b, Size: uint32(len(data))}, nil
 }

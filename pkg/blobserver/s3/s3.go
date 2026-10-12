@@ -37,6 +37,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -45,12 +46,11 @@ import (
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/blobserver/proxycache"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"go4.org/fault"
 	"go4.org/jsonconfig"
 )
@@ -68,7 +68,7 @@ var (
 )
 
 type s3Storage struct {
-	client s3iface.S3API
+	client *s3.Client
 	bucket string
 	// optional "directory" where the blobs are stored, instead of at the root of the bucket.
 	// S3 is actually flat, which in effect just means that all the objects should have this
@@ -103,24 +103,8 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 	region := config.OptionalString("aws_region", "us-east-1")
 
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
-	s3Cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(
-		config.RequiredString("aws_access_key"),
-		config.RequiredString("aws_secret_access_key"),
-		"",
-	))
-	if hostname != "" {
-		s3Cfg.WithEndpoint(hostname)
-	}
-	s3Cfg.WithRegion(region)
-	if transport != nil {
-		httpClient := *http.DefaultClient
-		httpClient.Transport = transport
-		s3Cfg.WithHTTPClient(&httpClient)
-	}
-	awsSession, err := session.NewSession(s3Cfg)
-	if err != nil {
-		return nil, err
-	}
+	accessKey := config.RequiredString("aws_access_key")
+	secretKey := config.RequiredString("aws_secret_access_key")
 
 	bucket := config.RequiredString("bucket")
 	var dirPrefix string
@@ -137,24 +121,46 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		return nil, err
 	}
 
-	ctx := context.TODO() // TODO: 5 min timeout or something?
-	if !skipStartupCheck {
-		info, err := normalizeBucketLocation(ctx, awsSession, hostname, bucket, region)
+	if strings.Contains(hostname, "://") {
+		return nil, fmt.Errorf("invalid s3 hostname %q: must not include URI scheme", hostname)
+	}
+
+	opts := s3.Options{
+		Credentials: credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		Region:      region,
+		// Only send and verify checksums when the API requires them.
+		// Many S3-compatible services don't support the newer
+		// checksum headers that the SDK otherwise sends by default.
+		RequestChecksumCalculation:                aws.RequestChecksumCalculationWhenRequired,
+		ResponseChecksumValidation:                aws.ResponseChecksumValidationWhenRequired,
+		DisableLogOutputChecksumValidationSkipped: true,
+	}
+	if transport != nil {
+		opts.HTTPClient = &http.Client{Transport: transport}
+	}
+	// For AWS, any configured hostname (such as "s3-us-west-2.amazonaws.com")
+	// is ignored and the SDK picks the endpoint based on the bucket's region.
+	isAWS := hostname == "" || isAWSHostname(hostname)
+	if !isAWS {
+		opts.BaseEndpoint = aws.String("https://" + hostname)
+		opts.UsePathStyle = true
+	}
+	client := s3.New(opts)
+
+	if isAWS && !skipStartupCheck {
+		ctx := context.TODO() // TODO: 5 min timeout or something?
+		bucketRegion, err := getBucketRegion(ctx, client, bucket)
 		if err != nil {
 			return nil, err
 		}
-		awsSession.Config.WithRegion(info.region)
-		awsSession.Config.WithEndpoint(info.endpoint)
-		if !info.isAWS {
-			awsSession.Config.WithS3ForcePathStyle(true)
+		if bucketRegion != region {
+			opts.Region = bucketRegion
+			client = s3.New(opts)
 		}
-	} else {
-		// safer default if we can't determine more info
-		awsSession.Config.WithS3ForcePathStyle(true)
 	}
 
 	sto := &s3Storage{
-		client:    s3.New(awsSession),
+		client:    client,
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
 		hostname:  hostname,
@@ -174,18 +180,43 @@ func init() {
 	blobserver.RegisterStorageConstructor("b2", blobserver.StorageConstructor(newFromConfig))
 }
 
+// isAWSHostname reports whether hostname is one of AWS's own S3 endpoints,
+// as opposed to that of an S3-compatible service.
+func isAWSHostname(hostname string) bool {
+	host, _, err := net.SplitHostPort(hostname)
+	if err != nil {
+		host = hostname
+	}
+	return host == "amazonaws.com" || strings.HasSuffix(host, ".amazonaws.com")
+}
+
+// getBucketRegion returns the AWS region that bucket is in.
+func getBucketRegion(ctx context.Context, client *s3.Client, bucket string) (string, error) {
+	res, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket})
+	if err == nil {
+		if r := aws.ToString(res.BucketRegion); r != "" {
+			return r, nil
+		}
+		return client.Options().Region, nil
+	}
+	// AWS includes the bucket's region in its response even when it
+	// rejects a request for being sent to the wrong region.
+	var re *smithyhttp.ResponseError
+	if errors.As(err, &re) {
+		if r := re.Response.Header.Get("X-Amz-Bucket-Region"); r != "" {
+			return r, nil
+		}
+	}
+	return "", fmt.Errorf("s3: could not determine region of bucket %q: %w", bucket, err)
+}
+
 // isNotFound checks for s3 errors which indicate the object doesn't exist.
 func isNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	var aerr awserr.Error
-	if errors.As(err, &aerr) {
-		return aerr.Code() == s3.ErrCodeNoSuchKey ||
-			// Check 'NotFound' as well because it's returned for some requests, even
-			// though the API model doesn't include it (hence why there isn't an
-			// 's3.ErrCodeNotFound' for comparison)
-			aerr.Code() == "NotFound"
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		// GetObject returns "NoSuchKey", but HEAD responses have no body,
+		// so HeadObject's error code is just "NotFound".
+		return apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound"
 	}
 	return false
 }
