@@ -109,10 +109,39 @@ type Config struct {
 	Publish map[string]*Publish `json:"publish,omitempty"`
 	ScanCab *ScanCab            `json:"scancab,omitempty"` // Scanning cabinet app configuration.
 
+	// Immich enables the Immich-compatible API at /immich/api/ when non-nil.
+	// It requires RunIndex and a signing identity. It uses Auth unless its own
+	// Email and Password are both set.
+	Immich *Immich `json:"immich,omitempty"`
+
 	// TODO(mpl): map of importers instead?
 	Flickr     string `json:"flickr,omitempty"`     // flicker importer.
 	Picasa     string `json:"picasa,omitempty"`     // picasa importer.
 	Instapaper string `json:"instapaper,omitempty"` // instapaper importer.
+}
+
+// Immich configures the opt-in Immich-compatible API. The native index and
+// search handler are required for whole-file deduplication, with or without
+// the in-memory search corpus.
+type Immich struct {
+	// Email and Password optionally enable standalone API authentication,
+	// bypassing the server's normal Auth. Both must be set or both omitted.
+	// When omitted, normal Perkeep authentication is required on every API
+	// request; the mobile app's email and password are ignored.
+	Email    string `json:"email,omitempty"`
+	Password string `json:"password,omitempty"`
+
+	// MetadataFile is the required path to a dedicated LevelDB directory for
+	// durable API metadata. Writes are synced before acknowledgment. It must
+	// not be shared with the Perkeep index. Back it up to preserve mobile asset
+	// IDs, sessions and sync checkpoints; native permanode reuse does not depend
+	// on this metadata.
+	MetadataFile string `json:"metadataFile"`
+
+	// MaxUploadBytes optionally limits the total multipart upload size in
+	// bytes. Zero uses the handler's default of 32 GiB; negative values are
+	// invalid.
+	MaxUploadBytes int64 `json:"maxUploadBytes,omitempty"`
 }
 
 // App holds the common configuration values for apps and the app handler.

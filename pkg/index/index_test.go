@@ -119,6 +119,7 @@ var (
 	// hence we do not want to check them.
 	notAnIndexer = []string{
 		"avif_test.go",
+		"claims_errors_test.go",
 		"corpus_bench_test.go",
 		"corpus_blobmeta_test.go",
 		"corpus_camera_test.go",
