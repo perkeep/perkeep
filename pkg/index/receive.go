@@ -289,7 +289,12 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 
 	// Do not hold ix.mu while reading from source (Issue 878).
 	sniffer := NewBlobSniffer(blobRef)
-	written, err := io.Copy(sniffer, source)
+	buf := getSnifferBuffer()
+	sniffer.contents = (*buf)[:0]
+	// SchemaBlob parsing owns its decoded data and JSON. Nothing in the
+	// mutation map or corpus retains this private sniffer's backing array.
+	defer func() { putSnifferBuffer(buf, sniffer.contents) }()
+	written, err := copyWithBuffer(sniffer, source)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
@@ -491,6 +496,13 @@ type keepFirstN struct {
 	Bytes []byte
 }
 
+func newKeepFirstN(n int, sizeHint int64) *keepFirstN {
+	return &keepFirstN{
+		N:     n,
+		Bytes: make([]byte, 0, max(0, min(int64(n), sizeHint))),
+	}
+}
+
 func (w *keepFirstN) Write(p []byte) (n int, err error) {
 	if n := w.N - len(w.Bytes); n > 0 {
 		if n > len(p) {
@@ -629,14 +641,16 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	var imageBuf *keepFirstN // or nil
 	var app1 jpegAPP1Finder
 	if strings.HasPrefix(mimeType, "image/") {
-		imageBuf = &keepFirstN{N: 512 << 10}
+		imageBuf = newKeepFirstN(512<<10, fr.Size())
 		if isJPEG {
 			copyDest = io.MultiWriter(copyDest, imageBuf, &app1)
 		} else {
 			copyDest = io.MultiWriter(copyDest, imageBuf)
 		}
 	}
-	size, err := io.Copy(copyDest, mr)
+	// MIME sniffing returns a MultiReader. Hide its WriterTo, which allocates
+	// fresh scratch even when io.CopyBuffer is given a reusable buffer.
+	size, err := copyWithBuffer(copyDest, struct{ io.Reader }{mr})
 	if err != nil {
 		if tf.allErrNotExist() {
 			return errMissingDep
