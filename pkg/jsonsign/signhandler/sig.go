@@ -145,6 +145,9 @@ func (h *Handler) UploadPublicKey(ctx context.Context) error {
 	h.pubKeyUploadMu.RUnlock()
 
 	sto := h.pubKeyDest
+	if sto == nil {
+		return fmt.Errorf("signing handler has no publicKeyDest")
+	}
 
 	h.pubKeyUploadMu.Lock()
 	defer h.pubKeyUploadMu.Unlock()

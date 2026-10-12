@@ -868,6 +868,29 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		"publicKeyDest": pubKeyDest,
 	})
 
+	if conf := b.high.Immich; conf != nil {
+		a := args{
+			"blobRoot":     root,
+			"jsonSignRoot": "/sighelper/",
+			"searchRoot":   "/my-search/",
+		}
+		if conf.MetadataFile != "" {
+			a["legacyMetadata"] = map[string]any{
+				"type": "leveldb",
+				"file": conf.MetadataFile,
+			}
+		}
+		if conf.Email != "" {
+			a["email"] = conf.Email
+			a["password"] = conf.Password
+		}
+		if conf.MaxUploadBytes != 0 {
+			// jsonconfig numbers must be float64, as with decoded JSON.
+			a["maxUploadBytes"] = float64(conf.MaxUploadBytes)
+		}
+		b.addPrefix("/immich/api/", "immich", a)
+	}
+
 	storageType := "filesystem"
 	if b.high.PackBlobs {
 		storageType = "diskpacked"
@@ -963,6 +986,21 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 
 func (b *lowBuilder) build() (*Config, error) {
 	conf, low := b.high, b.low
+	if immich := conf.Immich; immich != nil {
+		if (immich.Email == "") != (immich.Password == "") {
+			return nil, errors.New("immich requires both email and password, or neither")
+		}
+		if immich.MaxUploadBytes < 0 {
+			return nil, errors.New("immich maxUploadBytes must not be negative")
+		}
+		if conf.Identity == "" || conf.IdentitySecretRing == "" {
+			return nil, errors.New("immich requires a signer (identity and identitySecretRing)")
+		}
+		if !b.runIndex() {
+			return nil, errors.New("immich requires runIndex=true (native index and search for duplicate detection)")
+		}
+	}
+
 	if conf.HTTPS {
 		if (conf.HTTPSCert != "") != (conf.HTTPSKey != "") {
 			return nil, errors.New("Must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")

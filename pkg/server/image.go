@@ -256,6 +256,19 @@ func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io
 	return schema.NewFileReader(ctx, ih.Fetcher, fileRef)
 }
 
+// ScaleImage reads the image file schema at fileRef using ih.Fetcher and returns
+// its encoded bytes, scaled according to ih.MaxWidth, ih.MaxHeight, and ih.Square.
+// The returned format is "png" for PNG images and "jpeg" for all other supported
+// formats. Fetcher and ResizeSem must be set; Search is optional.
+// ScaleImage does not read or write the thumbnail cache.
+func (ih *ImageHandler) ScaleImage(ctx context.Context, fileRef blob.Ref) (data []byte, format string, err error) {
+	im, err := ih.scaleImage(ctx, fileRef)
+	if err != nil {
+		return nil, "", err
+	}
+	return im.image, im.format, nil
+}
+
 func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*formatAndImage, error) {
 	fr, err := ih.newFileReader(ctx, fileRef)
 	if err != nil {

@@ -18,6 +18,7 @@ package serverconfig
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -67,5 +68,75 @@ func TestInvertedBool_Marshal(t *testing.T) {
 		if string(b) != tt.want {
 			t.Errorf("Marshaled invertedBool %v; got %v, wanted %v", tt.internalVal, string(b), tt.want)
 		}
+	}
+}
+
+func TestImmichConfigJSON(t *testing.T) {
+	without, err := json.Marshal(&Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(without, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := fields["immich"]; ok {
+		t.Error("default configuration includes immich")
+	}
+
+	for _, tt := range []struct {
+		name       string
+		standalone bool
+		limit      int64
+		legacy     string
+	}{
+		{name: "normal Perkeep auth"},
+		{name: "normal Perkeep auth with upload limit", limit: 32 << 30},
+		{name: "standalone credentials", standalone: true},
+		{name: "standalone credentials with upload limit", standalone: true, limit: 32 << 30},
+		{name: "deprecated legacy import", legacy: "/data/legacy-immich.leveldb"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			want := &Immich{
+				MetadataFile:   tt.legacy,
+				MaxUploadBytes: tt.limit,
+			}
+			if tt.standalone {
+				want.Email = "photos@example.com"
+				want.Password = "photo-password"
+			}
+			data, err := json.Marshal(&Config{Immich: want})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got Config
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got.Immich, want) {
+				t.Errorf("JSON roundtrip = %#v; want %#v", got.Immich, want)
+			}
+			if err := json.Unmarshal(data, &fields); err != nil {
+				t.Fatal(err)
+			}
+			var options map[string]json.RawMessage
+			if err := json.Unmarshal(fields["immich"], &options); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := options["maxUploadBytes"]; ok != (tt.limit != 0) {
+				t.Errorf("maxUploadBytes presence = %v; want %v", ok, tt.limit != 0)
+			}
+			if _, ok := options["metadataFile"]; ok != (tt.legacy != "") {
+				t.Errorf("metadataFile presence = %v; want %v", ok, tt.legacy != "")
+			}
+			if !tt.standalone && tt.limit == 0 && tt.legacy == "" && string(fields["immich"]) != "{}" {
+				t.Errorf("minimal Immich config = %s; want {}", fields["immich"])
+			}
+			for _, key := range []string{"email", "password"} {
+				if _, ok := options[key]; ok != tt.standalone {
+					t.Errorf("%s presence = %v; want %v", key, ok, tt.standalone)
+				}
+			}
+		})
 	}
 }

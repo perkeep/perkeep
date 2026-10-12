@@ -54,6 +54,7 @@ import (
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/server/app"
+	_ "perkeep.org/pkg/server/immich" // Register the optional mobile upload handler.
 	"perkeep.org/pkg/types/serverconfig"
 
 	"cloud.google.com/go/compute/metadata"

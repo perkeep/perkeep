@@ -1093,7 +1093,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	h.index.RLock()
 	defer h.index.RUnlock()
 
-	ctx, cancelSearch := context.WithCancel(context.TODO())
+	ctx, cancelSearch := context.WithCancel(ctx)
 	defer cancelSearch()
 
 	corpus := h.corpus
@@ -1114,7 +1114,10 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	blobMatches := q.Constraint.matcher()
 
 	var enumErr error
-	cands.send(ctx, s, func(meta camtypes.BlobMeta) bool {
+	sendErr := cands.send(ctx, s, func(meta camtypes.BlobMeta) bool {
+		if ctx.Err() != nil {
+			return false
+		}
 		match, err := blobMatches(ctx, s, meta.Ref, meta)
 		if err != nil {
 			enumErr = err
@@ -1165,6 +1168,13 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	})
 	if enumErr != nil {
 		return nil, enumErr
+	}
+	if sendErr != nil {
+		return nil, sendErr
+	}
+	// Some corpus candidate sources do not check the context themselves.
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if wantAround && !foundAround {
 		// results are ignored if Around was not found
