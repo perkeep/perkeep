@@ -70,9 +70,14 @@ jobs:
           cache-from: |
             ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}:buildcache', env.REGISTRY, env.IMAGE_NAME) || '' }}
             type=gha
+          # Only write the cache on push events: GitHub Actions caches
+          # written by a PR are only readable by that same PR, but all
+          # PRs can read master's. mode=min (only the final image's
+          # layers) is enough, since the build stage's layers change
+          # with every commit anyway.
           cache-to: |
-            ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}:buildcache,mode=max', env.REGISTRY, env.IMAGE_NAME) || '' }}
-            type=gha,mode=max
+            ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}:buildcache,mode=min', env.REGISTRY, env.IMAGE_NAME) || '' }}
+            ${{ github.event_name == 'push' && 'type=gha,mode=min' || '' }}
           provenance: true
           sbom: true
 
