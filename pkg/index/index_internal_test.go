@@ -34,6 +34,21 @@ import (
 
 type kv struct{ K, V string }
 
+func TestDupSkipper(t *testing.T) {
+	var s dupSkipper
+	for _, tc := range []struct {
+		value string
+		dup   bool
+	}{
+		{"", false}, {"a", false}, {"b", false},
+		{"a", true}, {"", true}, {"b", true}, {"a", true},
+	} {
+		if got := s.Dup(tc.value); got != tc.dup {
+			t.Errorf("Dup(%q) = %v; want %v", tc.value, got, tc.dup)
+		}
+	}
+}
+
 var testKvClaims = map[kv]camtypes.Claim{
 	{
 		K: "claim|sha224-eaf72715d32f498a4a3fe9f372495962d7298ebf018536a4f1f88221|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-60c6ad71a30be964f8d8a6f148a053af238de0d9c300bea7fe93fdf0",
@@ -333,9 +348,9 @@ func TestReindexWaitsForWorkersOnEnumerationError(t *testing.T) {
 		}
 		ix.RLock()
 		defer ix.RUnlock()
-		if len(ix.inFlight) != 0 || ix.readyWorkerDone != nil || len(ix.needs) != 0 {
+		if ix.inFlight.Len() != 0 || ix.readyWorkerDone != nil || len(ix.needs) != 0 {
 			t.Errorf("undrained indexing state: inFlight=%d, readyWorkerDone=%v, needs=%d",
-				len(ix.inFlight), ix.readyWorkerDone, len(ix.needs))
+				ix.inFlight.Len(), ix.readyWorkerDone, len(ix.needs))
 		}
 	})
 }
@@ -442,6 +457,76 @@ func TestReadyReindexWorkerRequeuesDuringFetch(t *testing.T) {
 			if err != nil || !strings.HasSuffix(value, "|indexed") {
 				t.Errorf("have:%v = %q, %v; want indexed", b.BlobRef(), value, err)
 			}
+		}
+	})
+}
+
+func TestReadyReindexWorkerRecoversFromFetchError(t *testing.T) {
+	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
+	synctest.Test(t, func(t *testing.T) {
+		ix, err := New(sorted.NewMemoryKeyValue())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := ix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		b := &test.Blob{Contents: "ready fetch-error retry"}
+		ref := b.BlobRef()
+		fetches := 0
+		src := &readyReindexSource{
+			Fetcher: &test.Fetcher{FetchErr: func() error {
+				fetches++
+				if fetches == 1 {
+					return errors.New("temporary fetch failure")
+				}
+				return nil
+			}},
+			onFetch: func(br blob.Ref) {
+				if br != ref {
+					t.Errorf("Fetch(%v); want %v", br, ref)
+				}
+			},
+		}
+		src.AddBlob(b)
+		ix.InitBlobSource(src)
+		var previousDone chan struct{}
+		for attempt := range 2 {
+			ix.Lock()
+			ix.enqueueReadyLocked(ref)
+			done := ix.readyWorkerDone
+			ix.Unlock()
+			if done == nil || done == previousDone {
+				t.Fatal("enqueue did not start a new worker")
+			}
+			ix.awaitReadyIdle()
+			select {
+			case <-done:
+			default:
+				t.Error("idle worker did not close its completion channel")
+			}
+			ix.RLock()
+			wantFailed := attempt == 0
+			if got := ix.readyFailed.Contains(ref); got != wantFailed {
+				t.Errorf("attempt %d: readyFailed.Contains(%v) = %v; want %v", attempt, ref, got, wantFailed)
+			}
+			if got := ix.readyFailed.Len(); got != 1-attempt {
+				t.Errorf("attempt %d: readyFailed.Len() = %d; want %d", attempt, got, 1-attempt)
+			}
+			if ix.readyWorkerDone != nil || ix.readyReindex.Len() != 0 || ix.inFlight.Len() != 0 {
+				t.Error("worker did not reset drained indexing state")
+			}
+			ix.RUnlock()
+			previousDone = done
+		}
+		if fetches != 2 {
+			t.Errorf("fetches = %d; want 2", fetches)
+		}
+		value, err := ix.s.Get("have:" + ref.String())
+		if err != nil || !strings.HasSuffix(value, "|indexed") {
+			t.Errorf("have:%v = %q, %v; want indexed after retry", ref, value, err)
 		}
 	})
 }

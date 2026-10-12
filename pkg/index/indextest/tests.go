@@ -42,6 +42,7 @@ import (
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/util/set"
 )
 
 var ctxbg = context.Background()
@@ -1316,10 +1317,10 @@ func checkEnumerate(idx *index.Index, want []blob.SizedRef, args *enumArgs) erro
 
 func checkStat(idx *index.Index, want []blob.SizedRef) error {
 	pos := make(map[blob.Ref]int) // wanted ref => its position in want
-	need := make(map[blob.Ref]bool)
+	need := make(set.Set[blob.Ref])
 	for i, sb := range want {
 		pos[sb.Ref] = i
-		need[sb.Ref] = true
+		need.Add(sb.Ref)
 	}
 
 	input := make([]blob.Ref, 0, len(want))
@@ -1334,10 +1335,10 @@ func checkStat(idx *index.Index, want []blob.SizedRef) error {
 		if !ok {
 			return fmt.Errorf("StatBlobs func called with unrequested ref %v (size %d)", sb.Ref, sb.Size)
 		}
-		if !need[sb.Ref] {
+		if !need.Contains(sb.Ref) {
 			return fmt.Errorf("StatBlobs func called with ref %v multiple times", sb.Ref)
 		}
-		delete(need, sb.Ref)
+		need.Delete(sb.Ref)
 		w := want[wantPos]
 		if sb != w {
 			return fmt.Errorf("StatBlobs returned %v; want %v", sb, w)

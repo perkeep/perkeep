@@ -45,7 +45,7 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/strutil"
 	"go4.org/types"
-	"tailscale.com/util/mak"
+	"tailscale.com/util/set"
 )
 
 const verboseReindex = false
@@ -75,7 +75,7 @@ type Index struct {
 	//mu syncdebug.RWMutexTracker  // (when debugging)
 
 	// inFlight is the set of ReceiveBlob calls currently in progress.
-	inFlight map[*indexOp]bool
+	inFlight set.Set[*indexOp]
 
 	// needs maps from a blob to the missing blobs it needs to
 	// finish indexing.
@@ -83,12 +83,12 @@ type Index struct {
 	// hasMissing marks blobs that may have persisted missing| rows.
 	// Unlike needs, it survives queueing a blob for retry and is cleared
 	// only after successful cleanup of those rows.
-	hasMissing map[blob.Ref]bool
+	hasMissing set.Set[blob.Ref]
 	// neededBy is the inverse of needs. The keys are missing blobs
 	// and the value(s) are blobs waiting to be reindexed.
 	neededBy     map[blob.Ref][]blob.Ref
 	readyReindex queueSet[blob.Ref] // blobs ready to be re-indexed
-	readyFailed  map[blob.Ref]bool  // ready blobs whose re-indexing failed
+	readyFailed  set.Set[blob.Ref]  // ready blobs whose re-indexing failed
 	// readyWorkerDone is non-nil while the goroutine running
 	// indexReadyBlobs is running, and is closed when it exits.
 	readyWorkerDone chan struct{}
@@ -554,7 +554,7 @@ func (x *Index) Reindex() error {
 	}
 
 	x.RLock()
-	failedCount := len(x.readyFailed)
+	failedCount := x.readyFailed.Len()
 	needed := len(x.needs)
 	needSample := x.needSampleLocked()
 	x.RUnlock()
@@ -1160,7 +1160,7 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 	if err != nil {
 		return err
 	}
-	seen := make(map[string]bool)
+	seen := make(set.Set[string])
 	var it sorted.Iterator
 	if request.Query == "" {
 		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute)
@@ -1187,13 +1187,13 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 			continue
 		}
 		pnstr := cl.Permanode.String()
-		if seen[pnstr] {
+		if seen.Contains(pnstr) {
 			continue
 		}
-		seen[pnstr] = true
+		seen.Add(pnstr)
 
 		dest <- cl.Permanode
-		if len(seen) == request.MaxResults {
+		if seen.Len() == request.MaxResults {
 			break
 		}
 	}
@@ -1866,7 +1866,8 @@ func (x *Index) initNeededMapsLocked() (err error) {
 		if !ok1 || !ok2 {
 			return fmt.Errorf("Bogus missing key %q", key)
 		}
-		mak.Set(&x.hasMissing, have, true)
+		x.hasMissing.Make()
+		x.hasMissing.Add(have)
 		x.noteNeededMemoryLocked(have, missing)
 	}
 	return
@@ -1875,7 +1876,8 @@ func (x *Index) initNeededMapsLocked() (err error) {
 func (x *Index) noteNeededLocked(have, missing blob.Ref) error {
 	// Keep the cleanup marker even if Set fails: the write might have
 	// reached storage before the error was reported.
-	mak.Set(&x.hasMissing, have, true)
+	x.hasMissing.Make()
+	x.hasMissing.Add(have)
 	if err := x.s.Set(keyMissing.Key(have, missing), "1"); err != nil {
 		return err
 	}
