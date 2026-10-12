@@ -151,7 +151,7 @@ func (ix *Index) endIndexOp(op *indexOp) {
 //
 // ix.mu must be held.
 func (ix *Index) enqueueReadyLocked(br blob.Ref) {
-	ix.readyReindex[br] = true
+	ix.readyReindex.Add(br)
 	if ix.readyWorkerDone == nil {
 		done := make(chan struct{})
 		ix.readyWorkerDone = done
@@ -165,17 +165,15 @@ func (ix *Index) indexReadyBlobs(done chan struct{}) {
 	ctx := context.Background()
 	for {
 		ix.Lock()
-		var br blob.Ref
-		for br = range ix.readyReindex {
-			break
-		}
-		if !br.Valid() {
+		br, ok := ix.readyReindex.Pop()
+		if !ok {
 			ix.readyWorkerDone = nil
 			close(done)
 			ix.Unlock()
 			return
 		}
-		delete(ix.readyReindex, br)
+		// Pop removes membership before indexing so br can be queued for
+		// another retry while it is being indexed.
 		ix.Unlock()
 
 		if verboseReindex {

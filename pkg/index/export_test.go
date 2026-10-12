@@ -23,6 +23,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/util/set"
 )
 
 func ExpReverseTimeString(s string) string {
@@ -64,9 +65,9 @@ func (c *Corpus) Exp_AddKeyID(signerRef blob.Ref, signerID string) error {
 	})
 }
 
-func (x *Index) WithNeededMapsForTest(f func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool)) {
+func (x *Index) WithNeededMapsForTest(f func(needs, neededBy map[blob.Ref][]blob.Ref, ready set.Set[blob.Ref])) {
 	x.RLock()
-	f(x.needs, x.neededBy, x.readyReindex)
+	f(x.needs, x.neededBy, x.readyReindex.members)
 	x.RUnlock()
 }
 

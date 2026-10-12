@@ -39,6 +39,7 @@ import (
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
+	"tailscale.com/util/set"
 )
 
 var ctxbg = context.Background()
@@ -123,6 +124,8 @@ var (
 		"index_test.go",
 		"keys_test.go",
 		"missing_cleanup_test.go",
+		"queue_set_test.go",
+		"ready_reindex_bench_test.go",
 		"receive_exif_test.go",
 		"util_test.go",
 	}
@@ -276,7 +279,7 @@ func TestInitNeededMaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	ix.InitBlobSource(bs)
-	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, _ map[blob.Ref]bool) {
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, _ set.Set[blob.Ref]) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk2ref, chunk1ref, chunk3ref},
 		}
@@ -295,7 +298,7 @@ func TestInitNeededMaps(t *testing.T) {
 
 	ix.Exp_noteBlobIndexed(chunk2ref)
 
-	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready set.Set[blob.Ref]) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk1ref, chunk3ref},
 		}
@@ -316,7 +319,7 @@ func TestInitNeededMaps(t *testing.T) {
 
 	ix.Exp_noteBlobIndexed(chunk1ref)
 
-	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready set.Set[blob.Ref]) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk3ref},
 		}
@@ -338,7 +341,7 @@ func TestInitNeededMaps(t *testing.T) {
 
 	ix.Exp_AwaitAsyncIndexing(t)
 
-	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready set.Set[blob.Ref]) {
 		needsWant := map[blob.Ref][]blob.Ref{}
 		neededByWant := map[blob.Ref][]blob.Ref{}
 		if !reflect.DeepEqual(needs, needsWant) {
