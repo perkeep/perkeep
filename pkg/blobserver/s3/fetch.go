@@ -23,9 +23,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 
 	"perkeep.org/pkg/blob"
 )
@@ -46,25 +46,20 @@ func (sto *s3Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length 
 }
 
 func (sto *s3Storage) fetch(ctx context.Context, br blob.Ref, objRange *string) (rc io.ReadCloser, size uint32, err error) {
-	resp, err := sto.client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+	resp, err := sto.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &sto.bucket,
 		Key:    aws.String(sto.dirPrefix + br.String()),
 		Range:  objRange,
 	})
 	if err == nil {
-		return resp.Body, uint32(*resp.ContentLength), err
-	}
-	if resp.Body != nil {
-		resp.Body.Close()
+		return resp.Body, uint32(aws.ToInt64(resp.ContentLength)), nil
 	}
 	if isNotFound(err) {
 		return nil, 0, os.ErrNotExist
 	}
-	var aerr awserr.Error
-	if errors.As(err, &aerr) {
-		if aerr.Code() == "InvalidRange" {
-			return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
-		}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidRange" {
+		return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
 	}
 	return nil, 0, err
 }
