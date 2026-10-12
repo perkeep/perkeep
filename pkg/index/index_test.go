@@ -127,6 +127,7 @@ var (
 		"missing_cleanup_test.go",
 		"queue_set_test.go",
 		"ready_reindex_bench_test.go",
+		"receive_buffers_test.go",
 		"receive_exif_test.go",
 		"util_test.go",
 	}
