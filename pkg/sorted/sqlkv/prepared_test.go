@@ -239,7 +239,11 @@ func TestPreparedSQLiteRetryAndReopen(t *testing.T) {
 }
 
 func TestPreparedSQLiteConcurrentWAL(t *testing.T) {
-	kv := preparedSQLite(t, filepath.Join(t.TempDir(), "wal.sqlite"))
+	// WAL readers can briefly take the write lock to reread the WAL header.
+	// Configure the busy timeout through the DSN so every pooled connection
+	// gets it, rather than just the connection chosen by a PRAGMA Exec.
+	kv := preparedSQLite(t, filepath.Join(t.TempDir(), "wal.sqlite")+
+		"?_pragma=busy_timeout(5000)")
 	kv.Gate = nil
 	kv.DB.SetMaxOpenConns(16)
 	_, err := kv.DB.Exec("PRAGMA journal_mode=WAL")
@@ -277,8 +281,8 @@ func TestPreparedSQLiteConcurrentWAL(t *testing.T) {
 			}
 		})
 	}
-	// Only one writer; readers never depend on this key. No competing writers
-	// or read-to-write transaction upgrades that could cause SQLITE_BUSY.
+	// Only one application writer; readers never depend on this key, but WAL
+	// internals can still cause transient lock contention.
 	for range 20 {
 		preparedCheck(t, kv.Set("z", "zv"))
 		preparedCheck(t, kv.Delete("z"))
