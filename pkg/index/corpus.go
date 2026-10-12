@@ -468,14 +468,6 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		if err := pm.restoreInvariants(c.keyId); err != nil {
 			return err
 		}
-
-		// And intern some stuff.
-		for _, cl := range pm.Claims {
-			cl.BlobRef = c.br(cl.BlobRef)
-			cl.Signer = c.br(cl.Signer)
-			cl.Permanode = c.br(cl.Permanode)
-			cl.Target = c.br(cl.Target)
-		}
 	}
 	c.brOfStr = nil // drop this now.
 	c.building = false
@@ -550,7 +542,7 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 			defer mu.Unlock()
 		}
 		if typeKey == keySignerKeyID.name {
-			signerBlobRef, ok := blob.Parse(strings.TrimPrefix(it.Key(), keySignerKeyID.name+":"))
+			signerBlobRef, ok := c.blobParse(it.KeyBytes()[len(prefix):])
 			if !ok {
 				c.logf("WARNING: bogus signer blob in %v row: %q", keySignerKeyID.name, it.Key())
 				continue
@@ -657,6 +649,12 @@ func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	}
 	meta := newCorpusBlobMeta(bm)
 	c.blobs[bm.Ref] = meta
+	if !c.building {
+		// Live mutations may introduce metadata after a reference was cached.
+		// Discard the decoding cache so future parses use the metadata's Ref.
+		// Startup scans load all metadata first, so their cache stays valid.
+		c.brOfStr = nil
+	}
 	c.sumBlobBytes += int64(bm.Size)
 	if bm.CamliType != "" {
 		camliType := meta.camliType.Value()
@@ -671,7 +669,7 @@ func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 }
 
 func (c *Corpus) mergeSignerKeyIdRow(k, v []byte) error {
-	br, ok := blob.ParseBytes(k[len("signerkeyid:"):])
+	br, ok := c.blobParse(k[len("signerkeyid:"):])
 	if !ok {
 		return fmt.Errorf("bogus signerid row: %q -> %q", k, v)
 	}
@@ -685,7 +683,7 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
 
-	pn := c.br(cl.Permanode)
+	pn := cl.Permanode
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		pm = new(PermanodeMeta)
@@ -700,7 +698,7 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		}
 	}
 
-	if vbr, ok := blob.Parse(cl.Value); ok {
+	if vbr, ok := c.blobParseString(cl.Value); ok {
 		c.claimBack[vbr] = append(c.claimBack[vbr], &cl)
 	}
 	if cl.Attr == "camliNodeType" {
@@ -720,7 +718,7 @@ func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 	if pipe < 0 {
 		return fmt.Errorf("unexpected fileinfo key %q", k)
 	}
-	br, ok := blob.ParseBytes(k[pipe+1:])
+	br, ok := c.blobParse(k[pipe+1:])
 	if !ok {
 		return fmt.Errorf("unexpected fileinfo blobref in key %q", k)
 	}
@@ -738,7 +736,7 @@ func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 	var wholeRef blob.Ref
 	if len(c.ss) == 4 && c.ss[3] != "" { // checking for "" because of special files such as symlinks.
 		var ok bool
-		wholeRef, ok = blob.Parse(urld(c.ss[3]))
+		wholeRef, ok = c.blobParseString(urld(c.ss[3]))
 		if !ok {
 			return fmt.Errorf("invalid wholeRef blobref in value %q for fileinfo key %q", v, k)
 		}
@@ -760,16 +758,14 @@ func (c *Corpus) mergeStaticDirChildRow(k, v []byte) error {
 	if pipe < 0 {
 		return fmt.Errorf("invalid dirchild key %q, missing second pipe", k)
 	}
-	parent, ok := blob.ParseBytes(sk[:pipe])
+	parent, ok := c.blobParse(sk[:pipe])
 	if !ok {
 		return fmt.Errorf("invalid dirchild parent blobref in key %q", k)
 	}
-	child, ok := blob.ParseBytes(sk[pipe+1:])
+	child, ok := c.blobParse(sk[pipe+1:])
 	if !ok {
 		return fmt.Errorf("invalid dirchild child blobref in key %q", k)
 	}
-	parent = c.br(parent)
-	child = c.br(child)
 	children, ok := c.dirChildren[parent]
 	if !ok {
 		children = make(map[blob.Ref]struct{})
@@ -794,7 +790,7 @@ func (c *Corpus) mergeFileTimesRow(k, v []byte) error {
 	if pipe < 0 {
 		return fmt.Errorf("unexpected fileinfo key %q", k)
 	}
-	br, ok := blob.ParseBytes(k[pipe+1:])
+	br, ok := c.blobParse(k[pipe+1:])
 	if !ok {
 		return fmt.Errorf("unexpected filetimes blobref in key %q", k)
 	}
@@ -807,19 +803,17 @@ func (c *Corpus) mergeFileTimesRow(k, v []byte) error {
 }
 
 func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
-	br = c.br(br)
 	fi := c.files[br] // use zero value if not present
 	fn(&fi)
 	c.files[br] = fi
 }
 
 func (c *Corpus) mergeImageSizeRow(k, v []byte) error {
-	br, okk := blob.ParseBytes(k[len("imagesize|"):])
+	br, okk := c.blobParse(k[len("imagesize|"):])
 	ii, okv := kvImageInfo(v)
 	if !okk || !okv {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
-	br = c.br(br)
 	c.imageInfo[br] = ii
 	return nil
 }
@@ -833,8 +827,8 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 	if pipe < 0 {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
-	wholeRef, ok1 := blob.ParseBytes(pair[:pipe])
-	fileRef, ok2 := blob.ParseBytes(pair[pipe+1:])
+	wholeRef, ok1 := c.blobParse(pair[:pipe])
+	fileRef, ok2 := c.blobParse(pair[pipe+1:])
 	if !ok1 || !ok2 {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
@@ -853,7 +847,7 @@ func (c *Corpus) mergeMediaTag(k, v []byte) error {
 	if len(f) != 3 {
 		return fmt.Errorf("unexpected key %q", k)
 	}
-	wholeRef, ok := blob.Parse(f[1])
+	wholeRef, ok := c.blobParseString(f[1])
 	if !ok {
 		return fmt.Errorf("failed to parse wholeref from key %q", k)
 	}
@@ -868,7 +862,7 @@ func (c *Corpus) mergeMediaTag(k, v []byte) error {
 
 // "exifgps|sha1-17b53c7c3e664d3613dfdce50ef1f2a09e8f04b5" -> "-122.39897155555556|37.61952208333334"
 func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
-	wholeRef, ok := blob.ParseBytes(k[len("exifgps|"):])
+	wholeRef, ok := c.blobParse(k[len("exifgps|"):])
 	pipe := bytes.IndexByte(v, '|')
 	if pipe < 0 || !ok {
 		return fmt.Errorf("bogus row %q = %q", k, v)
@@ -887,6 +881,10 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 	return nil
 }
 
+// blobParse parses a row reference, reusing its cached text and the canonical
+// metadata Ref when present. It mutates the corpus and requires exclusive
+// access; holding only the parent index's RLock is not sufficient.
+// Metadata row keys bypass this cache because they are normally parsed once.
 func (c *Corpus) blobParse(v []byte) (br blob.Ref, ok bool) {
 	br, ok = c.brOfStr[string(v)]
 	if ok {
@@ -899,7 +897,27 @@ func (c *Corpus) blobParse(v []byte) (br blob.Ref, ok bool) {
 	if c.brOfStr == nil {
 		c.brOfStr = make(map[string]blob.Ref)
 	}
+	br = c.br(br)
 	c.brOfStr[string(v)] = br
+	return br, true
+}
+
+// blobParseString shares blobParse's cache without copying strings on hits.
+// Like blobParse, it mutates the corpus and requires exclusive access.
+// Clone only successful misses: s may be a substring of a much larger row.
+func (c *Corpus) blobParseString(s string) (br blob.Ref, ok bool) {
+	if br, ok = c.brOfStr[s]; ok {
+		return
+	}
+	br, ok = blob.Parse(s)
+	if !ok {
+		return
+	}
+	if c.brOfStr == nil {
+		c.brOfStr = make(map[string]blob.Ref)
+	}
+	br = c.br(br)
+	c.brOfStr[strings.Clone(s)] = br
 	return br, true
 }
 
