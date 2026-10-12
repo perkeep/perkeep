@@ -279,8 +279,8 @@ func TestMissingCleanupReadyBlobKeepsEligibility(t *testing.T) {
 		if _, ok := ix.needs[have]; ok {
 			t.Errorf("needs[%v] remains after its dependency was indexed", have)
 		}
-		if !ix.readyReindex[have] {
-			t.Errorf("readyReindex[%v] = false; want true", have)
+		if !ix.readyReindex.Contains(have) {
+			t.Errorf("readyReindex does not contain %v", have)
 		}
 	}()
 	assertMissingCleanupMarker(t, ix, have, true)

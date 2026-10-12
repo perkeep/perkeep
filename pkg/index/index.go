@@ -87,8 +87,8 @@ type Index struct {
 	// neededBy is the inverse of needs. The keys are missing blobs
 	// and the value(s) are blobs waiting to be reindexed.
 	neededBy     map[blob.Ref][]blob.Ref
-	readyReindex map[blob.Ref]bool // set of things ready to be re-indexed
-	readyFailed  map[blob.Ref]bool // ready blobs whose re-indexing failed
+	readyReindex queueSet[blob.Ref] // blobs ready to be re-indexed
+	readyFailed  map[blob.Ref]bool  // ready blobs whose re-indexing failed
 	// readyWorkerDone is non-nil while the goroutine running
 	// indexReadyBlobs is running, and is closed when it exits.
 	readyWorkerDone chan struct{}
@@ -202,10 +202,9 @@ func (x *Index) InitBlobSource(blobSource blobserver.FetcherEnumerator) {
 // New returns a new index using the provided key/value storage implementation.
 func New(s sorted.KeyValue) (*Index, error) {
 	idx := &Index{
-		s:            s,
-		needs:        make(map[blob.Ref][]blob.Ref),
-		neededBy:     make(map[blob.Ref][]blob.Ref),
-		readyReindex: make(map[blob.Ref]bool),
+		s:        s,
+		needs:    make(map[blob.Ref][]blob.Ref),
+		neededBy: make(map[blob.Ref][]blob.Ref),
 	}
 	if aboutToReindex {
 		idx.deletes = newDeletionCache()

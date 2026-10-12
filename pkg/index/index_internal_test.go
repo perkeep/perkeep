@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -335,6 +336,112 @@ func TestReindexWaitsForWorkersOnEnumerationError(t *testing.T) {
 		if len(ix.inFlight) != 0 || ix.readyWorkerDone != nil || len(ix.needs) != 0 {
 			t.Errorf("undrained indexing state: inFlight=%d, readyWorkerDone=%v, needs=%d",
 				len(ix.inFlight), ix.readyWorkerDone, len(ix.needs))
+		}
+	})
+}
+
+type readyReindexSource struct {
+	*test.Fetcher
+	onFetch func(blob.Ref)
+}
+
+func (s *readyReindexSource) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	s.onFetch(br)
+	return s.Fetcher.Fetch(ctx, br)
+}
+
+func TestReadyReindexWorkerRequeuesDuringFetch(t *testing.T) {
+	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
+	synctest.Test(t, func(t *testing.T) {
+		ix, err := New(sorted.NewMemoryKeyValue())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := ix.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		a, b := &test.Blob{Contents: "ready a"}, &test.Blob{Contents: "ready b"}
+		started, release := make(chan struct{}), make(chan struct{})
+		defer func() {
+			select {
+			case <-release:
+			default:
+				close(release)
+			}
+		}()
+		var fetched []blob.Ref
+		src := &readyReindexSource{
+			Fetcher: new(test.Fetcher),
+			onFetch: func(br blob.Ref) {
+				fetched = append(fetched, br)
+				if len(fetched) == 1 {
+					close(started)
+					<-release
+				}
+			},
+		}
+		src.AddBlob(a)
+		src.AddBlob(b)
+		ix.InitBlobSource(src)
+		ix.Lock()
+		ix.enqueueReadyLocked(a.BlobRef())
+		ix.enqueueReadyLocked(b.BlobRef())
+		done := ix.readyWorkerDone
+		ix.Unlock()
+		<-started
+
+		ix.Lock()
+		// A has been popped, so it must be queued again; B and the second
+		// enqueue of A are still pending and must be coalesced.
+		ix.enqueueReadyLocked(a.BlobRef())
+		ix.enqueueReadyLocked(b.BlobRef())
+		ix.enqueueReadyLocked(a.BlobRef())
+		if ix.readyWorkerDone != done {
+			t.Error("requeue started a second worker")
+		}
+		ix.Unlock()
+		idle := false
+		go func() {
+			ix.awaitReadyIdle()
+			idle = true
+		}()
+		synctest.Wait()
+		if idle {
+			t.Error("awaitReadyIdle returned while Fetch was blocked")
+		}
+		close(release)
+		synctest.Wait()
+		if want := []blob.Ref{a.BlobRef(), b.BlobRef(), a.BlobRef()}; !slices.Equal(fetched, want) {
+			t.Errorf("Fetch order = %v; want %v", fetched, want)
+		}
+		if !idle {
+			t.Error("awaitReadyIdle did not return after the queue drained")
+		}
+		select {
+		case <-done:
+		default:
+			t.Error("worker did not close its completion channel")
+		}
+		ix.Lock()
+		if ix.readyWorkerDone != nil || ix.readyReindex.Len() != 0 {
+			t.Error("worker did not reset drained queue state")
+		}
+		ix.enqueueReadyLocked(b.BlobRef())
+		if ix.readyWorkerDone == nil || ix.readyWorkerDone == done {
+			t.Error("enqueue after drain did not start a new worker")
+		}
+		ix.Unlock()
+		synctest.Wait()
+		if want := []blob.Ref{a.BlobRef(), b.BlobRef(), a.BlobRef(), b.BlobRef()}; !slices.Equal(fetched, want) {
+			t.Errorf("Fetch order after restart = %v; want %v", fetched, want)
+		}
+		for _, b := range []*test.Blob{a, b} {
+			value, err := ix.s.Get("have:" + b.BlobRef().String())
+			if err != nil || !strings.HasSuffix(value, "|indexed") {
+				t.Errorf("have:%v = %q, %v; want indexed", b.BlobRef(), value, err)
+			}
 		}
 	})
 }
