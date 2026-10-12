@@ -4,19 +4,18 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
@@ -113,21 +112,9 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 
-	cl := ctx.Host.TargetClient()
-	if cl == nil {
-		httputil.ServeError(w, r, errors.New("raindrop: no client available for uploading"))
-		return
-	}
-
-	ures, err := cl.Upload(ctx, client.NewUploadHandleFromString(string(body)))
-	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error uploading user info: %v", err))
-		return
-	}
 	if err := ctx.AccountNode.SetAttrs(
 		attrAuthToken, t,
 		importer.AcctAttrUserName, res.User.Name,
-		nodeattr.CamliContent, ures.BlobRef.String(),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
@@ -322,61 +309,22 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 		return nil
 	}
 
-	json, err := json.MarshalIndent(bookmark, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	cl := r.Host.TargetClient()
-	if cl == nil {
-		return fmt.Errorf("raindrop: no client available for uploading")
-	}
-
-	ures, err := cl.Upload(r.Context(), client.NewUploadHandleFromString(string(json)))
-	if err != nil {
-		return err
-	}
-
 	attrs := []string{
 		nodeattr.Type, "raindrop.io:bookmark",
 		nodeattr.DateCreated, schema.RFC3339FromTime(bookmark.Created),
 		nodeattr.DateModified, schema.RFC3339FromTime(bookmark.LastUpdate),
 		nodeattr.Title, bookmark.Title,
 		nodeattr.URL, bookmark.Link,
-		nodeattr.CamliContent, ures.BlobRef.String(),
 	}
 
-	coverURL := bookmark.Cover
-	if coverURL != "" {
-		resp, err := cloudflareFetch(r.Context(), coverURL)
-		if resp != nil {
-			defer resp.Body.Close()
-		}
-
-		if (err != nil || resp.StatusCode != http.StatusOK) && !strings.HasPrefix(coverURL, "https://rdl.ink/") {
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
-			coverURL = "https://rdl.ink/render/" + url.QueryEscape(coverURL)
-			rresp, err := cloudflareFetch(r.Context(), coverURL)
-			if err != nil {
-				return err
-			}
-
-			resp = rresp
-		} else if err != nil {
-			return err
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("raindrop: unexpected status code %v fetching cover image %s for %s", resp.StatusCode, coverURL, bookmark.Link)
-		}
-
-		coverRef, err := cl.UploadFile(r.Context(), coverURL, resp.Body, nil)
+	if bookmark.Cover != "" {
+		coverRef, err := r.importCover(bookmark)
 		if err != nil {
 			return err
 		}
-		attrs = append(attrs, nodeattr.CamliContentImage, coverRef.String())
+		if coverRef.Valid() {
+			attrs = append(attrs, nodeattr.CamliContentImage, coverRef.String())
+		}
 	}
 
 	if err := bookmarkNode.SetAttrs(attrs...); err != nil {
@@ -387,4 +335,46 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 	}
 
 	return nil
+}
+
+// importCover fetches bookmark's cover image and writes it to the
+// importer's target as a file, returning the file schema blob ref.
+//
+// If fetching the cover directly fails, it's retried via raindrop's
+// rdl.ink render proxy. Covers are best effort, as their URLs (often
+// on CDNs) expire: if both fetches fail, it logs and returns a zero
+// blob.Ref and a nil error. An error is returned only if the context
+// is done or writing to the target fails.
+func (r *run) importCover(bookmark *Bookmark) (blob.Ref, error) {
+	ctx := r.Context()
+	coverURL := bookmark.Cover
+	resp, err := cloudflareFetch(ctx, coverURL)
+	if (err != nil || resp.StatusCode != http.StatusOK) && !strings.HasPrefix(coverURL, "https://rdl.ink/") {
+		if err == nil {
+			resp.Body.Close()
+			err = fmt.Errorf("status %v", resp.Status)
+		}
+		log.Printf("raindrop: fetching cover image for %s failed (%v); retrying via rdl.ink", bookmark.Link, err)
+		coverURL = "https://rdl.ink/render/" + url.QueryEscape(coverURL)
+		resp, err = cloudflareFetch(ctx, coverURL)
+	}
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			err = fmt.Errorf("status %v", resp.Status)
+		}
+	}
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return blob.Ref{}, ctxErr
+		}
+		log.Printf("raindrop: skipping cover image for %s: %v", bookmark.Link, err)
+		return blob.Ref{}, nil
+	}
+
+	var filename string
+	if u, err := url.Parse(bookmark.Cover); err == nil && strings.Trim(u.Path, "/") != "" {
+		filename = path.Base(u.Path)
+	}
+	return schema.WriteFileFromReader(ctx, r.Host.Target(), filename, resp.Body)
 }
