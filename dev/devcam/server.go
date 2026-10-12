@@ -551,6 +551,11 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err := c.setFullClosure(); err != nil {
 		return fmt.Errorf("Could not setup the closure lib: %w", err)
 	}
+	// Git only records 0644 or 0755, but the encrypt storage
+	// refuses key files readable by others.
+	if err := os.Chmod(filepath.Join(camliSrcRoot, "config", "age.key"), 0600); err != nil {
+		return fmt.Errorf("Could not set permissions on the age key: %w", err)
+	}
 
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
 		c.env.m["CAMLI_BASEURL"])
