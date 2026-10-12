@@ -19,6 +19,7 @@ limitations under the License.
 package sqlite // import "perkeep.org/pkg/sorted/sqlite"
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -95,7 +96,15 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := kv.Prepare(); err != nil {
 		return nil, fmt.Errorf("preparing SQLite key/value statements: %w", err)
 	}
+	var marker int
+	err = db.QueryRow("SELECT 1 FROM meta WHERE metakey='reindexing'").Scan(&marker)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("checking SQLite reindex marker: %w", err)
+	}
 	success = true
+	if err == nil {
+		return kv, sorted.NeedWipeError{Msg: "SQLite database contains an incomplete reindex; a fresh rebuild is required"}
+	}
 	return kv, nil
 
 }
@@ -116,4 +125,36 @@ func (kv *keyValue) ping() error {
 func (kv *keyValue) SchemaVersion() (version int, err error) {
 	err = kv.db.QueryRow("SELECT value FROM meta WHERE metakey='version'").Scan(&version)
 	return
+}
+
+// Wipe preserves the schema and prepared statements, and clears both the data
+// and any incomplete-reindex marker in one transaction.
+func (kv *keyValue) Wipe() error {
+	kv.Gate.Start()
+	defer kv.Gate.Done()
+	conn, err := kv.db.Conn(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			discardSQLiteConn(conn)
+		}
+	}()
+	if _, err := tx.Exec("DELETE FROM rows"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM meta WHERE metakey='reindexing'"); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		discardSQLiteConn(conn)
+		return err
+	}
+	return nil
 }
