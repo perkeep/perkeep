@@ -123,6 +123,7 @@ var (
 		"index_test.go",
 		"keys_test.go",
 		"missing_cleanup_test.go",
+		"receive_exif_test.go",
 		"util_test.go",
 	}
 	// A map is used in hasAllRequiredTests to note which required
