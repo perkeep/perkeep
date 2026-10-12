@@ -172,7 +172,7 @@ func assertMissingCleanupMarker(t *testing.T, ix *Index, have blob.Ref, want boo
 	t.Helper()
 	ix.RLock()
 	defer ix.RUnlock()
-	if got := ix.hasMissing[have]; got != want {
+	if got := ix.hasMissing.Contains(have); got != want {
 		t.Errorf("hasMissing[%v] = %v; want %v", have, got, want)
 	}
 }
@@ -400,7 +400,7 @@ func TestMissingCleanupAmbiguousSetFailure(t *testing.T) {
 			s.onSet = func(got string) {
 				if got == key {
 					// noteNeededLocked holds ix.mu here.
-					markedBeforeSet = ix.hasMissing[have]
+					markedBeforeSet = ix.hasMissing.Contains(have)
 				}
 			}
 			ix.Lock()

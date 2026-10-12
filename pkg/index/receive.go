@@ -48,7 +48,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/schema"
-	"tailscale.com/util/mak"
+	"tailscale.com/util/set"
 )
 
 func init() {
@@ -128,21 +128,22 @@ func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 type indexOp struct {
 	// indexed is the set of blobs that finished indexing while this
 	// op was in progress. ix.mu must be held to access it.
-	indexed map[blob.Ref]bool
+	indexed set.Set[blob.Ref]
 }
 
 func (ix *Index) beginIndexOp() *indexOp {
 	op := new(indexOp)
 	ix.Lock()
 	defer ix.Unlock()
-	mak.Set(&ix.inFlight, op, true)
+	ix.inFlight.Make()
+	ix.inFlight.Add(op)
 	return op
 }
 
 func (ix *Index) endIndexOp(op *indexOp) {
 	ix.Lock()
 	defer ix.Unlock()
-	delete(ix.inFlight, op)
+	ix.inFlight.Delete(op)
 }
 
 // enqueueReadyLocked queues br to be indexed again now that the blobs
@@ -185,9 +186,10 @@ func (ix *Index) indexReadyBlobs(done chan struct{}) {
 		}
 		ix.Lock()
 		if err != nil {
-			mak.Set(&ix.readyFailed, br, true)
+			ix.readyFailed.Make()
+			ix.readyFailed.Add(br)
 		} else {
-			delete(ix.readyFailed, br)
+			ix.readyFailed.Delete(br)
 		}
 		ix.Unlock()
 	}
@@ -213,7 +215,8 @@ func (ix *Index) awaitReadyIdle() {
 // ix.mu must be held.
 func (ix *Index) noteBlobIndexedLocked(br blob.Ref) {
 	for op := range ix.inFlight {
-		mak.Set(&op.indexed, br, true)
+		op.indexed.Make()
+		op.indexed.Add(br)
 	}
 	for _, needer := range ix.neededBy[br] {
 		newNeeds := blobsFilteringOut(ix.needs[needer], br)
@@ -236,7 +239,7 @@ func (ix *Index) noteBlobIndexedLocked(br blob.Ref) {
 // ix.mu must be held.
 func (ix *Index) noteDepsLocked(op *indexOp, have blob.Ref, deps []blob.Ref) error {
 	for _, dep := range deps {
-		if op.indexed[dep] {
+		if op.indexed.Contains(dep) {
 			continue
 		}
 		if err := ix.noteNeededLocked(have, dep); err != nil {
@@ -253,7 +256,7 @@ func (ix *Index) noteDepsLocked(op *indexOp, have blob.Ref, deps []blob.Ref) err
 // ix.mu must be held, including while clearing hasMissing, so recording a new
 // edge cannot race with cleanup.
 func (ix *Index) removeAllMissingEdges(br blob.Ref) {
-	if !ix.hasMissing[br] {
+	if !ix.hasMissing.Contains(br) {
 		return
 	}
 	var toDelete []string
@@ -275,7 +278,7 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 			return
 		}
 	}
-	delete(ix.hasMissing, br)
+	ix.hasMissing.Delete(br)
 }
 
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {

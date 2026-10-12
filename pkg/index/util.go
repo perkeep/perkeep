@@ -22,6 +22,8 @@ import (
 
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
+
+	"tailscale.com/util/set"
 )
 
 var urle = url.QueryEscape
@@ -32,18 +34,16 @@ func urld(s string) string {
 }
 
 type dupSkipper struct {
-	m map[string]bool
+	m set.Set[string]
 }
 
 // not thread safe.
 func (s *dupSkipper) Dup(v string) bool {
-	if s.m == nil {
-		s.m = make(map[string]bool)
-	}
-	if s.m[v] {
+	s.m.Make()
+	if s.m.Contains(v) {
 		return true
 	}
-	s.m[v] = true
+	s.m.Add(v)
 	return false
 }
 

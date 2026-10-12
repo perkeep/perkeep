@@ -40,6 +40,7 @@ import (
 
 	"go4.org/strutil"
 	"go4.org/syncutil"
+	"tailscale.com/util/set"
 )
 
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
@@ -113,8 +114,8 @@ type Corpus struct {
 
 	// permanodesSetByNodeType maps from a camliNodeType attribute
 	// value to the set of permanodes that ever had that
-	// value. The bool is always true.
-	permanodesSetByNodeType map[string]map[blob.Ref]bool
+	// value.
+	permanodesSetByNodeType map[string]set.Set[blob.Ref]
 
 	// scratch string slice
 	ss []string
@@ -320,7 +321,7 @@ func newCorpus() *Corpus {
 		mediaTags:               make(map[blob.Ref]map[string]string),
 		deletes:                 make(map[blob.Ref][]deletion),
 		claimBack:               make(map[blob.Ref][]*camtypes.Claim),
-		permanodesSetByNodeType: make(map[string]map[blob.Ref]bool),
+		permanodesSetByNodeType: make(map[string]set.Set[blob.Ref]),
 		dirChildren:             make(map[blob.Ref]map[blob.Ref]struct{}),
 		fileParents:             make(map[blob.Ref]map[blob.Ref]struct{}),
 	}
@@ -412,11 +413,11 @@ var slurpPrefixes = []string{
 }
 
 // Key types (without trailing punctuation) that we slurp to memory at start.
-var slurpedKeyType = make(map[string]bool)
+var slurpedKeyType = make(set.Set[string])
 
 func init() {
 	for _, prefix := range slurpPrefixes {
-		slurpedKeyType[typeOfKey(prefix)] = true
+		slurpedKeyType.Add(typeOfKey(prefix))
 	}
 }
 
@@ -605,7 +606,7 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 			// because we already took care of it in addKeyID
 			continue
 		}
-		if !slurpedKeyType[kt] {
+		if !slurpedKeyType.Contains(kt) {
 			continue
 		}
 		if err := corpusMergeFunc[kt](c, []byte(k), []byte(v)); err != nil {
@@ -703,12 +704,12 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		c.claimBack[vbr] = append(c.claimBack[vbr], &cl)
 	}
 	if cl.Attr == "camliNodeType" {
-		set := c.permanodesSetByNodeType[cl.Value]
-		if set == nil {
-			set = make(map[blob.Ref]bool)
-			c.permanodesSetByNodeType[cl.Value] = set
+		nodes := c.permanodesSetByNodeType[cl.Value]
+		if nodes == nil {
+			nodes = make(set.Set[blob.Ref])
+			c.permanodesSetByNodeType[cl.Value] = nodes
 		}
-		set[pn] = true
+		nodes.Add(pn)
 	}
 	return nil
 }
