@@ -11,6 +11,7 @@
 
 - [BUILDING](BUILDING) - how to compile it ("go run make.go")
 - [CONTRIBUTING](CONTRIBUTING.md) - how to do development and contribute
+- [Immich mobile uploads](pkg/server/immich/README.md) - experimental photo/video backup API
 
 ### Perkeep Resources
 

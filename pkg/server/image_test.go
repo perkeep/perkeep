@@ -18,6 +18,8 @@ package server
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/draw"
@@ -32,12 +34,78 @@ import (
 
 	"go4.org/syncutil"
 	"golang.org/x/image/tiff"
+	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 )
+
+func TestScaleImage(t *testing.T) {
+	ctx := context.Background()
+	im := image.NewRGBA(image.Rect(0, 0, 40, 20))
+	draw.Draw(im, im.Bounds(), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
+	for _, tc := range []struct {
+		format string
+		encode func(*bytes.Buffer) error
+	}{
+		{"png", func(b *bytes.Buffer) error { return png.Encode(b, im) }},
+		{"jpeg", func(b *bytes.Buffer) error { return jpeg.Encode(b, im, nil) }},
+	} {
+		t.Run(tc.format, func(t *testing.T) {
+			var src bytes.Buffer
+			if err := tc.encode(&src); err != nil {
+				t.Fatal(err)
+			}
+			store := new(memory.Storage)
+			fileRef, err := schema.WriteFileFromReader(ctx, store, "image."+tc.format, &src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Scaling needs neither a search handler nor a thumbnail cache.
+			ih := &ImageHandler{
+				Fetcher: store, MaxWidth: 20, MaxHeight: 20,
+				ResizeSem: syncutil.NewSem(128 << 20),
+			}
+			data, format, err := ih.ScaleImage(ctx, fileRef)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if format != tc.format {
+				t.Errorf("ScaleImage format = %q; want %q", format, tc.format)
+			}
+			thumb, decodedFormat, err := image.Decode(bytes.NewReader(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decodedFormat != format {
+				t.Errorf("decoded format = %q; want %q", decodedFormat, format)
+			}
+			if got := thumb.Bounds().Size(); got != image.Pt(20, 10) {
+				t.Errorf("thumbnail size = %v; want 20x10", got)
+			}
+			if got := thumb.Bounds().Size(); got.X > ih.MaxWidth || got.Y > ih.MaxHeight {
+				t.Errorf("thumbnail size = %v exceeds %dx%d", got, ih.MaxWidth, ih.MaxHeight)
+			}
+		})
+	}
+}
+
+func TestScaleImageMissingBlob(t *testing.T) {
+	ih := &ImageHandler{
+		Fetcher: new(memory.Storage), MaxWidth: 20, MaxHeight: 20,
+		ResizeSem: syncutil.NewSem(128 << 20),
+	}
+	data, format, err := ih.ScaleImage(context.Background(), blob.RefFromString("missing image"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("ScaleImage error = %v; want os.ErrNotExist", err)
+	}
+	if data != nil || format != "" {
+		t.Errorf("ScaleImage returned data %q, format %q on failure; want nil, empty format", data, format)
+	}
+}
 
 func TestThumbnailContentType(t *testing.T) {
 	test.TLog(t)
