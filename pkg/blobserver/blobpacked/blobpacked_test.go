@@ -189,6 +189,126 @@ func TestPackNoDelete(t *testing.T) {
 	)
 }
 
+// corruptingStorage is a blobserver.Storage that flips a bit in the
+// contents of one blob when fetching it, after the first goodFetches
+// fetches of it.
+type corruptingStorage struct {
+	blobserver.Storage
+	bad         blob.Ref
+	goodFetches int
+
+	mu      sync.Mutex
+	fetches int
+}
+
+func (s *corruptingStorage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	rc, size, err := s.Storage.Fetch(ctx, br)
+	if err != nil || br != s.bad {
+		return rc, size, err
+	}
+	s.mu.Lock()
+	s.fetches++
+	good := s.fetches <= s.goodFetches
+	s.mu.Unlock()
+	if good {
+		return rc, size, nil
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, 0, err
+	}
+	b[len(b)/2] ^= 1
+	return io.NopCloser(bytes.NewReader(b)), size, nil
+}
+
+func TestPackCorruptChunk(t *testing.T) {
+	for _, goodFetches := range []int{0, 1} {
+		t.Run(fmt.Sprintf("goodFetches=%d", goodFetches), func(t *testing.T) {
+			small, large := new(test.Fetcher), new(test.Fetcher)
+			fileRef, err := schema.WriteFileFromReader(ctxbg, small, "foo.dat", bytes.NewReader(randBytes(1<<20)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fr, err := schema.NewFileReader(ctxbg, small, fileRef)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var chunks []blob.Ref
+			if err := fr.ForeachChunk(ctxbg, func(_ []blob.Ref, p schema.BytesPart) error {
+				chunks = append(chunks, p.BlobRef)
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if len(chunks) < 2 {
+				t.Fatalf("got %d chunks; want at least 2", len(chunks))
+			}
+			bad := chunks[len(chunks)/2]
+
+			s := &storage{
+				small: &corruptingStorage{Storage: small, bad: bad, goodFetches: goodFetches},
+				large: large,
+				meta:  sorted.NewMemoryKeyValue(),
+				log:   test.NewLogger(t, "blobpacked: "),
+			}
+			s.init()
+			numSmall := small.NumBlobs()
+
+			err = s.packFile(ctxbg, fileRef)
+			if err == nil || !strings.Contains(err.Error(), bad.String()) {
+				t.Fatalf("packFile error = %v; want error mentioning %v", err, bad)
+			}
+			if n := large.NumBlobs(); n != 0 {
+				t.Errorf("large has %d blobs; want 0", n)
+			}
+			if n := small.NumBlobs(); n != numSmall {
+				t.Errorf("small has %d blobs; want all %d still there", n, numSmall)
+			}
+			if n := countSortedRows(t, s.meta); n != 0 {
+				t.Errorf("meta has %d rows; want 0", n)
+			}
+		})
+	}
+}
+
+// TestPackPartialChunk tests that a file whose part uses only a prefix of
+// its chunk isn't packed, since its contents aren't just its chunks.
+func TestPackPartialChunk(t *testing.T) {
+	small, large := new(test.Fetcher), new(test.Fetcher)
+	chunk := &test.Blob{Contents: string(randBytes(1 << 10))}
+	chunk.MustUpload(t, small)
+	const partSize = 100
+	bb := schema.NewFileMap("foo.dat")
+	if err := bb.PopulateParts(partSize, []schema.BytesPart{{Size: partSize, BlobRef: chunk.BlobRef()}}); err != nil {
+		t.Fatal(err)
+	}
+	fileJSON, err := bb.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileBlob := &test.Blob{Contents: fileJSON}
+	fileBlob.MustUpload(t, small)
+
+	s := &storage{
+		small: small,
+		large: large,
+		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
+	}
+	s.init()
+	err = s.packFile(ctxbg, fileBlob.BlobRef())
+	if want := fmt.Sprintf("chunk %v is %d bytes; schema says %d", chunk.BlobRef(), chunk.Size(), partSize); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("packFile error = %v; want error containing %q", err, want)
+	}
+	if n := large.NumBlobs(); n != 0 {
+		t.Errorf("large has %d blobs; want 0", n)
+	}
+	if n := countSortedRows(t, s.meta); n != 0 {
+		t.Errorf("meta has %d rows; want 0", n)
+	}
+}
+
 func TestPackLarge(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")

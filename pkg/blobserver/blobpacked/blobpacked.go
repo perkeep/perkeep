@@ -1213,15 +1213,36 @@ func (pk *packer) pack(ctx context.Context) error {
 	// means we have to compute its wholeref first. We assume the
 	// blob source will cache these lookups so it's not too
 	// expensive to do two passes over the input.
+	//
+	// scanChunks rejects sparse files and offset parts, and the size
+	// check below rejects parts that use only a prefix of their chunk, so
+	// the file's contents are exactly its data chunks in order. Hash them
+	// directly, verifying each chunk's digest along the way: once a file
+	// is packed, its small copies get deleted, so a chunk whose contents
+	// don't match its blobref must stop the pack before anything is
+	// written.
 	h := blob.NewHash()
-	var err error
-	pk.wholeSize, err = io.Copy(h, pk.fr)
-	if err != nil {
-		return err
+	for _, dr := range pk.dataRefs {
+		b, err := blob.FromFetcher(ctx, pk.s, dr)
+		if err != nil {
+			return err
+		}
+		if b.Size() != pk.dataSize[dr] {
+			return fmt.Errorf("not packing file %v: chunk %v is %d bytes; schema says %d", pk.fileRef, dr, b.Size(), pk.dataSize[dr])
+		}
+		if err := b.ValidContents(ctx); err != nil {
+			return fmt.Errorf("not packing file %v: %w", pk.fileRef, err)
+		}
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			return err
+		}
+		n, _ := io.Copy(h, r) // bytes.Reader to hash.Hash can't fail
+		pk.wholeSize += n
 	}
 	pk.wholeRef = blob.RefFromHash(h)
 	wholeKey := wholeMetaPrefix + pk.wholeRef.String()
-	_, err = pk.s.meta.Get(wholeKey)
+	_, err := pk.s.meta.Get(wholeKey)
 	if err == nil {
 		// Nil error means there was some knowledge of this wholeref.
 		return fmt.Errorf("already have wholeref %v packed; not packing again", pk.wholeRef)
@@ -1275,11 +1296,14 @@ func (pk *packer) scanChunks(ctx context.Context) error {
 			}
 			schemaSeen[schemaRef] = true
 			pk.schemaRefs = append(pk.schemaRefs, schemaRef)
-			if b, err := blob.FromFetcher(ctx, pk.s, schemaRef); err != nil {
+			b, err := blob.FromFetcher(ctx, pk.s, schemaRef)
+			if err != nil {
 				return err
-			} else {
-				pk.schemaBlob[schemaRef] = b
 			}
+			if err := b.ValidContents(ctx); err != nil {
+				return fmt.Errorf("not packing file %v: %w", pk.fileRef, err)
+			}
+			pk.schemaBlob[schemaRef] = b
 		}
 		pk.dataRefs = append(pk.dataRefs, p.BlobRef)
 		return nil
@@ -1387,11 +1411,17 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 			rc.Close()
 			return errors.New("unexpected size")
 		}
-		if n, err := io.Copy(io.MultiWriter(fw, chunkWholeHash), rc); err != nil || n != int64(size) {
+		// pack verified this chunk already, but this is a separate read,
+		// and these are the bytes that end up in the zip.
+		chunkHash := dr.Hash()
+		if n, err := io.Copy(io.MultiWriter(fw, chunkWholeHash, chunkHash), rc); err != nil || n != int64(size) {
 			rc.Close()
 			return fmt.Errorf("copy to zip = %v, %w; want %v bytes", n, err, size)
 		}
 		rc.Close()
+		if !dr.HashMatches(chunkHash) {
+			return fmt.Errorf("not packing file %v: blob contents don't match digest for ref %v", pk.fileRef, dr)
+		}
 
 		dataRefsWritten = append(dataRefsWritten, dr)
 		dataBytesWritten += int64(size)
