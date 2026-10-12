@@ -137,9 +137,10 @@ func (id *IndexDeps) NewPermanode() blob.Ref {
 	return id.uploadAndSign(unsigned)
 }
 
-// NewPlannedPermanode creates (& signs) a new planned permanode and adds it
-// to the index, returning its blobref.
-func (id *IndexDeps) NewPlannedPermanode(key string) blob.Ref {
+// NewDeterministicPermanodeForTest creates and signs a permanode with a fixed
+// key and adds it to the index, returning its blobref. The blobref is
+// deterministic for a given key, signer, and test clock time.
+func (id *IndexDeps) NewDeterministicPermanodeForTest(key string) blob.Ref {
 	unsigned := schema.NewPlannedPermanode(key)
 	return id.uploadAndSign(unsigned)
 }
@@ -1256,7 +1257,7 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 	id.Fataler = t
 	defer id.DumpIndex(t)
 
-	pn1 := id.NewPlannedPermanode("foo1")
+	pn1 := id.NewDeterministicPermanodeForTest("foo1")
 	t.Logf("uploaded permanode %q", pn1)
 
 	// delete pn1
@@ -1366,7 +1367,7 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 
 	stepAdd := func(contents string) step { // add the blob
 		return func() error {
-			pn := id.NewPlannedPermanode(contents)
+			pn := id.NewDeterministicPermanodeForTest(contents)
 			t.Logf("uploaded permanode %q", pn)
 			added[contents] = pn
 			return nil

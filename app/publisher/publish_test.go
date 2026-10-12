@@ -44,15 +44,15 @@ func setupContent(rootName string) *indextest.IndexDeps {
 	idxd := indextest.NewIndexDeps(idx)
 
 	// sha224-fbc46cf344988fbb75328e45d2b98936c22d967765a796d4866f07c5
-	picNode := idxd.NewPlannedPermanode("picpn-1234")
+	picNode := idxd.NewDeterministicPermanodeForTest("picpn-1234")
 	// sha224-ee98f50055efb1ac808c87888ed7fdcb3e9ad91c843953ba0b4edf89
-	galRef := idxd.NewPlannedPermanode("gal-1234")
+	galRef := idxd.NewDeterministicPermanodeForTest("gal-1234")
 	// sha224-bc11ed943b436f9627e595003920bc8f940a47fc8cff4ef8378546b9
-	rootRef := idxd.NewPlannedPermanode("root-abcd")
+	rootRef := idxd.NewDeterministicPermanodeForTest("root-abcd")
 	// sha224-58bbb7bf2b6c05197b886c7408868dfc5f49fa9bec7302135ded83aa
-	camp0 := idxd.NewPlannedPermanode("picpn-9876543210")
+	camp0 := idxd.NewDeterministicPermanodeForTest("picpn-9876543210")
 	// sha224-11c2cf95528d78fa727cdd253caf6ab7acd84c83a47e0e6395ff4708
-	camp1 := idxd.NewPlannedPermanode("picpn-9876543211")
+	camp1 := idxd.NewDeterministicPermanodeForTest("picpn-9876543211")
 	// sha224-ed826bd5198e0dc536f385f8677da8f236e465a0d69704c16cb8afd6
 	camp0f, _ := idxd.UploadFile("picfile-f00ff00f00a5.jpg", "picfile-f00ff00f00a5", time.Time{})
 	// sha224-697b84a9b0ccb8705c3ae02c4fe659605e46255eefbd65328a5bcfdf

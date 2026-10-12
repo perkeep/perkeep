@@ -589,7 +589,7 @@ func initTests() []handlerTest {
 				idx := index.NewMemoryIndex()
 				id := indextest.NewIndexDeps(idx)
 
-				pn := id.NewPlannedPermanode("pn1")
+				pn := id.NewDeterministicPermanodeForTest("pn1")
 				id.SetAttribute(pn, "title", "Some title")
 				return indexAndOwner{idx, id.SignerBlobRef}
 			},
@@ -639,7 +639,7 @@ func initTests() []handlerTest {
 				}
 				dudeFileRef := uploadFile("dude.jpg", time.Time{})
 
-				pn := id.NewPlannedPermanode("pn1")
+				pn := id.NewDeterministicPermanodeForTest("pn1")
 				id.SetAttribute(pn, "camliContent", dudeFileRef.String())
 				return indexAndOwner{idx, id.SignerBlobRef}
 			},
@@ -710,9 +710,9 @@ func initTests() []handlerTest {
 					return br
 				}
 				dudeFileRef := uploadFile("dude.jpg", time.Time{})
-				pn := id.NewPlannedPermanode("pn1")
+				pn := id.NewDeterministicPermanodeForTest("pn1")
 				id.SetAttribute(pn, "camliContent", dudeFileRef.String())
-				collec := id.NewPlannedPermanode("pn2")
+				collec := id.NewDeterministicPermanodeForTest("pn2")
 				id.SetAttribute(collec, "camliMember", pn.String())
 				return indexAndOwner{idx, id.SignerBlobRef}
 			},
@@ -785,7 +785,7 @@ func initTests() []handlerTest {
 				idx := index.NewMemoryIndex()
 				id := indextest.NewIndexDeps(idx)
 
-				pn := id.NewPlannedPermanode("pn1")
+				pn := id.NewDeterministicPermanodeForTest("pn1")
 				id.SetAttribute(pn, "title", "Some title")
 				return indexAndOwner{idx, id.SignerBlobRef}
 			},
@@ -821,9 +821,9 @@ func initTests() []handlerTest {
 				idx := index.NewMemoryIndex()
 				id := indextest.NewIndexDeps(idx)
 
-				parent1 := id.NewPlannedPermanode("pn1") // sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0
-				parent2 := id.NewPlannedPermanode("pn2")
-				member := id.NewPlannedPermanode("member") // always sha224-4dc5db784a471953512550ccb87eaa3b526013db66b9fc93aa4441b7
+				parent1 := id.NewDeterministicPermanodeForTest("pn1") // sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0
+				parent2 := id.NewDeterministicPermanodeForTest("pn2")
+				member := id.NewDeterministicPermanodeForTest("member") // always sha224-4dc5db784a471953512550ccb87eaa3b526013db66b9fc93aa4441b7
 
 				id.AddAttribute(parent1, "camliMember", member.String())
 				id.AddAttribute(parent2, "camliMember", member.String())

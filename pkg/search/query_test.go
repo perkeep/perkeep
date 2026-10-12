@@ -413,8 +413,8 @@ func TestQueryPermanodeAttrExact(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p1, "someAttr", "value1")
 		id.SetAttribute(p2, "someAttr", "value2")
 
@@ -434,9 +434,9 @@ func TestQueryPermanodeAttrMatches(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p1, "someAttr", "value1")
 		id.SetAttribute(p2, "someAttr", "value2")
 		id.SetAttribute(p3, "someAttr", "NOT starting with value")
@@ -459,9 +459,9 @@ func TestStringConstraintRegexp(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p1, "someAttr", "value1")
 		id.SetAttribute(p2, "someAttr", "value2")
 		id.SetAttribute(p3, "someAttr", "value3")
@@ -486,10 +486,10 @@ func TestQueryPermanodeAttrNumValue(t *testing.T) {
 		// TODO(bradfitz): if we set an empty attribute value here and try to search
 		// by NumValue IntConstraint Min = 1, it fails only in classic (no corpus) mode.
 		// Something there must be skipping empty values.
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.AddAttribute(p1, "x", "1")
 		id.AddAttribute(p1, "x", "2")
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.AddAttribute(p2, "x", "1")
 		id.AddAttribute(p2, "x", "2")
 		id.AddAttribute(p2, "x", "3")
@@ -513,9 +513,9 @@ func TestQueryPermanodeAttrNumValueZeroMax(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.AddAttribute(p1, "x", "1")
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.AddAttribute(p2, "y", "1") // Permanodes without any attributes are ignored.
 
 		sq := &SearchQuery{
@@ -538,9 +538,9 @@ func TestQueryPermanodeAttrValueInSet(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "bar", "baz")
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "foo", p1.String())
 
 		sq := &SearchQuery{
@@ -565,11 +565,11 @@ func TestQueryPermanodeValueMatchesInt(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
-		p4 := id.NewPlannedPermanode("4")
-		p5 := id.NewPlannedPermanode("5")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
+		p4 := id.NewDeterministicPermanodeForTest("4")
+		p5 := id.NewDeterministicPermanodeForTest("5")
 		id.SetAttribute(p1, "x", "-5")
 		id.SetAttribute(p2, "x", "0")
 		id.SetAttribute(p3, "x", "2")
@@ -595,10 +595,10 @@ func TestQueryPermanodeValueMatchesFloat(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
-		p4 := id.NewPlannedPermanode("4")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
+		p4 := id.NewDeterministicPermanodeForTest("4")
 		id.SetAttribute(p1, "x", "2.5")
 		id.SetAttribute(p2, "x", "5.7")
 		id.SetAttribute(p3, "x", "10")
@@ -622,16 +622,16 @@ func TestQueryPermanodeLocation(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p1, "latitude", "51.5")
 		id.SetAttribute(p1, "longitude", "0")
 		id.SetAttribute(p2, "latitude", "51.5")
 		id.SetAttribute(p3, "longitude", "0")
 
-		p4 := id.NewPlannedPermanode("checkin")
-		p5 := id.NewPlannedPermanode("venue")
+		p4 := id.NewDeterministicPermanodeForTest("checkin")
+		p5 := id.NewDeterministicPermanodeForTest("venue")
 		id.SetAttribute(p4, "camliNodeType", "foursquare.com:checkin")
 		id.SetAttribute(p4, "foursquareVenuePermanode", p5.String())
 		id.SetAttribute(p5, "latitude", "1.0")
@@ -653,7 +653,7 @@ func TestQueryPermanodeLocation(t *testing.T) {
 		}
 		fileRef := uploadFile("dude-gps.jpg", time.Time{})
 
-		p6 := id.NewPlannedPermanode("photo")
+		p6 := id.NewDeterministicPermanodeForTest("photo")
 		id.SetAttribute(p6, "camliContent", fileRef.String())
 
 		sq := &SearchQuery{
@@ -689,7 +689,7 @@ func TestQueryFileLocation(t *testing.T) {
 		}
 		fileRef := uploadFile("dude-gps.jpg", time.Time{})
 
-		p6 := id.NewPlannedPermanode("photo")
+		p6 := id.NewDeterministicPermanodeForTest("photo")
 		id.SetAttribute(p6, "camliContent", fileRef.String())
 
 		sq := &SearchQuery{
@@ -738,12 +738,12 @@ func TestQueryFileConstraint(t *testing.T) {
 		id := qt.id
 		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
 		qt.t.Logf("fileRef = %q", fileRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", fileRef.String())
 
 		fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(456, 0))
 		qt.t.Logf("fileRef2 = %q", fileRef2)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef2.String())
 
 		sq := &SearchQuery{
@@ -773,12 +773,12 @@ func TestQueryDirConstraint(t *testing.T) {
 		id := qt.id
 		dirRef := id.UploadDir("somedir", []blob.Ref{}, time.Unix(789, 0))
 		qt.t.Logf("dirRef = %q", dirRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef3.String())
 
 		sq := &SearchQuery{
@@ -804,12 +804,12 @@ func TestQueryDirWithFileConstraint(t *testing.T) {
 		qt.t.Logf("fileRef2 = %q", fileRef2)
 		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2}, time.Unix(789, 0))
 		qt.t.Logf("dirRef = %q", dirRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef3.String())
 
 		sq := &SearchQuery{
@@ -842,14 +842,14 @@ func TestQueryDirWithLogicalNotConstraint(t *testing.T) {
 		qt.t.Logf("fileRef2 = %q", fileRef2)
 		dirRef1 := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2}, time.Unix(789, 0))
 		qt.t.Logf("dirRef1 = %q", dirRef1)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef1.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
 		dirRef2 := id.UploadDir("anotherdir", []blob.Ref{fileRef3}, time.Unix(181112, 0))
 		qt.t.Logf("dirRef2 = %q", dirRef2)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", dirRef2.String())
 
 		sq := &SearchQuery{
@@ -884,12 +884,12 @@ func TestQueryDirWithFileOrDirConstraint(t *testing.T) {
 		qt.t.Logf("childDirRef = %q", childDirRef)
 		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, childDirRef}, time.Unix(789, 0))
 		qt.t.Logf("dirRef = %q", dirRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef3.String())
 
 		sq := &SearchQuery{
@@ -934,12 +934,12 @@ func TestQueryDirChildrenByNameConstraint(t *testing.T) {
 		qt.t.Logf("childDirRef = %q", childDirRef)
 		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2, childDirRef}, time.Unix(789, 0))
 		qt.t.Logf("dirRef = %q", dirRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef3.String())
 
 		sq := &SearchQuery{
@@ -979,12 +979,12 @@ func TestQueryDirChildrenByRefConstraint(t *testing.T) {
 		qt.t.Logf("childDirRef = %q", childDirRef)
 		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2, childDirRef}, time.Unix(789, 0))
 		qt.t.Logf("dirRef = %q", dirRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", dirRef.String())
 
 		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
 		qt.t.Logf("fileRef3 = %q", fileRef3)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef3.String())
 
 		sq := &SearchQuery{
@@ -1020,10 +1020,10 @@ func TestQueryDirProgeny(t *testing.T) {
 		qt.t.Logf("parentdir = %q", parentdir)
 		grandparentdir := id.UploadDir("grandparentdir", []blob.Ref{parentdir}, time.Unix(101112, 0))
 		qt.t.Logf("grandparentdir = %q", grandparentdir)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", grandparentdir.String())
 
-		p3 := id.NewPlannedPermanode("3")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p3, "camliContent", parentdir.String())
 
 		// adding an unrelated directory, to make sure we do _not_ find it as well
@@ -1031,7 +1031,7 @@ func TestQueryDirProgeny(t *testing.T) {
 		qt.t.Logf("fileRef3 = %q", fileRef3)
 		otherdir := id.UploadDir("otherdir", []blob.Ref{fileRef3}, time.Unix(161718, 0))
 		qt.t.Logf("otherdir = %q", otherdir)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", otherdir.String())
 
 		sq := &SearchQuery{
@@ -1072,12 +1072,12 @@ func TestQueryFileConstraint_WholeRef(t *testing.T) {
 		id := qt.id
 		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
 		qt.t.Logf("fileRef = %q", fileRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", fileRef.String())
 
 		fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(456, 0))
 		qt.t.Logf("fileRef2 = %q", fileRef2)
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "camliContent", fileRef2.String())
 
 		sq := &SearchQuery{
@@ -1101,9 +1101,9 @@ func TestQueryPermanodeModtime(t *testing.T) {
 		id := qt.id
 
 		// indextest advances time one second per operation:
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p1, "someAttr", "value1") // 2011-11-28 01:32:37.000123456 +0000 UTC 1322443957
 		id.SetAttribute(p2, "someAttr", "value2") // 2011-11-28 01:32:38.000123456 +0000 UTC 1322443958
 		id.SetAttribute(p3, "someAttr", "value3") // 2011-11-28 01:32:39.000123456 +0000 UTC 1322443959
@@ -1163,7 +1163,7 @@ func TestQueryFileCandidateSource(t *testing.T) {
 		id := qt.id
 		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
 		qt.t.Logf("fileRef = %q", fileRef)
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "camliContent", fileRef.String())
 
 		sq := &SearchQuery{
@@ -1194,11 +1194,11 @@ func testQueryRecentPermanodes(t *testing.T, sortType SortType, source string) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "foo", "p1")
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "foo", "p2")
-		p3 := id.NewPlannedPermanode("3")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p3, "foo", "p3")
 
 		var usedSource string
@@ -1281,7 +1281,7 @@ func testQueryRecentPermanodes_Continue(t *testing.T, sortType SortType) {
 
 		var blobs []blob.Ref
 		for i := 1; i <= 4; i++ {
-			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			pn := id.NewDeterministicPermanodeForTest(fmt.Sprint(i))
 			blobs = append(blobs, pn)
 			t.Logf("permanode %d is %v", i, pn)
 			id.SetAttribute_NoTimeMove(pn, "foo", "bar")
@@ -1354,7 +1354,7 @@ func testQueryRecentPermanodes_ContinueEndMidPage(t *testing.T, sortType SortTyp
 
 		var blobs []blob.Ref
 		for i := 1; i <= 3; i++ {
-			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			pn := id.NewDeterministicPermanodeForTest(fmt.Sprint(i))
 			blobs = append(blobs, pn)
 			t.Logf("permanode %d is %v", i, pn)
 			id.SetAttribute_NoTimeMove(pn, "foo", "bar")
@@ -1412,8 +1412,8 @@ func TestQueryPermanodeValueAll(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p1, "attr", "foo")
 		id.SetAttribute(p1, "attr", "barrrrr")
 		id.SetAttribute(p2, "attr", "foo")
@@ -1442,8 +1442,8 @@ func TestQueryPermanodeValueMatchesCaseInsensitive(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 
 		id.SetAttribute(p1, "x", "Foo")
 		id.SetAttribute(p2, "x", "start")
@@ -1483,10 +1483,10 @@ func TestQueryChildren(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
-		pdir := id.NewPlannedPermanode("some_dir")
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		pdir := id.NewDeterministicPermanodeForTest("some_dir")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 
 		id.AddAttribute(pdir, "camliMember", p1.String())
 		id.AddAttribute(pdir, "camliPath:foo", p2.String())
@@ -1517,11 +1517,11 @@ func TestQueryParent(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
-		pdir1 := id.NewPlannedPermanode("some_dir_1")
-		pdir2 := id.NewPlannedPermanode("some_dir_2")
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
+		pdir1 := id.NewDeterministicPermanodeForTest("some_dir_1")
+		pdir2 := id.NewDeterministicPermanodeForTest("some_dir_2")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 
 		id.AddAttribute(pdir1, "camliMember", p1.String())
 		id.AddAttribute(pdir1, "camliPath:foo", p2.String())
@@ -1589,7 +1589,7 @@ func testAroundUnsortedSource(limit, pos int, t *testing.T) {
 		unsorted := make(map[string]blob.Ref)
 
 		addToSorted := func(i int) {
-			p := id.NewPlannedPermanode(fmt.Sprintf("%d", i))
+			p := id.NewDeterministicPermanodeForTest(fmt.Sprintf("%d", i))
 			unsorted[p.String()] = p
 			sorted = append(sorted, p.String())
 		}
@@ -1650,19 +1650,19 @@ func testAroundChildren(limit, pos int, t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
-		pdir := id.NewPlannedPermanode("some_dir")
-		p0 := id.NewPlannedPermanode("0")
-		p1 := id.NewPlannedPermanode("1")
-		p2 := id.NewPlannedPermanode("2")
-		p3 := id.NewPlannedPermanode("3")
-		p4 := id.NewPlannedPermanode("4")
-		p5 := id.NewPlannedPermanode("5")
-		p6 := id.NewPlannedPermanode("6")
-		p7 := id.NewPlannedPermanode("7")
-		p8 := id.NewPlannedPermanode("8")
-		p9 := id.NewPlannedPermanode("9")
-		p10 := id.NewPlannedPermanode("10")
-		p11 := id.NewPlannedPermanode("11")
+		pdir := id.NewDeterministicPermanodeForTest("some_dir")
+		p0 := id.NewDeterministicPermanodeForTest("0")
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		p2 := id.NewDeterministicPermanodeForTest("2")
+		p3 := id.NewDeterministicPermanodeForTest("3")
+		p4 := id.NewDeterministicPermanodeForTest("4")
+		p5 := id.NewDeterministicPermanodeForTest("5")
+		p6 := id.NewDeterministicPermanodeForTest("6")
+		p7 := id.NewDeterministicPermanodeForTest("7")
+		p8 := id.NewDeterministicPermanodeForTest("8")
+		p9 := id.NewDeterministicPermanodeForTest("9")
+		p10 := id.NewDeterministicPermanodeForTest("10")
+		p11 := id.NewDeterministicPermanodeForTest("11")
 
 		id.AddAttribute(pdir, "camliMember", p0.String())
 		id.AddAttribute(pdir, "camliMember", p1.String())
@@ -1755,11 +1755,11 @@ func TestQueryPermanodeTaggedViaParent(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		ptagged := id.NewPlannedPermanode("tagged_photo")
-		pindirect := id.NewPlannedPermanode("via_parent")
-		pset := id.NewPlannedPermanode("set")
-		pboth := id.NewPlannedPermanode("both") // funny directly and via its parent
-		pnotfunny := id.NewPlannedPermanode("not_funny")
+		ptagged := id.NewDeterministicPermanodeForTest("tagged_photo")
+		pindirect := id.NewDeterministicPermanodeForTest("via_parent")
+		pset := id.NewDeterministicPermanodeForTest("set")
+		pboth := id.NewDeterministicPermanodeForTest("both") // funny directly and via its parent
+		pnotfunny := id.NewDeterministicPermanodeForTest("not_funny")
 
 		id.SetAttribute(ptagged, "tag", "funny")
 		id.SetAttribute(pset, "tag", "funny")
@@ -1820,7 +1820,7 @@ func testLimitDoesntDeadlock(t *testing.T, sortType SortType) {
 
 		const limit = 2
 		for i := 0; i < ExportBufferedConst()+limit+1; i++ {
-			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			pn := id.NewDeterministicPermanodeForTest(fmt.Sprint(i))
 			id.SetAttribute(pn, "foo", "bar")
 		}
 
@@ -1993,11 +1993,11 @@ func BenchmarkQueryRecentPermanodes(b *testing.B) {
 	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {
 		id := qt.id
 
-		p1 := id.NewPlannedPermanode("1")
+		p1 := id.NewDeterministicPermanodeForTest("1")
 		id.SetAttribute(p1, "foo", "p1")
-		p2 := id.NewPlannedPermanode("2")
+		p2 := id.NewDeterministicPermanodeForTest("2")
 		id.SetAttribute(p2, "foo", "p2")
-		p3 := id.NewPlannedPermanode("3")
+		p3 := id.NewDeterministicPermanodeForTest("3")
 		id.SetAttribute(p3, "foo", "p3")
 
 		req := &SearchQuery{
@@ -2036,7 +2036,7 @@ func benchmarkQueryPermanodes(b *testing.B, describe bool) {
 		id := qt.id
 
 		for i := range 1000 {
-			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			pn := id.NewDeterministicPermanodeForTest(fmt.Sprint(i))
 			id.SetAttribute(pn, "foo", fmt.Sprint(i))
 		}
 
@@ -2088,10 +2088,10 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		var n int
 		newPn := func() blob.Ref {
 			n++
-			return id.NewPlannedPermanode(fmt.Sprint(n))
+			return id.NewDeterministicPermanodeForTest(fmt.Sprint(n))
 		}
 
-		pn := id.NewPlannedPermanode("photo")
+		pn := id.NewDeterministicPermanodeForTest("photo")
 		id.SetAttribute(pn, "camliContent", fileRef.String())
 
 		for i := range 5 {
@@ -2175,7 +2175,7 @@ func TestRefQuerySource_Logical(t *testing.T) {
 func TestIsCheckinQuerySource(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
-		pn := id.NewPlannedPermanode("photo")
+		pn := id.NewDeterministicPermanodeForTest("photo")
 		id.SetAttribute(pn, "camliNodeType", "foursquare.com:checkin")
 
 		sq := &SearchQuery{
@@ -2201,7 +2201,7 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		var n int
 		newPn := func() blob.Ref {
 			n++
-			return id.NewPlannedPermanode(fmt.Sprint(n))
+			return id.NewDeterministicPermanodeForTest(fmt.Sprint(n))
 		}
 
 		// create (~700) venues all over the world, and mark 25% of them as places we've been to
