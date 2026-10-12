@@ -208,7 +208,8 @@ func (e *Edge) String() string {
 }
 
 // BlobMeta is the metadata kept for each known blob in the in-memory
-// search index. It's kept as small as possible to save memory.
+// search index. The corpus stores a compact representation internally to save
+// memory while keeping this type string-based for callers.
 type BlobMeta struct {
 	Ref  blob.Ref
 	Size uint32
@@ -216,8 +217,6 @@ type BlobMeta struct {
 	// CamliType is non-empty if this blob is a Perkeep JSON
 	// schema blob. If so, this is its "camliType" attribute.
 	CamliType schema.CamliType
-
-	// TODO(bradfitz): change CamliTypethis *string to save 8 bytes
 }
 
 // SearchErrorResponse is the JSON error response for a search request.

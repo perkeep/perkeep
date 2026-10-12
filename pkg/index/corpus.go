@@ -66,12 +66,12 @@ type Corpus struct {
 	brOfStr   map[string]blob.Ref // blob.Parse fast path
 	brInterns int64               // blob.Ref -> blob.Ref, via br method
 
-	blobs        map[blob.Ref]*camtypes.BlobMeta
+	blobs        map[blob.Ref]*corpusBlobMeta
 	sumBlobBytes int64
 
 	// camBlobs maps from camliType ("file") to blobref to the meta.
 	// The value is the same one in blobs.
-	camBlobs map[schema.CamliType]map[blob.Ref]*camtypes.BlobMeta
+	camBlobs map[schema.CamliType]map[blob.Ref]*corpusBlobMeta
 
 	// TODO: add GoLLRB to vendor; keep sorted BlobMeta
 	keyId signerFromBlobrefMap
@@ -307,8 +307,8 @@ func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
 
 func newCorpus() *Corpus {
 	c := &Corpus{
-		blobs:                   make(map[blob.Ref]*camtypes.BlobMeta),
-		camBlobs:                make(map[schema.CamliType]map[blob.Ref]*camtypes.BlobMeta),
+		blobs:                   make(map[blob.Ref]*corpusBlobMeta),
+		camBlobs:                make(map[schema.CamliType]map[blob.Ref]*corpusBlobMeta),
 		files:                   make(map[blob.Ref]camtypes.FileInfo),
 		permanodes:              make(map[blob.Ref]*PermanodeMeta),
 		imageInfo:               make(map[blob.Ref]camtypes.ImageInfo),
@@ -655,17 +655,17 @@ func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	if _, dup := c.blobs[bm.Ref]; dup {
 		panic("dup blob seen")
 	}
-	bm.CamliType = schema.CamliType((c.str(string(bm.CamliType))))
-
-	c.blobs[bm.Ref] = &bm
+	meta := newCorpusBlobMeta(bm)
+	c.blobs[bm.Ref] = meta
 	c.sumBlobBytes += int64(bm.Size)
 	if bm.CamliType != "" {
-		m, ok := c.camBlobs[bm.CamliType]
+		camliType := meta.camliType.Value()
+		m, ok := c.camBlobs[camliType]
 		if !ok {
-			m = make(map[blob.Ref]*camtypes.BlobMeta)
-			c.camBlobs[bm.CamliType] = m
+			m = make(map[blob.Ref]*corpusBlobMeta)
+			c.camBlobs[camliType] = m
 		}
-		m[bm.Ref] = &bm
+		m[bm.Ref] = meta
 	}
 	return nil
 }
@@ -954,7 +954,7 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 func (c *Corpus) EnumerateCamliBlobs(camType schema.CamliType, fn func(camtypes.BlobMeta) bool) {
 	if camType != "" {
 		for _, bm := range c.camBlobs[camType] {
-			if !fn(*bm) {
+			if !fn(bm.blobMeta()) {
 				return
 			}
 		}
@@ -962,7 +962,7 @@ func (c *Corpus) EnumerateCamliBlobs(camType schema.CamliType, fn func(camtypes.
 	}
 	for _, m := range c.camBlobs {
 		for _, bm := range m {
-			if !fn(*bm) {
+			if !fn(bm.blobMeta()) {
 				return
 			}
 		}
@@ -974,7 +974,7 @@ func (c *Corpus) EnumerateCamliBlobs(camType schema.CamliType, fn func(camtypes.
 // If fn returns false, iteration ends.
 func (c *Corpus) EnumerateBlobMeta(fn func(camtypes.BlobMeta) bool) {
 	for _, bm := range c.blobs {
-		if !fn(*bm) {
+		if !fn(bm.blobMeta()) {
 			return
 		}
 	}
@@ -1073,7 +1073,7 @@ func (c *Corpus) enumeratePermanodes(fn func(camtypes.BlobMeta) bool, pns []pnAn
 		if bm == nil {
 			continue
 		}
-		if !fn(*bm) {
+		if !fn(bm.blobMeta()) {
 			return
 		}
 	}
@@ -1096,7 +1096,7 @@ func (c *Corpus) EnumeratePermanodesCreated(fn func(camtypes.BlobMeta) bool, new
 // EnumerateSingleBlob calls fn with br's BlobMeta if br exists in the corpus.
 func (c *Corpus) EnumerateSingleBlob(fn func(camtypes.BlobMeta) bool, br blob.Ref) {
 	if bm := c.blobs[br]; bm != nil {
-		fn(*bm)
+		fn(bm.blobMeta())
 	}
 }
 
@@ -1108,7 +1108,7 @@ func (c *Corpus) EnumeratePermanodesByNodeTypes(fn func(camtypes.BlobMeta) bool,
 		set := c.permanodesSetByNodeType[t]
 		for br := range set {
 			if bm := c.blobs[br]; bm != nil {
-				if !fn(*bm) {
+				if !fn(bm.blobMeta()) {
 					return
 				}
 			}
@@ -1121,7 +1121,7 @@ func (c *Corpus) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMet
 	if !ok {
 		return camtypes.BlobMeta{}, os.ErrNotExist
 	}
-	return *bm, nil
+	return bm.blobMeta(), nil
 }
 
 func (c *Corpus) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
