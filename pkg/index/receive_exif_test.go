@@ -134,6 +134,11 @@ func TestPopulateFileJPEGEXIFFallback(t *testing.T) {
 	atSniffBoundary = append(atSniffBoundary, app1...)
 	atSniffBoundary = append(atSniffBoundary, large[2:]...)
 
+	// The fixture has no EXIF timezone, and its GPS coordinates do not
+	// resolve to a timezone, so FileTime interprets its timestamp in time.Local.
+	exifFileTimes := time.Date(2013, time.February, 18, 1, 11, 20, 0, time.Local).
+		UTC().Format(time.RFC3339) + ",2023-11-14T22:13:20Z"
+
 	// APP1 candidates must retain the old decoder behavior, even when they
 	// follow the retained prefix, SOS, or EOI. The decoder searches raw bytes,
 	// not just JPEG headers. A .jpg extension alone is not proof of JPEG data:
@@ -145,13 +150,13 @@ func TestPopulateFileJPEGEXIFFallback(t *testing.T) {
 		gps       string
 		refetch   bool
 	}{
-		{"early", orig, "2013-02-18T01:11:20Z,2023-11-14T22:13:20Z", "-0.0000010|-120.0000000", false},
-		{"sniffBoundary", atSniffBoundary, "2013-02-18T01:11:20Z,2023-11-14T22:13:20Z", "-0.0000010|-120.0000000", false},
+		{"early", orig, exifFileTimes, "-0.0000010|-120.0000000", false},
+		{"sniffBoundary", atSniffBoundary, exifFileTimes, "-0.0000010|-120.0000000", false},
 		{"afterEOI", append(bytes.Clone(large), app1...), "2023-11-14T22:13:20Z", "-0.0000010|-120.0000000", true},
 		{"falseCandidate", append(bytes.Clone(large), []byte("\xff\xe1\x00\x08notEXF")...), "2023-11-14T22:13:20Z", "", true},
 		{"truncatedCandidate", append(bytes.Clone(large), []byte("\xff\xe1\x00")...), "2023-11-14T22:13:20Z", "", true},
-		{"rawExifNamedJPEG", app1[4:], "2013-02-18T01:11:20Z,2023-11-14T22:13:20Z", "-0.0000010|-120.0000000", false},
-		{"tiffNamedJPEG", app1[10:], "2013-02-18T01:11:20Z,2023-11-14T22:13:20Z", "-0.0000010|-120.0000000", false},
+		{"rawExifNamedJPEG", app1[4:], exifFileTimes, "-0.0000010|-120.0000000", false},
+		{"tiffNamedJPEG", app1[10:], exifFileTimes, "-0.0000010|-120.0000000", false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			sto, file := exifTestFile(t, tt.data, "image.jpg")
