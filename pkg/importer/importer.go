@@ -959,6 +959,12 @@ func (im *importer) account(nodeRef blob.Ref) (*importerAcct, error) {
 	}
 	im.acctmu.Lock()
 	defer im.acctmu.Unlock()
+	// Another request may have loaded this account while we were describing
+	// its objects. Use the canonical instance so account state and importer
+	// synchronization are not split between independently cached Objects.
+	if existing := im.acct[nodeRef]; existing != nil {
+		return existing, nil
+	}
 	im.addAccountLocked(ia)
 	return ia, nil
 }
