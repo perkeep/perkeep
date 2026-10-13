@@ -126,6 +126,21 @@ Unless `runIndex` is set to `false`, exactly one of these must be set:
 * `postgres`: user@host:password
 * `memoryIndex`: if true, a memory-only indexer is used.
 
+SQLite is the default indexer and a good starting point for most installations.
+It stores the index in a local file, requires no separate database server, and
+uses the pure-Go `modernc.org/sqlite` driver, including on Windows. It also
+supports batched reindexing and detects an interrupted reindex so that it can
+be rebuilt before serving requests.
+
+LevelDB and `modernc.org/kv` are other local, file-backed options that do not
+require a database server. MySQL (including MariaDB) and PostgreSQL require a
+separate database server; choose one if you want to manage the index with an
+existing DBMS. `memoryIndex` is for development and testing: its contents are
+lost when the server stops.
+
+These options select the index backend, not where blobs are stored. The index
+can be rebuilt from the blobs with `perkeepd --reindex`.
+
 ## Database-related options {#database}
 
 * `dbname`: optional name of the index database if MySQL or PostgreSQL
@@ -210,24 +225,10 @@ These can be setup by visiting the "`/importer/`" URL prefix path, e.g. `http://
 
 ## Windows {#windows}
 
-The default configuration comes with SQLite for the indexer. However, getting
-[mattn go-sqlite3](https://github.com/mattn/go-sqlite3) to work on windows is
-not straightforward, so we suggest using one of the other indexers, like MySQL.
-
-The following steps should get you started with MySQL:
-
-* Download and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
-  or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
-  requires .NET).
-* Edit your server configuration file (if it does not exit yet, running
-  **perkeepd** will automatically create it):
-  * Remove the <b>sqlite</b> option.
-  * Add a <b>dbname</b> option. (ex: "dbname": "camliprod")
-  * Add a <b>mysql</b> option. (ex: "mysql": "foo@localhost:bar")
-* Create a dedicated user/password for your mysql server.
-* Initialize the database with **pk**: `pk dbinit --user=foo
-  --password=bar --host=localhost --dbname=camliprod --wipe`
-
+The default SQLite indexer works on Windows. Its pure-Go driver does not
+require cgo or a C compiler, so there is no need to switch to MySQL just to run
+on Windows. If you prefer a database server, see the [indexing](#indexing) and
+[database-related](#database) options above.
 
 # Low-level configuration {#lowlevel}
 
