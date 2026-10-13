@@ -555,6 +555,9 @@ func (c *FloatConstraint) checkValid() error {
 	if c == nil {
 		return nil
 	}
+	if math.IsNaN(c.Min) || math.IsInf(c.Min, 0) || math.IsNaN(c.Max) || math.IsInf(c.Max, 0) {
+		return errors.New("in FloatConstraint, bounds must be finite")
+	}
 	if c.ZeroMin && c.Min != 0 {
 		return errors.New("in FloatConstraint, can't set both ZeroMin and Min")
 	}
@@ -568,6 +571,9 @@ func (c *FloatConstraint) checkValid() error {
 }
 
 func (c *FloatConstraint) floatMatches(v float64) bool {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return false
+	}
 	if c.hasMin() && v < c.Min {
 		return false
 	}

@@ -90,6 +90,31 @@ For example, `is:bike -is:ebike` excludes electric rides, while
 `is:run or is:hike` combines running and hiking. The operators work with
 ordinary grouping, negation, dates, tags, and location predicates.
 
+**<a name="miles"></a>miles**, **<a name="km"></a>km**,
+**<a name="kilometers"></a>kilometers**, **<a name="meters"></a>meters**
+: filters fitness activities by distance in the named unit. `km` and
+  `kilometers` are aliases. Query values are converted to metres and matched
+  against the existing `fitnessDistance` attribute; no duplicate unit-specific
+  properties are stored. One mile is exactly 1,609.344 metres.
+
+Distance filters accept:
+
+| Example | Meaning |
+| --- | --- |
+| `miles:>=5` or `miles:5-` | At least five miles. |
+| `km:>=10` | At least ten kilometres. |
+| `km:5-10` | Between five and ten kilometres, including both endpoints. |
+| `km:<=10` or `km:-10` | At most ten kilometres. |
+| `miles:>5` | Strictly more than five miles. |
+| `km:<10` | Strictly less than ten kilometres. |
+| `meters:1000` or `meters:=1000` | Exactly one thousand metres. |
+
+Fractional values are supported. Bounds must be finite and nonnegative;
+missing or invalid stored distances do not match. Comparisons use the full
+stored distance, not the one-decimal rounding shown on activity cards.
+For example, `is:run miles:>=5` selects runs of at least five miles, and
+`is:bike km:10-50` selects rides between ten and fifty kilometres.
+
 **<a name="lanscape"></a>is:landscape**
 : the image has a landscape aspect
 

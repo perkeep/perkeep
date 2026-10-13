@@ -82,6 +82,13 @@ provider-specific activity types, rather than introducing a new generic
 attribute solely for that importer. See [search operators](/doc/search-ui.md)
 for composition examples.
 
+Distance predicates `miles:`, `km:` (also `kilometers:`), and `meters:`
+convert query values to metres before applying numeric constraints to
+`fitnessDistance`. For example, `miles:>=5` means at least 8,046.72 metres,
+and `km:>=10` means at least 10,000 metres. Queries compare full precision;
+the card's rounded display values are not synthesized or indexed as separate
+properties.
+
 ## Web UI rendering
 
 The web UI recognizes `fitnessActivity` without consulting provider-specific

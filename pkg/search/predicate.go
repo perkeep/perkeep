@@ -137,6 +137,10 @@ func init() {
 	registerKeyword(newIsFitness("ride", "ride"))
 	registerKeyword(newIsFitness("bike", "ride"))
 	registerKeyword(newIsEBike())
+	registerKeyword(newFitnessDistance("miles", 1609344, 1000))
+	registerKeyword(newFitnessDistance("km", 1000, 1))
+	registerKeyword(newFitnessDistance("kilometers", 1000, 1))
+	registerKeyword(newFitnessDistance("meters", 1, 1))
 
 	// Location predicates
 	registerKeyword(newHasLocation())
