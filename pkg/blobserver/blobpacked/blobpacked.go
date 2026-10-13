@@ -89,8 +89,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -381,50 +383,41 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 // problem, as well as the error detailing the problem. It does not perform any
 // check about the contents of the large blobs themselves.
 func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
-	inLarge := 0
-	var missing []blob.Ref // blobs in large but not in meta
-	var extra []blob.Ref   // blobs in meta but not in large
-	// This iterator is safe to keep open: enumFunc only reads the current
-	// row, and enumerates the separate large storage, never s.meta.
-	t := s.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
-	defer t.Close()
-	iterate := true
-	var enumFunc func(sb blob.SizedRef) error
-	enumFunc = func(sb blob.SizedRef) error {
-		if iterate && !t.Next() {
-			// all of the yet to be enumerated are missing from meta
-			missing = append(missing, sb.Ref)
-			return nil
-		}
-		iterate = true
-		wantMetaKey := zipMetaPrefix + sb.Ref.String()
-		metaKey := t.Key()
-		if metaKey != wantMetaKey {
-			if metaKey > wantMetaKey {
-				// zipRef missing from meta
-				missing = append(missing, sb.Ref)
-				iterate = false
-				return nil
-			}
-			// zipRef in meta that actually does not exist in s.large.
-			xbr, ok := blob.Parse(strings.TrimPrefix(metaKey, zipMetaPrefix))
-			if !ok {
-				return fmt.Errorf("bogus key in z: row: %q", metaKey)
-			}
-			extra = append(extra, xbr)
-			// iterate meta once more at the same storage enumeration point
-			return enumFunc(sb)
-		}
-		if _, err := parseZipMetaRow(t.ValueBytes()); err != nil {
-			return fmt.Errorf("error parsing row from meta: %w", err)
-		}
-		inLarge++
-		return nil
-	}
 	log.Printf("blobpacked: checking integrity of packed blobs against index...")
-	if err := blobserver.EnumerateAllFrom(context.Background(), s.large, "", enumFunc); err != nil {
+	// Collect the large blobs first, rather than walking the z: rows
+	// alongside a sorted enumeration, so that large storage can list
+	// them in whatever order is fastest (see blobserver.RefLister).
+	unindexed := make(map[blob.Ref]bool) // in large but not (yet seen) in meta
+	if err := blobserver.ListAllRefs(context.Background(), s.large, func(br blob.Ref) error {
+		unindexed[br] = true
+		return nil
+	}); err != nil {
 		return FullRecovery, err
 	}
+	inLarge := 0
+	var extra []blob.Ref // blobs in meta but not in large
+	t := s.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
+	defer t.Close()
+	for t.Next() {
+		metaKey := t.Key()
+		zipRef, ok := blob.Parse(strings.TrimPrefix(metaKey, zipMetaPrefix))
+		if !ok {
+			return FullRecovery, fmt.Errorf("bogus key in z: row: %q", metaKey)
+		}
+		if !unindexed[zipRef] {
+			extra = append(extra, zipRef)
+			continue
+		}
+		delete(unindexed, zipRef)
+		if _, err := parseZipMetaRow(t.ValueBytes()); err != nil {
+			return FullRecovery, fmt.Errorf("error parsing row from meta: %w", err)
+		}
+		inLarge++
+	}
+	if err := t.Close(); err != nil {
+		return FullRecovery, fmt.Errorf("error reading or closing index: %w", err)
+	}
+	missing := slices.Collect(maps.Keys(unindexed)) // blobs in large but not in meta
 	log.Printf("blobpacked: %d large blobs found in index, %d missing from index", inLarge, len(missing))
 	if len(missing) > 0 {
 		printSample(missing, "missing")
@@ -432,9 +425,6 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 	if len(extra) > 0 {
 		printSample(extra, "extra")
 		return FullRecovery, fmt.Errorf("%d large blobs in index but not actually in storage", len(extra))
-	}
-	if err := t.Close(); err != nil {
-		return FullRecovery, fmt.Errorf("error reading or closing index: %w", err)
 	}
 	if len(missing) > 0 {
 		return FastRecovery, fmt.Errorf("%d large blobs missing from index", len(missing))

@@ -17,6 +17,7 @@ limitations under the License.
 package files
 
 import (
+	"io/fs"
 	"os"
 
 	"perkeep.org/thirdparty/go/robustio"
@@ -48,11 +49,13 @@ func (osFS) Open(path string) (ReadableFile, error)            { return os.Open(
 func (osFS) MkdirAll(path string, perm os.FileMode) error      { return os.MkdirAll(path, perm) }
 func (osFS) TempFile(dir, prefix string) (WritableFile, error) { return os.CreateTemp(dir, prefix) }
 
-func (osFS) ReadDirNames(dir string) ([]string, error) {
+func (osFS) ReadDir(dir string) ([]fs.DirEntry, error) {
 	d, err := os.Open(dir)
 	if err != nil {
 		return nil, err
 	}
 	defer d.Close()
-	return d.Readdirnames(-1)
+	// Unlike os.ReadDir, File.ReadDir doesn't sort, which the files
+	// package doesn't need.
+	return d.ReadDir(-1)
 }

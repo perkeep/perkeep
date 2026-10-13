@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -55,7 +56,11 @@ type VFS interface {
 	// TempFile should behave like os.CreateTemp
 	TempFile(dir, prefix string) (WritableFile, error)
 
-	ReadDirNames(dir string) ([]string, error)
+	// ReadDir should behave like os.ReadDir, except that the
+	// entries may be in any order. The files package uses each
+	// entry's type to tell directories from files without a Stat,
+	// and its Info for a regular file's size.
+	ReadDir(dir string) ([]fs.DirEntry, error)
 }
 
 // WritableFile is the interface required by files opened for Write

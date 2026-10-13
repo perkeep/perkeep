@@ -30,6 +30,19 @@ func EnumerateAll(ctx context.Context, src BlobEnumerator, fn func(blob.SizedRef
 	return EnumerateAllFrom(ctx, src, "", fn)
 }
 
+// ListAllRefs calls fn once for each blob in src, in no particular
+// order, using src's ListBlobRefs if it implements RefLister and
+// EnumerateAll otherwise. Calls to fn are not concurrent. If fn
+// returns an error, listing stops and ListAllRefs returns that error.
+func ListAllRefs(ctx context.Context, src BlobEnumerator, fn func(blob.Ref) error) error {
+	if rl, ok := src.(RefLister); ok {
+		return rl.ListBlobRefs(ctx, fn)
+	}
+	return EnumerateAll(ctx, src, func(sb blob.SizedRef) error {
+		return fn(sb.Ref)
+	})
+}
+
 // EnumerateAllFrom is like EnumerateAll, but takes an after parameter.
 func EnumerateAllFrom(ctx context.Context, src BlobEnumerator, after string, fn func(blob.SizedRef) error) error {
 	const batchSize = 1000

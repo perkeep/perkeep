@@ -42,6 +42,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -415,7 +416,7 @@ type writableFile struct {
 func (f writableFile) Name() string { return f.name }
 func (f writableFile) Sync() error  { return nil } // TODO: send fsync
 
-func (s sftpFS) ReadDirNames(dir string) ([]string, error) {
+func (s sftpFS) ReadDir(dir string) ([]fs.DirEntry, error) {
 	sc, err := s.sftp()
 	if err != nil {
 		return nil, err
@@ -424,16 +425,13 @@ func (s sftpFS) ReadDirNames(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: it's wasteful that we throw all this info away and
-	// have the files package restat each file. Change the
-	// interface or add an optional one that sftp can implement
-	// and make the files package smarter about not asking for
-	// duplicate work when possible.
-	names := make([]string, len(fis))
+	// Each entry's Info is the FileInfo from the listing, so the
+	// files package doesn't need to stat each file for its size.
+	des := make([]fs.DirEntry, len(fis))
 	for i, fi := range fis {
-		names[i] = fi.Name()
+		des[i] = fs.FileInfoToDirEntry(fi)
 	}
-	return names, nil
+	return des, nil
 }
 
 func (s sftpFS) Stat(path string) (os.FileInfo, error) {
