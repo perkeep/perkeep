@@ -384,6 +384,8 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 	inLarge := 0
 	var missing []blob.Ref // blobs in large but not in meta
 	var extra []blob.Ref   // blobs in meta but not in large
+	// This iterator is safe to keep open: enumFunc only reads the current
+	// row, and enumerates the separate large storage, never s.meta.
 	t := s.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
 	defer t.Close()
 	iterate := true
@@ -885,12 +887,12 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	return m, nil
 }
 
-func parseMetaRowSizeOnly(v []byte) (size uint32, err error) {
-	sp := bytes.IndexByte(v, ' ')
+func parseMetaRowSizeOnly(v string) (size uint32, err error) {
+	sp := strings.IndexByte(v, ' ')
 	if sp < 1 || sp == len(v)-1 {
 		return 0, fmt.Errorf("invalid metarow %q", v)
 	}
-	size64, err := strutil.ParseUintBytes(v[:sp], 10, 32)
+	size64, err := strconv.ParseUint(v[:sp], 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("invalid metarow size %q", v)
 	}
@@ -1105,28 +1107,28 @@ type enumerator struct {
 	*storage
 }
 
-func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	t := s.meta.Find(blobMetaPrefix+after, blobMetaPrefixLimit)
-	defer func() {
-		closeErr := t.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}()
+	if limit <= 0 {
+		return nil
+	}
 	n := 0
-	afterb := []byte(after)
-	for n < limit && t.Next() {
-		key := t.KeyBytes()[len(blobMetaPrefix):]
-		if n == 0 && bytes.Equal(key, afterb) {
+	// Close each metadata iterator before sending. Consumers may Fetch from
+	// this storage, which needs the same single-slot gate when meta is SQLite.
+	for r := range sorted.ScanPaged(s.meta, blobMetaPrefix+after, blobMetaPrefixLimit) {
+		row, err := r.Value()
+		if err != nil {
+			return err
+		}
+		key := row.Key[len(blobMetaPrefix):]
+		if key <= after {
 			continue
 		}
-		n++
-		br, ok := blob.ParseBytes(key)
+		br, ok := blob.Parse(key)
 		if !ok {
-			return fmt.Errorf("unknown key %q in meta index", t.Key())
+			return fmt.Errorf("unknown key %q in meta index", row.Key)
 		}
-		size, err := parseMetaRowSizeOnly(t.ValueBytes())
+		size, err := parseMetaRowSizeOnly(row.Value)
 		if err != nil {
 			return err
 		}
@@ -1134,6 +1136,10 @@ func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRe
 		case <-ctx.Done():
 			return ctx.Err()
 		case dest <- blob.SizedRef{Ref: br, Size: size}:
+		}
+		n++
+		if n == limit {
+			break
 		}
 	}
 	return nil

@@ -240,17 +240,23 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	iter := s.index.Find(after, "")
 	n := 0
-	for iter.Next() {
-		if iter.Key() == after {
+	for r := range sorted.ScanPaged(s.index, after, "") {
+		row, err := r.Value()
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if row.Key <= after {
 			continue
 		}
 		// Both ReceiveBlob and processEncryptedMetaBlob validate this
-		br := blob.MustParse(iter.Key())
-		plainSize, _, err := unpackIndexEntry(iter.Value())
+		br := blob.MustParse(row.Key)
+		plainSize, _, err := unpackIndexEntry(row.Value)
 		if err != nil {
-			return fmt.Errorf("bogus encrypt index value %q: %w", iter.Value(), err)
+			return fmt.Errorf("bogus encrypt index value %q: %w", row.Value, err)
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: plainSize}:
@@ -259,10 +265,10 @@ func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 		}
 		n++
 		if limit != 0 && n >= limit {
-			break
+			return nil
 		}
 	}
-	return iter.Close()
+	return nil
 }
 
 func init() {

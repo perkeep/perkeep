@@ -20,9 +20,11 @@ package sorted // import "perkeep.org/pkg/sorted"
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"log"
 
 	"go4.org/jsonconfig"
+	"tailscale.com/types/result"
 )
 
 const (
@@ -311,6 +313,8 @@ func Foreach(kv KeyValue, fn func(key, value string) error) error {
 // of start and end, which behave the same as kv.Find. If fn returns
 // an error, that same error is returned from Foreach and iteration
 // stops.
+// fn runs with the iterator open. Use ScanPaged if fn accesses kv
+// or blocks on consumers that do.
 func ForeachInRange(kv KeyValue, start, end string, fn func(key, value string) error) error {
 	it := kv.Find(start, end)
 	for it.Next() {
@@ -320,6 +324,69 @@ func ForeachInRange(kv KeyValue, start, end string, fn func(key, value string) e
 		}
 	}
 	return it.Close()
+}
+
+// Entry is a key/value pair in a KeyValue.
+type Entry struct {
+	Key, Value string
+}
+
+// ScanPaged returns a sequence of key/value pairs in kv in key order in the
+// range specified by start and end, which behave the same as kv.Find.
+// The sequence opens iterators lazily and can be iterated more than once;
+// each iteration starts a new scan from start.
+//
+// It buffers at most 1000 entries at a time and closes each iterator before
+// yielding, so the loop body can safely read from or write to kv, even when an open
+// iterator would otherwise block those operations.
+// Subsequent pages resume at the last key and skip keys less than or equal
+// to it, without extending the key or constructing a backend-specific bound.
+// A page iterator may therefore read 1001 pairs, including the skipped key.
+//
+// Unlike ForeachInRange, it uses a new iterator for each page and does not
+// provide a snapshot across pages. Changes to later pages may be observed,
+// while changes to already buffered pairs are not. Keys inserted at or before
+// the last key of an already buffered page will not be visited.
+//
+// Results contain successful entries, followed by at most one terminal error.
+// If an iterator reports an error when closed, the entries successfully read
+// from that page are yielded before the error. If iteration stops early, no more
+// results (including a pending error) are yielded and no more iterators are opened.
+func ScanPaged(kv KeyValue, start, end string) iter.Seq[result.Of[Entry]] {
+	return func(yield func(result.Of[Entry]) bool) {
+		const pageSize = 1000
+		var page []Entry
+		cursor := start
+		firstPage := true
+		for {
+			page = page[:0]
+			it := kv.Find(cursor, end)
+			for len(page) < pageSize && it.Next() {
+				key := it.Key()
+				if !firstPage && key <= cursor {
+					continue
+				}
+				page = append(page, Entry{Key: key, Value: it.Value()})
+			}
+			err := it.Close()
+			for _, entry := range page {
+				if !yield(result.Value(entry)) {
+					return
+				}
+			}
+			if err != nil {
+				yield(result.Error[Entry](err))
+				return
+			}
+			if len(page) < pageSize {
+				return
+			}
+			// Reuse the key itself: appending a NUL is not supported by all
+			// backends and could also exceed the maximum key size.
+			cursor = page[len(page)-1].Key
+			firstPage = false
+		}
+	}
 }
 
 // CheckSizes returns ErrKeyTooLarge if key does not respect KeyMaxSize or
