@@ -44,3 +44,16 @@ limitations under the License.
 		color: #5E9ED6;
 	}
 }
+
+.cam-blobitem-audio-pause {
+	animation: slow-pulse 1s cubic-bezier(.76,.05,.86,.06) alternate infinite;
+}
+
+@keyframes slow-pulse {
+	0% { opacity: 1 }
+	100% { opacity: 0 }
+}
+
+.cam-blobitem-audio-trackinfo {
+	opacity: 0.65;
+}
