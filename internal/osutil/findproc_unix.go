@@ -23,12 +23,16 @@ import (
 	"time"
 )
 
-// waitParentDeath returns once the current process has been orphaned,
-// which it detects by its ppid changing.
+// waitParentDeath returns once the current process has been orphaned.
 func waitParentDeath() {
-	// TODO: on Linux, use PR_SET_PDEATHSIG. For now, the portable way.
-	// Getppid is cheap, so poll often: tests that kill perkeepd wait
-	// for the apps it ran to exit too.
-	for initial := os.Getppid(); initial == os.Getppid(); time.Sleep(500 * time.Millisecond) {
+	ppid := os.Getppid()
+	if waitParentExit(ppid) {
+		return
+	}
+	// The portable way: notice the ppid changing. Getppid is cheap, so
+	// poll often: tests that kill perkeepd wait for the apps it ran to
+	// exit too.
+	for ppid == os.Getppid() {
+		time.Sleep(500 * time.Millisecond)
 	}
 }
