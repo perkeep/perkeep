@@ -18,8 +18,13 @@ package files_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -209,5 +214,114 @@ func assertNoBlobsOrErrs(t *testing.T, blobChannel <-chan blob.SizedRef, errChan
 	}
 	if err := <-errChannel; err != nil {
 		t.Errorf("expected error channel to have a nil err; got %v", err)
+	}
+}
+
+// newListTestStorage returns a storage with blobs and other entries
+// that enumeration should skip or follow, and the blobs it should find.
+func newListTestStorage(t *testing.T) (sto blobserver.Storage, want map[blob.Ref]uint32) {
+	t.Helper()
+	ds, root := NewTestStorage(t)
+	t.Cleanup(func() { os.RemoveAll(root) })
+	want = make(map[blob.Ref]uint32)
+	for i := range 250 {
+		b := &test.Blob{Contents: fmt.Sprintf("blob-%d", i)}
+		b.MustUpload(t, ds)
+		want[b.BlobRef()] = b.Size()
+	}
+	writeFile := func(name, contents string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Directories that enumeration skips, and files that aren't blobs.
+	writeFile("partition/queue-indexer/sha1/1f0/710/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat", "fake")
+	writeFile("cache/sha1/1f/07/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat", "fake")
+	writeFile("sha1/1f/07/notablob.dat", "fake")
+	writeFile("sha1/1f/07/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.tmp", "fake")
+
+	// Symlinked blobs and directories are followed.
+	if runtime.GOOS != "windows" {
+		other := t.TempDir()
+		linked := &test.Blob{Contents: "symlinked file"}
+		ref := linked.BlobRef()
+		if err := os.WriteFile(filepath.Join(other, "blob"), []byte(linked.Contents), 0644); err != nil {
+			t.Fatal(err)
+		}
+		dir := filepath.Join(root, ref.HashName(), ref.DigestPrefix(2)[:2], ref.DigestPrefix(4)[2:4])
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(other, "blob"), filepath.Join(dir, ref.String()+".dat")); err != nil {
+			t.Fatal(err)
+		}
+		want[ref] = linked.Size()
+
+		linkedDir := &test.Blob{Contents: "in symlinked dir"}
+		ref = linkedDir.BlobRef()
+		if err := os.WriteFile(filepath.Join(other, ref.String()+".dat"), []byte(linkedDir.Contents), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(other, filepath.Join(root, "linked-dir")); err != nil {
+			t.Fatal(err)
+		}
+		want[ref] = linkedDir.Size()
+	}
+	return ds, want
+}
+
+func TestEnumerateEntries(t *testing.T) {
+	ds, want := newListTestStorage(t)
+	got := make(map[blob.Ref]uint32)
+	if err := blobserver.EnumerateAll(context.Background(), ds, func(sb blob.SizedRef) error {
+		got[sb.Ref] = sb.Size
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("EnumerateAll found %d blobs, want %d:\n got: %v\nwant: %v", len(got), len(want), got, want)
+	}
+}
+
+func TestListBlobRefs(t *testing.T) {
+	ds, want := newListTestStorage(t)
+	rl, ok := ds.(blobserver.RefLister)
+	if !ok {
+		t.Fatalf("%T doesn't implement blobserver.RefLister", ds)
+	}
+	got := make(map[blob.Ref]uint32)
+	if err := rl.ListBlobRefs(context.Background(), func(br blob.Ref) error {
+		if _, dup := got[br]; dup {
+			t.Errorf("%v listed twice", br)
+		}
+		got[br] = want[br]
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("ListBlobRefs found %d blobs, want %d:\n got: %v\nwant: %v", len(got), len(want), slices.Collect(maps.Keys(got)), slices.Collect(maps.Keys(want)))
+	}
+
+	errStop := errors.New("stop")
+	n := 0
+	err := rl.ListBlobRefs(context.Background(), func(br blob.Ref) error {
+		n++
+		if n == 10 {
+			return errStop
+		}
+		return nil
+	})
+	if err != errStop {
+		t.Errorf("ListBlobRefs error = %v; want %v", err, errStop)
+	}
+	if n != 10 {
+		t.Errorf("fn called %d times after returning an error at 10", n)
 	}
 }

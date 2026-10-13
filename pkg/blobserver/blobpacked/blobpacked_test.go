@@ -36,6 +36,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/localdisk"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/schema"
@@ -1284,4 +1285,89 @@ func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {
 		t.Fatal(err)
 	}
 	return slurp
+}
+
+func TestCheckLargeIntegrity(t *testing.T) {
+	newLargeFuncs := map[string]func(t *testing.T) subFetcherStorage{
+		"fetcher": func(t *testing.T) subFetcherStorage { return new(test.Fetcher) },
+		// localdisk implements blobserver.RefLister.
+		"localdisk": func(t *testing.T) subFetcherStorage {
+			sto, err := localdisk.New(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			return sto
+		},
+	}
+	wholeRef := blob.RefFromString("whole")
+	tests := []struct {
+		name     string
+		inLarge  []string          // contents of zips in large storage
+		rows     map[string]string // z: rows to add, by zip contents; "" means a valid row
+		wantMode RecoveryMode
+		wantErr  string
+	}{
+		{
+			name:     "ok",
+			inLarge:  []string{"a", "b", "c"},
+			rows:     map[string]string{"a": "", "b": "", "c": ""},
+			wantMode: NoRecovery,
+		},
+		{
+			name:     "empty",
+			wantMode: NoRecovery,
+		},
+		{
+			name:     "missing_from_meta",
+			inLarge:  []string{"a", "b", "c"},
+			rows:     map[string]string{"b": ""},
+			wantMode: FastRecovery,
+			wantErr:  "2 large blobs missing from index",
+		},
+		{
+			name:     "missing_from_large",
+			inLarge:  []string{"a"},
+			rows:     map[string]string{"a": "", "b": "", "c": ""},
+			wantMode: FullRecovery,
+			wantErr:  "2 large blobs in index but not actually in storage",
+		},
+		{
+			name:     "bad_row",
+			inLarge:  []string{"a"},
+			rows:     map[string]string{"a": "garbage"},
+			wantMode: FullRecovery,
+			wantErr:  "error parsing row from meta",
+		},
+	}
+	for largeName, newLarge := range newLargeFuncs {
+		for _, tt := range tests {
+			t.Run(largeName+"/"+tt.name, func(t *testing.T) {
+				large := newLarge(t)
+				for _, s := range tt.inLarge {
+					(&test.Blob{Contents: s}).MustUpload(t, large)
+				}
+				meta := sorted.NewMemoryKeyValue()
+				for s, row := range tt.rows {
+					zip := &test.Blob{Contents: s}
+					if row == "" {
+						row = fmt.Sprintf("%d %v 100 0 %d", zip.Size(), wholeRef, zip.Size())
+					}
+					if err := meta.Set(zipMetaPrefix+zip.BlobRef().String(), row); err != nil {
+						t.Fatal(err)
+					}
+				}
+				s := &storage{large: large, meta: meta}
+				mode, err := s.checkLargeIntegrity()
+				if mode != tt.wantMode {
+					t.Errorf("mode = %v; want %v", mode, tt.wantMode)
+				}
+				switch {
+				case tt.wantErr == "" && err != nil:
+					t.Errorf("unexpected error: %v", err)
+				case tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)):
+					t.Errorf("error = %v; want one containing %q", err, tt.wantErr)
+				}
+			})
+		}
+	}
 }

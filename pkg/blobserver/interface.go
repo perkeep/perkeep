@@ -92,6 +92,16 @@ type BlobEnumerator interface {
 	// callers.
 }
 
+// RefLister is an optional interface for a BlobEnumerator that can
+// list all of its blobs faster than EnumerateBlobs when the caller
+// needs neither their sizes nor sorted order. See ListAllRefs.
+type RefLister interface {
+	// ListBlobRefs calls fn once for each blob, in no particular
+	// order. Calls to fn are not concurrent. If fn returns an
+	// error, ListBlobRefs stops and returns that error.
+	ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) error
+}
+
 // BlobAndToken is the value used by the BlobStreamer interface,
 // containing both a Blob and a continuation token.
 type BlobAndToken struct {

@@ -31,6 +31,7 @@ package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -63,9 +64,15 @@ type DiskStorage struct {
 
 // Validate we implement expected interfaces.
 var (
-	_ blobserver.Storage = (*DiskStorage)(nil)
-	_ blob.SubFetcher    = (*DiskStorage)(nil) // for blobpacked; Issue 1136
+	_ blobserver.Storage   = (*DiskStorage)(nil)
+	_ blob.SubFetcher      = (*DiskStorage)(nil) // for blobpacked; Issue 1136
+	_ blobserver.RefLister = (*DiskStorage)(nil)
 )
+
+// ListBlobRefs implements blobserver.RefLister.
+func (ds *DiskStorage) ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) error {
+	return ds.Storage.(*files.Storage).ListBlobRefs(ctx, fn)
+}
 
 func (ds *DiskStorage) String() string {
 	return fmt.Sprintf("\"filesystem\" file-per-blob at %s", ds.root)

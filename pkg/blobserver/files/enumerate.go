@@ -19,14 +19,17 @@ package files
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
 	"perkeep.org/pkg/blob"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type readBlobRequest struct {
@@ -51,11 +54,11 @@ func (ee *enumerateError) Error() string {
 // readBlobs implements EnumerateBlobs. It calls itself recursively on subdirectories.
 func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 	dirFullPath := filepath.Join(opts.dirRoot, opts.pathInto)
-	names, err := ds.fs.ReadDirNames(dirFullPath)
+	entries, err := ds.fs.ReadDir(dirFullPath)
 	if err != nil {
-		return &enumerateError{"readdirnames of " + dirFullPath, err}
+		return &enumerateError{"readdir of " + dirFullPath, err}
 	}
-	if len(names) == 0 {
+	if len(entries) == 0 {
 		// remove empty blob dir if we are in a queue but not the queue root itself
 		if strings.Contains(dirFullPath, "queue-") &&
 			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
@@ -63,49 +66,60 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 		}
 		return nil
 	}
-	sort.Strings(names)
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
 	stat := make(map[string]*future) // name -> future<os.FileInfo>
 
-	var toStat []func()
-	for _, name := range names {
-		if skipDir(name) || isShardDir(name) {
+	var toStat []*future
+	for _, de := range entries {
+		name := de.Name()
+		if skipDir(name) || isShardDir(name) || de.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(name, ".dat") && !isSymlink(de) {
 			continue
 		}
 		fullFile := filepath.Join(dirFullPath, name)
 		f := newFuture(func() (os.FileInfo, error) {
-			fi, err := ds.fs.Stat(fullFile)
+			fi, err := ds.entryInfo(fullFile, de)
 			if err != nil {
 				return nil, &enumerateError{"stat", err}
 			}
 			return fi, nil
 		})
 		stat[name] = f
-		toStat = append(toStat, f.ForceLoad)
+		toStat = append(toStat, f)
 	}
 
 	// Start pre-statting things.
 	go func() {
 		for _, f := range toStat {
 			ds.statGate.Start()
-			f := f
 			go func() {
-				ds.statGate.Done()
-				f()
+				defer ds.statGate.Done()
+				f.ForceLoad()
 			}()
 		}
 	}()
 
-	for _, name := range names {
+	for _, de := range entries {
 		if *opts.remain == 0 {
 			return nil
 		}
+		name := de.Name()
 		if skipDir(name) {
 			continue
 		}
 
-		isDir := isShardDir(name)
+		isDir := isShardDir(name) || de.IsDir()
+		var fi os.FileInfo
 		if !isDir {
-			fi, err := stat[name].Get()
+			f, ok := stat[name]
+			if !ok {
+				continue
+			}
+			fi, err = f.Get()
 			if err != nil {
 				return err
 			}
@@ -137,29 +151,32 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 		if !strings.HasSuffix(name, ".dat") {
 			continue
 		}
-
-		fi, err := stat[name].Get()
-		if err != nil {
-			return err
+		blobName := strings.TrimSuffix(name, ".dat")
+		if blobName <= opts.after {
+			continue
 		}
-
-		if !fi.IsDir() {
-			blobName := strings.TrimSuffix(name, ".dat")
-			if blobName <= opts.after {
-				continue
-			}
-			if blobRef, ok := blob.Parse(blobName); ok {
-				select {
-				case opts.ch <- blob.SizedRef{Ref: blobRef, Size: uint32(fi.Size())}:
-					(*opts.remain)--
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+		if blobRef, ok := blob.Parse(blobName); ok {
+			select {
+			case opts.ch <- blob.SizedRef{Ref: blobRef, Size: uint32(fi.Size())}:
+				(*opts.remain)--
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
 	}
 
 	return nil
+}
+
+func isSymlink(de fs.DirEntry) bool { return de.Type()&fs.ModeSymlink != 0 }
+
+// entryInfo returns the FileInfo for de, the directory entry at path,
+// following de if it's a symlink.
+func (ds *Storage) entryInfo(path string, de fs.DirEntry) (os.FileInfo, error) {
+	if isSymlink(de) {
+		return ds.fs.Stat(path)
+	}
+	return de.Info()
 }
 
 func (ds *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
@@ -175,6 +192,83 @@ func (ds *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef
 		after:   after,
 		remain:  &limitMutable,
 	})
+}
+
+// listDirConcurrency is how many directories ListBlobRefs reads at once.
+// Reading a directory is mostly waiting on the disk (or the network, for
+// network block storage), so this is more than the number of CPUs.
+const listDirConcurrency = 32
+
+// ListBlobRefs implements blobserver.RefLister. Unlike EnumerateBlobs,
+// it reads many directories at once and doesn't stat blob files.
+func (ds *Storage) ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) error {
+	grp, ctx := errgroup.WithContext(ctx)
+	grp.SetLimit(listDirConcurrency)
+	var (
+		fnMu  sync.Mutex // serializes calls to fn
+		fnErr error      // first error from fn; guarded by fnMu
+	)
+	var listDir func(dir string) error
+	listDir = func(dir string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		entries, err := ds.fs.ReadDir(dir)
+		if err != nil {
+			return &enumerateError{"readdir of " + dir, err}
+		}
+		var refs []blob.Ref
+		for _, de := range entries {
+			name := de.Name()
+			if skipDir(name) {
+				continue
+			}
+			fullPath := filepath.Join(dir, name)
+			isDir := isShardDir(name) || de.IsDir()
+			if !isDir && isSymlink(de) {
+				fi, err := ds.fs.Stat(fullPath)
+				if err != nil {
+					return &enumerateError{"stat", err}
+				}
+				isDir = fi.IsDir()
+			}
+			if isDir {
+				// Read subdirectories in other goroutines while
+				// under the limit, and in this one otherwise, so
+				// that a full group never waits on itself.
+				if !grp.TryGo(func() error { return listDir(fullPath) }) {
+					if err := listDir(fullPath); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+			blobName, ok := strings.CutSuffix(name, ".dat")
+			if !ok {
+				continue
+			}
+			if br, ok := blob.Parse(blobName); ok {
+				refs = append(refs, br)
+			}
+		}
+		if len(refs) == 0 {
+			return nil
+		}
+		fnMu.Lock()
+		defer fnMu.Unlock()
+		for _, br := range refs {
+			if fnErr != nil {
+				return fnErr
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			fnErr = fn(br)
+		}
+		return fnErr
+	}
+	grp.Go(func() error { return listDir(ds.root) })
+	return grp.Wait()
 }
 
 func skipDir(name string) bool {
