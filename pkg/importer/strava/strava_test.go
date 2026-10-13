@@ -256,6 +256,15 @@ func (f *coreFixture) rateNode(t *testing.T) *importer.Object {
 	return node
 }
 
+func (f *coreFixture) permanodes(t *testing.T, want int) {
+	t.Helper()
+	f.storage.mu.Lock()
+	defer f.storage.mu.Unlock()
+	if got := len(f.storage.attrs); got != want {
+		t.Errorf("permanode count = %d; want %d", got, want)
+	}
+}
+
 func (f *coreFixture) activity(t *testing.T, id int64) *importer.Object {
 	t.Helper()
 	parent := coreChild(t, f.rc.RootNode(), "activities")
@@ -411,10 +420,8 @@ func (f *coreFixture) file(t *testing.T, obj *importer.Object, attr, filename st
 	if !ok {
 		t.Fatalf("%s is not a file schema ref: %q", attr, obj.Attr(attr))
 	}
-	attachment := coreChild(t, obj, filename)
-	coreAttrs(t, attachment, map[string]string{nodeattr.CamliContent: ref.String(), nodeattr.Title: filename})
-	if attachment.PermanodeRef() == ref {
-		t.Errorf("camliPath:%s points directly to a file schema instead of an attachment permanode", filename)
+	if got := obj.Attr("camliPath:" + filename); got != "" {
+		t.Errorf("camliPath:%s = %q; attachments must be direct file-schema attrs only", filename, got)
 	}
 	reader, err := schema.NewFileReader(context.Background(), f.storage, ref)
 	if err != nil {
@@ -496,6 +503,28 @@ func TestImporterRunUnconfiguredDoesNotRequestHTTP(t *testing.T) {
 	}
 }
 
+func TestImporterRootDefaultVisibility(t *testing.T) {
+	f := newCoreFixture(t, newCoreAPI(t))
+	f.configure(t)
+	if err := (imp{}).Run(f.rc); err != nil {
+		t.Fatal(err)
+	}
+	rootRef, ok := blob.Parse(f.rc.AccountNode().Attr("importRoot"))
+	if !ok {
+		t.Fatal("account has no import-root reference")
+	}
+	root, err := f.rc.Host.ObjectFromRef(rootRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreAttrs(t, root, map[string]string{nodeattr.Title: "Strava workouts", nodeattr.DefaultVisibility: "hide"})
+	activities := coreChild(t, root, "activities")
+	coreAttrs(t, activities, map[string]string{nodeattr.Title: "Activities", nodeattr.DefaultVisibility: ""})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{nodeattr.DefaultVisibility: ""})
+	coreAttrs(t, f.rateNode(t), map[string]string{nodeattr.DefaultVisibility: ""})
+	f.permanodes(t, 4)
+}
+
 func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	api := newCoreAPI(t)
 	first, second := coreActivity(101), coreActivity(202)
@@ -511,14 +540,15 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if err := (imp{}).Run(f.rc); err != nil {
 		t.Fatal(err)
 	}
-	coreAttrs(t, f.rc.RootNode(), map[string]string{nodeattr.Title: "Strava workouts"})
+	coreAttrs(t, f.rc.RootNode(), map[string]string{nodeattr.Title: "Strava workouts", nodeattr.DefaultVisibility: "hide"})
 	parent := coreChild(t, f.rc.RootNode(), "activities")
-	coreAttrs(t, parent, map[string]string{nodeattr.Title: "Activities"})
+	coreAttrs(t, parent, map[string]string{nodeattr.Title: "Activities", nodeattr.DefaultVisibility: ""})
+	f.permanodes(t, 4+2) // account, config, root, collection, and two activities
 	firstObj, secondObj := f.activity(t, first.ID), f.activity(t, second.ID)
 	firstRef, secondRef := firstObj.PermanodeRef(), secondObj.PermanodeRef()
-	attachmentRefs := map[string]string{}
-	for _, filename := range []string{"activity.json", "streams.json", "track.gpx"} {
-		attachmentRefs[filename] = firstObj.Attr("camliPath:" + filename)
+	fileRefs := map[string]string{}
+	for _, attr := range []string{attrActivityJSON, attrStreamsJSON, nodeattr.FitnessTrack} {
+		fileRefs[attr] = firstObj.Attr(attr)
 	}
 	coreAttrs(t, firstObj, map[string]string{
 		nodeattr.Type: nodeattr.FitnessActivity, nodeattr.Title: first.Name,
@@ -532,6 +562,7 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 		"stravaActivityType": "Ride", "stravaTimezone": first.Timezone,
 		"stravaExternalID": "workout.fit", "stravaGearID": "b123",
 		attrImportVersion: runCompleteVersion, attrSummaryHash: summaryHash(&first),
+		nodeattr.DefaultVisibility: "",
 	})
 	for _, file := range []struct {
 		attr, name string
@@ -558,7 +589,10 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if doc.XMLName.Local != "gpx" || len(doc.Points) != 2 || doc.Points[1].Time != "2025-01-02T03:05:05Z" {
 		t.Errorf("unexpected archived GPX: %s", gpx)
 	}
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: runCompleteVersion})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{
+		importer.AcctAttrCompletedVersion: runCompleteVersion,
+		"importRoot":                      f.rc.RootNode().PermanodeRef().String(),
+	})
 	wantCalls := map[string]int{
 		"/athlete/activities?page=1": 1, "/athlete/activities?page=2": 1, "/athlete/activities?page=3": 1,
 		"/activities/101": 1, "/activities/101/streams": 1, "/activities/202": 1, "/activities/202/streams": 1,
@@ -576,22 +610,24 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if !reflect.DeepEqual(api.calls, wantCalls) {
 		t.Errorf("unchanged run re-fetched details/streams: %v; want %v", api.calls, wantCalls)
 	}
-	// Only the account's quota bookkeeping claim changes; activity and
-	// attachment permanodes retain the same content and references.
+	// Only the shared configuration's quota bookkeeping claim changes;
+	// activity permanodes and file-schema references remain unchanged.
 	if got := f.storage.NumBlobs(); got != before+1 {
 		t.Errorf("unchanged run wrote %d blobs; want one quota bookkeeping claim", got-before)
 	}
 	if f.activity(t, first.ID).PermanodeRef() != firstRef || f.activity(t, second.ID).PermanodeRef() != secondRef {
 		t.Error("unchanged run replaced activity permanodes")
 	}
-	for filename, ref := range attachmentRefs {
-		if got := f.activity(t, first.ID).Attr("camliPath:" + filename); got != ref {
-			t.Errorf("unchanged run replaced %s attachment: %q; want %q", filename, got, ref)
+	f.permanodes(t, 4+2)
+	for attr, ref := range fileRefs {
+		if got := f.activity(t, first.ID).Attr(attr); got != ref {
+			t.Errorf("unchanged run replaced %s file ref: %q; want %q", attr, got, ref)
 		}
 	}
 	// An edited summary invalidates just that activity. Its stable ID path
 	// must retain the existing permanode, not create a second activity.
-	first.Name = "Renamed ride"
+	// Distance affects the details JSON but not the generated GPX.
+	first.Distance++
 	api.pages[1] = []activity{first}
 	api.details[first.ID] = coreJSON(t, first)
 	if err := (imp{}).Run(f.rc); err != nil {
@@ -609,14 +645,159 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if firstObj.PermanodeRef() != firstRef || secondObj.PermanodeRef() != secondRef {
 		t.Error("activity permanode changed across runs")
 	}
-	coreAttrs(t, firstObj, map[string]string{nodeattr.Title: first.Name, attrSummaryHash: summaryHash(&first)})
-	for filename, ref := range attachmentRefs {
-		if got := firstObj.Attr("camliPath:" + filename); got != ref {
-			t.Errorf("%s attachment permanode changed after edit: %q; want %q", filename, got, ref)
+	f.permanodes(t, 4+2)
+	coreAttrs(t, firstObj, map[string]string{
+		nodeattr.Title: first.Name, nodeattr.FitnessDistance: decimal(first.Distance), attrSummaryHash: summaryHash(&first),
+	})
+	if got := firstObj.Attr(attrActivityJSON); got == fileRefs[attrActivityJSON] {
+		t.Error("edited activity retained the old details file ref")
+	}
+	for _, attr := range []string{attrStreamsJSON, nodeattr.FitnessTrack} {
+		if got := firstObj.Attr(attr); got != fileRefs[attr] {
+			t.Errorf("%s file ref changed with unchanged content: %q; want %q", attr, got, fileRefs[attr])
 		}
 	}
 	if got := f.file(t, firstObj, attrActivityJSON, "activity.json"); !bytes.Equal(got, api.details[first.ID]) {
-		t.Error("edited activity attachment did not update camliContent")
+		t.Error("edited activity JSON did not update")
+	}
+	if got := f.file(t, firstObj, attrStreamsJSON, "streams.json"); !bytes.Equal(got, api.streams[first.ID]) {
+		t.Error("unchanged streams JSON changed after edit")
+	}
+	if got := f.file(t, firstObj, nodeattr.FitnessTrack, "track.gpx"); !bytes.Equal(got, gpx) {
+		t.Error("unchanged GPX changed after edit")
+	}
+}
+
+func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		wrappers  bool
+		noStreams bool
+	}{
+		{name: "wrapper-permanodes", wrappers: true},
+		{name: "direct-file-paths"},
+		{name: "removed-wrapper-attachments", wrappers: true, noStreams: true},
+		{name: "removed-direct-file-attachments", noStreams: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			api := newCoreAPI(t)
+			a := coreActivity(101)
+			api.pages[1], api.details[a.ID], api.streams[a.ID] = []activity{a}, coreJSON(t, a), []byte(coreTrackStreams)
+			f := newCoreFixture(t, api)
+			f.configure(t)
+			if err := (imp{}).Run(f.rc); err != nil {
+				t.Fatal(err)
+			}
+			obj := f.activity(t, a.ID)
+			activityRef := obj.PermanodeRef()
+			// Reconstruct the old layout and completion markers while keeping
+			// the same summary. Version 2 must refresh even an unchanged item.
+			type oldAttachment struct {
+				obj           *importer.Object
+				filename, ref string
+			}
+			var oldAttachments []oldAttachment
+			for _, file := range []struct{ attr, filename string }{
+				{attrActivityJSON, "activity.json"},
+				{attrStreamsJSON, "streams.json"},
+				{nodeattr.FitnessTrack, "track.gpx"},
+			} {
+				ref := obj.Attr(file.attr)
+				if tc.wrappers {
+					child, err := obj.ChildPathObject(file.filename)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := child.SetAttrs(nodeattr.Title, file.filename, nodeattr.CamliContent, ref); err != nil {
+						t.Fatal(err)
+					}
+					oldAttachments = append(oldAttachments, oldAttachment{child, file.filename, ref})
+				} else if err := obj.SetAttr("camliPath:"+file.filename, ref); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := obj.SetAttr(attrImportVersion, "1"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.rc.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, "1"); err != nil {
+				t.Fatal(err)
+			}
+			wantPermanodes := 4 + 1 + len(oldAttachments)
+			f.permanodes(t, wantPermanodes)
+			if tc.noStreams {
+				delete(api.streams, a.ID)
+			}
+			if err := (imp{}).Run(f.rc); err != nil {
+				t.Fatal(err)
+			}
+			obj = f.activity(t, a.ID)
+			if obj.PermanodeRef() != activityRef {
+				t.Error("layout migration replaced the activity permanode")
+			}
+			f.permanodes(t, wantPermanodes) // refresh must not create any new child
+			coreAttrs(t, obj, map[string]string{
+				attrImportVersion: "2", attrSummaryHash: summaryHash(&a),
+				"camliPath:activity.json": "", "camliPath:streams.json": "", "camliPath:track.gpx": "",
+			})
+			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
+			if got := f.file(t, obj, attrActivityJSON, "activity.json"); !bytes.Equal(got, api.details[a.ID]) {
+				t.Error("migrated details file did not preserve raw JSON")
+			}
+			if tc.noStreams {
+				coreAttrs(t, obj, map[string]string{attrStreamsJSON: "", nodeattr.FitnessTrack: ""})
+			} else {
+				if got := f.file(t, obj, attrStreamsJSON, "streams.json"); !bytes.Equal(got, api.streams[a.ID]) {
+					t.Error("migrated streams file did not preserve raw JSON")
+				}
+				f.file(t, obj, nodeattr.FitnessTrack, "track.gpx")
+			}
+			for _, old := range oldAttachments {
+				// Legacy wrappers may remain as historical nodes, but imports
+				// neither rewrite nor hide them; only their paths are unlinked.
+				child, err := f.rc.Host.ObjectFromRef(old.obj.PermanodeRef())
+				if err != nil {
+					t.Fatal(err)
+				}
+				coreAttrs(t, child, map[string]string{
+					nodeattr.Title: old.filename, nodeattr.CamliContent: old.ref, nodeattr.DefaultVisibility: "",
+				})
+			}
+			if api.calls["/activities/101"] != 2 || api.calls["/activities/101/streams"] != 2 {
+				t.Errorf("old version with unchanged summary was not refreshed: %v", api.calls)
+			}
+		})
+	}
+}
+
+func TestAttachEmptyClearsSemanticAttrAndLegacyPath(t *testing.T) {
+	for _, file := range []struct{ attr, filename string }{
+		{attrActivityJSON, "activity.json"},
+		{attrStreamsJSON, "streams.json"},
+		{nodeattr.FitnessTrack, "track.gpx"},
+	} {
+		t.Run(file.filename, func(t *testing.T) {
+			f := newCoreFixture(t, nil)
+			obj := f.rc.RootNode()
+			r := &run{f.rc}
+			if err := r.attach(obj, file.attr, file.filename, []byte("old attachment")); err != nil {
+				t.Fatal(err)
+			}
+			ref := obj.Attr(file.attr)
+			if err := obj.SetAttr("camliPath:"+file.filename, ref); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.attach(obj, file.attr, file.filename, nil); err != nil {
+				t.Fatal(err)
+			}
+			coreAttrs(t, obj, map[string]string{file.attr: "", "camliPath:" + file.filename: ""})
+			before := f.storage.NumBlobs()
+			if err := r.attach(obj, file.attr, file.filename, []byte{}); err != nil {
+				t.Fatal(err)
+			}
+			if got := f.storage.NumBlobs(); got != before {
+				t.Errorf("clearing absent attachments wrote %d blobs", got-before)
+			}
+		})
 	}
 }
 

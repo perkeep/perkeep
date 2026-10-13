@@ -17,6 +17,7 @@ limitations under the License.
 package strava
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema/nodeattr"
 )
 
 const coreMaxActivitiesEnv = "PERKEEP_STRAVA_MAX_ACTIVITIES"
@@ -91,7 +93,19 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	}
 	coreLimitCalls(t, api, want) // 1 listing + 10 details + 10 streams = 21
 	coreLimitPaths(t, f, summaries, 10)
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+	f.permanodes(t, 4+10) // account, config, root, collection, not 30 attachment wrappers
+	for _, a := range summaries[:10] {
+		obj := f.activity(t, a.ID)
+		coreAttrs(t, obj, map[string]string{nodeattr.DefaultVisibility: ""})
+		if got := f.file(t, obj, attrActivityJSON, "activity.json"); !bytes.Equal(got, api.details[a.ID]) {
+			t.Errorf("activity %d details file did not preserve raw JSON", a.ID)
+		}
+		if got := f.file(t, obj, attrStreamsJSON, "streams.json"); !bytes.Equal(got, api.streams[a.ID]) {
+			t.Errorf("activity %d streams file did not preserve raw JSON", a.ID)
+		}
+		f.file(t, obj, nodeattr.FitnessTrack, "track.gpx")
+	}
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 
 	// Completed, unchanged summaries still consume the cap. Restart at the
 	// newest page rather than importing the next ten previously unseen IDs.
@@ -101,7 +115,8 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
 	coreLimitPaths(t, f, summaries, 10)
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+	f.permanodes(t, 4+10)
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 
 func TestImporterActivityLimitOne(t *testing.T) {
@@ -119,7 +134,7 @@ func TestImporterActivityLimitOne(t *testing.T) {
 		"/athlete/activities?page=1": 1, "/activities/1000": 1, "/activities/1000/streams": 1,
 	})
 	coreLimitPaths(t, f, summaries, 1)
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 
 func TestImporterActivityLimitRetainsOlderStoredNodes(t *testing.T) {
@@ -152,7 +167,7 @@ func TestImporterActivityLimitRetainsOlderStoredNodes(t *testing.T) {
 	if older.PermanodeRef() != ref {
 		t.Error("capped run replaced older stored activity")
 	}
-	coreAttrs(t, older, map[string]string{attrImportVersion: "1", attrSummaryHash: summaryHash(&summaries[1])})
+	coreAttrs(t, older, map[string]string{attrImportVersion: "2", attrSummaryHash: summaryHash(&summaries[1])})
 }
 
 func TestImporterActivityLimitFixedPageSize(t *testing.T) {
@@ -175,7 +190,7 @@ func TestImporterActivityLimitFixedPageSize(t *testing.T) {
 	}
 	coreLimitCalls(t, api, want)
 	coreLimitPaths(t, f, summaries, 3)
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 
 func TestImporterActivityLimitOverOneHundred(t *testing.T) {
@@ -205,7 +220,7 @@ func TestImporterActivityLimitOverOneHundred(t *testing.T) {
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1, "/athlete/activities?page=2": 1})
 	coreLimitPaths(t, f, summaries, 101)
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 
 func TestImporterActivityLimitFewerAvailable(t *testing.T) {
@@ -231,7 +246,7 @@ func TestImporterActivityLimitFewerAvailable(t *testing.T) {
 			}
 			coreLimitCalls(t, api, want)
 			coreLimitPaths(t, f, summaries, available)
-			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 		})
 	}
 }
@@ -269,7 +284,7 @@ func TestImporterActivityLimitUnsetOrEmptyIsUnlimited(t *testing.T) {
 			}
 			coreLimitCalls(t, api, want)
 			coreLimitPaths(t, f, summaries, len(summaries))
-			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "1"})
+			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 		})
 	}
 }
@@ -317,7 +332,7 @@ func TestImporterActivityLimitFailureBeforeNthDoesNotAdvanceCompletion(t *testin
 				"/athlete/activities?page=1": 1, "/activities/1000": 1,
 				"/activities/1000/streams": 1, "/activities/999": 1,
 			})
-			coreAttrs(t, f.activity(t, 1000), map[string]string{attrImportVersion: "1"})
+			coreAttrs(t, f.activity(t, 1000), map[string]string{attrImportVersion: "2"})
 			coreAttrs(t, f.activity(t, 999), map[string]string{attrImportVersion: ""})
 			parent := coreChild(t, f.rc.RootNode(), "activities")
 			for _, id := range []string{"998", "997"} {
@@ -589,7 +604,7 @@ func TestImporterTokenBoundToOldAppMustRefreshBeforeREST(t *testing.T) {
 				}
 				want = append(want, "/api/v3/athlete/activities")
 				coreAttrs(t, f.rc.AccountNode(), map[string]string{
-					attrTokenClientID: f.clientID, importer.AcctAttrCompletedVersion: "1",
+					attrTokenClientID: f.clientID, importer.AcctAttrCompletedVersion: "2",
 				})
 			} else {
 				if err == nil {

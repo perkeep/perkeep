@@ -54,7 +54,7 @@ const (
 	attrStreamsJSON      = "stravaStreamsJSON"
 	attrRateLimitState   = "stravaRateLimitState"
 	maxActivitiesEnv     = "PERKEEP_STRAVA_MAX_ACTIVITIES"
-	runCompleteVersion   = "1"
+	runCompleteVersion   = "2"
 )
 
 type imp struct{ importer.OAuth2 }
@@ -369,7 +369,7 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 		}
 	}()
 	r := &run{rc}
-	if err := rc.RootNode().SetAttr(nodeattr.Title, "Strava workouts"); err != nil {
+	if err := rc.RootNode().SetAttrs(nodeattr.Title, "Strava workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
 		return err
 	}
 	activities, err := rc.RootNode().ChildPathObject("activities")
@@ -504,17 +504,12 @@ func (r *run) attach(obj *importer.Object, key, filename string, data []byte) er
 	if err != nil {
 		return err
 	}
-	// Dynamic-directory paths must point to permanodes for browsing in the
-	// UI and FUSE. The semantic attachment attribute still points directly
-	// to the file schema, so consumers need not traverse this wrapper.
-	file, err := obj.ChildPathObject(filename)
-	if err != nil {
+	if err := obj.SetAttr(key, ref.String()); err != nil {
 		return err
 	}
-	if err := file.SetAttrs(nodeattr.CamliContent, ref.String(), nodeattr.Title, filename); err != nil {
-		return err
-	}
-	return obj.SetAttr(key, ref.String())
+	// Older imports created attachment wrapper permanodes. Unlink their
+	// filename paths on refresh; attachments need only the semantic file ref.
+	return clearAttr(obj, "camliPath:"+filename)
 }
 
 func decimal(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }

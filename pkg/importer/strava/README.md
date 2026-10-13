@@ -59,9 +59,13 @@ does not prevent that later backfill.
 
 ## Stored data
 
-Each account's import root has an `activities` child. Its `camliPath:<decimal ID>`
-attributes point to stable activity permanodes, so the layout is
-`root/activities/<decimal ID>`. Reimports reuse the same activity permanode.
+Each account's import root, titled `Strava workouts`, has an `activities` child
+titled `Activities`. The internal root has `camliDefVis="hide"` so it is excluded
+from the default home view, but remains accessible through the importer account.
+The `Activities` collection and activity permanodes remain visible.
+The collection's `camliPath:<decimal ID>` attributes point to stable activity
+permanodes, so the layout is `root/activities/<decimal ID>`. Reimports reuse the
+same activity permanode.
 
 Generic attributes use SI units: distance/elevation in meters, durations in
 seconds, energy in joules, heart rate in beats per minute, and UTC `startDate`.
@@ -83,13 +87,13 @@ Additional single-valued attributes retain provider-specific data:
 | `stravaExternalID`, `stravaGearID` | Provider identifiers, when supplied. |
 | `stravaTrainer`, `stravaCommute`, `stravaManual`, `stravaPrivate` | Boolean strings, `"true"` or `"false"`. |
 | `stravaSummaryHash` | Hash of the modeled activity summary used to detect changes. |
-| `stravaImportVersion` | `"1"` only after that activity's attributes and attachments are complete. |
+| `stravaImportVersion` | `"2"` only after that activity's attributes and attachments are complete. |
 
-Attachments are also browsable as files in the directory UI and FUSE:
-`camliPath:activity.json`, `camliPath:streams.json`, and `camliPath:track.gpx`
-point to stable child permanodes whose `title` is the filename and whose
-`camliContent` is the file-schema blobref. The activity's attachment attributes
-above and `fitnessTrack` still point directly to file schemas, not those children.
+The activity's `stravaActivityJSON`, `stravaStreamsJSON`, and `fitnessTrack`
+attributes reference named file-schema blobs directly. Attachments do not create
+wrapper permanodes or `camliPath:<filename>` links. Refreshing an activity removes
+any filename paths left by the previous layout; it does not modify or delete
+historical wrapper permanodes.
 
 The client requests `time`, `latlng`, `altitude`, `distance`, `heartrate`,
 `cadence`, `watts`, `temp`, `moving`, and `velocity_smooth` streams. Strava may
@@ -113,11 +117,11 @@ can shift when activities are added or deleted. An interrupted run restarts
 enumeration and skips completed, unchanged activities.
 
 Detailed activity and streams requests are skipped only when the existing
-activity has `stravaImportVersion="1"` **and** its `stravaSummaryHash` matches
+activity has `stravaImportVersion="2"` **and** its `stravaSummaryHash` matches
 the newly listed modeled summary. New or changed summaries trigger an import
 into the stable activity permanode. The completion version is written last,
 after all attachments and attributes succeed. The account's
-`completedVersion="1"` marks completion of the selected enumeration window
+`completedVersion="2"` marks completion of the selected enumeration window
 (capped or complete), not a reason to stop future enumeration.
 
 `SupportsIncremental=true` describes incremental **detail/stream fetching**,
