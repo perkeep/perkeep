@@ -30,10 +30,231 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rwcarlsen/goexif/tiff"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/schema"
 )
+
+func TestIndexEXIFDirectories(t *testing.T) {
+	for _, order := range []binary.ByteOrder{binary.LittleEndian, binary.BigEndian} {
+		t.Run(order.String(), func(t *testing.T) {
+			// Construct all five directories, including colliding tag numbers
+			// and IFD1 fields that goexif's flattened map doesn't expose.
+			type tag struct {
+				id      uint16
+				typ     tiff.DataType
+				count   uint32
+				data    []byte
+				pointer int // target directory; -1 for ordinary values
+			}
+			short := func(id uint16, value uint16) tag {
+				data := make([]byte, 2)
+				order.PutUint16(data, value)
+				return tag{id, tiff.DTShort, 1, data, -1}
+			}
+			str := func(id uint16, value string) tag {
+				data := append([]byte(value), 0)
+				return tag{id, tiff.DTAscii, uint32(len(data)), data, -1}
+			}
+			ptr := func(id uint16, dir int) tag {
+				return tag{id, tiff.DTLong, 1, make([]byte, 4), dir}
+			}
+			rat := func(id uint16, values ...uint32) tag {
+				data := make([]byte, 4*len(values))
+				for i, v := range values {
+					order.PutUint32(data[4*i:], v)
+				}
+				return tag{id, tiff.DTRational, uint32(len(values) / 2), data, -1}
+			}
+			dirs := [][]tag{
+				{short(0x0100, 640), short(0x0112, 1), ptr(0x8769, 2), ptr(0x8825, 3)},
+				{short(0x0100, 160), short(0x0112, 6)},
+				{short(0x0112, 3), str(0x9003, "2026:01:02 03:04:05"), ptr(0xa005, 4),
+					ptr(0x8825, 3), str(0xc001, "unsupported Exif field")},
+				{str(0x0001, "N"), rat(0x0002, 12, 1, 30, 1, 0, 1),
+					str(0x0003, "E"), rat(0x0004, 42, 1, 15, 1, 0, 1),
+					str(0x0100, "unsupported GPS field")},
+				{str(0x0001, "R98"), str(0x1001, "ignored")},
+			}
+			offsets := make([]uint32, len(dirs))
+			size := uint32(8)
+			for i, dir := range dirs {
+				offsets[i] = size
+				size += 2 + 12*uint32(len(dir)) + 4
+			}
+			data := make([]byte, size)
+			if order == binary.LittleEndian {
+				copy(data, "II")
+			} else {
+				copy(data, "MM")
+			}
+			order.PutUint16(data[2:], 42)
+			order.PutUint32(data[4:], offsets[0])
+			for i, dir := range dirs {
+				pos := offsets[i]
+				order.PutUint16(data[pos:], uint16(len(dir)))
+				pos += 2
+				for _, tag := range dir {
+					order.PutUint16(data[pos:], tag.id)
+					order.PutUint16(data[pos+2:], uint16(tag.typ))
+					order.PutUint32(data[pos+4:], tag.count)
+					if tag.pointer >= 0 {
+						order.PutUint32(data[pos+8:], offsets[tag.pointer])
+					} else if len(tag.data) <= 4 {
+						copy(data[pos+8:pos+12], tag.data)
+					} else {
+						order.PutUint32(data[pos+8:], uint32(len(data)))
+						data = append(data, tag.data...)
+					}
+					pos += 12
+				}
+				if i == 0 {
+					order.PutUint32(data[pos:], offsets[1])
+				}
+			}
+
+			whole := blob.RefFromBytes(data)
+			want := map[string]string{
+				keyEXIFTag.Key(whole, exifIFD0, "0100"):   "int|1|640",
+				keyEXIFTag.Key(whole, exifIFD0, "0112"):   "int|1|1",
+				keyEXIFTag.Key(whole, exifIFD0, "8769"):   fmt.Sprintf("int|1|%d", offsets[2]),
+				keyEXIFTag.Key(whole, exifIFD0, "8825"):   fmt.Sprintf("int|1|%d", offsets[3]),
+				keyEXIFTag.Key(whole, exifIFD1, "0100"):   "int|1|160",
+				keyEXIFTag.Key(whole, exifIFD1, "0112"):   "int|1|6",
+				keyEXIFTag.Key(whole, exifIFD, "0112"):    "int|1|3",
+				keyEXIFTag.Key(whole, exifIFD, "9003"):    "string|1|2026:01:02 03:04:05",
+				keyEXIFTag.Key(whole, exifIFD, "a005"):    fmt.Sprintf("int|1|%d", offsets[4]),
+				keyEXIFTag.Key(whole, exifIFD, "8825"):    fmt.Sprintf("int|1|%d", offsets[3]),
+				keyEXIFTag.Key(whole, exifIFDGPS, "0001"): "string|1|N",
+				keyEXIFTag.Key(whole, exifIFDGPS, "0002"): "rat|3|12/1|30/1|0/1",
+				keyEXIFTag.Key(whole, exifIFDGPS, "0003"): "string|1|E",
+				keyEXIFTag.Key(whole, exifIFDGPS, "0004"): "rat|3|42/1|15/1|0/1",
+				keyEXIFGPS.Key(whole):                     "12.5000000|42.2500000",
+			}
+			for range 20 {
+				mm := &mutationMap{}
+				if err := indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
+					t.Fatal(err)
+				}
+				// Exact equality also checks that no legacy keys,
+				// Interoperability fields, or unsupported subdirectory
+				// fields were written.
+				if !reflect.DeepEqual(mm.kv, want) {
+					t.Fatalf("mutations = %v; want %v", mm.kv, want)
+				}
+			}
+			t.Run("brokenExifWithValidGPS", func(t *testing.T) {
+				broken := bytes.Clone(data)
+				// Point the Exif DateTimeOriginal value past EOF, without
+				// affecting the independent GPS directory.
+				order.PutUint32(broken[offsets[2]+2+12+8:], uint32(len(broken)+8))
+				brokenRef := blob.RefFromBytes(broken)
+				mm := &mutationMap{}
+				if err := indexEXIF(brokenRef, bytes.NewReader(broken), mm); err != nil {
+					t.Fatalf("noncritical Exif subdirectory error: %v", err)
+				}
+				for _, tag := range []string{"0001", "0002", "0003", "0004"} {
+					got := mm.kv[keyEXIFTag.Key(brokenRef, exifIFDGPS, tag)]
+					expected := want[keyEXIFTag.Key(whole, exifIFDGPS, tag)]
+					if got != expected {
+						t.Errorf("valid GPS tag %s = %q; want %q", tag, got, expected)
+					}
+				}
+			})
+			t.Run("brokenGPSWithValidExif", func(t *testing.T) {
+				broken := bytes.Clone(data)
+				// Break GPSLatitude without affecting the Exif directory.
+				order.PutUint32(broken[offsets[3]+2+12+8:], uint32(len(broken)+8))
+				whole := blob.RefFromBytes(broken)
+				mm := &mutationMap{}
+				if err := indexEXIF(whole, bytes.NewReader(broken), mm); err != nil {
+					t.Fatalf("noncritical GPS subdirectory error: %v", err)
+				}
+				if got := mm.kv[keyEXIFTag.Key(whole, exifIFD, "9003")]; got != "string|1|2026:01:02 03:04:05" {
+					t.Errorf("valid Exif date = %q; want string|1|2026:01:02 03:04:05", got)
+				}
+				if got := mm.kv[keyEXIFTag.Key(whole, exifIFD0, "0100")]; got != "int|1|640" {
+					t.Errorf("valid IFD0 width = %q; want int|1|640", got)
+				}
+			})
+		})
+	}
+}
+
+func TestIndexEXIFSubdirectoryShortRead(t *testing.T) {
+	for _, tt := range []struct {
+		pointer uint16
+		dirID   int
+		tag     uint16
+	}{
+		{0x8769, exifIFD, 0x9003},
+		{0x8825, exifIFDGPS, 0x0001},
+	} {
+		t.Run(fmt.Sprintf("%04x", tt.pointer), func(t *testing.T) {
+			// IFD0 points to a subdirectory whose out-of-line string value
+			// falls beyond the retained prefix. goexif reports this as a
+			// noncritical error. Preserve the original behavior: retain
+			// independent metadata without requesting another file read.
+			const payloadOffset = 44
+			data := make([]byte, payloadOffset)
+			copy(data, "II")
+			o := binary.LittleEndian
+			o.PutUint16(data[2:], 42)
+			o.PutUint32(data[4:], 8)
+			o.PutUint16(data[8:], 1)
+			o.PutUint16(data[10:], tt.pointer)
+			o.PutUint16(data[12:], uint16(tiff.DTLong))
+			o.PutUint32(data[14:], 1)
+			o.PutUint32(data[18:], 26)
+			o.PutUint16(data[26:], 1)
+			o.PutUint16(data[28:], tt.tag)
+			o.PutUint16(data[30:], uint16(tiff.DTAscii))
+			o.PutUint32(data[32:], 8)
+			o.PutUint32(data[36:], payloadOffset)
+			data = append(data, []byte("fixture\x00")...)
+			whole := blob.RefFromBytes(data)
+			partial := &mutationMap{}
+			if err := indexEXIF(whole, bytes.NewReader(data[:payloadOffset]), partial); err != nil {
+				t.Fatalf("noncritical truncated subdirectory error: %v", err)
+			}
+			if got := partial.kv[keyEXIFTag.Key(whole, tt.dirID, fmt.Sprintf("%04x", tt.tag))]; got != "" {
+				t.Errorf("truncated subdirectory tag = %q; want no row", got)
+			}
+			mm := &mutationMap{}
+			if err := indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
+				t.Fatal(err)
+			}
+			if got := mm.kv[keyEXIFTag.Key(whole, tt.dirID, fmt.Sprintf("%04x", tt.tag))]; got != "string|1|fixture" {
+				t.Errorf("full-file tag = %q; want string|1|fixture", got)
+			}
+		})
+	}
+}
+
+func BenchmarkIndexEXIF(b *testing.B) {
+	for _, tt := range []struct {
+		name string
+		path string
+	}{
+		{"GPS", "indextest/testdata/dude-exif.jpg"},
+		{"NoGPS", "../../internal/images/testdata/f6-exif.jpg"},
+	} {
+		b.Run(tt.name, func(b *testing.B) {
+			data, err := os.ReadFile(tt.path)
+			if err != nil {
+				b.Fatal(err)
+			}
+			whole := blob.RefFromBytes(data)
+			b.ReportAllocs()
+			for b.Loop() {
+				if err := indexEXIF(whole, bytes.NewReader(data), &mutationMap{}); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
 
 func TestJPEGAPP1Finder(t *testing.T) {
 	for _, data := range []string{
@@ -200,7 +421,7 @@ func TestPopulateFileJPEGEXIFPastPrefix(t *testing.T) {
 	if got := mm.kv[keyImageSize.Key(file.BlobRef())]; got != "40|80" {
 		t.Errorf("visible dimensions = %q; want 40|80 (stored 80x40, orientation 6)", got)
 	}
-	if got := mm.kv[keyEXIFTag.Key(blob.RefFromBytes(data), "0112")]; got != "int|1|6" {
+	if got := mm.kv[keyEXIFTag.Key(blob.RefFromBytes(data), exifIFD0, "0112")]; got != "int|1|6" {
 		t.Errorf("EXIF orientation = %q; want int|1|6", got)
 	}
 }

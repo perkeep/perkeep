@@ -756,9 +756,39 @@ func tagFormatString(tag *tiff.Tag) string {
 	return ""
 }
 
-type exifWalkFunc func(name exif.FieldName, tag *tiff.Tag) error
+// These directory IDs are part of the index format, not EXIF-defined numbers.
+const (
+	exifIFD0   = 0
+	exifIFD1   = 1
+	exifIFD    = 2
+	exifIFDGPS = 3
+)
 
-func (f exifWalkFunc) Walk(name exif.FieldName, tag *tiff.Tag) error { return f(name, tag) }
+type exifIndexer struct {
+	wholeRef blob.Ref
+	mm       *mutationMap
+	dirs     []*tiff.Dir // retained IFD0/IFD1 directories
+	prefixes [4]string   // lazily formatted once per directory
+}
+
+func (x *exifIndexer) Walk(name exif.FieldName, tag *tiff.Tag) error {
+	if name == exif.InteroperabilityIndex {
+		return nil
+	}
+	for _, dir := range x.dirs {
+		for _, indexed := range dir.Tags {
+			if indexed == tag {
+				return nil // already indexed under its actual directory
+			}
+		}
+	}
+	dirID := exifIFD
+	if name != exif.GPSInfoIFDPointer && strings.HasPrefix(string(name), "GPS") {
+		dirID = exifIFDGPS
+	}
+	x.indexTag(dirID, tag)
+	return nil
+}
 
 var errEXIFPanic = errors.New("EXIF library panicked while walking fields")
 
@@ -785,67 +815,25 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 		}
 	}()
 
-	err = ex.Walk(exifWalkFunc(func(name exif.FieldName, tag *tiff.Tag) error {
-		tagFmt := tagFormatString(tag)
-		if tagFmt == "" {
-			return nil
+	// IFD0 and IFD1 are retained by the decoder. Walk them directly so
+	// repeated fields (e.g. main-image and thumbnail orientation) survive
+	// goexif's flattened field-name map.
+	dirs := ex.Tiff.Dirs[:min(2, len(ex.Tiff.Dirs))]
+	x := &exifIndexer{wholeRef: wholeRef, mm: mm, dirs: dirs}
+	for dirID, dir := range dirs {
+		for _, tag := range dir.Tags {
+			x.indexTag(dirID, tag)
 		}
-		key := keyEXIFTag.Key(wholeRef, fmt.Sprintf("%04x", tag.Id))
-		numComp := int(tag.Count)
-		if tag.Format() == tiff.StringVal {
-			numComp = 1
-		}
-		var val bytes.Buffer
-		val.WriteString(keyEXIFTag.Val(tagFmt, numComp, ""))
-		if tag.Format() == tiff.StringVal {
-			str, err := tag.StringVal()
-			if err != nil {
-				log.Printf("Invalid EXIF string data: %v", err)
-				return nil
-			}
-			if containsUnsafeRawStrByte(str) {
-				val.WriteString(urle(str))
-			} else {
-				val.WriteString(str)
-			}
-		} else {
-			for i := 0; i < int(tag.Count); i++ {
-				if i > 0 {
-					val.WriteByte('|')
-				}
-				switch tagFmt {
-				case "int":
-					v, err := tag.Int(i)
-					if err != nil {
-						log.Printf("Invalid EXIF int data: %v", err)
-						return nil
-					}
-					fmt.Fprintf(&val, "%d", v)
-				case "rat":
-					n, d, err := tag.Rat2(i)
-					if err != nil {
-						log.Printf("Invalid EXIF rat data: %v", err)
-						return nil
-					}
-					fmt.Fprintf(&val, "%d/%d", n, d)
-				case "float":
-					v, err := tag.Float(i)
-					if err != nil {
-						log.Printf("Invalid EXIF float data: %v", err)
-						return nil
-					}
-					fmt.Fprintf(&val, "%v", v)
-				default:
-					panic("shouldn't get here")
-				}
-			}
-		}
-		valStr := val.String()
-		mm.Set(key, valStr)
-		return nil
-	}))
+	}
+
+	// goexif discards its subdirectory objects but retains their supported
+	// fields in ex.Walk. Reuse those decoded tags instead of decoding the
+	// subdirectories again. The default parser gives GPS fields GPS-prefixed
+	// names (except GPSInfoIFDPointer, which is a pointer, not a GPS field).
+	// Remaining tags not owned by IFD0/IFD1 belong to the Exif subdirectory.
+	err = ex.Walk(x)
 	if err != nil {
-		return
+		return err
 	}
 
 	if exif.IsGPSError(tiffErr) {
@@ -868,6 +856,70 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 		log.Printf("Invalid EXIF GPS data: %v", err)
 	}
 	return nil
+}
+
+func (x *exifIndexer) indexTag(dirID int, tag *tiff.Tag) {
+	tagFmt := tagFormatString(tag)
+	if tagFmt == "" {
+		return
+	}
+	if x.prefixes[dirID] == "" {
+		x.prefixes[dirID] = keyEXIFTag.Prefix(x.wholeRef, dirID)
+	}
+	// Numeric tag IDs need no escaping. Reusing the directory prefix avoids
+	// formatting the whole-file reference and generic key parts per tag.
+	key := x.prefixes[dirID] + fmt.Sprintf("%04x", tag.Id)
+	numComp := int(tag.Count)
+	if tag.Format() == tiff.StringVal {
+		numComp = 1
+	}
+	var val bytes.Buffer
+	val.WriteString(keyEXIFTag.Val(tagFmt, numComp, ""))
+	if tag.Format() == tiff.StringVal {
+		str, err := tag.StringVal()
+		if err != nil {
+			log.Printf("Invalid EXIF string data: %v", err)
+			return
+		}
+		if containsUnsafeRawStrByte(str) {
+			val.WriteString(urle(str))
+		} else {
+			val.WriteString(str)
+		}
+	} else {
+		for i := 0; i < int(tag.Count); i++ {
+			if i > 0 {
+				val.WriteByte('|')
+			}
+			switch tagFmt {
+			case "int":
+				v, err := tag.Int(i)
+				if err != nil {
+					log.Printf("Invalid EXIF int data: %v", err)
+					return
+				}
+				fmt.Fprintf(&val, "%d", v)
+			case "rat":
+				n, d, err := tag.Rat2(i)
+				if err != nil {
+					log.Printf("Invalid EXIF rat data: %v", err)
+					return
+				}
+				fmt.Fprintf(&val, "%d/%d", n, d)
+			case "float":
+				v, err := tag.Float(i)
+				if err != nil {
+					log.Printf("Invalid EXIF float data: %v", err)
+					return
+				}
+				fmt.Fprintf(&val, "%v", v)
+			default:
+				panic("shouldn't get here")
+			}
+		}
+	}
+	valStr := val.String()
+	x.mm.Set(key, valStr)
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
