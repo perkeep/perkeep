@@ -10,6 +10,15 @@ description: >
 runs:
   using: composite
   steps:
+    # On Windows, the Go caches default to the user's profile on C:, which
+    # is much slower than D:, where the checkout is. Extracting the caches
+    # there took most of the job's time.
+    - if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        echo "GOMODCACHE=D:\\gocache\\mod" >> "$GITHUB_ENV"
+        echo "GOCACHE=D:\\gocache\\build" >> "$GITHUB_ENV"
+
     - uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
