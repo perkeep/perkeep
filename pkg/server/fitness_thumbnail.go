@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	fitnessRenderVersion = 1
+	fitnessRenderVersion = 3
 	fitnessMaxGPXBytes   = 16 << 20
 	fitnessMaxPoints     = 200000
 )
@@ -105,6 +105,14 @@ func (ih *ImageHandler) serveFitnessThumbnail(rw http.ResponseWriter, req *http.
 	// Deliberately do not read fitnessTrack or fitnessActivityType from the URL.
 	track := dp.Attr.Get(nodeattr.FitnessTrack)
 	sport := fitnessSport(dp.Attr.Get(nodeattr.FitnessActivityType))
+	// Maps are strictly opt-in, and have a separate, expiring filesystem cache.
+	// In particular, never let the legacy input-key ETag or permanent ThumbMeta
+	// cache hide a changed upstream map after its tile freshness expires.
+	source, sourceErr := fitnessTileSourceFromEnv()
+	if source != nil || sourceErr != nil {
+		ih.serveFitnessBasemap(rw, req, track, sport, w, h, source, sourceErr)
+		return
+	}
 	key := fitnessCacheKey(track, sport, w, h)
 	etag := strconv.Quote(blob.RefFromString(key).String())
 	head := rw.Header()
@@ -219,6 +227,24 @@ func (ih *ImageHandler) renderFitnessThumbnail(ctx context.Context, track, sport
 		return nil, err
 	}
 	defer release()
+	segments, missing := ih.readFitnessTrack(ctx, track)
+	if missing != nil && !errors.Is(missing, errFitnessMissing) {
+		return nil, missing
+	}
+	img, err := drawFitnessThumbnail(ctx, segments, sport, w, h)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(fitnessContextWriter{ctx, &buf}, img); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), missing
+}
+
+// readFitnessTrack reads only local content. GPX and its identifying metadata
+// are never passed to the tile source.
+func (ih *ImageHandler) readFitnessTrack(ctx context.Context, track string) ([][]fitnessPoint, error) {
 	var segments [][]fitnessPoint
 	var missing error
 	if track != "" {
@@ -252,15 +278,7 @@ func (ih *ImageHandler) renderFitnessThumbnail(ctx context.Context, track, sport
 			}
 		}
 	}
-	img, err := drawFitnessThumbnail(ctx, segments, sport, w, h)
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	if err := png.Encode(fitnessContextWriter{ctx, &buf}, img); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), missing
+	return segments, missing
 }
 
 // Request-bound blob fetching prevents FileReader's internal background
@@ -348,7 +366,7 @@ type fitnessPoint struct{ x, y float64 }
 
 // parseFitnessGPX streams only standard track segments. Invalid coordinates
 // make a gap instead of inventing a line across missing GPS samples. XML entity
-// references are not resolved externally; neither GPX nor the renderer uses HTTP.
+// references are not resolved externally; parsing GPX never uses HTTP.
 func parseFitnessGPX(ctx context.Context, r io.Reader) ([][]fitnessPoint, error) {
 	limited := &io.LimitedReader{R: fitnessContextReader{ctx, r}, N: fitnessMaxGPXBytes + 1}
 	dec := xml.NewDecoder(limited)
@@ -458,6 +476,20 @@ func parseFitnessGPX(ctx context.Context, r io.Reader) ([][]fitnessPoint, error)
 // fitnessProject unwraps longitude across the antimeridian, then fits a
 // conformal Web Mercator projection with a single scale for both dimensions.
 func fitnessProject(segments [][]fitnessPoint, w, h int) [][]fitnessPoint {
+	return fitnessProjectionFor(segments, w, h).projectedSegments
+}
+
+// fitnessProjection retains the single transform used by both the route and
+// map, so the map cannot be independently stretched or rounded out of alignment.
+type fitnessProjection struct {
+	projectedSegments                [][]fitnessPoint
+	centreMercatorX, centreMercatorY float64
+	scalePixelsPerRad                float64
+	width, height                    int
+}
+
+func fitnessProjectionFor(segments [][]fitnessPoint, w, h int) fitnessProjection {
+	plan := fitnessProjection{width: w, height: h}
 	var projected [][]fitnessPoint
 	minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 	anchor := math.NaN()
@@ -474,7 +506,7 @@ func fitnessProject(segments [][]fitnessPoint, w, h int) [][]fitnessPoint {
 			}
 			prev = x
 			lat := math.Max(-85.05112878, math.Min(85.05112878, p.y)) * math.Pi / 180
-			y := -math.Log(math.Tan(math.Pi/4 + lat/2))
+			y := math.Max(-math.Pi, math.Min(math.Pi, -math.Log(math.Tan(math.Pi/4+lat/2))))
 			ps = append(ps, fitnessPoint{x, y})
 			minX, maxX = math.Min(minX, x), math.Max(maxX, x)
 			minY, maxY = math.Min(minY, y), math.Max(maxY, y)
@@ -484,7 +516,7 @@ func fitnessProject(segments [][]fitnessPoint, w, h int) [][]fitnessPoint {
 		}
 	}
 	if len(projected) == 0 {
-		return nil
+		return plan
 	}
 	pad := math.Max(12, math.Min(float64(w), float64(h))*.13)
 	aw, ah := math.Max(1, float64(w)-2*pad), math.Max(1, float64(h)-2*pad)
@@ -496,7 +528,9 @@ func fitnessProject(segments [][]fitnessPoint, w, h int) [][]fitnessPoint {
 		scale = math.Min(scale, ah/(maxY-minY))
 	}
 	if math.IsInf(scale, 0) {
-		scale = 1
+		// A stationary GPS fix is a local map, not a view of the whole world.
+		// Its route-only position is still exactly the center as before.
+		scale = 256 * (1 << 16) / (2 * math.Pi)
 	}
 	cx, cy := (minX+maxX)/2, (minY+maxY)/2
 	for _, ps := range projected {
@@ -504,7 +538,10 @@ func fitnessProject(segments [][]fitnessPoint, w, h int) [][]fitnessPoint {
 			ps[i] = fitnessPoint{float64(w)/2 + (p.x-cx)*scale, float64(h)/2 + (p.y-cy)*scale}
 		}
 	}
-	return projected
+	plan.projectedSegments = projected
+	plan.centreMercatorX, plan.centreMercatorY = cx, cy
+	plan.scalePixelsPerRad = scale
+	return plan
 }
 
 // A vector path accumulates round caps and joins, rasterized with antialiasing.
@@ -541,27 +578,35 @@ func (p fitnessPen) paint(img *image.RGBA, c color.NRGBA) {
 }
 
 func drawFitnessThumbnail(ctx context.Context, segments [][]fitnessPoint, sport string, w, h int) (*image.RGBA, error) {
+	return drawFitnessProjectedThumbnail(ctx, fitnessProjectionFor(segments, w, h), sport, nil)
+}
+
+func drawFitnessProjectedThumbnail(ctx context.Context, plan fitnessProjection, sport string, background *image.RGBA) (*image.RGBA, error) {
+	w, h := plan.width, plan.height
 	if w <= 0 || h <= 0 || w > search.MaxImageSize || h > search.MaxImageSize {
 		return nil, errFitnessLimit
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.Draw(img, img.Bounds(), image.NewUniform(color.NRGBA{246, 248, 250, 255}), image.Point{}, draw.Src)
-	// A subtle non-geographic grid, not fabricated map roads.
-	step := int(math.Max(24, float64(min(w, h))/5))
-	for x := step; x < w; x += step {
-		for y := 0; y < h; y++ {
-			img.SetRGBA(x, y, color.RGBA{235, 239, 243, 255})
+	img := background
+	if img == nil {
+		img = image.NewRGBA(image.Rect(0, 0, w, h))
+		draw.Draw(img, img.Bounds(), image.NewUniform(color.NRGBA{246, 248, 250, 255}), image.Point{}, draw.Src)
+		// A subtle non-geographic grid, not fabricated map roads.
+		step := int(math.Max(24, float64(min(w, h))/5))
+		for x := step; x < w; x += step {
+			for y := 0; y < h; y++ {
+				img.SetRGBA(x, y, color.RGBA{235, 239, 243, 255})
+			}
+		}
+		for y := step; y < h; y += step {
+			for x := 0; x < w; x++ {
+				img.SetRGBA(x, y, color.RGBA{235, 239, 243, 255})
+			}
 		}
 	}
-	for y := step; y < h; y += step {
-		for x := 0; x < w; x++ {
-			img.SetRGBA(x, y, color.RGBA{235, 239, 243, 255})
-		}
-	}
-	ps := fitnessProject(segments, w, h)
+	ps := plan.projectedSegments
 	pen := fitnessPen{vector.NewRasterizer(w, h)}
 	stroke := math.Max(1.4, math.Min(3.2, float64(min(w, h))*.013))
 	for pass := 0; pass < 2; pass++ {

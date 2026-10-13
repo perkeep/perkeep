@@ -51,7 +51,18 @@ cam.BlobItemFitnessContent = React.createClass({
 	render: function() {
 		var activity = this.props.activity;
 		var layout = cam.BlobItemFitnessContent.getLayout(this.props.size, activity);
-		var preview = this.props.src && !this.state.failed
+		var attribution = cam.BlobItemFitnessContent.getMapAttribution();
+		var tiny = this.props.size.width < 100;
+		// Icons keep the linked provider name readable above the sport badge.
+		// Custom license text is never shortened; very small custom-provider
+		// cards may require a larger preview for legibility. The downloaded PNG
+		// retains its own attribution whenever it contains a map.
+		var attributionText = attribution && tiny && attribution.text == '\u00a9 OpenStreetMap contributors' ? 'OpenStreetMap' : attribution && attribution.text;
+		var hasPreview = this.props.src && !this.state.failed;
+		// The bitmap has a compact vector badge; the image-error placeholder
+		// uses a text badge, which can be wider for types such as Workout.
+		var fallbackBadgeWidth = Math.max(45, Math.ceil(activity.typeLabel.length * layout.metricFont * 0.8 + 14));
+		var preview = hasPreview
 			? React.DOM.img({
 				className: 'cam-blobitem-fitness-image',
 				src: this.props.src,
@@ -67,15 +78,23 @@ cam.BlobItemFitnessContent = React.createClass({
 				),
 				React.DOM.span({className: 'cam-blobitem-fitness-fallback-badge', style: {fontSize: layout.metricFont, lineHeight: layout.metricLine + 'px'}}, activity.typeLabel)
 			);
-		return React.DOM.a({
+		return React.DOM.div({
 				className: 'cam-blobitem-fitness',
-				href: this.props.href,
-				title: activity.fullTitle,
-				'aria-label': activity.fullTitle,
 				style: {width: this.props.size.width, height: this.props.size.height},
 			},
-			React.DOM.div({className: 'cam-blobitem-fitness-preview', style: {height: layout.previewHeight}}, preview),
-			React.DOM.div({className: 'cam-blobitem-fitness-footer', 'aria-label': activity.typeLabel + (activity.metrics ? ' \u00b7 ' + activity.metrics : ''), style: {height: layout.footerHeight, padding: layout.padding}},
+			React.DOM.div({className: 'cam-blobitem-fitness-preview', style: {height: layout.previewHeight}},
+				React.DOM.a({className: 'cam-blobitem-fitness-preview-link', href: this.props.href, title: activity.fullTitle, 'aria-label': activity.fullTitle}, preview),
+				attribution ? React.DOM.a({
+					className: 'cam-blobitem-fitness-attribution' + (tiny ? ' cam-blobitem-fitness-attribution-tiny' : ''),
+					href: attribution.href,
+					target: '_blank',
+					rel: 'noopener',
+					title: attribution.text,
+					'aria-label': attribution.text,
+					style: !tiny && !hasPreview ? {maxWidth: 'calc(100% - ' + fallbackBadgeWidth + 'px)'} : null,
+				}, attributionText) : null
+			),
+			React.DOM.a({className: 'cam-blobitem-fitness-footer', href: this.props.href, title: activity.fullTitle, 'aria-label': activity.typeLabel + (activity.metrics ? ' \u00b7 ' + activity.metrics : ''), style: {height: layout.footerHeight, padding: layout.padding}},
 				React.DOM.div({className: 'cam-blobitem-fitness-name', style: {fontSize: layout.titleFont, lineHeight: layout.titleLine + 'px'}}, activity.title),
 				React.DOM.div({className: 'cam-blobitem-fitness-metrics', style: {fontSize: layout.metricFont, lineHeight: layout.metricLine + 'px'}}, activity.metrics || activity.typeLabel),
 				layout.showDate ? React.DOM.div({className: 'cam-blobitem-fitness-date', style: {fontSize: layout.metricFont, lineHeight: layout.metricLine + 'px'}}, activity.typeLabel + ' \u00b7 ' + activity.date) : null
@@ -94,6 +113,31 @@ cam.BlobItemFitnessContent.TYPE_LABELS = {
 	ski: 'Ski',
 	workout: 'Workout',
 	other: 'Other',
+};
+
+// Attribution is deliberately present even if the server fell back to a grid.
+// Only the local thumbnail is fetched; this native link never loads map tiles.
+cam.BlobItemFitnessContent.getMapAttribution = function() {
+	var config = goog.global.CAMLISTORE_CONFIG;
+	if (!config || config.fitnessMapEnabled !== true) {
+		return null;
+	}
+	var href = 'https://www.openstreetmap.org/copyright';
+	var configuredURL = config.fitnessMapAttributionURL;
+	if (typeof configuredURL == 'string' && /^https?:\/\//i.test(configuredURL) && !/^https?:\/\/[^/?#]*@/i.test(configuredURL) && !/[\s\u0000-\u001f\u007f]/.test(configuredURL)) {
+		try {
+			var url = new URL(configuredURL);
+			if ((url.protocol == 'http:' || url.protocol == 'https:') && url.hostname && !url.username && !url.password) {
+				href = url.href;
+			}
+		} catch (error) {
+			// Malformed discovery values must not become executable links.
+		}
+	}
+	return {
+		text: typeof config.fitnessMapAttribution == 'string' && config.fitnessMapAttribution.trim() ? config.fitnessMapAttribution : '\u00a9 OpenStreetMap contributors',
+		href: href,
+	};
 };
 
 // Do not accept parseFloat's partial numbers, empty strings, hex, or infinities.
@@ -244,7 +288,8 @@ cam.BlobItemFitnessContent.getThumbnailURL = function(blobref, track, type, size
 	}
 	// Trackless activities still get a server-rendered neutral preview and sport
 	// badge. These query values partition the cache; the server reads real attrs.
-	return root + 'thumbnail/' + encodeURIComponent(blobref) + '/track.png?mw=' + mw + '&mh=' + mh + '&fitnessTrack=' + encodeURIComponent(track || '') + '&fitnessActivityType=' + encodeURIComponent(type || 'other') + '&ftv=1';
+	var mapProfile = config && config.fitnessMapEnabled === true ? '&mapProfile=' + encodeURIComponent(typeof config.fitnessMapProfile == 'string' ? config.fitnessMapProfile : '') : '';
+	return root + 'thumbnail/' + encodeURIComponent(blobref) + '/track.png?mw=' + mw + '&mh=' + mh + '&fitnessTrack=' + encodeURIComponent(track || '') + '&fitnessActivityType=' + encodeURIComponent(type || 'other') + '&ftv=3' + mapProfile;
 };
 
 cam.BlobItemFitnessContent.getHandler = function(blobref, searchSession, href) {

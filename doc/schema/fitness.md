@@ -90,9 +90,31 @@ it excludes Alaska and Hawaii and includes some neighbouring territory.
 Moving duration is preferred, with elapsed duration used when moving duration
 is unavailable. Display units do not change the SI values stored in claims.
 
-The default preview is route-only: rendering does not fetch a basemap or send
-the track to an external service. A future basemap integration should be
-explicitly configured and respect its provider's caching, attribution, and
-privacy requirements. OpenStreetMap's public tile service is not an unrestricted
-bulk-thumbnail service; see its
+The default preview is route-only. An administrator can explicitly enable an
+OSM-derived raster basemap with `PERKEEP_FITNESS_TILE_URL`, for example:
+
+```
+PERKEEP_FITNESS_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
+PERKEEP_FITNESS_TILE_CACHE_DIR=/private/path/to/fitness-map-cache
+```
+
+Only viewed thumbnail GET requests fetch tiles. Importing, indexing, thumbnail
+HEAD requests, and background jobs do not prefetch maps. Tile coordinates are
+limited to the displayed viewport, with bounded requests and conservative
+upstream throttling. The GPX stays local: the provider receives only map-area
+tile coordinates and an origin-only browser Referer, never the track, activity
+name, account identifier, cookies, or Strava credentials.
+
+Tiles are stored in a private, administrator-managed filesystem cache, separate
+from the archived blob store. Upstream HTTP cache directives and validators are
+honoured; absent freshness headers default to at least seven days. Composite
+PNG previews expire no later than their source tiles. Provider failures show
+the route-only preview without permanently caching that fallback.
+
+Visible licence attribution accompanies map previews. The default credit is
+`© OpenStreetMap contributors`, linked to their copyright information; custom
+providers can supply `PERKEEP_FITNESS_TILE_ATTRIBUTION` and
+`PERKEEP_FITNESS_TILE_ATTRIBUTION_URL`. Administrators are responsible for their
+provider's usage terms and disk-cache management. OpenStreetMap's public tile
+service is not an unrestricted bulk-thumbnail or offline-map service; see its
 [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).

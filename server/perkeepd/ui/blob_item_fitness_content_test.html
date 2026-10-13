@@ -55,12 +55,16 @@ limitations under the License.
 					assert(expected === actual, 'Expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
 				}
 				function test(name, fn) {
+					var config = goog.global.CAMLISTORE_CONFIG;
+					goog.global.CAMLISTORE_CONFIG = undefined;
 					try {
 						fn();
 						results.passed++;
 					} catch (error) {
 						results.failed++;
 						results.errors.push(name + ': ' + error.message);
+					} finally {
+						goog.global.CAMLISTORE_CONFIG = config;
 					}
 				}
 				function meta(attrs, camliType) {
@@ -205,7 +209,7 @@ limitations under the License.
 					assert(url.indexOf('/ui/thumbnail/sha1-test-activity/track.png?') == 0);
 					equal('256', parameter(url, 'mw'));
 					equal('154', parameter(url, 'mh'));
-					equal('1', parameter(url, 'ftv'));
+					equal('3', parameter(url, 'ftv'));
 				});
 				test('thumbnail cache keys include semantic inputs', function() {
 					var url = thumbnail('sha1-test-track', 'run');
@@ -217,6 +221,25 @@ limitations under the License.
 				test('thumbnail keys are escaped', function() {
 					equal('track&test', parameter(thumbnail('track&test', 'type/test'), 'fitnessTrack'));
 					equal('type/test', parameter(thumbnail('track&test', 'type/test'), 'fitnessActivityType'));
+				});
+				test('map thumbnail cache keys follow enabled state and opaque style profile', function() {
+					var disabled = thumbnail('sha1-test-track', 'run');
+					equal(null, parameter(disabled, 'mapProfile'));
+					[false, undefined, 'true', 1].forEach(function(enabled) {
+						goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: enabled, fitnessMapProfile: 'ignored'};
+						equal(disabled, thumbnail('sha1-test-track', 'run'));
+					});
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true, fitnessMapProfile: 'opaque-style-one'};
+					var enabled = thumbnail('sha1-test-track', 'run');
+					assert(enabled != disabled);
+					equal('opaque-style-one', parameter(enabled, 'mapProfile'));
+					goog.global.CAMLISTORE_CONFIG.fitnessMapProfile = 'opaque-style-two&provider=changed?';
+					var changed = thumbnail('sha1-test-track', 'run');
+					assert(changed != enabled);
+					equal('opaque-style-two&provider=changed?', parameter(changed, 'mapProfile'));
+					equal(null, parameter(changed, 'provider'));
+					goog.global.CAMLISTORE_CONFIG.fitnessMapProfile = undefined;
+					equal('', parameter(thumbnail('sha1-test-track', 'run'), 'mapProfile'));
 				});
 				test('trackless activity requests server PNG and sport badge', function() {
 					var url = thumbnail('', 'workout');
@@ -263,17 +286,134 @@ limitations under the License.
 					assert(!fitness.getLayout(new goog.math.Size(128, 111), a).showDate);
 					assert(fitness.getLayout(new goog.math.Size(200, 174), a).showDate);
 				});
-				test('card uses one native detail anchor and full accessible title', function() {
+				test('card uses native preview and footer detail anchors and full accessible title', function() {
 					var element = handler(meta({camliNodeType: 'fitnessActivity', title: 'Sample activity', fitnessDistance: '1609.344', latitude: '24', longitude: '-125', fitnessMovingDuration: '65'})).createContent(new goog.math.Size(200, 174));
 					mount(element, function(root) {
-						equal(1, root.querySelectorAll('a').length);
+						equal('DIV', root.firstChild.tagName);
+						equal(2, root.querySelectorAll('a').length);
+						equal(0, root.querySelectorAll('a a').length);
 						var a = root.querySelector('a');
 						equal('/ui/detail-test', a.getAttribute('href'));
 						assert(!a.getAttribute('onclick'));
 						assert(a.title.indexOf('1.6 km / 1.0 mi') != -1);
 						assert(a.getAttribute('aria-label').indexOf('1m 5s') != -1);
+						equal('/ui/detail-test', root.querySelector('.cam-blobitem-fitness-footer').getAttribute('href'));
 						equal('Sample activity', root.querySelector('.cam-blobitem-fitness-name').textContent);
 						assert(root.querySelector('.cam-blobitem-fitness-footer').getAttribute('aria-label').indexOf('Other') != -1);
+					});
+				});
+				test('map attribution defaults and strict enabled flag', function() {
+					equal(null, fitness.getMapAttribution());
+					[false, undefined, 'true', 1].forEach(function(enabled) {
+						goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: enabled};
+						equal(null, fitness.getMapAttribution());
+					});
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true};
+					equal('\u00a9 OpenStreetMap contributors', fitness.getMapAttribution().text);
+					equal('https://www.openstreetmap.org/copyright', fitness.getMapAttribution().href);
+					goog.global.CAMLISTORE_CONFIG.fitnessMapAttribution = ' ';
+					equal('\u00a9 OpenStreetMap contributors', fitness.getMapAttribution().text);
+				});
+				test('copyright is a safe native sibling link with escaped provider text', function() {
+					var text = '\u00a9 Provider <img src=x onerror=alert(1)> & contributors';
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true, fitnessMapAttribution: text, fitnessMapAttributionURL: 'https://example.test/copyright?license=a&version=2'};
+					var element = handler(meta({camliNodeType: 'fitnessActivity', title: 'Sample activity'})).createContent(new goog.math.Size(200, 174));
+					mount(element, function(root) {
+						equal('DIV', root.firstChild.tagName);
+						equal(3, root.querySelectorAll('a').length);
+						equal(0, root.querySelectorAll('a a').length);
+						var main = root.querySelector('a');
+						var copyright = root.querySelector('.cam-blobitem-fitness-attribution');
+						var footer = root.querySelector('.cam-blobitem-fitness-footer');
+						equal('/ui/detail-test', main.getAttribute('href'));
+						equal('/ui/detail-test', footer.getAttribute('href'));
+						equal('https://example.test/copyright?license=a&version=2', copyright.getAttribute('href'));
+						equal(text, copyright.textContent);
+						equal(text, copyright.title);
+						equal(text, copyright.getAttribute('aria-label'));
+						equal(0, copyright.children.length);
+						equal('_blank', copyright.getAttribute('target'));
+						assert(/(?:^|\s)noopener(?:\s|$)/.test(copyright.getAttribute('rel')));
+						assert(main.parentNode === copyright.parentNode);
+						[main, copyright, footer].forEach(function(link) { assert(!link.hasAttribute('onclick')); });
+						assert(!main.hasAttribute('target'));
+					});
+				});
+				test('copyright rejects unsafe and malformed URLs', function() {
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true};
+					['javascript:alert(1)', 'data:text/html,<b>unsafe</b>', 'file:///tmp/license', '//example.test/copyright', '/copyright', 'https://', 'https://[invalid', 'https://example.test/\nlicense', 'https://example.test/ license', 'https://user:secret@example.test/license', 'https://@example.test/license', {}, null].forEach(function(url) {
+						goog.global.CAMLISTORE_CONFIG.fitnessMapAttributionURL = url;
+						equal('https://www.openstreetmap.org/copyright', fitness.getMapAttribution().href);
+					});
+					var element = handler(meta({camliNodeType: 'fitnessActivity'})).createContent(new goog.math.Size(200, 174));
+					goog.global.CAMLISTORE_CONFIG.fitnessMapAttributionURL = 'javascript:alert(1)';
+					mount(element, function(root) {
+						equal('https://www.openstreetmap.org/copyright', root.querySelector('.cam-blobitem-fitness-attribution').getAttribute('href'));
+					});
+				});
+				test('copyright accepts only absolute HTTP and HTTPS provider links', function() {
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true};
+					['http://example.test/license', 'https://example.test/license'].forEach(function(url) {
+						goog.global.CAMLISTORE_CONFIG.fitnessMapAttributionURL = url;
+						equal(url, fitness.getMapAttribution().href);
+					});
+				});
+				test('copyright remains visible for trackless and image-error fallback', function() {
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true, fitnessMapProfile: 'test-profile'};
+					var element = handler(meta({camliNodeType: 'fitnessActivity', fitnessActivityType: 'workout'})).createContent(new goog.math.Size(128, 111));
+					mount(element, function(root, instance) {
+						equal(1, root.querySelectorAll('.cam-blobitem-fitness-attribution').length);
+						instance.onThumbError_();
+						equal(1, root.querySelectorAll('.cam-blobitem-fitness-attribution').length);
+						equal('Workout', root.querySelector('.cam-blobitem-fitness-fallback-badge').textContent);
+					});
+				});
+				test('copyright stays readable within the preview without covering the sport badge', function() {
+					goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true};
+					[200, 128, 64].forEach(function(width) {
+						['run', 'ride', 'workout'].forEach(function(type) {
+							var element = handler(meta({camliNodeType: 'fitnessActivity', fitnessActivityType: type, startDate: '2000-01-02T03:04:05Z'})).createContent(new goog.math.Size(width, width / 1.15));
+							mount(React.cloneElement(element, {src: ''}), function(root) {
+								var preview = root.querySelector('.cam-blobitem-fitness-preview').getBoundingClientRect();
+								var credit = root.querySelector('.cam-blobitem-fitness-attribution');
+								var box = credit.getBoundingClientRect();
+								var badge = root.querySelector('.cam-blobitem-fitness-fallback-badge').getBoundingClientRect();
+								assert(box.top >= preview.top && box.bottom <= preview.bottom);
+								assert(box.right <= preview.right);
+								if (width < 100) {
+									equal('OpenStreetMap', credit.textContent);
+									equal('\u00a9 OpenStreetMap contributors', credit.title);
+									equal('\u00a9 OpenStreetMap contributors', credit.getAttribute('aria-label'));
+									assert(box.left >= preview.left && box.bottom <= badge.top);
+								} else {
+									assert(box.left >= badge.right);
+									equal('\u00a9 OpenStreetMap contributors', credit.textContent);
+								}
+								assert(credit.scrollHeight <= credit.clientHeight);
+								assert(credit.scrollWidth <= credit.clientWidth);
+								assert(parseFloat(window.getComputedStyle(credit).fontSize) >= 8);
+								equal(width, root.firstChild.getBoundingClientRect().width);
+								assert(Math.abs(root.firstChild.getBoundingClientRect().height - width / 1.15) < 1);
+							});
+						});
+					});
+					goog.global.CAMLISTORE_CONFIG.fitnessMapAttribution = '\u00a9 Example provider';
+					var tiny = handler(meta({camliNodeType: 'fitnessActivity'})).createContent(new goog.math.Size(64, 64 / 1.15));
+					mount(tiny, function(root) {
+						equal('\u00a9 Example provider', root.querySelector('.cam-blobitem-fitness-attribution').textContent);
+					});
+				});
+				test('disabled maps have no attribution or provider image requests', function() {
+					[undefined, {fitnessMapEnabled: false}].forEach(function(config) {
+						goog.global.CAMLISTORE_CONFIG = config;
+						var element = handler(meta({camliNodeType: 'fitnessActivity', fitnessTrack: 'sha1-test-track'})).createContent(new goog.math.Size(200, 174));
+						assert(element.props.src.indexOf('/ui/thumbnail/') == 0);
+						equal(null, parameter(element.props.src, 'mapProfile'));
+						mount(element, function(root) {
+							equal(0, root.querySelectorAll('.cam-blobitem-fitness-attribution').length);
+							equal(1, root.querySelectorAll('img').length);
+							equal(2, root.querySelectorAll('a').length);
+						});
 					});
 				});
 				test('trackless activity uses PNG; image error shows neutral typed placeholder', function() {
@@ -322,13 +462,17 @@ limitations under the License.
 				status.textContent = (results.failed ? 'FAIL: ' : 'PASS: ') + results.passed + ' passed, ' + results.failed + ' failed';
 				status.style.background = results.failed ? '#a00' : '#18743c';
 				document.getElementById('errors').textContent = results.errors.join('\n');
+				var fixtureConfig = goog.global.CAMLISTORE_CONFIG;
+				goog.global.CAMLISTORE_CONFIG = {fitnessMapEnabled: true};
 				[200, 128, 64].forEach(function(width) {
 					var root = document.createElement('div');
 					document.getElementById('fixtures').appendChild(root);
 					var element = handler(meta({camliNodeType: 'fitnessActivity', title: 'Sample activity', fitnessActivityType: 'run', fitnessDistance: '1609.344', fitnessMovingDuration: '65', latitude: '24', longitude: '-125', startDate: '2000-01-02T03:04:05Z'})).createContent(new goog.math.Size(width, width / 1.15));
-					// Show the error fallback without requesting a synthetic PN.
+					// Map-enabled grid fallbacks retain credit. No synthetic PN,
+					// provider URL, or tile is requested by these local fixtures.
 					ReactDOM.render(React.cloneElement(element, {src: ''}), root);
 				});
+				goog.global.CAMLISTORE_CONFIG = fixtureConfig;
 			};
 		</script>
 	</body>

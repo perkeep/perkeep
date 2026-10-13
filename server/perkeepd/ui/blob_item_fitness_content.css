@@ -24,8 +24,43 @@ limitations under the License.
 }
 
 .cam-blobitem-fitness-preview {
+	position: relative;
 	overflow: hidden;
 	background: #f4f5f6;
+}
+
+.cam-blobitem-fitness-preview-link {
+	display: block;
+	width: 100%;
+	height: 100%;
+	color: inherit;
+	text-decoration: none;
+}
+
+.cam-blobitem-fitness-attribution {
+	position: absolute;
+	right: 1px;
+	bottom: 1px;
+	box-sizing: border-box;
+	max-width: calc(100% - 45px);
+	padding: 1px 2px;
+	background: rgba(255, 255, 255, 0.92);
+	color: #333;
+	font-size: 9px;
+	line-height: 10px;
+	text-align: right;
+	overflow-wrap: break-word;
+	text-decoration: underline;
+}
+
+.cam-blobitem-fitness-attribution-tiny {
+	top: 1px;
+	bottom: auto;
+	max-width: calc(100% - 2px);
+	padding: 1px;
+	font-size: 8px;
+	line-height: 9px;
+	letter-spacing: -0.25px;
 }
 
 .cam-blobitem-fitness-image {
@@ -64,10 +99,13 @@ limitations under the License.
 }
 
 .cam-blobitem-fitness-footer {
+	display: block;
 	box-sizing: border-box;
 	overflow: hidden;
 	text-align: left;
 	background: #fff;
+	color: inherit;
+	text-decoration: none;
 }
 
 .cam-blobitem-fitness-name,

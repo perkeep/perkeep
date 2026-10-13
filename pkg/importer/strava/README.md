@@ -215,6 +215,9 @@ replacement to adopt. The private client covers only the endpoints needed here.
 The generic fitness renderer uses the archived GPX to show a red route preview
 with an activity icon, distance, and duration. It works from `fitnessActivity`
 attributes, not Strava-specific fields, and makes no additional Strava requests.
-Routes are rendered locally without uploading coordinates to a map service.
+The GPX route is rendered locally and is never uploaded to a map service.
+OSM-derived basemap backgrounds are an explicit server option; they request
+only tiles for the displayed map area and cache them separately from activity
+blobs. They make no additional Strava requests.
 See [fitness activity rendering](/doc/schema/fitness.md#web-ui-rendering) for
 display units, the rough US miles heuristic, and basemap considerations.
