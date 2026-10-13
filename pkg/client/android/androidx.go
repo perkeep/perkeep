@@ -76,6 +76,29 @@ func initOnAndroid() {
 	onAndroidCache = dirExists("/data/data") && dirExists("/system/etc")
 }
 
+// OnAndroidHook, if non-nil, overrides the results of OnAndroid and
+// IsChild. It's for tests.
+var OnAndroidHook func() bool
+
+// IsChild reports whether this process is running as an Android
+// child process and should report its output in the form that the
+// Android uploader app expects.
+func IsChild() bool {
+	if OnAndroidHook != nil {
+		return OnAndroidHook()
+	}
+	memOnce.Do(startMemGoroutine)
+	return androidOutput
+}
+
+func OnAndroid() bool {
+	if OnAndroidHook != nil {
+		return OnAndroidHook()
+	}
+	detectOnce.Do(initOnAndroid)
+	return onAndroidCache
+}
+
 var pingRx = regexp.MustCompile(`\((.+?)\)`)
 
 type namedInt struct {
