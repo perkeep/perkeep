@@ -46,6 +46,7 @@ import (
 	"strings"
 	"sync"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/local"
@@ -56,7 +57,6 @@ import (
 	"go4.org/readerutil"
 	"go4.org/strutil"
 	"go4.org/syncutil"
-	"go4.org/types"
 )
 
 // TODO(wathiede): replace with glog.V(2) when we decide our logging story.
@@ -79,19 +79,21 @@ func (d debugT) Println(args ...any) {
 const defaultMaxFileSize = 512 << 20 // 512MB
 
 type storage struct {
-	root        string
-	index       sorted.KeyValue
-	maxFileSize int64
+	index sorted.KeyValue
 
 	writeLock io.Closer // Provided by lock.Lock, and guards other processes from accessing the file open for writes.
 
 	*local.Generationer
 
-	mu     sync.Mutex // Guards all I/O state.
-	closed bool
-	writer *os.File
-	fds    []*os.File
-	size   int64
+	root        string
+	maxFileSize int64
+
+	mu        sync.Mutex // Guards all I/O state.
+	writer    *os.File
+	fdCache   *fdCache
+	fileCount int
+	size      int64
+	closed    bool
 }
 
 func (s *storage) String() string {
@@ -145,7 +147,7 @@ func New(dir string) (blobserver.Storage, error) {
 			maxSize = 0
 		}
 	}
-	return newStorage(dir, maxSize, nil)
+	return newStorage(dir, maxSize, 0, nil)
 }
 
 // newIndex returns a new sorted.KeyValue, using either the given config, or the default.
@@ -160,8 +162,11 @@ func newIndex(root string, indexConf jsonconfig.Obj) (sorted.KeyValue, error) {
 }
 
 // newStorage returns a new storage in path root with the given maxFileSize,
-// or defaultMaxFileSize (512MB) if <= 0
-func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *storage, err error) {
+// or defaultMaxFileSize (512MB) if <= 0.
+//
+// fdCacheLimit limits the maximum number of opened (cached) files,
+// with 80% of ulimit -n being the default (fdCacheLimit <= 0).
+func newStorage(root string, maxFileSize int64, fdCacheLimit int, indexConf jsonconfig.Obj) (s *storage, err error) {
 	fi, err := os.Stat(root)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("storage root %q doesn't exist", root)
@@ -187,13 +192,24 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 	// Be consistent with trailing slashes.  Makes expvar stats for total
 	// reads/writes consistent across diskpacked targets, regardless of what
 	// people put in their low level config.
+	if fdCacheLimit <= 0 {
+		ul, _ := osutil.MaxFD()
+		if ul > 0 {
+			fdCacheLimit = int(ul * 80 / 100)
+		}
+	}
+	if fdCacheLimit == 0 {
+		fdCacheLimit = 1024
+	}
 	root = strings.TrimRight(root, `\/`)
 	s = &storage{
 		root:         root,
 		index:        index,
 		maxFileSize:  maxFileSize,
+		fdCache:      newFDCache(root, fdCacheLimit),
 		Generationer: local.NewGenerationer(root),
 	}
+
 	if err := s.openAllPacks(); err != nil {
 		s.Close()
 		return nil, err
@@ -215,30 +231,11 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return newStorage(path, int64(maxFileSize), indexConf)
+	return newStorage(path, int64(maxFileSize), 0, indexConf)
 }
 
 func init() {
 	blobserver.RegisterStorageConstructor("diskpacked", blobserver.StorageConstructor(newFromConfig))
-}
-
-// openForRead will open pack file n for read and keep a handle to it in
-// s.fds.  os.IsNotExist returned if n >= the number of pack files in s.root.
-// This function is not thread safe, s.mu should be locked by the caller.
-func (s *storage) openForRead(n int) error {
-	if n > len(s.fds) {
-		panic(fmt.Sprintf("openForRead called out of order got %d, expected %d", n, len(s.fds)))
-	}
-
-	fn := s.filename(n)
-	f, err := os.Open(fn)
-	if err != nil {
-		return err
-	}
-	openFdsVar.Add(s.root, 1)
-	debug.Printf("diskpacked: opened for read %q", fn)
-	s.fds = append(s.fds, f)
-	return nil
 }
 
 // openForWrite will create or open pack file n for writes, create a lock
@@ -271,7 +268,7 @@ func (s *storage) openForWrite(n int) error {
 	return nil
 }
 
-// closePack opens any pack file currently open for writing.
+// closePack closes any pack file currently open for writing.
 func (s *storage) closePack() error {
 	var err error
 	if s.writer != nil {
@@ -299,21 +296,23 @@ func (s *storage) nextPack() error {
 	if err := s.closePack(); err != nil {
 		return err
 	}
-	n := len(s.fds)
+	n := s.fileCount
 	if err := s.openForWrite(n); err != nil {
 		return err
 	}
-	return s.openForRead(n)
+	s.fileCount = n + 1
+	return s.fdCache.open(context.Background(), s.filename(n))
 }
 
-// openAllPacks opens read-only each pack file in s.root, populating s.fds.
-// The latest pack file will also have a writable handle opened.
+// openAllPacks counts the pack files in s.root.
+// The latest pack file will have a writable handle opened.
+// Other pack files are opened for read lazily, on demand.
 // This function is not thread safe, s.mu should be locked by the caller.
 func (s *storage) openAllPacks() error {
 	debug.Println("diskpacked: openAllPacks")
 	n := 0
 	for {
-		err := s.openForRead(n)
+		_, err := os.Stat(s.filename(n))
 		if os.IsNotExist(err) {
 			break
 		}
@@ -321,6 +320,7 @@ func (s *storage) openAllPacks() error {
 			return err
 		}
 		n++
+		s.fileCount++
 	}
 
 	if n == 0 {
@@ -344,13 +344,10 @@ func (s *storage) Close() error {
 	if err := s.index.Close(); err != nil {
 		log.Println("diskpacked: closing index:", err)
 	}
-	for _, f := range s.fds {
-		err := f.Close()
-		openFdsVar.Add(s.root, -1)
-		if err != nil {
-			closeErr = err
-		}
-	}
+
+	// Don't wait for readers still holding pack files;
+	// their files close when the readers do.
+	closeErr = s.fdCache.Shutdown()
 	if err := s.closePack(); err != nil && closeErr == nil {
 		closeErr = err
 	}
@@ -358,43 +355,51 @@ func (s *storage) Close() error {
 }
 
 func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
-	return s.fetch(br, 0, -1)
+	return s.fetch(ctx, br, 0, -1)
 }
 
 func (s *storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	rc, _, err := s.fetch(br, offset, length)
+	rc, _, err := s.fetch(ctx, br, offset, length)
 	return rc, err
 }
 
 // length of -1 means all
-func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+func (s *storage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	meta, err := s.meta(br)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	if meta.file >= len(s.fds) {
-		return nil, 0, fmt.Errorf("diskpacked: attempt to fetch blob from out of range pack file %d > %d", meta.file, len(s.fds))
+	s.mu.Lock()
+	fileCount := s.fileCount
+	s.mu.Unlock()
+	if meta.file >= fileCount || meta.file < 0 {
+		return nil, 0, fmt.Errorf("diskpacked: attempt to fetch blob from out of range pack file %d not in [0, %d]", meta.file, fileCount)
 	}
-	rac := s.fds[meta.file]
-	var rs io.ReadSeeker
+	var sr *sectionReader
+	fn := s.filename(meta.file)
 	if length == -1 {
 		// normal Fetch mode
-		rs = io.NewSectionReader(rac, meta.offset, int64(meta.size))
+		sr, err = s.fdCache.OpenSection(ctx, fn,
+			meta.offset, int64(meta.size))
 	} else {
 		if offset > int64(meta.size) {
 			return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
 		} else if offset+length > int64(meta.size) {
 			length = int64(meta.size) - offset
 		}
-		rs = io.NewSectionReader(rac, meta.offset+offset, length)
+		sr, err = s.fdCache.OpenSection(ctx, fn,
+			meta.offset+offset, length)
 	}
-	fn := rac.Name()
+	if err != nil {
+		return nil, 0, err
+	}
 	// Ensure entry is in map.
 	readVar.Add(fn, 0)
+	var rs io.ReadSeeker = sr
 	if v, ok := readVar.Get(fn).(*expvar.Int); ok {
 		rs = readerutil.NewStatsReadSeeker(v, rs)
 	}
@@ -407,7 +412,7 @@ func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, si
 		io.Closer
 	}{
 		rs,
-		types.NopCloser,
+		sr,
 	}
 	return rsc, meta.size, nil
 }
@@ -709,7 +714,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 		return err
 	}
 
-	packIdx := len(s.fds) - 1
+	packIdx := s.fileCount - 1
 	if s.size > s.maxFileSize {
 		if err := s.nextPack(); err != nil {
 			return err
