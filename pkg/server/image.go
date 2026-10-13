@@ -229,7 +229,7 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	// standard library's DecodeConfig, skipping the EXIF parsing and
 	// orientation correction for images.DecodeConfig. image.DecodeConfig is
 	// able to deal with HEIC because it's registered indirectly in
-	// internal/images via the gen2brain/heic (perkeep/heic) package.
+	// internal/images via the gen2brain/heic package.
 	conf, _, err := image.DecodeConfig(tr)
 	return io.MultiReader(header, r), conf, err
 }
