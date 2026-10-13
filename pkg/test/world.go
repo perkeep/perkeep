@@ -197,6 +197,10 @@ func (w *World) Start() error {
 			w.server.Stdout = &buf
 			w.server.Stderr = &buf
 		}
+		// The apps perkeepd runs inherit its stdout and stderr, and
+		// only exit once they notice perkeepd has. Don't let one that
+		// lingers make Wait (and so Stop) block for long.
+		w.server.WaitDelay = 5 * time.Second
 
 		w.server.Dir = w.tempDir
 		w.server.Env = append(os.Environ(),
