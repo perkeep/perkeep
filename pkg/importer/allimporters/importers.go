@@ -30,6 +30,7 @@ import (
 	_ "perkeep.org/pkg/importer/pinboard"
 	_ "perkeep.org/pkg/importer/plaid"
 	_ "perkeep.org/pkg/importer/raindrop"
+	_ "perkeep.org/pkg/importer/strava"
 	_ "perkeep.org/pkg/importer/swarm"
 	_ "perkeep.org/pkg/importer/twitter"
 )
@@ -44,11 +45,6 @@ func init() {
 		Title:       "Runkeeper",
 		Description: "import workout data from Runkeeper",
 		TODOIssue:   1124,
-	})
-	importer.RegisterTODO("strava", importer.Properties{
-		Title:       "Strava",
-		Description: "import workout data from Strava",
-		TODOIssue:   1125,
 	})
 	importer.RegisterTODO("instagram", importer.Properties{
 		Title:       "Instagram",

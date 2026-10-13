@@ -20,6 +20,8 @@ Here are some of the data types we've started to formalize a
 * [Files](file.md/): traditional filesystems.  Files, directories, inodes,
     symlinks, etc. Uses the `file`, `directory`, `symlink`, and `inode`
     camliTypes.
+* [Fitness Activities](fitness.md): provider-independent activity permanodes,
+    measurements, and GPX track attachments.
 * [Inode](inode.md)
 * ["Keep" claims](keep.md): Normally, any object that isn't referenced
     by a permanode could theoretically be garbage collected. Keep claims prevent
