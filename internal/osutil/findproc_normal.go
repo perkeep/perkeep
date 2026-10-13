@@ -16,26 +16,13 @@ limitations under the License.
 
 package osutil
 
-import (
-	"os"
-	"time"
-)
+import "os"
 
-// DieOnParentDeath starts a goroutine that regularly checks that
-// the current process can find its parent, and calls os.Exit(0)
-// as soon as it cannot.
+// DieOnParentDeath starts a goroutine that waits for the current
+// process's parent to exit, and calls os.Exit(0) as soon as it does.
 func DieOnParentDeath() {
-	// TODO: on Linux, use PR_SET_PDEATHSIG later. For now, the portable way:
 	go func() {
-		pollParent(30 * time.Second)
+		waitParentDeath()
 		os.Exit(0)
 	}()
-}
-
-// pollParent checks every t that the ppid of the current
-// process has not changed (i.e that the process has not
-// been orphaned). It returns as soon as that ppid changes.
-func pollParent(t time.Duration) {
-	for initial := os.Getppid(); initial == os.Getppid(); time.Sleep(t) {
-	}
 }
