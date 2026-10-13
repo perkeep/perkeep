@@ -23,15 +23,18 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -198,8 +201,12 @@ func IP(containerID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	type networkSettings struct {
+	type network struct {
 		IPAddress string
+	}
+	type networkSettings struct {
+		IPAddress string             // not reported since Docker 29
+		Networks  map[string]network // by network name
 	}
 	type container struct {
 		NetworkSettings networkSettings
@@ -211,8 +218,14 @@ func IP(containerID string) (string, error) {
 	if len(c) == 0 {
 		return "", errors.New("no output from docker inspect")
 	}
-	if ip := c[0].NetworkSettings.IPAddress; ip != "" {
-		return ip, nil
+	ns := c[0].NetworkSettings
+	if ns.IPAddress != "" {
+		return ns.IPAddress, nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(ns.Networks)) {
+		if ip := ns.Networks[name].IPAddress; ip != "" {
+			return ip, nil
+		}
 	}
 	return "", errors.New("could not find an IP. Not running?")
 }
@@ -291,45 +304,108 @@ const (
 	mysqlImage       = "mysql:8"
 	MySQLUsername    = "root"
 	MySQLPassword    = "root"
-	postgresImage    = "nornagon/postgres"
-	PostgresUsername = "docker" // set up by the dockerfile of postgresImage
-	PostgresPassword = "docker" // set up by the dockerfile of postgresImage
+	postgresImage    = "postgres:18"
+	PostgresUsername = "postgres"
+	PostgresPassword = "postgres"
 	camliHub         = "https://storage.googleapis.com/camlistore-docker/"
 )
 
-// SetupMySQLContainer sets up a real MySQL instance for testing purposes,
-// using a Docker container. It returns the container ID and its IP address,
-// or makes the test fail on error.
-// Currently using https://hub.docker.com/_/mysql/
-func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
-	return setupContainer(t, mysqlImage, 3306, 20*time.Second, func() (string, error) {
-		return run("-d", "-e", "MYSQL_ROOT_PASSWORD="+MySQLPassword, "-e", "MYSQL_DATABASE="+dbname, mysqlImage)
-	})
+// DB is a database that a test can use.
+type DB struct {
+	// Host is the value for the "host" key of a sorted.KeyValue config.
+	Host string
+	// Database is the name of the database, unique to the test.
+	Database string
 }
 
-// SetupPostgreSQLContainer sets up a real PostgreSQL instance for testing purposes,
-// using a Docker container. It returns the container ID and its IP address,
-// or makes the test fail on error.
-// Currently using https://index.docker.io/u/nornagon/postgres
-func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
-	c, ip = setupContainer(t, postgresImage, 5432, 15*time.Second, func() (string, error) {
-		return run("-d", postgresImage)
+// newDBName returns a new, unique database name.
+func newDBName() string {
+	return "camlitest_" + strings.ToLower(rand.Text())
+}
+
+// SetupMySQL returns a MySQL database for the test, accessible with
+// MySQLUsername and MySQLPassword. The database might not exist yet.
+//
+// If the PERKEEP_TEST_MYSQL_HOST environment variable is set, the database
+// is on that already-running server (host[:port]) and is dropped when the
+// test ends, and the test fails if the server is unreachable. Otherwise,
+// SetupMySQL runs a server in a new Docker container
+// (https://hub.docker.com/_/mysql/), or skips the test if it can't.
+func SetupMySQL(t *testing.T) DB {
+	db := DB{Database: newDBName()}
+	if host := os.Getenv("PERKEEP_TEST_MYSQL_HOST"); host != "" {
+		if !strings.Contains(host, ":") {
+			host += ":3306"
+		}
+		db.Host = host
+		rootdb, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/", MySQLUsername, MySQLPassword, host))
+		if err != nil {
+			t.Fatalf("opening MySQL at %s: %v", host, err)
+		}
+		if err := rootdb.Ping(); err != nil {
+			rootdb.Close()
+			t.Fatalf("MySQL server at %s (from PERKEEP_TEST_MYSQL_HOST) unreachable: %v", host, err)
+		}
+		t.Cleanup(func() {
+			defer rootdb.Close()
+			if _, err := rootdb.Exec("DROP DATABASE IF EXISTS " + db.Database); err != nil {
+				t.Errorf("dropping MySQL database %s: %v", db.Database, err)
+			}
+		})
+		return db
+	}
+	c, ip := setupContainer(t, mysqlImage, 3306, 20*time.Second, func() (string, error) {
+		return run("-d", "-e", "MYSQL_ROOT_PASSWORD="+MySQLPassword, "-e", "MYSQL_DATABASE="+db.Database, mysqlImage)
 	})
-	cleanupAndDie := func(err error) {
-		c.KillRemove(t)
-		t.Fatal(err)
+	t.Cleanup(func() { c.KillRemove(t) })
+	db.Host = ip + ":3306"
+	return db
+}
+
+// SetupPostgreSQL returns a new PostgreSQL database for the test, using the
+// C collation, accessible with PostgresUsername and PostgresPassword.
+//
+// If the PERKEEP_TEST_POSTGRES_HOST environment variable is set, the database
+// is on that already-running server (on the default port) and is dropped when
+// the test ends, and the test fails if the server is unreachable. Otherwise,
+// SetupPostgreSQL runs a server in a new Docker container
+// (https://hub.docker.com/_/postgres/), or skips the test if it can't.
+func SetupPostgreSQL(t *testing.T) DB {
+	db := DB{Database: newDBName()}
+	host := os.Getenv("PERKEEP_TEST_POSTGRES_HOST")
+	external := host != ""
+	if external {
+		db.Host = host
+	} else {
+		c, ip := setupContainer(t, postgresImage, 5432, 15*time.Second, func() (string, error) {
+			return run("-d", "-e", "POSTGRES_USER="+PostgresUsername, "-e", "POSTGRES_PASSWORD="+PostgresPassword, postgresImage)
+		})
+		t.Cleanup(func() { c.KillRemove(t) })
+		db.Host = ip
 	}
 	rootdb, err := sql.Open("postgres",
-		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
+		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, db.Host))
 	if err != nil {
-		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %w", err))
+		t.Fatalf("Could not open postgres rootdb: %v", err)
 	}
-	if _, err := sqlExecRetry(rootdb,
-		"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
-		50); err != nil {
-		cleanupAndDie(fmt.Errorf("Could not create database %v: %w", dbname, err))
+	t.Cleanup(func() { rootdb.Close() })
+	create := "CREATE DATABASE " + db.Database + " LC_COLLATE = 'C' TEMPLATE = template0"
+	if !external {
+		// The new container might not accept connections yet.
+		if _, err := sqlExecRetry(rootdb, create, 50); err != nil {
+			t.Fatalf("Could not create database %v: %v", db.Database, err)
+		}
+		return db
 	}
-	return
+	if _, err := rootdb.Exec(create); err != nil {
+		t.Fatalf("creating database on PostgreSQL server at %s (from PERKEEP_TEST_POSTGRES_HOST): %v", db.Host, err)
+	}
+	t.Cleanup(func() {
+		if _, err := rootdb.Exec("DROP DATABASE IF EXISTS " + db.Database + " WITH (FORCE)"); err != nil {
+			t.Errorf("dropping PostgreSQL database %s: %v", db.Database, err)
+		}
+	})
+	return db
 }
 
 // sqlExecRetry keeps calling http://golang.org/pkg/database/sql/#DB.Exec on db

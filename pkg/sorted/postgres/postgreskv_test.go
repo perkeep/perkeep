@@ -20,22 +20,18 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
 	"perkeep.org/pkg/test/dockertest"
 )
 
-// TestPostgreSQLKV tests against a real PostgreSQL instance, using a Docker container.
+// TestPostgreSQLKV tests against a real PostgreSQL instance.
 func TestPostgreSQLKV(t *testing.T) {
-	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
-	defer containerID.KillRemove(t)
-
+	db := dockertest.SetupPostgreSQL(t)
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "postgres",
-		"host":     ip,
-		"database": dbname,
+		"host":     db.Host,
+		"database": db.Database,
 		"user":     dockertest.PostgresUsername,
 		"password": dockertest.PostgresPassword,
 		"sslmode":  "disable",
@@ -43,6 +39,7 @@ func TestPostgreSQLKV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("postgres.NewKeyValue = %v", err)
 	}
+	defer kv.Close()
 	kvtest.TestSorted(t, kv)
 }
 

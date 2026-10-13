@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
@@ -29,25 +28,19 @@ import (
 )
 
 func newPostgresSorted(t *testing.T) sorted.KeyValue {
-	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
-
+	db := dockertest.SetupPostgreSQL(t)
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "postgres",
-		"host":     ip,
-		"database": dbname,
+		"host":     db.Host,
+		"database": db.Database,
 		"user":     dockertest.PostgresUsername,
 		"password": dockertest.PostgresPassword,
 		"sslmode":  "disable",
 	})
 	if err != nil {
-		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		kv.Close()
-		containerID.KillRemove(t)
-	})
+	t.Cleanup(func() { kv.Close() })
 	return kv
 }
 
