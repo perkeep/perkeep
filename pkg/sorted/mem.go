@@ -20,10 +20,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/syndtr/goleveldb/leveldb/comparer"
-	"github.com/syndtr/goleveldb/leveldb/iterator"
-	"github.com/syndtr/goleveldb/leveldb/memdb"
-	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/google/btree"
 	"go4.org/jsonconfig"
 )
 
@@ -37,86 +34,49 @@ func NewMemoryKeyValue() KeyValue {
 
 var _ Wiper = (*memKeys)(nil)
 
-// memKeys is a naive in-memory implementation of KeyValue for test & development
-// purposes only.
+// memEntry is a key/value pair in a memKeys tree, ordered by key.
+type memEntry struct {
+	key, value string
+}
+
+func memEntryLess(a, b memEntry) bool { return a.key < b.key }
+
+// memBTreeDegree is the B-tree's degree: each node holds between
+// memBTreeDegree-1 and 2*memBTreeDegree-1 entries.
+const memBTreeDegree = 32
+
+// memKeys is an in-memory implementation of KeyValue, for tests and
+// development, and for servers configured with a memory-only index.
 type memKeys struct {
-	mu sync.Mutex // guards db
-	db *memdb.DB
+	mu sync.RWMutex // guards tree
+	// tree is the data. Find iterates over a copy-on-write clone of it, so an
+	// iterator sees a consistent snapshot as of the Find call. Clone mutates
+	// the tree's bookkeeping, so it needs mu held for writing.
+	tree *btree.BTreeG[memEntry]
 }
 
 func (mk *memKeys) Wipe() error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	mk.db = memdb.New(comparer.DefaultComparer, 128)
+	mk.tree = btree.NewG(memBTreeDegree, memEntryLess)
 	return nil
 }
 
-// memIter converts from leveldb's iterator.Iterator interface, which
-// operates on []byte, to Perkeep's index.Iterator, which operates
-// on string.
-type memIter struct {
-	lit  iterator.Iterator // underlying leveldb iterator
-	k, v *string           // if nil, not stringified yet
-}
-
-func (s *memIter) Next() bool {
-	s.k, s.v = nil, nil
-	return s.lit.Next()
-}
-
-func (s *memIter) Close() error {
-	s.lit.Release()
-	return s.lit.Error()
-}
-
-func (s *memIter) KeyBytes() []byte {
-	return s.lit.Key()
-}
-
-func (s *memIter) ValueBytes() []byte {
-	return s.lit.Value()
-}
-
-func (s *memIter) Key() string {
-	if s.k != nil {
-		return *s.k
-	}
-	str := string(s.KeyBytes())
-	s.k = &str
-	return str
-}
-
-func (s *memIter) Value() string {
-	if s.v != nil {
-		return *s.v
-	}
-	str := string(s.ValueBytes())
-	s.v = &str
-	return str
-}
-
 func (mk *memKeys) Get(key string) (string, error) {
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	k, err := mk.db.Get([]byte(key))
-	if errors.Is(err, memdb.ErrNotFound) {
+	mk.mu.RLock()
+	defer mk.mu.RUnlock()
+	e, ok := mk.tree.Get(memEntry{key: key})
+	if !ok {
 		return "", ErrNotFound
 	}
-	return string(k), err
+	return e.value, nil
 }
 
 func (mk *memKeys) Find(start, end string) Iterator {
 	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	var startB, endB []byte
-	if start != "" {
-		startB = []byte(start)
-	}
-	if end != "" {
-		endB = []byte(end)
-	}
-	lit := mk.db.NewIterator(&util.Range{Start: startB, Limit: endB})
-	return &memIter{lit: lit}
+	snap := mk.tree.Clone()
+	mk.mu.Unlock()
+	return &memIter{tree: snap, start: start, end: end}
 }
 
 func (mk *memKeys) Set(key, value string) error {
@@ -125,17 +85,15 @@ func (mk *memKeys) Set(key, value string) error {
 	}
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	return mk.db.Put([]byte(key), []byte(value))
+	mk.tree.ReplaceOrInsert(memEntry{key, value})
+	return nil
 }
 
 func (mk *memKeys) Delete(key string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	err := mk.db.Delete([]byte(key))
-	if errors.Is(err, memdb.ErrNotFound) {
-		return nil
-	}
-	return err
+	mk.tree.Delete(memEntry{key: key})
+	return nil
 }
 
 func (mk *memKeys) BeginBatch() BatchMutation {
@@ -151,24 +109,68 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 	defer mk.mu.Unlock()
 	for _, m := range b.Mutations() {
 		if m.IsDelete() {
-			if err := mk.db.Delete([]byte(m.Key())); err != nil && err != memdb.ErrNotFound {
-				return err
-			}
-		} else {
-			// TODO(mpl): we need to force a reindex when we have a proper solution
-			// for storing these too large attributes, if ever.
-			if err := CheckSizes(m.Key(), m.Value()); err != nil {
-				continue
-			}
-			if err := mk.db.Put([]byte(m.Key()), []byte(m.Value())); err != nil {
-				return err
-			}
+			mk.tree.Delete(memEntry{key: m.Key()})
+			continue
 		}
+		// TODO(mpl): we need to force a reindex when we have a proper solution
+		// for storing these too large attributes, if ever.
+		if err := CheckSizes(m.Key(), m.Value()); err != nil {
+			continue
+		}
+		mk.tree.ReplaceOrInsert(memEntry{m.Key(), m.Value()})
 	}
 	return nil
 }
 
 func (mk *memKeys) Close() error { return nil }
+
+// memIter iterates over the keys in [start, end) of a snapshot of a
+// memKeys tree. An empty end means no end.
+type memIter struct {
+	tree       *btree.BTreeG[memEntry] // snapshot; not shared with writers
+	start, end string
+
+	cur     memEntry // the current entry, valid if started && !done
+	started bool
+	done    bool
+}
+
+func (it *memIter) Next() bool {
+	if it.done {
+		return false
+	}
+	pivot := memEntry{key: it.start}
+	if it.started {
+		pivot = it.cur
+	}
+	found := false
+	it.tree.AscendGreaterOrEqual(pivot, func(e memEntry) bool {
+		if it.started && e.key == it.cur.key {
+			return true // the current entry; keep going to the next one
+		}
+		if it.end == "" || e.key < it.end {
+			it.cur, found = e, true
+		}
+		return false
+	})
+	it.started = true
+	if !found {
+		it.done = true
+		it.tree = nil
+	}
+	return found
+}
+
+func (it *memIter) Key() string        { return it.cur.key }
+func (it *memIter) Value() string      { return it.cur.value }
+func (it *memIter) KeyBytes() []byte   { return []byte(it.cur.key) }
+func (it *memIter) ValueBytes() []byte { return []byte(it.cur.value) }
+
+func (it *memIter) Close() error {
+	it.done = true
+	it.tree = nil
+	return nil
+}
 
 func init() {
 	RegisterKeyValue("memory", func(cfg jsonconfig.Obj) (KeyValue, error) {
