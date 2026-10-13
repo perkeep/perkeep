@@ -517,6 +517,7 @@ func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
 		MapClustering:   mapClustering,
 		ImportShare:     path.Join(ui.prefix, "importshare") + "/",
 	}
+	addFitnessMapDiscovery(uiDisco)
 	return uiDisco
 }
 

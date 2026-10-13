@@ -106,6 +106,14 @@ type UIDiscovery struct {
 	MapClustering bool `json:"mapClustering"`
 	// ImportShare is the path to the share importer handler.
 	ImportShare string `json:"importShare"`
+	// FitnessMapEnabled indicates an explicitly configured fitness basemap.
+	FitnessMapEnabled bool `json:"fitnessMapEnabled,omitempty"`
+	// FitnessMapProfile is an opaque cache token, not the provider URL or key.
+	FitnessMapProfile string `json:"fitnessMapProfile,omitempty"`
+	// FitnessMapAttribution is the visible credit required by the map provider.
+	FitnessMapAttribution string `json:"fitnessMapAttribution,omitempty"`
+	// FitnessMapAttributionURL links to the provider's attribution information.
+	FitnessMapAttributionURL string `json:"fitnessMapAttributionURL,omitempty"`
 }
 
 // PublishRootDiscovery contains discovery information for the publish roots.

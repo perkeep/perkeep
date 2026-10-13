@@ -74,6 +74,29 @@ or
   values fail before API requests. Set this in the server's environment,
   for example `PERKEEP_STRAVA_MAX_ACTIVITIES=10` for testing.
 
+`PERKEEP_FITNESS_TILE_URL` (string)
+: Opt in to raster basemaps for viewed fitness thumbnails. The administrator's
+  template must contain `{z}`, `{x}`, and `{y}`, for example
+  `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. Unset or empty disables
+  external tiles. No map prefetching occurs during imports or indexing.
+
+`PERKEEP_FITNESS_TILE_CACHE_DIR` (string)
+: Private directory for HTTP-aware tile and derived PNG caches, not archived
+  blobs or claims. Defaults to `perkeep/fitness-tiles` under the operating
+  system's user cache directory. The administrator manages disk usage.
+
+`PERKEEP_FITNESS_TILE_USER_AGENT` (string)
+: Stable application identification sent to the configured tile provider.
+  Defaults to `Perkeep/fitness-thumbnails (+https://perkeep.org/)`. Do not use
+  anonymous library defaults or impersonate another application.
+
+`PERKEEP_FITNESS_TILE_ATTRIBUTION` (string)
+and
+`PERKEEP_FITNESS_TILE_ATTRIBUTION_URL` (string)
+: Visible map credit and its licence link. Defaults are
+  `© OpenStreetMap contributors` and `https://www.openstreetmap.org/copyright`.
+  Custom providers must be credited according to their terms.
+
 `CAMLI_FORCE_OSARCH` (bool)
   Used by make.go to force building an unrecommended OS/ARCH pair.
 
