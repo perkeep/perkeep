@@ -1,0 +1,335 @@
+<!--
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Fitness activity card tests</title>
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script src="react/react-with-addons.min.js"></script>
+		<script src="react/react-dom.min.js"></script>
+		<script>
+			goog.require('goog.math.Size');
+			goog.require('cam.BlobItemFitnessContent');
+		</script>
+		<link rel="stylesheet" href="blob_item_fitness_content.css">
+		<style>
+			body {font-family: sans-serif; padding: 20px; background: #eee;}
+			#status {padding: 12px; color: white; background: #687179;}
+			#fixtures {display: flex; align-items: flex-start; gap: 16px; margin-top: 20px;}
+			#errors {white-space: pre-wrap; color: #a00;}
+		</style>
+	</head>
+	<body>
+		<h1>Fitness activity card tests</h1>
+		<div id="status">Running…</div>
+		<pre id="errors"></pre>
+		<div id="fixtures"></div>
+		<script>
+			// The embedded Closure runtime has no testing modules. Keep this
+			// browser harness self-contained and use the real React component.
+			window.__fitnessTestResults = {passed: 0, failed: 0, errors: []};
+			window.onload = function() {
+				var fitness = cam.BlobItemFitnessContent;
+				var results = window.__fitnessTestResults;
+				function assert(condition, message) {
+					if (!condition) {
+						throw new Error(message || 'Assertion failed');
+					}
+				}
+				function equal(expected, actual) {
+					assert(expected === actual, 'Expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
+				}
+				function test(name, fn) {
+					try {
+						fn();
+						results.passed++;
+					} catch (error) {
+						results.failed++;
+						results.errors.push(name + ': ' + error.message);
+					}
+				}
+				function meta(attrs, camliType) {
+					var values = {};
+					for (var name in attrs) {
+						values[name] = [attrs[name]];
+					}
+					return {camliType: camliType || 'permanode', permanode: {attr: values}};
+				}
+				function activity(attrs) {
+					return fitness.getActivity(meta(attrs).permanode);
+				}
+				function session(value) {
+					return {getMeta: function() { return value; }};
+				}
+				function handler(value) {
+					return fitness.getHandler('sha1-test-activity', session(value), '/ui/detail-test');
+				}
+				function thumbnail(track, type, width, height, dpr) {
+					return fitness.getThumbnailURL('sha1-test-activity', track, type, new goog.math.Size(width || 200, height || 120), dpr == null ? 1 : dpr, '/ui/');
+				}
+				function parameter(url, name) {
+					var match = url.match(new RegExp('[?&]' + name + '=([^&]*)'));
+					return match ? decodeURIComponent(match[1]) : null;
+				}
+				function mount(element, fn) {
+					// Synthetic refs are never sent to the real thumbnail endpoint.
+					// A tiny local image stands in for the server's PNG in DOM tests.
+					if (element.props.src && element.props.src.indexOf('data:') != 0) {
+						element = React.cloneElement(element, {src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'});
+					}
+					var root = document.createElement('div');
+					document.body.appendChild(root);
+					try {
+						var instance = ReactDOM.render(element, root);
+						fn(root, instance);
+					} finally {
+						ReactDOM.unmountComponentAtNode(root);
+						root.parentNode.removeChild(root);
+					}
+				}
+
+				test('strict decimal numbers', function() {
+					equal(12.5, fitness.parseNumber(' 12.5 '));
+					equal(1000, fitness.parseNumber('1e3'));
+					equal(-0.5, fitness.parseNumber('-.5'));
+				});
+				test('invalid numeric strings', function() {
+					['', ' ', '12km', '0x10', 'NaN', 'Infinity', '1e309', '1,000'].forEach(function(value) {
+						equal(null, fitness.parseNumber(value));
+					});
+				});
+				test('invalid numeric types', function() {
+					[null, undefined, false, true, [], {}, NaN, Infinity, -Infinity].forEach(function(value) {
+						equal(null, fitness.parseNumber(value));
+					});
+				});
+				test('zero is a valid number', function() { equal(0, fitness.parseNumber('0')); });
+				test('kilometers round to one decimal', function() { equal('1.2 km', fitness.formatDistance('1234', null, null)); });
+				test('US distances include miles', function() { equal('1.6 km / 1.0 mi', fitness.formatDistance('1609.344', '24', '-125')); });
+				test('zero distance is visible', function() { equal('0.0 km / 0.0 mi', fitness.formatDistance('0', '50', '-66')); });
+				test('non-US distance uses kilometers', function() { equal('1.0 km', fitness.formatDistance('1000', '0', '0')); });
+				test('missing coordinates do not enable miles', function() {
+					equal('1.0 km', fitness.formatDistance('1000', null, '-100'));
+					equal('1.0 km', fitness.formatDistance('1000', '40', ''));
+				});
+				test('invalid coordinates do not enable miles', function() { equal('1.0 km', fitness.formatDistance('1000', '40junk', '-100')); });
+				test('all US rectangle corners are inclusive', function() {
+					[24, 50].forEach(function(lat) {
+						[-125, -66].forEach(function(lon) { assert(fitness.isUSStart(lat, lon)); });
+					});
+				});
+				test('outside US rectangle', function() {
+					assert(!fitness.isUSStart(23.999, -100));
+					assert(!fitness.isUSStart(50.001, -100));
+					assert(!fitness.isUSStart(40, -125.001));
+					assert(!fitness.isUSStart(40, -65.999));
+				});
+				test('invalid distance is omitted', function() {
+					['-1', '5m', 'NaN', 'Infinity', null].forEach(function(value) { equal('', fitness.formatDistance(value, 24, -125)); });
+				});
+				test('distance display never switches to scientific notation', function() {
+					assert(/^\d+\.\d km$/.test(fitness.formatDistance('1e23', null, null)));
+					equal('', fitness.formatDistance('1e24', null, null));
+					equal('', fitness.formatDistance('1e308', 24, -125));
+				});
+				test('moving duration preferred', function() { equal('1m 5s', fitness.formatDuration('65', '130')); });
+				test('zero moving duration preferred', function() { equal('0s', fitness.formatDuration('0', '130')); });
+				test('missing moving uses elapsed', function() { equal('2m 10s', fitness.formatDuration(null, '130')); });
+				test('invalid moving uses elapsed', function() {
+					['-1', '', '65junk', 'Infinity'].forEach(function(value) { equal('2m 10s', fitness.formatDuration(value, '130')); });
+				});
+				test('invalid durations omitted', function() { equal('', fitness.formatDuration('bad', '-1')); });
+				test('duration seconds', function() { equal('59s', fitness.formatDuration('59.9', null)); });
+				test('duration minute boundary', function() { equal('1m', fitness.formatDuration('60', null)); });
+				test('duration before hour boundary', function() { equal('59m 59s', fitness.formatDuration('3599', null)); });
+				test('duration hour boundary', function() { equal('1h', fitness.formatDuration('3600', null)); });
+				test('duration hour and minutes', function() { equal('1h 1m', fitness.formatDuration('3660', null)); });
+				test('date rendered in UTC', function() { equal('Jan 2, 2000', fitness.formatDate('2000-01-02T03:04:05Z')); });
+				test('invalid date omitted', function() {
+					['', 'bad', '1', '2000-99-99T00:00:00Z', null].forEach(function(value) { equal('', fitness.formatDate(value)); });
+				});
+				test('fitness handler claims permanode', function() { assert(handler(meta({camliNodeType: 'fitnessActivity'}))); });
+				test('non-fitness handler returns null', function() { equal(null, handler(meta({camliNodeType: 'other'}))); });
+				test('file handler returns null', function() { equal(null, handler(meta({camliNodeType: 'fitnessActivity'}, 'file'))); });
+				test('missing metadata returns null', function() {
+					equal(null, handler(null));
+					equal(null, handler({camliType: 'permanode'}));
+				});
+				test('handler does not resolve image or provider metadata', function() {
+					var s = session(meta({camliNodeType: 'fitnessActivity', fitnessTrack: 'sha1-test-track'}));
+					s.getResolvedMeta = function() { throw new Error('Unexpected image resolution'); };
+					assert(fitness.getHandler('sha1-test-activity', s, '/ui/detail-test'));
+				});
+				test('generic activity metadata', function() {
+					var a = activity({title: 'Sample activity', fitnessActivityType: 'run', fitnessDistance: '1609.344', fitnessMovingDuration: '65', latitude: '24', longitude: '-125', fitnessTrack: 'sha1-test-track'});
+					equal('Sample activity', a.title);
+					equal('Run', a.typeLabel);
+					equal('sha1-test-track', a.track);
+					equal('1.6 km / 1.0 mi \u00b7 1m 5s', a.metrics);
+					assert(a.fullTitle.indexOf(a.metrics) != -1);
+				});
+				test('all broad activity types', function() {
+					['run', 'walk', 'hike', 'ride', 'swim', 'row', 'ski', 'workout', 'other'].forEach(function(type) {
+						assert(activity({fitnessActivityType: type}).typeLabel);
+					});
+				});
+				test('future activity type is graceful', function() {
+					var a = activity({fitnessActivityType: 'future-activity'});
+					equal('Other', a.typeLabel);
+					equal('Fitness activity', a.title);
+					equal('future-activity', a.type);
+				});
+				test('empty generic metadata is graceful', function() {
+					var a = activity({});
+					equal('Fitness activity', a.title);
+					equal('', a.metrics);
+					equal('', a.track);
+				});
+				test('thumbnail route and dimensions', function() {
+					var url = thumbnail('sha1-test-track', 'run');
+					assert(url.indexOf('/ui/thumbnail/sha1-test-activity/track.png?') == 0);
+					equal('256', parameter(url, 'mw'));
+					equal('154', parameter(url, 'mh'));
+					equal('1', parameter(url, 'ftv'));
+				});
+				test('thumbnail cache keys include semantic inputs', function() {
+					var url = thumbnail('sha1-test-track', 'run');
+					assert(url != thumbnail('sha1-test-track-2', 'run'));
+					assert(url != thumbnail('sha1-test-track', 'ride'));
+					equal('sha1-test-track', parameter(url, 'fitnessTrack'));
+					equal('run', parameter(url, 'fitnessActivityType'));
+				});
+				test('thumbnail keys are escaped', function() {
+					equal('track&test', parameter(thumbnail('track&test', 'type/test'), 'fitnessTrack'));
+					equal('type/test', parameter(thumbnail('track&test', 'type/test'), 'fitnessActivityType'));
+				});
+				test('trackless activity requests server PNG and sport badge', function() {
+					var url = thumbnail('', 'workout');
+					assert(url.indexOf('/ui/thumbnail/sha1-test-activity/track.png?') == 0);
+					equal('', parameter(url, 'fitnessTrack'));
+					equal('workout', parameter(url, 'fitnessActivityType'));
+				});
+				test('thumbnail DPR capped at two', function() {
+					var url = thumbnail('sha1-test-track', 'run', 200, 120, 2);
+					equal('500', parameter(url, 'mw'));
+					equal(url, thumbnail('sha1-test-track', 'run', 200, 120, 4));
+				});
+				test('thumbnail dimensions capped and aspect preserved', function() {
+					var url = thumbnail('sha1-test-track', 'run', 6000, 3000, 2);
+					equal('2000', parameter(url, 'mw'));
+					equal('1000', parameter(url, 'mh'));
+					var portrait = thumbnail('sha1-test-track', 'run', 3000, 6000, 2);
+					equal('1000', parameter(portrait, 'mw'));
+					equal('2000', parameter(portrait, 'mh'));
+				});
+				test('thumbnail honors UI root', function() {
+					var url = fitness.getThumbnailURL('sha1-test-activity', 'sha1-test-track', 'run', new goog.math.Size(200, 120), 1, '/custom-ui');
+					assert(url.indexOf('/custom-ui/thumbnail/') == 0);
+				});
+				test('handler reads changing metadata', function() {
+					var m = meta({camliNodeType: 'fitnessActivity', fitnessTrack: 'sha1-test-track', fitnessActivityType: 'run'});
+					var h = handler(m);
+					var first = h.createContent(new goog.math.Size(200, 174)).props.src;
+					m.permanode.attr.fitnessTrack = ['sha1-test-track-2'];
+					m.permanode.attr.fitnessActivityType = ['ride'];
+					assert(first != h.createContent(new goog.math.Size(200, 174)).props.src);
+				});
+				test('layout stays inside parent at small and large sizes', function() {
+					[64, 128, 200, 1000].forEach(function(width) {
+						var size = new goog.math.Size(width, width / 1.15);
+						var layout = fitness.getLayout(size, activity({startDate: '2000-01-02T03:04:05Z'}));
+						equal(size.height, layout.previewHeight + layout.footerHeight);
+						assert(layout.previewHeight > size.height / 2);
+						assert(layout.titleFont >= 9 && layout.titleFont <= 14);
+					});
+				});
+				test('date line only on sufficiently large cards', function() {
+					var a = activity({startDate: '2000-01-02T03:04:05Z'});
+					assert(!fitness.getLayout(new goog.math.Size(128, 111), a).showDate);
+					assert(fitness.getLayout(new goog.math.Size(200, 174), a).showDate);
+				});
+				test('card uses one native detail anchor and full accessible title', function() {
+					var element = handler(meta({camliNodeType: 'fitnessActivity', title: 'Sample activity', fitnessDistance: '1609.344', latitude: '24', longitude: '-125', fitnessMovingDuration: '65'})).createContent(new goog.math.Size(200, 174));
+					mount(element, function(root) {
+						equal(1, root.querySelectorAll('a').length);
+						var a = root.querySelector('a');
+						equal('/ui/detail-test', a.getAttribute('href'));
+						assert(!a.getAttribute('onclick'));
+						assert(a.title.indexOf('1.6 km / 1.0 mi') != -1);
+						assert(a.getAttribute('aria-label').indexOf('1m 5s') != -1);
+						equal('Sample activity', root.querySelector('.cam-blobitem-fitness-name').textContent);
+						assert(root.querySelector('.cam-blobitem-fitness-footer').getAttribute('aria-label').indexOf('Other') != -1);
+					});
+				});
+				test('trackless activity uses PNG; image error shows neutral typed placeholder', function() {
+					var element = handler(meta({camliNodeType: 'fitnessActivity', fitnessActivityType: 'workout'})).createContent(new goog.math.Size(200, 174));
+					assert(element.props.src.indexOf('/track.png?') != -1);
+					equal('', parameter(element.props.src, 'fitnessTrack'));
+					mount(element, function(root, instance) {
+						equal(1, root.querySelectorAll('img').length);
+						instance.onThumbError_();
+						equal(0, root.querySelectorAll('img').length);
+						equal(1, root.querySelectorAll('.cam-blobitem-fitness-placeholder svg').length);
+						assert(root.querySelector('.cam-blobitem-fitness-placeholder').getAttribute('aria-label').indexOf('Workout') != -1);
+						assert(root.innerHTML.indexOf('folder.png') == -1);
+					});
+				});
+				test('image error shows neutral placeholder and changed URL retries', function() {
+					var a = activity({title: 'Sample activity'});
+					var src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+					var element = React.createElement(fitness, {href: '/ui/detail-test', size: new goog.math.Size(200, 174), src: src, activity: a});
+					mount(element, function(root, instance) {
+						equal(1, root.querySelectorAll('img').length);
+						equal(0, root.querySelectorAll('.cam-blobitem-fitness-fallback-badge').length);
+						instance.onThumbError_();
+						equal(0, root.querySelectorAll('img').length);
+						equal(1, root.querySelectorAll('.cam-blobitem-fitness-placeholder').length);
+						ReactDOM.render(React.cloneElement(element, {src: src + '#retry'}), root);
+						equal(1, root.querySelectorAll('img').length);
+						equal(0, root.querySelectorAll('.cam-blobitem-fitness-fallback-badge').length);
+					});
+				});
+				test('small Ride image-error fallback has visible sport badge without date', function() {
+					var element = handler(meta({camliNodeType: 'fitnessActivity', fitnessActivityType: 'ride', fitnessDistance: '1000', fitnessMovingDuration: '65'})).createContent(new goog.math.Size(128, 111));
+					mount(element, function(root, instance) {
+						assert(root.querySelector('.cam-blobitem-fitness-metrics').textContent);
+						equal(0, root.querySelectorAll('.cam-blobitem-fitness-date').length);
+						instance.onThumbError_();
+						equal('Ride', root.querySelector('.cam-blobitem-fitness-fallback-badge').textContent);
+					});
+				});
+				test('finite extremes never display NaN or Infinity', function() {
+					var a = activity({fitnessDistance: '1e308', fitnessMovingDuration: '1e308'});
+					assert(!/NaN|Infinity/.test(a.fullTitle));
+				});
+
+				var status = document.getElementById('status');
+				status.textContent = (results.failed ? 'FAIL: ' : 'PASS: ') + results.passed + ' passed, ' + results.failed + ' failed';
+				status.style.background = results.failed ? '#a00' : '#18743c';
+				document.getElementById('errors').textContent = results.errors.join('\n');
+				[200, 128, 64].forEach(function(width) {
+					var root = document.createElement('div');
+					document.getElementById('fixtures').appendChild(root);
+					var element = handler(meta({camliNodeType: 'fitnessActivity', title: 'Sample activity', fitnessActivityType: 'run', fitnessDistance: '1609.344', fitnessMovingDuration: '65', latitude: '24', longitude: '-125', startDate: '2000-01-02T03:04:05Z'})).createContent(new goog.math.Size(width, width / 1.15));
+					// Show the error fallback without requesting a synthetic PN.
+					ReactDOM.render(React.cloneElement(element, {src: ''}), root);
+				});
+			};
+		</script>
+	</body>
+</html>

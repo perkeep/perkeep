@@ -71,3 +71,28 @@ can change without creating a new activity permanode. Distinct providers'
 identifiers do not by themselves establish that two activities are duplicates.
 This schema does not require a particular importer's directory layout or
 authorize collection or retention of a provider's data.
+
+## Web UI rendering
+
+The web UI recognizes `fitnessActivity` without consulting provider-specific
+attributes. Its thumbnail handler reads the referenced GPX locally and draws
+a red route with an activity-type badge at the bottom left. Track segments
+remain separate; missing GPS data has a neutral preview instead of an invented
+route. Generated images belong in the thumbnail cache, not in the archived
+activity's claims or as new permanodes.
+
+Cards retain the activity's title and display `fitnessDistance` in kilometres
+to one decimal place, plus duration when available. They also show miles to
+one decimal place when the activity's start coordinates fall inside the rough
+contiguous-US rectangle **24–50 degrees north, 125–66 degrees west**. This is
+an intentionally approximate display heuristic, not a country-boundary test:
+it excludes Alaska and Hawaii and includes some neighbouring territory.
+Moving duration is preferred, with elapsed duration used when moving duration
+is unavailable. Display units do not change the SI values stored in claims.
+
+The default preview is route-only: rendering does not fetch a basemap or send
+the track to an external service. A future basemap integration should be
+explicitly configured and respect its provider's caching, attribution, and
+privacy requirements. OpenStreetMap's public tile service is not an unrestricted
+bulk-thumbnail service; see its
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/).

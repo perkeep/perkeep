@@ -38,6 +38,7 @@ goog.require('cam.AudioDetail');
 goog.require('cam.BlobItemContainerReact');
 goog.require('cam.DirContainer');
 goog.require('cam.BlobItemDemoContent');
+goog.require('cam.BlobItemFitnessContent');
 goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
@@ -77,6 +78,7 @@ cam.IndexPage = React.createClass({
 
 	// Note that these are ordered by priority.
 	BLOB_ITEM_HANDLERS_: [
+		cam.BlobItemFitnessContent.getHandler,
 		cam.BlobItemDemoContent.getHandler,
 		cam.BlobItemFoursquareContent.getHandler,
 		cam.BlobItemTwitterContent.getHandler,
