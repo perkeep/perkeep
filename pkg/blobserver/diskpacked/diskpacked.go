@@ -456,36 +456,40 @@ func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 	})
 }
 
-func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-
-	t := s.index.Find(after, "")
-	defer func() {
-		closeErr := t.Close()
-		if err == nil {
-			err = closeErr
+	if limit <= 0 {
+		return nil
+	}
+	for r := range sorted.ScanPaged(s.index, after, "") {
+		row, err := r.Value()
+		if err != nil {
+			return err
 		}
-	}()
-	for i := 0; i < limit && t.Next(); {
-		key := t.Key()
-		if key <= after {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if row.Key <= after {
 			// EnumerateBlobs' semantics are '>', but sorted.KeyValue.Find is '>='.
 			continue
 		}
-		br, ok := blob.Parse(key)
+		br, ok := blob.Parse(row.Key)
 		if !ok {
-			return fmt.Errorf("diskpacked: couldn't parse index key %q", key)
+			return fmt.Errorf("diskpacked: couldn't parse index key %q", row.Key)
 		}
-		m, ok := parseBlobMeta(t.Value())
+		m, ok := parseBlobMeta(row.Value)
 		if !ok {
-			return fmt.Errorf("diskpacked: couldn't parse index value %q: %q", key, t.Value())
+			return fmt.Errorf("diskpacked: couldn't parse index value %q: %q", row.Key, row.Value)
 		}
 		select {
 		case dest <- m.SizedRef(br):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		i++
+		limit--
+		if limit == 0 {
+			return nil
+		}
 	}
 	return nil
 }

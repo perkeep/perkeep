@@ -123,6 +123,48 @@ func TestParseMetaRow(t *testing.T) {
 	}
 }
 
+func TestParseMetaRowSizeOnly(t *testing.T) {
+	for _, tt := range []struct {
+		in   string
+		want uint32
+		err  bool
+	}{
+		{in: "", err: true},
+		{in: " ", err: true},
+		{in: "1", err: true},
+		{in: "1 ", err: true},
+		{in: "-1 x", err: true},
+		{in: "+1 x", err: true},
+		{in: "x rest", err: true},
+		{in: "1_000 rest", err: true},
+		{in: "4294967296 rest", err: true},
+		{in: "0 rest"},
+		{in: "123 rest", want: 123},
+		{in: "000123 rest", want: 123},
+		{in: "4294967295 rest", want: 4294967295},
+	} {
+		got, err := parseMetaRowSizeOnly(tt.in)
+		if (err != nil) != tt.err || got != tt.want {
+			t.Errorf("parseMetaRowSizeOnly(%q) = %d, %v; want %d, error=%v", tt.in, got, err, tt.want, tt.err)
+		}
+	}
+}
+
+func TestParseMetaRowSizeOnlyAllocs(t *testing.T) {
+	const row = "123 sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42"
+	var size uint32
+	var err error
+	allocs := testing.AllocsPerRun(1000, func() {
+		size, err = parseMetaRowSizeOnly(row)
+	})
+	if size != 123 || err != nil {
+		t.Fatalf("parseMetaRowSizeOnly = %d, %v; want 123, nil", size, err)
+	}
+	if allocs != 0 {
+		t.Fatalf("allocations per parse = %v; want 0", allocs)
+	}
+}
+
 func wantNumLargeBlobs(want int) func(*packTest) {
 	return func(pt *packTest) { pt.wantLargeBlobs = want }
 }

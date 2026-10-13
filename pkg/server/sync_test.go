@@ -1,0 +1,260 @@
+/*
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+	"testing/synctest"
+
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/sqlite"
+	"perkeep.org/pkg/test"
+)
+
+func syncQueueRef(n int) blob.Ref {
+	return blob.MustParse(fmt.Sprintf("sha1-%040x", n))
+}
+
+func TestEnumerateQueuedBlobsSQLiteReentrant(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		kv, err := sqlite.NewStorage(filepath.Join(t.TempDir(), "queue.sqlite"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer kv.Close()
+		const count = 2005
+		batch := kv.BeginBatch()
+		batch.Set("bad-blobref", "1")
+		batch.Set(syncQueueRef(count+1).String(), "bad-size")
+		batch.Set(syncQueueRef(count+2).String(), "4294967296")
+		for i := 1; i <= count; i++ {
+			batch.Set(syncQueueRef(i).String(), strconv.Itoa(i))
+		}
+		if err := kv.CommitBatch(batch); err != nil {
+			t.Fatal(err)
+		}
+		sh := newSyncHandler("source", "destination", nil, nil, kv)
+		dst := make(chan blob.SizedRef)
+		intr := make(chan struct{})
+		defer close(intr)
+		errc := make(chan error, 1)
+		go func() { errc <- sh.enumerateQueuedBlobs(dst, intr) }()
+		synctest.Wait() // Sender is blocked before the receiver starts.
+		if _, err := kv.Get(syncQueueRef(1).String()); err != nil {
+			t.Fatal(err)
+		}
+		for i := 1; i <= count; i++ {
+			want := blob.SizedRef{Ref: syncQueueRef(i), Size: uint32(i)}
+			if got, ok := <-dst; !ok || got != want {
+				t.Fatalf("blob %d = %v, %v; want %v", i, got, ok, want)
+			}
+			// A successful copy deletes from this same queue while the
+			// enumerator may already be blocked on the next channel send.
+			if err := kv.Delete(want.Ref.String()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, ok := <-dst; ok {
+			t.Fatal("enumerator sent an extra blob")
+		}
+		if err := <-errc; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := kv.Get(syncQueueRef(1).String()); !errors.Is(err, sorted.ErrNotFound) {
+			t.Fatalf("deleted queue entry: got %v; want ErrNotFound", err)
+		}
+	})
+}
+
+func TestEnumerateQueuedBlobsSQLiteInterrupt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		kv, err := sqlite.NewStorage(filepath.Join(t.TempDir(), "queue.sqlite"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer kv.Close()
+		br := syncQueueRef(1)
+		if err := kv.Set(br.String(), "1"); err != nil {
+			t.Fatal(err)
+		}
+		sh := newSyncHandler("source", "destination", nil, nil, kv)
+		dst := make(chan blob.SizedRef)
+		intr := make(chan struct{})
+		errc := make(chan error, 1)
+		go func() { errc <- sh.enumerateQueuedBlobs(dst, intr) }()
+		synctest.Wait()
+		close(intr)
+		if err := <-errc; err != nil {
+			t.Fatalf("interrupted enumeration: %v", err)
+		}
+		if _, ok := <-dst; ok {
+			t.Fatal("interrupted enumerator sent a blob")
+		}
+		if err := kv.Delete(br.String()); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+type syncQueueErrorKV struct {
+	sorted.KeyValue
+	closeErr error
+}
+
+func (kv *syncQueueErrorKV) Find(start, end string) sorted.Iterator {
+	return &syncQueueErrorIter{Iterator: kv.KeyValue.Find(start, end), closeErr: kv.closeErr}
+}
+
+type syncQueueErrorIter struct {
+	sorted.Iterator
+	closeErr error
+}
+
+func (it *syncQueueErrorIter) Close() error {
+	if err := it.Iterator.Close(); err != nil {
+		return err
+	}
+	return it.closeErr
+}
+
+func TestEnumerateQueuedBlobsIteratorError(t *testing.T) {
+	wantErr := errors.New("iterator failed")
+	kv := &syncQueueErrorKV{KeyValue: sorted.NewMemoryKeyValue(), closeErr: wantErr}
+	defer kv.Close()
+	if err := kv.Set(syncQueueRef(1).String(), "1"); err != nil {
+		t.Fatal(err)
+	}
+	sh := newSyncHandler("source", "destination", nil, nil, kv)
+	dst := make(chan blob.SizedRef, 1)
+	if err := sh.enumerateQueuedBlobs(dst, make(chan struct{})); !errors.Is(err, wantErr) {
+		t.Fatalf("got %v; want %v", err, wantErr)
+	}
+	want := blob.SizedRef{Ref: syncQueueRef(1), Size: 1}
+	if got, ok := <-dst; !ok || got != want {
+		t.Fatalf("buffered blob = %v, %v; want %v", got, ok, want)
+	}
+	if _, ok := <-dst; ok {
+		t.Fatal("enumerator sent an extra blob")
+	}
+}
+
+func TestEnumerateQueuedBlobsInterruptSuppressesIteratorError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		kv := &syncQueueErrorKV{
+			KeyValue: sorted.NewMemoryKeyValue(),
+			closeErr: errors.New("iterator failed"),
+		}
+		defer kv.Close()
+		if err := kv.Set(syncQueueRef(1).String(), "1"); err != nil {
+			t.Fatal(err)
+		}
+		sh := newSyncHandler("source", "destination", nil, nil, kv)
+		dst := make(chan blob.SizedRef)
+		intr := make(chan struct{})
+		errc := make(chan error, 1)
+		go func() { errc <- sh.enumerateQueuedBlobs(dst, intr) }()
+		synctest.Wait() // Buffered blob blocks before the terminal error.
+		close(intr)
+		if err := <-errc; err != nil {
+			t.Fatalf("interrupted enumeration: %v; want nil", err)
+		}
+		if _, ok := <-dst; ok {
+			t.Fatal("interrupted enumerator sent a blob")
+		}
+	})
+}
+
+func TestRunSyncStopsQueuedEnumeratorOnFullWorkBuffer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		kv := sorted.NewMemoryKeyValue()
+		defer kv.Close()
+		src, dst := new(test.Fetcher), new(test.Fetcher)
+		releaseFetch := make(chan struct{})
+		var fetchStarted sync.Once
+		fetching := make(chan struct{})
+		src.FetchErr = func() error {
+			fetchStarted.Do(func() { close(fetching) })
+			<-releaseFetch
+			return nil
+		}
+		sh := newSyncHandler("source", "destination", src, dst, kv)
+		sh.copierPoolSize = 1
+		const count = 1100 // More than workch + enumch + active workers.
+		for i := 0; i < count; i++ {
+			body := fmt.Sprintf("blob %d", i)
+			br := blob.RefFromString(body)
+			sb, err := src.ReceiveBlob(context.Background(), br, strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := sh.enqueue(sb); err != nil {
+				t.Fatal(err)
+			}
+		}
+		enumDone := make(chan struct{})
+		copied := make(chan int, 1)
+		go func() {
+			copied <- sh.runSync("queue", func(dst chan<- blob.SizedRef, intr <-chan struct{}) error {
+				defer close(enumDone)
+				return sh.enumerateQueuedBlobs(dst, intr)
+			})
+		}()
+		<-fetching
+		synctest.Wait()
+		select {
+		case <-enumDone:
+		default:
+			t.Error("full work buffer did not interrupt the queued enumerator")
+		}
+		select {
+		case n := <-copied:
+			t.Fatalf("runSync returned %d before copies could finish", n)
+		default:
+		}
+		close(releaseFetch)
+		n := <-copied
+		// Depending on when the worker takes its first blob, either 1000 or
+		// 1001 blobs fit in this batch. The remainder must stay queued.
+		if n < 1000 || n > 1001 {
+			t.Fatalf("copied %d blobs; want 1000 or 1001", n)
+		}
+		sh.mu.Lock()
+		pending := len(sh.needCopy)
+		sh.mu.Unlock()
+		if pending != count-n {
+			t.Fatalf("%d blobs pending; want %d", pending, count-n)
+		}
+		queued := 0
+		for r := range sorted.ScanPaged(kv, "", "") {
+			if _, err := r.Value(); err != nil {
+				t.Fatal(err)
+			}
+			queued++
+		}
+		if queued != pending {
+			t.Fatalf("%d blobs queued; want %d", queued, pending)
+		}
+	})
+}

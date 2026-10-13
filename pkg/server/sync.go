@@ -542,28 +542,31 @@ func (sh *SyncHandler) enumeratePendingBlobs(dst chan<- blob.SizedRef, intr <-ch
 // This differs from enumeratePendingBlobs, which sends from the in-memory pending list.
 func (sh *SyncHandler) enumerateQueuedBlobs(dst chan<- blob.SizedRef, intr <-chan struct{}) error {
 	defer close(dst)
-	it := sh.queue.Find("", "")
-	for it.Next() {
-		br, ok := blob.Parse(it.Key())
-		size, err := strconv.ParseUint(it.Value(), 10, 32)
+	for r := range sorted.ScanPaged(sh.queue, "", "") {
+		row, err := r.Value()
+		if err != nil {
+			return err
+		}
+		k, v := row.Key, row.Value
+		br, ok := blob.Parse(k)
+		size, err := strconv.ParseUint(v, 10, 32)
 		if !ok || err != nil {
-			sh.logf("ERROR: bogus sync queue entry: %q => %q", it.Key(), it.Value())
+			sh.logf("ERROR: bogus sync queue entry: %q => %q", k, v)
 			continue
 		}
 		select {
 		case dst <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 		case <-intr:
-			return it.Close()
+			return nil
 		}
 	}
-	return it.Close()
+	return nil
 }
 
 func (sh *SyncHandler) runSync(syncType string, enumSrc func(chan<- blob.SizedRef, <-chan struct{}) error) int {
 	enumch := make(chan blob.SizedRef, 8)
 	errch := make(chan error, 1)
 	intr := make(chan struct{})
-	defer close(intr)
 	go func() { errch <- enumSrc(enumch, intr) }()
 
 	nCopied := 0
@@ -584,6 +587,9 @@ FeedWork:
 			break FeedWork
 		}
 	}
+	// If the work buffer filled, stop the enumerator before waiting for its
+	// result: it may be blocked sending blobs we will no longer receive.
+	close(intr)
 	close(workch)
 	for i := 0; i < toCopy; i++ {
 		sh.setStatusf("Copying blobs")

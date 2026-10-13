@@ -37,8 +37,6 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
-
-	"go4.org/strutil"
 )
 
 type nsto struct {
@@ -70,32 +68,35 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 
 func (ns *nsto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	done := ctx.Done()
-
-	it := ns.inventory.Find(after, "")
-	first := true
-	for limit > 0 && it.Next() {
-		if first {
-			first = false
-			if after != "" && it.Key() == after {
-				continue
-			}
+	if limit <= 0 {
+		return nil
+	}
+	for r := range sorted.ScanPaged(ns.inventory, after, "") {
+		row, err := r.Value()
+		if err != nil {
+			return err
 		}
-		br, ok := blob.ParseBytes(it.KeyBytes())
-		size, err := strutil.ParseUintBytes(it.ValueBytes(), 10, 32)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if row.Key <= after {
+			continue
+		}
+		br, ok := blob.Parse(row.Key)
+		size, err := strconv.ParseUint(row.Value, 10, 32)
 		if !ok || err != nil {
-			log.Printf("Bogus namespace key %q / value %q", it.Key(), it.Value())
+			log.Printf("Bogus namespace key %q / value %q", row.Key, row.Value)
 			continue
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: uint32(size)}:
-		case <-done:
+		case <-ctx.Done():
 			return ctx.Err()
 		}
 		limit--
-	}
-	if err := it.Close(); err != nil {
-		return err
+		if limit == 0 {
+			return nil
+		}
 	}
 	return nil
 }

@@ -27,38 +27,38 @@ import (
 	"perkeep.org/pkg/sorted"
 )
 
-func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	it := ix.s.Find("have:"+after, "have~")
-	defer func() {
-		closeErr := it.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}()
+	if limit <= 0 {
+		return nil
+	}
 
 	afterKey := "have:" + after
-	n := int(0)
-	for n < limit && it.Next() {
-		k := it.Key()
+	n := 0
+	for r := range sorted.ScanPaged(ix.s, afterKey, "have~") {
+		row, err := r.Value()
+		if err != nil {
+			return err
+		}
+		k, v := row.Key, row.Value
 		if k <= afterKey {
 			continue
 		}
 		if !strings.HasPrefix(k, "have:") {
-			break
+			return nil
 		}
 		n++
-		br, ok := blob.Parse(k[len("have:"):])
-		if !ok {
-			continue
-		}
-		size, err := parseHaveVal(it.Value())
-		if err == nil {
-			select {
-			case dest <- blob.SizedRef{Ref: br, Size: uint32(size)}:
-			case <-ctx.Done():
-				return ctx.Err()
+		if br, ok := blob.Parse(k[len("have:"):]); ok {
+			if size, err := parseHaveVal(v); err == nil {
+				select {
+				case dest <- blob.SizedRef{Ref: br, Size: uint32(size)}:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
+		}
+		if n == limit {
+			return nil
 		}
 	}
 	return nil

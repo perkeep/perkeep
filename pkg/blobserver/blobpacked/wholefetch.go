@@ -96,6 +96,8 @@ func (s *storage) OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadClose
 	if err := it.Close(); err != nil {
 		return nil, 0, err
 	}
+	// No iterator remains open when the reader is returned or accesses large.
+	// In particular, reading the whole ref cannot hold meta's SQLite gate.
 	if rows == 0 || uint32(len(parts)) != nZipWant {
 		return nil, 0, os.ErrNotExist
 	}
