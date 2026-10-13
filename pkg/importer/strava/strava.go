@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,12 +45,15 @@ const (
 	authURL              = "https://www.strava.com/oauth/authorize"
 	attrRefreshToken     = "stravaRefreshToken"
 	attrTokenExpiry      = "stravaTokenExpiry"
+	attrTokenClientID    = "stravaTokenClientID"
 	attrOAuthState       = "stravaOAuthState"
 	attrOAuthStateExpiry = "stravaOAuthStateExpiry"
 	attrImportVersion    = "stravaImportVersion"
 	attrSummaryHash      = "stravaSummaryHash"
 	attrActivityJSON     = "stravaActivityJSON"
 	attrStreamsJSON      = "stravaStreamsJSON"
+	attrRateLimitState   = "stravaRateLimitState"
+	maxActivitiesEnv     = "PERKEEP_STRAVA_MAX_ACTIVITIES"
 	runCompleteVersion   = "1"
 )
 
@@ -79,7 +83,11 @@ func (imp) Properties() importer.Properties {
 }
 
 func (imp) AccountSetupHTML(h *importer.Host) string {
-	return `<p>Create an application in <a href="https://www.strava.com/settings/api">Strava API settings</a>, set its Authorization Callback Domain to your Perkeep server's hostname, and enter its Client ID and Client Secret here. Authorization requests <code>activity:read_all</code>, including private workouts. Only the authenticated athlete's activities are imported.</p>`
+	setup := `<p>Create an application in <a href="https://www.strava.com/settings/api">Strava API settings</a>, set its Authorization Callback Domain to your Perkeep server's hostname, and enter its Client ID and Client Secret here. Authorization requests <code>activity:read_all</code>, including private workouts. Only the authenticated athlete's activities are imported.</p>`
+	if limit, err := activityLimit(); err == nil && limit > 0 {
+		setup += fmt.Sprintf("<p>Testing cap: each run considers only the %d most recent activities. Reaching this cap counts as a successful import.</p>", limit)
+	}
+	return setup
 }
 
 func (imp) IsAccountReady(acct *importer.Object) (bool, error) {
@@ -206,7 +214,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, req *http.Request, sc *import
 		fail(http.StatusInternalServerError, err)
 		return
 	}
-	if err := storeToken(sc.AccountNode, tok); err != nil {
+	if err := storeToken(sc.AccountNode, tok, id); err != nil {
 		fail(http.StatusInternalServerError, err)
 		return
 	}
@@ -222,7 +230,7 @@ func hasScope(scopes, want string) bool {
 	return false
 }
 
-func storeToken(acct *importer.Object, tok *tokenResponse) error {
+func storeToken(acct *importer.Object, tok *tokenResponse, clientIDs ...string) error {
 	// Persist the rotating refresh token first. If a later claim fails, the next
 	// run can still obtain a new access token with the new refresh credential.
 	for _, kv := range [][2]string{
@@ -234,10 +242,64 @@ func storeToken(acct *importer.Object, tok *tokenResponse) error {
 			return err
 		}
 	}
+	// Bind last: partially persisted replacement credentials must not make an
+	// old access token look as though it belongs to the new application.
+	if len(clientIDs) != 0 {
+		return acct.SetAttr(attrTokenClientID, clientIDs[0])
+	}
 	return nil
 }
 
 type run struct{ *importer.RunContext }
+
+// activityLimit is deliberately opt-in. Invalid values must not silently
+// turn a bounded test import into an unbounded backfill.
+func activityLimit() (int, error) {
+	value := os.Getenv(maxActivitiesEnv)
+	if value == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit <= 0 {
+		return 0, fmt.Errorf("strava: %s must be a positive integer or unset", maxActivitiesEnv)
+	}
+	return limit, nil
+}
+
+// Persist the application identity with its budget on the shared importer
+// configuration, not an account: a restart must restore the latest budget
+// regardless of which account starts first.
+type persistedRateLimit struct {
+	ClientID string          `json:"clientID"`
+	State    json.RawMessage `json:"state"`
+}
+
+func restoreRateLimit(acct *importer.Object, id string, limiter *rateLimiter) error {
+	raw := acct.Attr(attrRateLimitState)
+	if raw == "" {
+		return nil
+	}
+	var stored persistedRateLimit
+	if json.Unmarshal([]byte(raw), &stored) != nil || stored.ClientID == "" || len(stored.State) == 0 {
+		return errors.New("strava: invalid persisted rate-limit state")
+	}
+	if stored.ClientID != id {
+		return nil
+	}
+	return limiter.restore(string(stored.State))
+}
+
+func persistRateLimit(acct *importer.Object, id string, limiter *rateLimiter) error {
+	// A newer snapshot must not be persisted before an older snapshot's
+	// delayed claim upload. Serialize the snapshot and its write per app.
+	limiter.persistMu.Lock()
+	defer limiter.persistMu.Unlock()
+	raw, err := json.Marshal(persistedRateLimit{ClientID: id, State: json.RawMessage(limiter.snapshot())})
+	if err != nil {
+		return errors.New("strava: could not encode rate-limit state")
+	}
+	return acct.SetAttr(attrRateLimitState, string(raw))
+}
 
 // client checks expiry before each API call, including during long backfills.
 func (r *run) client() (*apiClient, error) {
@@ -248,37 +310,64 @@ func (r *run) client() (*apiClient, error) {
 	if err := r.Context().Err(); err != nil {
 		return nil, err
 	}
+	id, secret, err := r.Credentials()
+	if err != nil {
+		return nil, err
+	}
 	expiry, err := strconv.ParseInt(acct.Attr(attrTokenExpiry), 10, 64)
-	if err != nil || acct.Attr(importer.AcctAttrAccessToken) == "" || time.Now().Add(time.Minute).Unix() >= expiry {
-		id, secret, err := r.Credentials()
-		if err != nil {
-			return nil, err
-		}
+	if err != nil || acct.Attr(importer.AcctAttrAccessToken) == "" ||
+		acct.Attr(attrTokenClientID) != id || time.Now().Add(time.Minute).Unix() >= expiry {
 		tok, err := exchangeToken(r.Context(), r.Host.HTTPClient(), url.Values{
 			"client_id": {id}, "client_secret": {secret}, "refresh_token": {acct.Attr(attrRefreshToken)}, "grant_type": {"refresh_token"},
 		})
 		if err != nil {
 			return nil, err
 		}
-		if err := storeToken(acct, tok); err != nil {
+		if err := storeToken(acct, tok, id); err != nil {
 			return nil, err
 		}
 	}
-	return &apiClient{httpClient: r.Host.HTTPClient(), accessToken: acct.Attr(importer.AcctAttrAccessToken)}, nil
+	return &apiClient{
+		httpClient: r.Host.HTTPClient(), accessToken: acct.Attr(importer.AcctAttrAccessToken),
+		limiter: rateLimiterForApp(id),
+	}, nil
 }
 
 func (im imp) Run(rc *importer.RunContext) (err error) {
 	defer func() {
-		if ctxErr := rc.Context().Err(); ctxErr != nil {
-			err = ctxErr
+		if ctxErr := rc.Context().Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
+			err = errors.Join(ctxErr, err)
 		}
 	}()
 	if err := rc.Context().Err(); err != nil {
 		return err
 	}
+	maxActivities, err := activityLimit()
+	if err != nil {
+		return err
+	}
 	if ok, _ := im.IsAccountReady(rc.AccountNode()); !ok {
 		return errors.New("strava: account is not configured; reconnect account")
 	}
+	id, _, err := rc.Credentials()
+	if err != nil {
+		return err
+	}
+	limiter := rateLimiterForApp(id)
+	rateNode, err := rc.ImporterNode()
+	if err != nil {
+		return err
+	}
+	if err := restoreRateLimit(rateNode, id, limiter); err != nil {
+		return err
+	}
+	// Retain consumed budgets even on rate-limit, HTTP, or import failures.
+	// Subsequent runs and clean server restarts must not reset the counters.
+	defer func() {
+		if persistErr := persistRateLimit(rateNode, id, limiter); persistErr != nil {
+			err = errors.Join(err, fmt.Errorf("strava: saving rate-limit state: %w", persistErr))
+		}
+	}()
 	r := &run{rc}
 	if err := rc.RootNode().SetAttr(nodeattr.Title, "Strava workouts"); err != nil {
 		return err
@@ -292,6 +381,11 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 	}
 	// Offset pages can move between runs. Always restart at page one and use
 	// activity IDs plus completion markers to resume without missing old items.
+	pageSize := 100
+	if maxActivities > 0 && maxActivities < pageSize {
+		pageSize = maxActivities
+	}
+	considered := 0
 	for page := 1; ; page++ {
 		if err := r.Context().Err(); err != nil {
 			return err
@@ -300,7 +394,7 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 		if err != nil {
 			return err
 		}
-		summaries, err := client.listActivities(r.Context(), page)
+		summaries, err := client.listActivities(r.Context(), page, pageSize)
 		if err != nil {
 			return err
 		}
@@ -310,6 +404,12 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 		for _, summary := range summaries {
 			if err := r.importActivity(activities, &summary); err != nil {
 				return fmt.Errorf("strava: activity %d: %w", summary.ID, err)
+			}
+			// Already imported activities count toward the cap too. Re-running
+			// a test must not advance into the next batch of older workouts.
+			considered++
+			if maxActivities > 0 && considered >= maxActivities {
+				return rc.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion)
 			}
 		}
 	}

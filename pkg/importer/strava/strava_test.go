@@ -149,8 +149,19 @@ func (s *coreStorage) Describe(_ context.Context, req *search.DescribeRequest) (
 	}}, nil
 }
 
-func (*coreStorage) Query(context.Context, *search.SearchQuery) (*search.SearchResult, error) {
-	return nil, errors.New("unexpected search query in importer core test")
+func (s *coreStorage) Query(_ context.Context, req *search.SearchQuery) (*search.SearchResult, error) {
+	if req.Expression != "attr:camliNodeType:importer attr:importerType:strava" {
+		return nil, errors.New("unexpected search query in importer core test")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res := &search.SearchResult{}
+	for ref, attrs := range s.attrs {
+		if attrs.Get("camliNodeType") == "importer" && attrs.Get("importerType") == "strava" {
+			res.Blobs = append(res.Blobs, &search.SearchResultBlob{Blob: ref})
+		}
+	}
+	return res, nil
 }
 
 type coreTransport func(*http.Request) (*http.Response, error)
@@ -158,13 +169,19 @@ type coreTransport func(*http.Request) (*http.Response, error)
 func (f coreTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 type coreFixture struct {
-	rc      *importer.RunContext
-	storage *coreStorage
-	handler http.Handler
+	rc         *importer.RunContext
+	storage    *coreStorage
+	handler    http.Handler
+	clientID   string
+	hostConfig importer.HostConfig
 }
+
+var coreFixtureClientCounter uint64
 
 func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
 	t.Helper()
+	// App-wide rate limits must not leak between fixtures or repeated test runs.
+	clientID := fmt.Sprintf("test-client-id:%s:%d", t.Name(), atomic.AddUint64(&coreFixtureClientCounter, 1))
 	// Reuse a checked-in private key instead of generating an expensive key
 	// for each test. It is used only to sign these in-memory test blobs.
 	entity, err := jsonsign.EntityFromSecring("26F5ABDA", "../../jsonsign/testdata/test-secring.gpg")
@@ -190,17 +207,18 @@ func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
 			return nil, errors.New("unexpected HTTP request")
 		})
 	}
-	host, err := importer.NewHost(importer.HostConfig{
+	hostConfig := importer.HostConfig{
 		BaseURL:      "https://perkeep.example",
 		Prefix:       "/importer/",
 		Target:       storage,
 		BlobSource:   storage,
 		Signer:       signer,
 		Search:       storage,
-		ClientId:     map[string]string{"strava": "test-client-id"},
+		ClientId:     map[string]string{"strava": clientID},
 		ClientSecret: map[string]string{"strava": "test-client-secret"},
 		HTTPClient:   &http.Client{Transport: transport},
-	})
+	}
+	host, err := importer.NewHost(hostConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +228,9 @@ func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
 	}
 	return &coreFixture{
 		rc: rc, storage: storage,
-		handler: &httputil.PrefixHandler{Prefix: "/importer/", Handler: host},
+		handler:    &httputil.PrefixHandler{Prefix: "/importer/", Handler: host},
+		clientID:   clientID,
+		hostConfig: hostConfig,
 	}
 }
 
@@ -221,9 +241,19 @@ func (f *coreFixture) configure(t *testing.T) {
 		importer.AcctAttrAccessToken, "test-access",
 		attrRefreshToken, "test-refresh",
 		attrTokenExpiry, strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+		attrTokenClientID, f.clientID,
 	); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func (f *coreFixture) rateNode(t *testing.T) *importer.Object {
+	t.Helper()
+	node, err := f.rc.ImporterNode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return node
 }
 
 func (f *coreFixture) activity(t *testing.T, id int64) *importer.Object {
@@ -274,6 +304,7 @@ func coreResponse(req *http.Request, status int, body []byte) *http.Response {
 // Its call counts distinguish re-listing the backfill from re-fetching content.
 type coreAPI struct {
 	t        *testing.T
+	perPage  int // zero means the default 100
 	pages    map[int][]activity
 	details  map[int64][]byte
 	streams  map[int64][]byte // absent entry means the API has no streams
@@ -306,8 +337,12 @@ func (api *coreAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 		return coreResponse(req, status, []byte(`{"message":"test failure"}`)), nil
 	}
 	if path == "/athlete/activities" {
-		if got := req.URL.Query().Get("per_page"); got != "100" {
-			api.t.Errorf("per_page = %q; want 100", got)
+		perPage := api.perPage
+		if perPage == 0 {
+			perPage = 100
+		}
+		if got := req.URL.Query().Get("per_page"); got != strconv.Itoa(perPage) {
+			api.t.Errorf("per_page = %q; want %d", got, perPage)
 		}
 		page, err := strconv.Atoi(req.URL.Query().Get("page"))
 		if err != nil || page < 1 {
@@ -541,8 +576,18 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if !reflect.DeepEqual(api.calls, wantCalls) {
 		t.Errorf("unchanged run re-fetched details/streams: %v; want %v", api.calls, wantCalls)
 	}
-	if got := f.storage.NumBlobs(); got != before {
-		t.Errorf("unchanged run wrote blobs: before %d, after %d", before, got)
+	// Only the account's quota bookkeeping claim changes; activity and
+	// attachment permanodes retain the same content and references.
+	if got := f.storage.NumBlobs(); got != before+1 {
+		t.Errorf("unchanged run wrote %d blobs; want one quota bookkeeping claim", got-before)
+	}
+	if f.activity(t, first.ID).PermanodeRef() != firstRef || f.activity(t, second.ID).PermanodeRef() != secondRef {
+		t.Error("unchanged run replaced activity permanodes")
+	}
+	for filename, ref := range attachmentRefs {
+		if got := f.activity(t, first.ID).Attr("camliPath:" + filename); got != ref {
+			t.Errorf("unchanged run replaced %s attachment: %q; want %q", filename, got, ref)
+		}
 	}
 	// An edited summary invalidates just that activity. Its stable ID path
 	// must retain the existing permanode, not create a second activity.
@@ -587,7 +632,9 @@ func TestImporterFailedActivityResumes(t *testing.T) {
 			case "detail-http":
 				api.failures["/activities/202"] = http.StatusBadGateway
 			case "streams-http":
-				api.failures["/activities/202/streams"] = http.StatusTooManyRequests
+				// Generic failures can resume immediately; 429 intentionally
+				// retains an app-wide cooldown and is covered by limiter tests.
+				api.failures["/activities/202/streams"] = http.StatusBadGateway
 			case "invalid-start":
 				broken := second
 				broken.StartDate = time.Time{}
@@ -735,7 +782,7 @@ func TestImporterRotatingRefreshTokenPersistence(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := url.Values{
-				"client_id": {"test-client-id"}, "client_secret": {"test-client-secret"},
+				"client_id": {f.clientID}, "client_secret": {"test-client-secret"},
 				"refresh_token": {"test-refresh"}, "grant_type": {"refresh_token"},
 			}
 			if !reflect.DeepEqual(req.PostForm, want) {
@@ -902,7 +949,7 @@ func (f *coreFixture) setup(t *testing.T) string {
 	}
 	params := location.Query()
 	for key, want := range map[string]string{
-		"client_id": "test-client-id", "response_type": "code", "scope": "activity:read_all",
+		"client_id": f.clientID, "response_type": "code", "scope": "activity:read_all",
 		"redirect_uri": "https://perkeep.example/importer/strava/callback", "approval_prompt": "force",
 	} {
 		if got := params.Get(key); got != want {
@@ -938,7 +985,8 @@ func (f *coreFixture) callback(state string) *httptest.ResponseRecorder {
 func TestImporterOAuthSetupCallbackAndReplay(t *testing.T) {
 	exchanges := 0
 	expiry := time.Now().Add(time.Hour).Unix()
-	f := newCoreFixture(t, coreTransport(func(req *http.Request) (*http.Response, error) {
+	var f *coreFixture
+	f = newCoreFixture(t, coreTransport(func(req *http.Request) (*http.Response, error) {
 		exchanges++
 		if req.URL.String() != tokenURL || req.Method != http.MethodPost {
 			t.Errorf("token exchange request = %s %s", req.Method, req.URL)
@@ -947,7 +995,7 @@ func TestImporterOAuthSetupCallbackAndReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := url.Values{
-			"client_id": {"test-client-id"}, "client_secret": {"test-client-secret"},
+			"client_id": {f.clientID}, "client_secret": {"test-client-secret"},
 			"code": {"test-code"}, "grant_type": {"authorization_code"},
 		}
 		if !reflect.DeepEqual(req.PostForm, want) {
