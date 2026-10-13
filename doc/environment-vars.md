@@ -199,6 +199,19 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `RUN_BROKEN_TESTS` (bool)
 : Run known-broken tests.
 
+`PERKEEP_TEST_MYSQL_HOST` (string)
+: host[:port] of an already-running MySQL server for the MySQL tests to use
+  (user "root", password "root"), instead of starting one in a Docker
+  container. Each test creates and then drops its own database. If set and
+  the server is unreachable, the tests fail instead of skipping.
+
+`PERKEEP_TEST_POSTGRES_HOST` (string)
+: Host of an already-running PostgreSQL server (on the default port) for the
+  PostgreSQL tests to use (user "postgres", password "postgres"), instead of
+  starting one in a Docker container. Each test creates and then drops its
+  own database. If set and the server is unreachable, the tests fail instead
+  of skipping.
+
 ## Undocumented
 
 These variables are yet to be documented:

@@ -23,25 +23,22 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
 	"perkeep.org/pkg/test/dockertest"
 )
 
-// TestMySQLKV tests against a real MySQL instance, using a Docker container.
+// TestMySQLKV tests against a real MySQL instance.
 func TestMySQLKV(t *testing.T) {
-	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
-	defer containerID.KillRemove(t)
+	db := dockertest.SetupMySQL(t)
 
 	// TODO(mpl): add test for serverVersion once we host the docker image ourselves
 	// (and hence have the control over the version).
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
-		"database": dbname,
+		"host":     db.Host,
+		"database": db.Database,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,
 	})
@@ -53,14 +50,11 @@ func TestMySQLKV(t *testing.T) {
 }
 
 func TestRollback(t *testing.T) {
-	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
-	defer containerID.KillRemove(t)
-
+	db := dockertest.SetupMySQL(t)
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
-		"database": dbname,
+		"host":     db.Host,
+		"database": db.Database,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,
 	})

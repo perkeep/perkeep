@@ -1,0 +1,61 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+    # all PRs on all branches
+name: "tests/dbms"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 60
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 60
+
+    env:
+      PERKEEP_TEST_MYSQL_HOST: 127.0.0.1:3306
+      PERKEEP_TEST_POSTGRES_HOST: 127.0.0.1
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+
+    - name: Test MySQL and PostgreSQL backends
+      run: |
+        set -o pipefail
+        go test -v -count=1 -run 'MySQL|Postgres|PostgreSQL|Rollback' \
+          ./pkg/sorted/mysql ./pkg/sorted/postgres ./pkg/index 2>&1 | tee test.log
+        # A skipped test means the databases weren't used.
+        if grep -- '--- SKIP' test.log; then
+          echo "::error::tests were skipped"
+          exit 1
+        fi

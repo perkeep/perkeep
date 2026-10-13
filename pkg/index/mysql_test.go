@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
@@ -29,25 +28,18 @@ import (
 )
 
 func newMySQLSorted(t *testing.T) sorted.KeyValue {
-	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
-
+	db := dockertest.SetupMySQL(t)
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
-		"database": dbname,
+		"host":     db.Host,
+		"database": db.Database,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,
 	})
 	if err != nil {
-		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		kv.Close()
-		containerID.KillRemove(t)
-
-	})
+	t.Cleanup(func() { kv.Close() })
 	return kv
 }
 
