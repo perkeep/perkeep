@@ -72,6 +72,16 @@ identifiers do not by themselves establish that two activities are duplicates.
 This schema does not require a particular importer's directory layout or
 authorize collection or retention of a provider's data.
 
+## Search operators
+
+`is:fitness` matches this permanode type. `is:run` and `is:hike` select the
+corresponding generic activity categories, while `is:ride` and `is:bike` are
+aliases for `fitnessActivityType=ride` and include electric bikes.
+`is:ebike` currently identifies Strava electric rides using the preserved
+provider-specific activity types, rather than introducing a new generic
+attribute solely for that importer. See [search operators](/doc/search-ui.md)
+for composition examples.
+
 ## Web UI rendering
 
 The web UI recognizes `fitnessActivity` without consulting provider-specific
