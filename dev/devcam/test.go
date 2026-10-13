@@ -29,6 +29,7 @@ import (
 
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/test"
 )
 
 type testCmd struct {
@@ -149,6 +150,23 @@ func (c *testCmd) runTests(args []string) error {
 	env := c.env()
 	env.Set("SKIP_DEP_TESTS", "1")
 	env.Set("CAMLI_DISABLE_CLIENT_CONFIG_FILE", "1")
+	// When testing the whole tree, build the binaries for the tests' Worlds
+	// once, rather than once in each package that starts a World.
+	if len(args) == 0 && os.Getenv(test.WorldBinDirEnv) == "" {
+		dir, err := os.MkdirTemp("", "perkeep-test-bin-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(dir)
+		srcRoot, err := osutil.PkSourceRoot()
+		if err != nil {
+			return err
+		}
+		if err := test.BuildWorldBinaries(srcRoot, dir, c.verbose); err != nil {
+			return err
+		}
+		env.Set(test.WorldBinDirEnv, dir)
+	}
 	return runExec("go", targs, env)
 }
 
