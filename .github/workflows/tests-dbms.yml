@@ -45,9 +45,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
+    - uses: ./.github/actions/setup-go
 
     - name: Test MySQL and PostgreSQL backends
       run: |
@@ -59,3 +57,5 @@ jobs:
           echo "::error::tests were skipped"
           exit 1
         fi
+
+    - uses: ./.github/actions/save-go-cache

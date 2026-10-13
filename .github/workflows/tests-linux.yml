@@ -16,9 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
+    - uses: ./.github/actions/setup-go
 
     - name: Install fuse
       run: sudo apt-get install --yes fuse3
@@ -27,3 +25,5 @@ jobs:
       run: |
         go run make.go -v=true
         devcam test
+
+    - uses: ./.github/actions/save-go-cache

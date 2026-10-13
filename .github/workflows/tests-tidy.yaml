@@ -15,11 +15,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
+    - uses: ./.github/actions/setup-go
 
     - name: Check 'go mod tidy'
       run: |
         go mod tidy
         test -z "$(git status --porcelain)"
+
+    - uses: ./.github/actions/save-go-cache

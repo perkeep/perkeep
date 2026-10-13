@@ -1,0 +1,25 @@
+name: Save Go cache
+description: >
+  On pushes to master, saves the Go module and build caches for the setup-go
+  action to restore. Other runs don't save: caches saved by a pull request are
+  only readable by that pull request, and would only use up the repository's
+  cache space, evicting master's.
+
+runs:
+  using: composite
+  steps:
+    - id: go-env
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      shell: bash
+      run: |
+        echo "modcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        echo "buildcache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "prefix=go-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION | sed 's/^go//')" >> "$GITHUB_OUTPUT"
+
+    - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ steps.go-env.outputs.modcache }}
+          ${{ steps.go-env.outputs.buildcache }}
+        key: ${{ steps.go-env.outputs.prefix }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
