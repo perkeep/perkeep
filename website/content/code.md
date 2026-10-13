@@ -30,11 +30,8 @@ place to start.
     something similar or if there's a more Perkeep-like approach to
     the issue.
 
--   Sent a Pull Request on GitHub. Expect to make a few changes during
+-   Send a Pull Request on GitHub. Expect to make a few changes during
     the review.
-
--   A bot on GitHub will tell if you haven't yet signed the
-    [Contributor License Agreement](https://cla.developers.google.com).
 
 ### Documentation
 
