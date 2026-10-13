@@ -122,14 +122,13 @@ Unless `runIndex` is set to `false`, exactly one of these must be set:
 * `sqlite`: path to SQLite database file to use for indexing
 * `kvIndexFile`: path to kv (modernc.org/kv) database file to use for indexing
 * `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
-* `mongo`: user:password@host
 * `mysql`: user@host:password
 * `postgres`: user@host:password
 * `memoryIndex`: if true, a memory-only indexer is used.
 
 ## Database-related options {#database}
 
-* `dbname`: optional name of the index database if MySQL, PostgreSQL, or MongoDB,
+* `dbname`: optional name of the index database if MySQL or PostgreSQL
   is used. If empty, dbUnique is used as part of the database name.
 * `dbUnique`: optionally provides a unique value to differentiate databases on a
   DBMS shared by multiple Perkeep instances. It should not contain spaces or
@@ -228,9 +227,6 @@ The following steps should get you started with MySQL:
 * Create a dedicated user/password for your mysql server.
 * Initialize the database with **pk**: `pk dbinit --user=foo
   --password=bar --host=localhost --dbname=camliprod --wipe`
-
-Setting up MongoDB is even simpler, but the MongoDB indexer is not as well
-tested as the MySQL one.
 
 
 # Low-level configuration {#lowlevel}

@@ -288,7 +288,6 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 }
 
 const (
-	mongoImage       = "mpl7/mongo"
 	mysqlImage       = "mysql:8"
 	MySQLUsername    = "root"
 	MySQLPassword    = "root"
@@ -297,16 +296,6 @@ const (
 	PostgresPassword = "docker" // set up by the dockerfile of postgresImage
 	camliHub         = "https://storage.googleapis.com/camlistore-docker/"
 )
-
-// SetupMongoContainer sets up a real MongoDB instance for testing purposes,
-// using a Docker container. It returns the container ID and its IP address,
-// or makes the test fail on error.
-// Currently using https://index.docker.io/u/robinvdvleuten/mongo/
-func SetupMongoContainer(t *testing.T) (c ContainerID, ip string) {
-	return setupContainer(t, mongoImage, 27017, 10*time.Second, func() (string, error) {
-		return run("-d", mongoImage, "--nojournal")
-	})
-}
 
 // SetupMySQLContainer sets up a real MySQL instance for testing purposes,
 // using a Docker container. It returns the container ID and its IP address,

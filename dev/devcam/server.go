@@ -51,7 +51,6 @@ type serverCmd struct {
 	debug    bool
 	sha1     bool
 
-	mongo    bool
 	mysql    bool
 	postgres bool
 	sqlite   bool
@@ -106,12 +105,11 @@ func init() {
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
-		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the index storage. Excludes -mysql, -postgres, -sqlite, -memory, -kvfile.")
-		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the index storage. Excludes -mongo, -postgres, -sqlite, -memory, -kvfile.")
-		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the index storage. Excludes -mongo, -mysql, -sqlite, -memory, -kvfile.")
-		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the index storage. Excludes -mongo, -mysql, -postgres, -memory, -kvfile.")
-		flags.BoolVar(&cmd.kvfile, "kvfile", false, "Use cznic/kv as the index storage. Excludes -mongo, -mysql, -postgres, -memory, -sqlite.")
-		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only index storage. Excludes -mongo, -mysql, -postgres, -sqlite, -kvfile.")
+		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the index storage. Excludes -postgres, -sqlite, -memory, -kvfile.")
+		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the index storage. Excludes -mysql, -sqlite, -memory, -kvfile.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the index storage. Excludes -mysql, -postgres, -memory, -kvfile.")
+		flags.BoolVar(&cmd.kvfile, "kvfile", false, "Use cznic/kv as the index storage. Excludes -mysql, -postgres, -memory, -sqlite.")
+		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only index storage. Excludes -mysql, -postgres, -sqlite, -kvfile.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
@@ -167,7 +165,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		return cmdmain.UsageError("--makethings requires --wipe.")
 	}
 	nindex := 0
-	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite, c.memory, c.kvfile} {
+	for _, v := range []bool{c.mysql, c.postgres, c.sqlite, c.memory, c.kvfile} {
 		if v {
 			nindex++
 		}
@@ -228,7 +226,6 @@ func (c *serverCmd) setEnvVars() error {
 	}
 	setenv("CAMLI_DBNAME", "devcamli"+user)
 	setenv("CAMLI_MYSQL_ENABLED", "false")
-	setenv("CAMLI_MONGO_ENABLED", "false")
 	setenv("CAMLI_POSTGRES_ENABLED", "false")
 	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
@@ -244,9 +241,6 @@ func (c *serverCmd) setEnvVars() error {
 	case c.memory:
 		setenv("CAMLI_MEMINDEX_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-memory/")
-	case c.mongo:
-		setenv("CAMLI_MONGO_ENABLED", "true")
-		setenv("CAMLI_INDEXER_PATH", "/index-mongo/")
 	case c.postgres:
 		setenv("CAMLI_POSTGRES_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-postgres/")
@@ -368,11 +362,6 @@ func (c *serverCmd) setupIndexer() error {
 	case c.sqlite:
 		args = append(args,
 			"-dbtype=sqlite",
-			"-dbname="+c.env.m["CAMLI_DBNAME"])
-	case c.mongo:
-		args = append(args,
-			"-dbtype=mongo",
-			"-host=localhost",
 			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	default:
 		return nil

@@ -550,6 +550,9 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 	// the given high-level configuration. We check them against
 	// highLevelConfFields(), which gives us all the possible valid
 	// configuration names, to catch typos or invalid names.
+	if _, ok := m["mongo"]; ok {
+		return nil, fmt.Errorf("in file %q: the MongoDB index is no longer supported; use another index type, such as sqlite, and rebuild the index with perkeepd --reindex", filename)
+	}
 	allFields := highLevelConfFields()
 	for _, v := range conf.jconf.UnknownKeys() {
 		if _, ok := allFields[v]; !ok {

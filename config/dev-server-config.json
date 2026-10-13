@@ -295,19 +295,6 @@
 			}
 		},
 
-		"/index-mongo/": {
-			"enabled": ["_env", "${CAMLI_MONGO_ENABLED}", true],
-			"handler": "storage-index",
-			"handlerArgs": {
-				"blobSource": "/bs/",
-				"storage": {
-					"type": "mongo",
-					"host": "localhost",
-					"database": ["_env", "${CAMLI_DBNAME}"]
-				}
-			}
-		},
-
 		"/index-mysql/": {
 			"enabled": ["_env", "${CAMLI_MYSQL_ENABLED}", true],
 			"handler": "storage-index",

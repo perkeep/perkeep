@@ -27,14 +27,12 @@ import (
 	"strings"
 
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/sorted/mongo"
 	"perkeep.org/pkg/sorted/mysql"
 	"perkeep.org/pkg/sorted/postgres"
 	"perkeep.org/pkg/sorted/sqlite"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	"gopkg.in/mgo.v2"
 )
 
 type dbinitCmd struct {
@@ -56,7 +54,7 @@ func init() {
 		flags.StringVar(&cmd.password, "password", "", "Admin password.")
 		flags.StringVar(&cmd.host, "host", "localhost", "host[:port]")
 		flags.StringVar(&cmd.dbName, "dbname", "", "Database to wipe or create. For sqlite, this is the db filename.")
-		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite, mongo.")
+		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite.")
 		flags.StringVar(&cmd.sslMode, "sslmode", "require", "Configure SSL mode for postgres. Possible values: require, verify-full, disable.")
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
@@ -86,13 +84,13 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError("--dbname flag required")
 	}
 
-	if c.dbType != "mysql" && c.dbType != "postgres" && c.dbType != "mongo" {
+	if c.dbType != "mysql" && c.dbType != "postgres" {
 		if c.dbType == "sqlite" {
 			if !WithSQLite {
 				return ErrNoSQLite
 			}
 		} else {
-			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres" or "sqlite", or "mongo"`))
+			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres" or "sqlite"`))
 		}
 	}
 
@@ -128,9 +126,6 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		if !c.wipe {
 			return cmdmain.UsageError(fmt.Sprintf("Database %q already exists, but --wipe not given. Stopping.", dbname))
 		}
-		if c.dbType == "mongo" {
-			return c.wipeMongo()
-		}
 		if c.dbType != "sqlite" {
 			do(rootdb, "DROP DATABASE "+dbname)
 		}
@@ -141,8 +136,6 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		if err != nil {
 			exitf("Error creating file %v for sqlite db: %v", dbname, err)
 		}
-	case "mongo":
-		return nil
 	case "postgres":
 		// because we want string comparison to work as on MySQL and SQLite.
 		// in particular we want: 'foo|bar' < 'foo}' (which is not the case with an utf8 collation apparently).
@@ -219,17 +212,6 @@ func (c *dbinitCmd) dbExists(db *sql.DB) bool {
 		// not return an error when the file does not exist.
 		fi, err := os.Stat(c.dbName)
 		return err == nil && fi.Size() > 0
-	case "mongo":
-		session, err := c.mongoSession()
-		if err != nil {
-			exitf("%v", err)
-		}
-		defer session.Close()
-		n, err := session.DB(c.dbName).C(mongo.CollectionName).Find(nil).Limit(1).Count()
-		if err != nil {
-			exitf("%v", err)
-		}
-		return n != 0
 	}
 	rows, err := db.Query(query)
 	check(err, query)
@@ -265,38 +247,6 @@ var ErrNoSQLite = errors.New("the command was not built with SQLite support. See
 
 func compileHint() string {
 	return ""
-}
-
-// mongoSession returns an *mgo.Session or nil if c.dbtype is
-// not "mongo" or if there was an error.
-func (c *dbinitCmd) mongoSession() (*mgo.Session, error) {
-	if c.dbType != "mongo" {
-		return nil, nil
-	}
-	url := ""
-	if c.user == "" || c.password == "" {
-		url = c.host
-	} else {
-		url = c.user + ":" + c.password + "@" + c.host + "/" + c.dbName
-	}
-	return mgo.Dial(url)
-}
-
-// wipeMongo erases all documents from the mongo collection
-// if c.dbType is "mongo".
-func (c *dbinitCmd) wipeMongo() error {
-	if c.dbType != "mongo" {
-		return nil
-	}
-	session, err := c.mongoSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	if _, err := session.DB(c.dbName).C(mongo.CollectionName).RemoveAll(nil); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *dbinitCmd) mysqlDSN(dbname string) string {

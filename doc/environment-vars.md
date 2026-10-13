@@ -105,9 +105,6 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `CAMLI_MEMINDEX_ENABLED` (bool)
 : Use a memory-only indexer. Supported only by devcam server.
 
-`CAMLI_MONGO_WIPE` (bool)
-: Wipe out mongo based index on startup.
-
 `CAMLI_NO_FILE_DUP_SEARCH` (bool)
 : This will cause the search-for-exists-before-upload step to be skipped when
   pk put is uploading files.

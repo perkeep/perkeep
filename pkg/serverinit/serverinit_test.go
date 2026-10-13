@@ -506,3 +506,20 @@ func TestConfigHandlerRemoveKnownKeys(t *testing.T) {
 
 	compareConfigurations(t, "configHandlerRemoveKnownKeys", got, want)
 }
+
+// TestMongoIndexRejected tests that a high-level config still using the
+// removed MongoDB index gets an error saying what to do instead.
+func TestMongoIndexRejected(t *testing.T) {
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	_, err := serverinit.Load([]byte(`
+{
+    "auth": "localhost",
+    "listen": ":4430",
+    "blobPath": "/tmp/blobs",
+    "mongo": "user:pass@localhost"
+}
+`))
+	if err == nil || !strings.Contains(err.Error(), "MongoDB index is no longer supported") {
+		t.Fatalf("Load with mongo = %v; want MongoDB-no-longer-supported error", err)
+	}
+}
