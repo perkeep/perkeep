@@ -34,10 +34,6 @@ Offline list:
      if available, else use EnumerateAll, else maybe even use a new
      interface method that goes forever and can't resume at a point,
      but can be canceled, and localdisk could implement that at least)
-   * add buffered sorted.KeyValue implementation: a memory one (of
-     configurable max size) in front of a real disk one. add a Flush method
-     to it. also Flush when memory gets big enough.
-     In progress: pkg/sorted/buffer
 
 -- stop using the "cond" blob router storage type in genconfig, as
    well as the /bs-and-index/ "replica" storage type, and just let the
