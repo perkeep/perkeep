@@ -84,6 +84,8 @@ or
 : Private directory for HTTP-aware tile and derived PNG caches, not archived
   blobs or claims. Defaults to `perkeep/fitness-tiles` under the operating
   system's user cache directory. The administrator manages disk usage.
+  On Windows, protect a custom cache directory with a private Windows ACL;
+  Unix permission bits do not control Windows access.
 
 `PERKEEP_FITNESS_TILE_USER_AGENT` (string)
 : Stable application identification sent to the configured tile provider.

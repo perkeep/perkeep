@@ -33,9 +33,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -83,6 +85,18 @@ func fitnessTileTestSource(t *testing.T, transport fitnessTileTestTransport) (*f
 	// separately. This never changes the process-global application limiter.
 	s.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 2)}
 	return s, clock
+}
+
+func fitnessTileTestSymlink(t *testing.T, target, path string) {
+	t.Helper()
+	if err := os.Symlink(target, path); err != nil {
+		// ERROR_PRIVILEGE_NOT_HELD is not classified as os.ErrPermission.
+		const windowsPrivilegeNotHeld = syscall.Errno(1314)
+		if runtime.GOOS == "windows" && (os.IsPermission(err) || errors.Is(err, windowsPrivilegeNotHeld)) {
+			t.Skipf("Windows symlink privileges unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
 }
 
 func TestFitnessTileDisabledAndTemplate(t *testing.T) {
@@ -171,7 +185,7 @@ func TestFitnessTileIdentityAndFreshDiskCache(t *testing.T) {
 	}
 	for _, dir := range []string{filepath.Dir(s.dir), s.dir} {
 		info, err := os.Stat(dir)
-		if err != nil || info.Mode().Perm() != 0700 {
+		if err != nil || !info.IsDir() || (runtime.GOOS != "windows" && info.Mode().Perm() != 0700) {
 			t.Fatalf("directory mode: %v, %v", info, err)
 		}
 	}
@@ -180,7 +194,7 @@ func TestFitnessTileIdentityAndFreshDiskCache(t *testing.T) {
 		t.Fatalf("cache entries = %v, %v", entries, err)
 	}
 	info, err := entries[0].Info()
-	if err != nil || info.Mode().Perm() != 0600 || strings.Contains(entries[0].Name(), "3/4/5") {
+	if err != nil || !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm() != 0600) || strings.Contains(entries[0].Name(), "3/4/5") {
 		t.Fatalf("file mode/name = %v, %v", info, err)
 	}
 }
@@ -689,42 +703,47 @@ func TestFitnessTileCacheCorruptionAndAtomicWrites(t *testing.T) {
 	if calls != 7 {
 		t.Fatalf("corrupt misses should refetch: calls=%d", calls)
 	}
-	if err := os.Chmod(path, 0644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.tile(context.Background(), 0, 0, 0, "", false); !errors.Is(err, errFitnessTileMiss) {
-		t.Fatalf("public cache accepted: %v", err)
-	}
-	if _, err := s.tile(context.Background(), 0, 0, 0, "", true); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("unix-permissions", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows cache privacy uses directory ACLs, not Unix mode bits")
+		}
+		if err := os.Chmod(path, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.tile(context.Background(), 0, 0, 0, "", false); !errors.Is(err, errFitnessTileMiss) {
+			t.Fatalf("public cache accepted: %v", err)
+		}
+		if _, err := s.tile(context.Background(), 0, 0, 0, "", true); err != nil {
+			t.Fatal(err)
+		}
+	})
 	entries, _ := os.ReadDir(s.dir)
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".fitness-tile-") {
 			t.Fatal("temporary file leaked")
 		}
 	}
-	// Symlinks do not expose arbitrary filesystem data through the tile cache.
-	other := filepath.Join(t.TempDir(), "external")
-	if err := os.WriteFile(other, valid, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(other, path); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.tile(context.Background(), 0, 0, 0, "", false); !errors.Is(err, errFitnessTileMiss) {
-		t.Fatalf("symlink served: %v", err)
-	}
-	if _, err := s.tile(context.Background(), 0, 0, 0, "", true); err != nil {
-		t.Fatal(err)
-	}
-	info, _ := os.Lstat(path)
-	if !info.Mode().IsRegular() {
-		t.Fatal("atomic replacement followed symlink")
-	}
+	t.Run("symlink", func(t *testing.T) {
+		// Symlinks do not expose arbitrary filesystem data through the tile cache.
+		other := filepath.Join(t.TempDir(), "external")
+		if err := os.WriteFile(other, valid, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		fitnessTileTestSymlink(t, other, path)
+		if _, err := s.tile(context.Background(), 0, 0, 0, "", false); !errors.Is(err, errFitnessTileMiss) {
+			t.Fatalf("symlink served: %v", err)
+		}
+		if _, err := s.tile(context.Background(), 0, 0, 0, "", true); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			t.Fatalf("atomic replacement followed symlink: %v, %v", info, err)
+		}
+	})
 }
 
 func TestFitnessTileCacheWriteFailure(t *testing.T) {
@@ -796,6 +815,98 @@ func TestFitnessTileAtomicConcurrentCompositeWrites(t *testing.T) {
 			return
 		default:
 		}
+	}
+}
+
+func TestFitnessTileOpenReaderAllowsReplacement(t *testing.T) {
+	s, clock := fitnessTileTestSource(t, func(*http.Request) (*http.Response, error) {
+		t.Error("composite fetched upstream")
+		return nil, errors.New("blocked")
+	})
+	data := [][]byte{fitnessTileTestPNG(t, 32, 24), fitnessTileTestPNG(t, 24, 32)}
+	expiry := clock.now().Add(time.Hour)
+	if err := s.storeThumbnail("open-reader", data[0], expiry); err != nil {
+		t.Fatal(err)
+	}
+	path := s.recordPath("thumbnail", "open-reader")
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := fitnessTileOpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	opened, err := reader.Stat()
+	if err != nil || !os.SameFile(info, opened) {
+		t.Fatalf("opened cache file identity: %v, %v", opened, err)
+	}
+	// Exercise the platform publisher directly so any native rename error is
+	// visible in test diagnostics (these paths contain only synthetic data).
+	// Production writeRecord deliberately returns a sanitized storage error.
+	replacement, err := os.CreateTemp(s.dir, ".fitness-tile-rename-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := replacement.Name()
+	defer os.Remove(name)
+	if _, err := replacement.Write(original); err != nil {
+		replacement.Close()
+		t.Fatal(err)
+	}
+	if err := replacement.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := fitnessTileReplaceFile(s.dir, filepath.Base(name), filepath.Base(path)); err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) {
+			t.Fatalf("platform replacement with an open destination: %T: %v (native error %d)", err, err, errno)
+		}
+		t.Fatalf("platform replacement with an open destination: %T: %v", err, err)
+	}
+	// Keep the old envelope open for every replacement. On Windows os.Open
+	// lacks delete sharing and os.Rename lacks POSIX replacement semantics.
+	for i := 0; i < 500; i++ {
+		want := data[(i+1)%len(data)]
+		if err := s.storeThumbnail("open-reader", want, expiry); err != nil {
+			t.Fatalf("replacement %d: %v", i, err)
+		}
+		got, expires, ok := s.cachedThumbnail("open-reader")
+		if !ok || !bytes.Equal(got, want) || !expires.Equal(expiry) {
+			t.Fatalf("replacement %d: incomplete cache envelope", i)
+		}
+	}
+	got, err := io.ReadAll(reader)
+	if err != nil || !bytes.Equal(got, original) {
+		t.Fatalf("replacement modified the open envelope: %v", err)
+	}
+}
+
+func TestFitnessTileLongCachePath(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), strings.Repeat("a", 80), strings.Repeat("b", 80))
+	s, err := newFitnessTileSource("https://tiles.invalid/{z}/{x}/{y}.png", dir, "", &http.Client{Transport: fitnessTileTestTransport(func(*http.Request) (*http.Response, error) {
+		t.Error("composite fetched upstream")
+		return nil, errors.New("blocked")
+	})}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := fitnessTileTestPNG(t, 32, 24)
+	expiry := time.Now().Add(time.Hour)
+	if len(s.recordPath("thumbnail", "long-path")) <= 260 {
+		t.Fatal("test cache path does not exceed MAX_PATH")
+	}
+	if err := s.storeThumbnail("long-path", data, expiry); err != nil {
+		t.Fatal(err)
+	}
+	got, expires, ok := s.cachedThumbnail("long-path")
+	if !ok || !bytes.Equal(got, data) || !expires.Equal(expiry) {
+		t.Fatal("cache record could not be read from a long path")
 	}
 }
 
@@ -883,11 +994,11 @@ func TestFitnessTileProfilesValidationAndPrivateDirectory(t *testing.T) {
 			t.Fatalf("coordinates %v: %v", xyz, err)
 		}
 	}
-	link := filepath.Join(t.TempDir(), "linked-cache")
-	if err := os.Symlink(dir, link); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := newFitnessTileSource(template, link, "one", &http.Client{Transport: transport}, time.Now); !errors.Is(err, errFitnessTileStorage) {
-		t.Fatalf("symlink directory = %v", err)
-	}
+	t.Run("symlink-directory", func(t *testing.T) {
+		link := filepath.Join(t.TempDir(), "linked-cache")
+		fitnessTileTestSymlink(t, dir, link)
+		if _, err := newFitnessTileSource(template, link, "one", &http.Client{Transport: transport}, time.Now); !errors.Is(err, errFitnessTileStorage) {
+			t.Fatalf("symlink directory = %v", err)
+		}
+	})
 }
