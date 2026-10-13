@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -555,6 +556,9 @@ func fitnessTilePolicy(h fitnessTileHeaders, now time.Time) fitnessTileRecord {
 	return r
 }
 
+// Unix cache directories and records use owner-only permission bits. Windows
+// Chmod only controls the read-only attribute, not access permissions: the
+// administrator must place the cache in a directory with a private Windows ACL.
 func fitnessTilePrivateDir(dir string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return errFitnessTileStorage
@@ -569,6 +573,10 @@ func fitnessTilePrivateDir(dir string) error {
 	return nil
 }
 
+func fitnessTilePrivateMode(mode os.FileMode) bool {
+	return runtime.GOOS == "windows" || mode.Perm()&0077 == 0
+}
+
 func (s *fitnessTileSource) recordPath(kind, key string) string {
 	return filepath.Join(s.dir, kind+"-"+fitnessTileHash(key)+".cache")
 }
@@ -579,16 +587,16 @@ func (s *fitnessTileSource) readRecord(kind, key string, limit int64) (fitnessTi
 	var rec fitnessTileRecord
 	path := s.recordPath(kind, key)
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > limit+fitnessTileMetaMaxBytes+4 {
+	if err != nil || !info.Mode().IsRegular() || !fitnessTilePrivateMode(info.Mode()) || info.Size() > limit+fitnessTileMetaMaxBytes+4 {
 		return rec, nil, false
 	}
-	file, err := os.Open(path)
+	file, err := fitnessTileOpenFile(path)
 	if err != nil {
 		return rec, nil, false
 	}
 	defer file.Close()
 	opened, err := file.Stat()
-	if err != nil || !os.SameFile(info, opened) {
+	if err != nil || !opened.Mode().IsRegular() || !fitnessTilePrivateMode(opened.Mode()) || opened.Size() > limit+fitnessTileMetaMaxBytes+4 || !os.SameFile(info, opened) {
 		return rec, nil, false
 	}
 	var prefix [4]byte
@@ -658,7 +666,7 @@ func (s *fitnessTileSource) writeRecord(kind, key string, rec fitnessTileRecord,
 		return errFitnessTileStorage
 	}
 	ok = true
-	if err := os.Rename(name, s.recordPath(kind, key)); err != nil {
+	if err := fitnessTileReplaceFile(s.dir, filepath.Base(name), filepath.Base(s.recordPath(kind, key))); err != nil {
 		return errFitnessTileStorage
 	}
 	return nil
