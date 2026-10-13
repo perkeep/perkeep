@@ -711,7 +711,7 @@ func NewCommonFileMap(fileName string, fi os.FileInfo) *Builder {
 		bb.m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
 	}
 
-	// OS-specific population; defined in schema_posix.go, etc. (not on App Engine)
+	// OS-specific population; defined in schema_posix.go, etc.
 	for _, f := range populateSchemaStat {
 		f(bb.m, fi)
 	}

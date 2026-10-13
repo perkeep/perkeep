@@ -441,8 +441,7 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 	fd.append(blobref, bb);
 
 	// TODO: hack, hard-coding the upload URL here.
-	// Change the spec now that App Engine permits 32 MB requests
-	// and permit a PUT request on the sha1?	Or at least let us
+	// Change the spec to permit a PUT request on the sha1?	Or at least let us
 	// specify the well-known upload URL?	In cases like this, uploading
 	// a new permanode, it's silly to even stat.
 	this.sendXhr_(

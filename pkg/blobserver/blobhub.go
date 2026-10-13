@@ -78,9 +78,6 @@ func getHub(storage any) (BlobHub, bool) {
 	return h, ok
 }
 
-// canLongPoll is set to false on App Engine. (multi-process environment...)
-var canLongPoll = true
-
 // WaitForBlob waits until deadline for blobs to arrive. If blobs is empty, any
 // blobs are waited on.  Otherwise, those specific blobs are waited on.
 // When WaitForBlob returns, nothing may have happened.
@@ -95,17 +92,11 @@ func WaitForBlob(storage any, deadline time.Time, blobs []blob.Ref) {
 		hub.RegisterBlobListener(br, ch)
 		defer hub.UnregisterBlobListener(br, ch)
 	}
-	var tc <-chan time.Time
-	if !canLongPoll {
-		tc = time.After(2 * time.Second)
-	}
-
 	t := time.NewTimer(time.Until(deadline))
 	defer t.Stop()
 
 	select {
 	case <-ch:
-	case <-tc:
 	case <-t.C:
 	}
 }

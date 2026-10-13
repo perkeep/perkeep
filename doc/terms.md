@@ -134,7 +134,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
 <!-- ---------------------------------------------------------------------- -->
 <dt id='fullsync'>full sync</dt>
 <dd>synchronizing all your blobs between two or more of your blob servers
-(e.g. mirroring between your house, App Engine, and Amazon).
+(e.g. mirroring between your house, Google Cloud Storage, and Amazon S3).
 
 <p>Generally a full sync will be done with the <em>blob server</em>'s enumerate
 support and no knowledge of the schema.  It's a dumb copy of all blobs that the
