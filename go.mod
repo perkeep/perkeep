@@ -16,6 +16,7 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20261011191816-390acc39edfa
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
+	github.com/gen2brain/heic v0.7.2
 	github.com/go-sql-driver/mysql v1.9.2
 	github.com/google/btree v1.1.3
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
@@ -29,7 +30,6 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/pdfcpu/pdfcpu v0.16.2
-	github.com/perkeep/heic v0.0.0-20260105010044-a57ca1ce101f
 	github.com/pkg/sftp v1.13.9
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
@@ -88,7 +88,7 @@ require (
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
@@ -170,7 +170,7 @@ require (
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20260715223240-2e01ba5b00f0 // indirect
-	github.com/tetratelabs/wazero v1.9.0 // indirect
+	github.com/tetratelabs/wazero v1.12.0 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

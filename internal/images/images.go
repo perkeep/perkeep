@@ -51,8 +51,8 @@ import (
 	_ "image/gif" // register GIF support
 	_ "image/png" // register PNG support
 
-	"github.com/perkeep/heic"
-	_ "github.com/perkeep/heic" // register HEIC format
+	"github.com/gen2brain/heic"
+	_ "github.com/gen2brain/heic" // register HEIC format
 
 	// tiff package must be imported after any image packages that decode
 	// tiff-like formats, i.e. CR2 or DNG
