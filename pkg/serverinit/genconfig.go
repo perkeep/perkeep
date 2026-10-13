@@ -339,8 +339,6 @@ func (b *lowBuilder) sortedName() string {
 		return "MySQL"
 	case b.high.PostgreSQL != "":
 		return "PostgreSQL"
-	case b.high.Mongo != "":
-		return "MongoDB"
 	case b.high.MemoryIndex:
 		return "in memory LevelDB"
 	case b.high.SQLite != "":
@@ -392,29 +390,6 @@ func (b *lowBuilder) addUIConfig() {
 		args["scaledImage"] = thumbCache
 	}
 	b.addPrefix("/ui/", "ui", args)
-}
-
-func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[string]any, error) {
-	dbName := b.dbName(sortedType)
-	if dbName == "" {
-		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
-	}
-	fields := strings.Split(confStr, "@")
-	if len(fields) == 2 {
-		host := fields[1]
-		fields = strings.Split(fields[0], ":")
-		if len(fields) == 2 {
-			user, pass := fields[0], fields[1]
-			return map[string]any{
-				"type":     "mongo",
-				"host":     host,
-				"user":     user,
-				"password": pass,
-				"database": dbName,
-			}, nil
-		}
-	}
-	return nil, errors.New("Malformed mongo config string; want form: \"user:password@host\"")
 }
 
 // parses "user@host:password", which you think would be easy, but we
@@ -473,9 +448,6 @@ func (b *lowBuilder) sortedDBMS(named dbname) (map[string]any, error) {
 	}
 	if b.high.PostgreSQL != "" {
 		return b.dbIndexStorage("postgres", b.high.PostgreSQL, named)
-	}
-	if b.high.Mongo != "" {
-		return b.mongoIndexStorage(b.high.Mongo, named)
 	}
 	return nil, nil
 }
@@ -1003,13 +975,13 @@ func (b *lowBuilder) build() (*Config, error) {
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth
 
-	numIndexers := numSet(conf.LevelDB, conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile, conf.MemoryIndex)
+	numIndexers := numSet(conf.LevelDB, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile, conf.MemoryIndex)
 
 	switch {
 	case b.runIndex() && numIndexers == 0:
-		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, leveldb, mongo, mysql, postgres, sqlite, memoryIndex).")
+		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, leveldb, mysql, postgres, sqlite, memoryIndex).")
 	case b.runIndex() && numIndexers != 1:
-		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex).")
+		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex).")
 	case !b.runIndex() && numIndexers != 0:
 		log.Printf("Indexer disabled, but %v will be used for other indexes, queues, caches, etc.", b.sortedName())
 	}

@@ -67,7 +67,7 @@ type Config struct {
 	CopyIndexToMemory invertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
 	MemoryIndex       bool         `json:"memoryIndex,omitempty"`       // use memory-only indexer.
 
-	// DBName is the optional name of the index database for MySQL, PostgreSQL, MongoDB.
+	// DBName is the optional name of the index database for MySQL or PostgreSQL.
 	// If empty, DBUnique is used as part of the database name.
 	DBName string `json:"dbname,omitempty"`
 
@@ -80,7 +80,6 @@ type Config struct {
 	LevelDB    string `json:"levelDB,omitempty"`     // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
 	KVFile     string `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with modernc.org/kv.
 	MySQL      string `json:"mysql,omitempty"`       // MySQL credentials (username@host:password), for indexing with MySQL.
-	Mongo      string `json:"mongo,omitempty"`       // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
 	PostgreSQL string `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
 	SQLite     string `json:"sqlite,omitempty"`      // path to the SQLite file, for indexing with SQLite.
 

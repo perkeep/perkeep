@@ -46,7 +46,6 @@ require (
 	golang.org/x/sys v0.49.0
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.278.0
-	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
 	honnef.co/go/tools v0.8.1
 	modernc.org/kv v1.0.4
 	modernc.org/sqlite v1.60.1

@@ -56,7 +56,6 @@ import (
 	_ "perkeep.org/pkg/blobserver/google/cloudstorage"
 	_ "perkeep.org/pkg/blobserver/google/drive"
 	_ "perkeep.org/pkg/blobserver/localdisk"
-	_ "perkeep.org/pkg/blobserver/mongo"
 	_ "perkeep.org/pkg/blobserver/overlay"
 	_ "perkeep.org/pkg/blobserver/proxycache"
 	_ "perkeep.org/pkg/blobserver/remote"
@@ -69,7 +68,6 @@ import (
 	// KeyValue implementations:
 	_ "perkeep.org/pkg/sorted/kvfile"
 	_ "perkeep.org/pkg/sorted/leveldb"
-	_ "perkeep.org/pkg/sorted/mongo"
 	_ "perkeep.org/pkg/sorted/mysql"
 	_ "perkeep.org/pkg/sorted/postgres"
 

@@ -52,7 +52,6 @@ import (
 	"perkeep.org/pkg/sorted"
 	_ "perkeep.org/pkg/sorted/kvfile"
 	_ "perkeep.org/pkg/sorted/leveldb"
-	_ "perkeep.org/pkg/sorted/mongo"
 	_ "perkeep.org/pkg/sorted/mysql"
 	_ "perkeep.org/pkg/sorted/postgres"
 	_ "perkeep.org/pkg/sorted/sqlite"
