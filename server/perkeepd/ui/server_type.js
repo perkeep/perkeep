@@ -37,7 +37,7 @@ cam.ServerType.DiscoveryDocument;
  * @typedef {{
  *   publicKey: string,
  *   publicKeyBlobRef: string,
- *   publicKeyId: string,
+ *   publicKeyFingerprint: string,
  *   signHandler: string,
  *   verifyHandler: string
  * }}
