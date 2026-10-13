@@ -52,12 +52,10 @@ Things to note about the request:
      fail if you clients forget it, to encourage clients to remember
      it for compatibility with all blob servers.
 
-   * You (currently) MUST provide a "filename" parameter in each
-     multipart's Content-Disposition value, unique per blob, but it
-     will also be thrown away and exists purely to satisfy various
-     HTTP libraries (mostly App Engine).  It's recommended to either
-     set this to an increasing number (e.g. "blob1", "blob2") or just
-     repeat the blobref value here.
+   * You MAY provide a "filename" parameter in each multipart part's
+     Content-Disposition value.  Servers MUST ignore it.  If you
+     provide one, it's recommended to just repeat the blobref value
+     here.
 
    * The total size of a batch upload HTTP request, including headers
      and body (including MIME bits) should not exceed 32 MB.  (A

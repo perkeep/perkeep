@@ -22,9 +22,6 @@ Tests needed
    test.Fetcher is a full blobserver? see encrypt, replica, and cond's
    nascent tests for examples.
 
--- app engine integration tests (before we make a release, for sure,
-   but probably in presubmit)
-
 -- cross-compiling to freebsd and windows etc still works.
 
 -- pkg/auth -- not enough tests. see regression at

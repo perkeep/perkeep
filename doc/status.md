@@ -25,9 +25,9 @@ pieces and use cases, and where they're at.</p>
 <h2>Servers</h2>
 <table class='status'>
 <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
-<tr><td>Server</td><td>95%</td><td>See <a href="/gw/server/perkeepd">server/camlistored</a>. Written in Go, runs on Linux, OS X, Windows (sometimes regresses), and App Engine (some optimizations / and ease-of-setup remain). Does the blobserver, UI, search, sharing, etc.</td></tr>
+<tr><td>Server</td><td>95%</td><td>See <a href="/gw/server/perkeepd">server/camlistored</a>. Written in Go, runs on Linux, OS X, and Windows (sometimes regresses). Does the blobserver, UI, search, sharing, etc.</td></tr>
 
-<tr><td>Search / indexer server</td><td>95%</td><td>Good framework now, and usable. Runs on either memory, SQLite, MySQL, Postgres, or App Engine.  More things need to be indexed always, but we keep adding more, and it's easy. It's a library used by the server above.</td></tr>
+<tr><td>Search / indexer server</td><td>95%</td><td>Good framework now, and usable. Runs on either memory, SQLite, LevelDB, MySQL, or Postgres.  More things need to be indexed always, but we keep adding more, and it's easy. It's a library used by the server above.</td></tr>
 
 <tr><td>Blob Server test suite</td><td>80%</td><td>See <a href="/gw/server/tester/bs-test.pl">server/tester/bs-test.pl</a>. Unmaintained. Mostly use Go's unit tests against the Go server.</td></tr>
 

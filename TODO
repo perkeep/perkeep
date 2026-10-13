@@ -185,11 +185,6 @@ Offline list:
 
 -- delete mostly-obsolete camsigd.  see big TODO in camsigd.go.
 
--- we used to be able live-edit js/css files in server/perkeepd/ui when
-   running under the App Engine dev_appserver.py.  That's now broken with my
-   latest efforts to revive it.  The place to start looking is:
-        server/perkeepd/ui/fileembed_appengine.go
-
 -- should a "share" claim be not a claim but its own permanode, so it
    can be rescinded?  right now you can't really unshare a "haveref"
    claim.  or rather, TODO: verify we support "delete" claims to

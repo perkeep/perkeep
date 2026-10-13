@@ -167,9 +167,6 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 
-	canLongPoll := true
-	// TODO(bradfitz): set to false if this is App Engine, or provide some way to disable
-
 	storageConfig := &storageAndConfig{
 		storage,
 		&blobserver.Config{
@@ -177,7 +174,7 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 			Readable:      true,
 			Deletable:     false,
 			URLBase:       baseURL + prefix[:len(prefix)-1],
-			CanLongPoll:   canLongPoll,
+			CanLongPoll:   true,
 			HandlerFinder: hf,
 		},
 	}

@@ -141,7 +141,7 @@ optional and can be turn on or off per-instance:
   can scan in sorted order from a point can be used to store
   Perkeep's indexes. Implementations are likewise trivial and exist
   for memory (for development), SQLite, LevelDB, MySQL, Postgres,
-  App Engine, etc. Dynamo and others would be trivial.
+  etc. Dynamo and others would be trivial.
 
 * **Search**: pointing Perkeep's search handlers at an index
   means you can search for your things.  It's worth pointing out that
