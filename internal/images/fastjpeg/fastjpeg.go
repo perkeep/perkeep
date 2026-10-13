@@ -63,7 +63,7 @@ const djpegBin = "djpeg"
 
 var (
 	checkAvailability sync.Once
-	available         bool
+	djpegPath         string // non-empty if available
 )
 
 var (
@@ -83,28 +83,23 @@ func Available() bool {
 		}
 
 		if p, err := exec.LookPath(djpegBin); p != "" && err == nil {
-			available = true
+			djpegPath = p
 			log.Printf("images/fastjpeg: fastjpeg enabled with %s.", p)
-		}
-		if !available {
+		} else {
 			// TODO: also use Docker. https://github.com/perkeep/perkeep/issues/1106.
 			log.Printf("images/fastjpeg: %s not found in PATH, disabling fastjpeg.", djpegBin)
 		}
 	})
 
-	return available
+	return djpegPath != ""
 }
 
 func init() {
-	buildinfo.RegisterDjpegStatusFunc(djpegStatus)
-}
-
-func djpegStatus() string {
-	// TODO: more info: its path, whether it works, its version, etc.
-	if Available() {
-		return "djpeg available"
-	}
-	return "djpeg optimization unavailable"
+	buildinfo.RegisterFeatureFunc(func(f *buildinfo.Features) {
+		if Available() {
+			f.Djpeg = djpegPath
+		}
+	})
 }
 
 func readPNM(buf *bytes.Buffer) (image.Image, error) {

@@ -43,6 +43,18 @@ RUN apt-get update && apt-get install -y imagemagick libjpeg-turbo-progs libheif
 
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
+# Check that perkeepd uses the image's djpeg and libheif. The binaries
+# are built without cgo, which leaves them dynamically linked (needed
+# to load libheif) only because github.com/perkeep/heic uses purego.
+# That package never loads libheif on 32-bit arm, so arm/v7 decodes
+# HEIC with its slower embedded WebAssembly build of libheif.
+ARG TARGETARCH
+RUN perkeepd -build-config > /tmp/build-config.json && \
+    cat /tmp/build-config.json && \
+    grep -q '"djpeg": "/' /tmp/build-config.json && \
+    { [ "$TARGETARCH" = arm ] || grep -q '"heic": "libheif"' /tmp/build-config.json; } && \
+    rm /tmp/build-config.json
+
 EXPOSE 80 443 3179 8080
 
 WORKDIR /home/keepy

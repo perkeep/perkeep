@@ -17,7 +17,11 @@ limitations under the License.
 // Package buildinfo provides information about the current build.
 package buildinfo // import "perkeep.org/pkg/buildinfo"
 
-import "flag"
+import (
+	"flag"
+	"runtime"
+	"runtime/debug"
+)
 
 // GitInfo is either the empty string (the default)
 // or is set to the git hash of the most recent commit
@@ -48,36 +52,75 @@ func TestingLinked() bool {
 	return flag.CommandLine.Lookup("test.v") != nil
 }
 
-// djpegFunc implements DjpegStatus. nil means the images/fastjpeg package
-// isn't linked in.
-var djpegFunc func() string
+// Features describes the optional and environment-dependent features of
+// the running binary. It's what perkeepd -build-config prints, as JSON.
+type Features struct {
+	Version   string `json:"version"`   // as returned by Summary
+	GoVersion string `json:"goVersion"` // as returned by runtime.Version
+	GOOS      string `json:"goos"`
+	GOARCH    string `json:"goarch"`
+	CGO       bool   `json:"cgo"` // whether built with CGO_ENABLED=1
 
-func RegisterDjpegStatusFunc(fn func() string) {
-	djpegFunc = fn
+	// HEIC is how HEIC images are decoded: "libheif" for the system's
+	// libheif, loaded at runtime, or "wasm" for the slower embedded
+	// WebAssembly build of it. It's empty if HEIC support isn't linked in.
+	HEIC string `json:"heic"`
+	// LibheifError, if HEIC is "wasm", is why libheif wasn't used.
+	LibheifError string `json:"libheifError,omitempty"`
+
+	// Djpeg is the path to the djpeg binary used to downsample JPEGs
+	// faster, or empty if it's unavailable, disabled, or not linked in.
+	Djpeg string `json:"djpeg"`
+}
+
+var featureFuncs []func(*Features)
+
+// RegisterFeatureFunc registers fn to fill in the Features fields for a
+// package's optional feature, when that package is linked in.
+// It must be called from an init function.
+func RegisterFeatureFunc(fn func(*Features)) {
+	featureFuncs = append(featureFuncs, fn)
+}
+
+// CurrentFeatures returns the features of the running binary.
+func CurrentFeatures() Features {
+	f := Features{
+		Version:   Summary(),
+		GoVersion: runtime.Version(),
+		GOOS:      runtime.GOOS,
+		GOARCH:    runtime.GOARCH,
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range bi.Settings {
+			if s.Key == "CGO_ENABLED" {
+				f.CGO = s.Value == "1"
+			}
+		}
+	}
+	for _, fn := range featureFuncs {
+		fn(&f)
+	}
+	return f
 }
 
 // DjpegStatus returns a plaintext (non-HTML) string describing the
 // state of djpeg on the system.
 func DjpegStatus() string {
-	if djpegFunc != nil {
-		return djpegFunc()
+	if p := CurrentFeatures().Djpeg; p != "" {
+		return "djpeg available at " + p
 	}
-	return "unknown"
-}
-
-var heicFunc func() string
-
-// RegisterHEICStatusFunc registers a function that reports the status of HEIC
-// image decoder variant.
-func RegisterHEICStatusFunc(fn func() string) {
-	heicFunc = fn
+	return "djpeg optimization unavailable"
 }
 
 // HEICStatus returns a plaintext (non-HTML) string describing the
 // state of HEIC image decoder variant.
 func HEICStatus() string {
-	if heicFunc != nil {
-		return heicFunc()
+	f := CurrentFeatures()
+	switch f.HEIC {
+	case "":
+		return "unknown"
+	case "libheif":
+		return "libheif available (optimized)"
 	}
-	return "unknown"
+	return "libheif not available (using WASM fallback): " + f.LibheifError
 }
