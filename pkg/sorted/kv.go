@@ -68,6 +68,10 @@ type KeyValue interface {
 	// Any error encountered will be implicitly returned via the iterator. An
 	// error-iterator will yield no key/value pairs and closing that iterator
 	// will return that error.
+	//
+	// An iterator may or may not observe writes made after Find returns;
+	// implementations differ. Callers needing a consistent view across
+	// several reads should use TransactionalReader, if implemented.
 	Find(start, end string) Iterator
 
 	// Close is a polite way for the server to shut down the storage.
