@@ -39,7 +39,7 @@ ENV HOME=/home/keepy
 ENV PATH=/home/keepy/bin:$PATH
 ENV PK_IN_CONTAINER=1
 
-RUN apt-get update && apt-get install -y imagemagick libjpeg-turbo-progs libheif-dev libheif1 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libjpeg-turbo-progs libheif-dev libheif1 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
