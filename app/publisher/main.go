@@ -60,7 +60,7 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/sorted"
-	_ "perkeep.org/pkg/sorted/kvfile"
+	_ "perkeep.org/pkg/sorted/defaultkv"
 	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/webserver"
 
@@ -391,8 +391,8 @@ func newPublishHandler(conf *config) *publishHandler {
 			logger.Fatalf("Could not create cache dir %s for %v publisher: %v", thumbsCacheDir, conf.RootName, err)
 		}
 		kv, err := sorted.NewKeyValue(map[string]any{
-			"type": "kv",
-			"file": filepath.Join(thumbsCacheDir, conf.RootName+"-thumbnails.kv"),
+			"type": sorted.DefaultKVFileType,
+			"file": filepath.Join(thumbsCacheDir, conf.RootName+"-thumbnails."+sorted.DefaultKVFileType),
 		})
 		if err != nil {
 			logger.Fatalf("Could not create kv for %v's thumbs cache: %v", conf.RootName, err)

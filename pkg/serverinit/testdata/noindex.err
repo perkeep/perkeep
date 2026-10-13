@@ -1,1 +1,1 @@
-Unless runIndex is set to false, you must specify an index option (kvIndexFile, leveldb, mysql, postgres, sqlite, memoryIndex).
+Unless runIndex is set to false, you must specify an index option (sqlite, leveldb, mysql, postgres, memoryIndex).

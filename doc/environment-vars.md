@@ -93,11 +93,9 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   key to use for signing.
 
 `CAMLI_KV_VERIFY` (bool)
-: Enable all the VerifyDb\* options in cznic/kv, to e.g. track down
-  corruptions.
-
-`CAMLI_KVINDEX_ENABLED` (bool)
-:  Use cznic/kv as the indexer. Variable used only by devcam server.
+: Enable all the VerifyDb\* options in modernc.org/kv, to e.g. track down
+  corruptions. Deprecated along with the "kv" index type; see
+  https://github.com/perkeep/perkeep/issues/1850.
 
 `CAMLI_LEVELDB_ENABLED` (bool)
 : Use syndtr/goleveldb as the indexer. Variable used only by devcam server.

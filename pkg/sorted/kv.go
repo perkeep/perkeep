@@ -32,6 +32,9 @@ const (
 	MaxValueSize = 63000 // Maximum size, in bytes, for a value in any store implementing KeyValue. MaxKeySize and MaxValueSize values originate from InnoDB and MySQL limitations.
 )
 
+// DefaultKVFileType is the sorted type for file-backed stores that don't
+// need a particular implementation. Import perkeep.org/pkg/sorted/defaultkv
+// to register it.
 const DefaultKVFileType = "leveldb"
 
 var (

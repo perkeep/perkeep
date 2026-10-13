@@ -120,7 +120,6 @@ Examples for [configuring storage backends](/doc/storage-examples.md)
 Unless `runIndex` is set to `false`, exactly one of these must be set:
 
 * `sqlite`: path to SQLite database file to use for indexing
-* `kvIndexFile`: path to kv (modernc.org/kv) database file to use for indexing
 * `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
 * `mysql`: user@host:password
 * `postgres`: user@host:password
@@ -132,8 +131,8 @@ uses the pure-Go `modernc.org/sqlite` driver, including on Windows. It also
 supports batched reindexing and detects an interrupted reindex so that it can
 be rebuilt before serving requests.
 
-LevelDB and `modernc.org/kv` are other local, file-backed options that do not
-require a database server. MySQL (including MariaDB) and PostgreSQL require a
+LevelDB is another local, file-backed option that does not require a
+database server. MySQL (including MariaDB) and PostgreSQL require a
 separate database server; choose one if you want to manage the index with an
 existing DBMS. `memoryIndex` is for development and testing: its contents are
 lost when the server stops.
