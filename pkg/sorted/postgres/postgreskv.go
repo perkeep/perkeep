@@ -29,7 +29,7 @@ import (
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/sqlkv"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func init() {
@@ -53,7 +53,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if password != "" {
 		conninfo += fmt.Sprintf(" password=%s", password)
 	}
-	db, err := sql.Open("postgres", conninfo)
+	db, err := sql.Open("pgx", conninfo)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 	// reconnect after database is created
 	conninfo += fmt.Sprintf(" dbname=%s", database)
-	db, err = sql.Open("postgres", conninfo)
+	db, err = sql.Open("pgx", conninfo)
 	if err != nil {
 		return nil, err
 	}

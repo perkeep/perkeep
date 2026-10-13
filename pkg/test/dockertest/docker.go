@@ -28,6 +28,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const (
@@ -96,7 +98,7 @@ func SetupPostgreSQL(t *testing.T) DB {
 		t.Skip("skipping PostgreSQL test; PERKEEP_TEST_POSTGRES_HOST not set")
 	}
 	db := DB{Host: host, Database: newDBName()}
-	rootdb, err := sql.Open("postgres",
+	rootdb, err := sql.Open("pgx",
 		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, host))
 	if err != nil {
 		t.Fatalf("Could not open postgres rootdb: %v", err)
