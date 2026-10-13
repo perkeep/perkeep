@@ -17,6 +17,11 @@ limitations under the License.
 // Package kvfile provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
 // modernc.org/kv.
+//
+// Deprecated: kv is slower and larger on disk than the "sqlite" and
+// "leveldb" types, and will be removed no earlier than 2027-04-13. Use one of
+// those instead; dev/kvcopy can copy an existing kv file into another type.
+// See https://github.com/perkeep/perkeep/issues/1850.
 package kvfile // import "perkeep.org/pkg/sorted/kvfile"
 
 import (
@@ -53,6 +58,9 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	log.Printf("WARNING: sorted type \"kv\" (file %s) is deprecated and will be removed no earlier than 2027-04-13; "+
+		"use \"sqlite\" or \"leveldb\" instead, copying existing data with dev/kvcopy. "+
+		"See https://github.com/perkeep/perkeep/issues/1850", file)
 	opts := &kv.Options{}
 	db, err := kvutil.Open(file, opts)
 	if err != nil {

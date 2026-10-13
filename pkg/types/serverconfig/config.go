@@ -77,11 +77,16 @@ type Config struct {
 	// current username (provided by the operating system) is used instead. For the
 	// index database, DBName takes priority.
 	DBUnique   string `json:"dbUnique,omitempty"`
-	LevelDB    string `json:"levelDB,omitempty"`     // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
-	KVFile     string `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with modernc.org/kv.
-	MySQL      string `json:"mysql,omitempty"`       // MySQL credentials (username@host:password), for indexing with MySQL.
-	PostgreSQL string `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
-	SQLite     string `json:"sqlite,omitempty"`      // path to the SQLite file, for indexing with SQLite.
+	LevelDB    string `json:"levelDB,omitempty"`  // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
+	MySQL      string `json:"mysql,omitempty"`    // MySQL credentials (username@host:password), for indexing with MySQL.
+	PostgreSQL string `json:"postgres,omitempty"` // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
+	SQLite     string `json:"sqlite,omitempty"`   // path to the SQLite file, for indexing with SQLite.
+
+	// KVFile is the path to the kv file, for indexing with modernc.org/kv.
+	//
+	// Deprecated: use SQLite or LevelDB. kvIndexFile will be removed no earlier
+	// than 2027-04-13; see https://github.com/perkeep/perkeep/issues/1850.
+	KVFile string `json:"kvIndexFile,omitempty"`
 
 	ReplicateTo []any `json:"replicateTo,omitempty"` // NOOP for now.
 	// Publish maps a URL prefix path used as a root for published paths (a.k.a. a camliRoot path), to the configuration of the publish handler that serves all the published paths under this root.

@@ -110,7 +110,7 @@ func init() {
 		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the index storage. Excludes -postgres, -sqlite, -memory, -kvfile.")
 		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the index storage. Excludes -mysql, -sqlite, -memory, -kvfile.")
 		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the index storage. Excludes -mysql, -postgres, -memory, -kvfile.")
-		flags.BoolVar(&cmd.kvfile, "kvfile", false, "Use cznic/kv as the index storage. Excludes -mysql, -postgres, -memory, -sqlite.")
+		flags.BoolVar(&cmd.kvfile, "kvfile", false, "Deprecated: use modernc.org/kv as the index storage. Excludes -mysql, -postgres, -memory, -sqlite.")
 		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only index storage. Excludes -mysql, -postgres, -sqlite, -kvfile.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
