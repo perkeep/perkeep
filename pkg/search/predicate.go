@@ -130,6 +130,14 @@ func init() {
 	registerKeyword(newIsCheckin())
 	registerKeyword(newIsUntagged())
 
+	// Fitness predicates
+	registerKeyword(newIsFitness("fitness", ""))
+	registerKeyword(newIsFitness("run", "run"))
+	registerKeyword(newIsFitness("hike", "hike"))
+	registerKeyword(newIsFitness("ride", "ride"))
+	registerKeyword(newIsFitness("bike", "ride"))
+	registerKeyword(newIsEBike())
+
 	// Location predicates
 	registerKeyword(newHasLocation())
 	registerKeyword(newNamedLocation())

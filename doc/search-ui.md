@@ -65,6 +65,31 @@ escaping.  For example:
 **<a name="image"></a>is:image**
 : object is an image
 
+**<a name="fitness"></a>is:fitness**
+: matches fitness activity permanodes, including activities without GPS tracks
+  or a known activity category.
+
+**<a name="run"></a>is:run**
+: matches fitness activities whose generic activity type is `run`.
+
+**<a name="hike"></a>is:hike**
+: matches fitness activities whose generic activity type is `hike`.
+
+**<a name="ride"></a>is:ride**, **<a name="bike"></a>is:bike**
+: aliases matching fitness activities whose generic activity type is `ride`,
+  including regular and electric bikes.
+
+**<a name="ebike"></a>is:ebike**
+: matches electric-bike fitness activities identified by Strava's
+  `EBikeRide` or `EMountainBikeRide` activity types. Unlike the other fitness
+  operators, this currently uses Strava-specific metadata. The modern
+  `stravaSportType` is authoritative; `stravaActivityType` is used only when
+  the modern value is absent or empty.
+
+For example, `is:bike -is:ebike` excludes electric rides, while
+`is:run or is:hike` combines running and hiking. The operators work with
+ordinary grouping, negation, dates, tags, and location predicates.
+
 **<a name="lanscape"></a>is:landscape**
 : the image has a landscape aspect
 
