@@ -29,7 +29,8 @@ import (
 // an index key type is added, changed, or removed.
 // Version 4: EXIF tags + GPS
 // Version 5: wholeRef added to keyFileInfo
-const requiredSchemaVersion = 5
+// Version 6: EXIF tags keyed by directory and tag number; no Interoperability tags
+const requiredSchemaVersion = 6
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
@@ -371,11 +372,12 @@ var (
 		},
 	}
 
-	// EXIF tags
+	// EXIF tags. Directory IDs are defined by the exifIFD* constants.
 	keyEXIFTag = &keyType{
 		"exiftag",
 		[]part{
 			{"wholeRef", typeBlobRef}, // of entire file, not fileref
+			{"dir", typeIntStr},       // directory type, not a byte offset
 			{"tag", typeStr},          // uint16 tag number as hex: xxxx
 		},
 		[]part{

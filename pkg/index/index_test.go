@@ -770,69 +770,42 @@ func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error 
 	return err
 }
 
-// tests that we add the missing wholeRef entries in FileInfo rows when going from
-// a version 4 to a version 5 index.
-func TestFixMissingWholeref(t *testing.T) {
-	ctx := context.Background()
-	tf := new(test.Fetcher)
-	s := sorted.NewMemoryKeyValue()
+// Older schemas require a full reindex, not the legacy v4-to-v5 wholeRef fix.
+func TestOldSchemaRequiresReindex(t *testing.T) {
+	for _, version := range []int{4, 5} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			s := sorted.NewMemoryKeyValue()
+			defer s.Close()
+			versionStr := fmt.Sprint(version)
+			if err := s.Set("schemaversion", versionStr); err != nil {
+				t.Fatal(err)
+			}
+			key := "fileinfo|" + fileBlobRef.String()
+			value := "9|stuff.txt|text%2Fplain"
+			if version == 5 {
+				value += "|" + blob.RefFromString("foobarbaz").String()
+			}
+			if err := s.Set(key, value); err != nil {
+				t.Fatal(err)
+			}
 
-	ix, err := index.New(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ix.InitBlobSource(tf)
-
-	// populate with a file
-	add := func(b *test.Blob) {
-		tf.AddBlob(b)
-		if _, err := ix.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
-			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
-		}
-	}
-	add(chunk1)
-	add(chunk2)
-	add(chunk3)
-	add(fileBlob)
-
-	// revert the row to the old form, by stripping the wholeRef suffix
-	key := "fileinfo|" + fileBlobRef.String()
-	val5, err := s.Get(key)
-	if err != nil {
-		t.Fatalf("could not get %v: %v", key, err)
-	}
-	parts := strings.SplitN(val5, "|", 4)
-	val4 := strings.Join(parts[:3], "|")
-	if err := s.Set(key, val4); err != nil {
-		t.Fatalf("could not set (%v, %v): %v", key, val4, err)
-	}
-
-	// revert index version at 4 to trigger the fix
-	if err := s.Set("schemaversion", "4"); err != nil {
-		t.Fatal(err)
-	}
-
-	// init broken index
-	ix, err = index.New(s)
-	if !errors.Is(err, index.Exp_ErrMissingWholeRef) {
-		t.Fatalf("wrong error upon index initialization: got %v, wanted %v", err, index.Exp_ErrMissingWholeRef)
-	}
-	// and fix it
-	if err := ix.Exp_FixMissingWholeRef(tf); err != nil {
-		t.Fatal(err)
-	}
-
-	// init fixed index
-	ix, err = index.New(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// and check that the value is now actually fixed
-	fi, err := ix.GetFileInfo(ctx, fileBlobRef)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fi.WholeRef.String() != parts[3] {
-		t.Fatalf("index fileInfo wholeref was not fixed: got %q, wanted %v", fi.WholeRef, parts[3])
+			ix, err := index.New(s)
+			if err == nil {
+				t.Fatal("opening an old index succeeded; want a full reindex error")
+			}
+			if ix != nil {
+				t.Error("opening an old index returned an Index; want nil")
+			}
+			want := fmt.Sprintf("index schema version is %d; required one is %d. You need to reindex.", version, index.Exp_schemaVersion())
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("opening an old index: got %v; want %q", err, want)
+			}
+			if got, err := s.Get("schemaversion"); err != nil || got != versionStr {
+				t.Errorf("schema version after rejection = %q, %v; want %q, nil", got, err, versionStr)
+			}
+			if got, err := s.Get(key); err != nil || got != value {
+				t.Errorf("fileInfo after rejection = %q, %v; want %q, nil", got, err, value)
+			}
+		})
 	}
 }
