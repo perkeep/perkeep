@@ -22,6 +22,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 
 	_ "modernc.org/sqlite"
@@ -96,6 +97,13 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := kv.Prepare(); err != nil {
 		return nil, fmt.Errorf("preparing SQLite key/value statements: %w", err)
 	}
+	rowid, err := hasRowidRows(db)
+	if err != nil {
+		return nil, err
+	}
+	if rowid {
+		log.Printf("sqlite: %s uses an older table layout that makes range scans slow, especially when the file isn't cached. A reindex upgrades an index; to upgrade any SQLite file, stop the server and copy it into a new one with perkeep.org/dev/kvcopy.", file)
+	}
 	var marker int
 	err = db.QueryRow("SELECT 1 FROM meta WHERE metakey='reindexing'").Scan(&marker)
 	if err != nil && err != sql.ErrNoRows {
@@ -146,7 +154,7 @@ func (kv *keyValue) Wipe() error {
 			discardSQLiteConn(conn)
 		}
 	}()
-	if _, err := tx.Exec("DELETE FROM rows"); err != nil {
+	if err := clearRows(tx); err != nil {
 		return err
 	}
 	if _, err := tx.Exec("DELETE FROM meta WHERE metakey='reindexing'"); err != nil {
