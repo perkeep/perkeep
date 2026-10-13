@@ -200,17 +200,20 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : Run known-broken tests.
 
 `PERKEEP_TEST_MYSQL_HOST` (string)
-: host[:port] of an already-running MySQL server for the MySQL tests to use
-  (user "root", password "root"), instead of starting one in a Docker
-  container. Each test creates and then drops its own database. If set and
-  the server is unreachable, the tests fail instead of skipping.
+: host[:port] of a MySQL server for the MySQL tests to use (user "root",
+  password "root"). Each test creates and then drops its own database. If
+  not set, the tests are skipped; if set and the server is unreachable, they
+  fail. To run one locally:
+  `docker run -d --rm -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=root mysql:8`
+  and set `PERKEEP_TEST_MYSQL_HOST=127.0.0.1`.
 
 `PERKEEP_TEST_POSTGRES_HOST` (string)
-: Host of an already-running PostgreSQL server (on the default port) for the
-  PostgreSQL tests to use (user "postgres", password "postgres"), instead of
-  starting one in a Docker container. Each test creates and then drops its
-  own database. If set and the server is unreachable, the tests fail instead
-  of skipping.
+: Host of a PostgreSQL server (on the default port) for the PostgreSQL tests
+  to use (user "postgres", password "postgres"). Each test creates and then
+  drops its own database. If not set, the tests are skipped; if set and the
+  server is unreachable, they fail. To run one locally:
+  `docker run -d --rm -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres postgres:18`
+  and set `PERKEEP_TEST_POSTGRES_HOST=127.0.0.1`.
 
 ## Undocumented
 
