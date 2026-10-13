@@ -38,6 +38,25 @@ See Strava's [getting-started guide](https://developers.strava.com/docs/getting-
 and [OAuth documentation](https://developers.strava.com/docs/authentication/)
 for application setup, scopes, and refresh-token behavior.
 
+### Bounded test imports
+
+Set `PERKEEP_STRAVA_MAX_ACTIVITIES=10` in the **server's environment** to
+consider only the first ten activity summaries returned by Strava's
+newest-first listing. The server requests a page size of ten, imports at
+most those ten activities, and stops successfully without probing another
+page. This sets the normal completion marker; it is not an error or an
+incomplete run.
+
+The cap counts already imported activities too. Repeated runs check the
+same recent window, rather than importing the next ten older activities.
+Previously stored older activities are not deleted. If fewer activities
+exist, reaching the end of the listing also succeeds.
+
+Unset or empty means no cap. Other values must be positive decimal integers;
+invalid, zero, negative, and overflowing values fail before any API request.
+Remove the variable to enable a full backfill. Completion of a capped run
+does not prevent that later backfill.
+
 ## Stored data
 
 Each account's import root has an `activities` child. Its `camliPath:<decimal ID>`
@@ -98,8 +117,8 @@ activity has `stravaImportVersion="1"` **and** its `stravaSummaryHash` matches
 the newly listed modeled summary. New or changed summaries trigger an import
 into the stable activity permanode. The completion version is written last,
 after all attachments and attributes succeed. The account's
-`completedVersion="1"` marks completion of an entire enumeration, not a reason
-to stop future enumeration.
+`completedVersion="1"` marks completion of the selected enumeration window
+(capped or complete), not a reason to stop future enumeration.
 
 `SupportsIncremental=true` describes incremental **detail/stream fetching**,
 not a server-side modified-since listing API or a complete synchronization
@@ -116,11 +135,49 @@ To force one activity to fetch its current detail and streams on the next run:
 pk-put attr --del <activity-permanode-ref> stravaImportVersion
 ```
 
-Strava applies [short-window and daily rate limits](https://developers.strava.com/docs/rate-limits/).
-An HTTP 429 or another request/import error safely returns an error; the importer
-does not automatically retry or sleep through a limit. Rerun after resolving
-the error or waiting for the relevant window. Successfully completed activities
-remain skippable; an incomplete activity is retried.
+### Rate limits
+
+Strava applies separate application-wide **overall** and **read** limits
+over natural 15-minute windows and UTC days. The importer checks both
+budgets before each REST request. Until response headers announce limits,
+it conservatively uses:
+
+| Budget | Per 15 minutes | Per UTC day |
+| --- | --- | --- |
+| Overall | 200 | 2,000 |
+| Read | 100 | 1,000 |
+
+It learns limits and observed usage from `X-RateLimit-Limit`,
+`X-RateLimit-Usage`, `X-ReadRateLimit-Limit`, and `X-ReadRateLimit-Usage`.
+Usage reported by other clients of the same application is included.
+Accounts and runs sharing a Client ID share one in-process budget. A
+snapshot keyed to that Client ID is persisted as `stravaRateLimitState`
+on the shared importer configuration permanode after each run, including
+failed runs. Restarting with a different account therefore restores the
+latest application-wide budget, not that account's older usage.
+
+Access tokens are also bound to the Client ID that issued them. Changing
+application credentials requires a validated OAuth refresh or reconnect
+before REST requests can use the new application's budget.
+
+When either budget is exhausted, the next request is blocked locally with
+an error identifying the reset time. A successful response consuming the
+last available request is still processed. Quarter-hour usage resets at
+`:00`, `:15`, `:30`, and `:45`; daily usage resets at midnight UTC. An HTTP
+429 stops the run and records a cooldown, including `Retry-After` when
+supplied. There are no automatic retries or sleeps through a limit.
+
+Unobserved external usage or an unexpected process termination can leave
+local state stale; the next response refreshes observed usage, and a 429 is
+never retried automatically. This is not a distributed quota coordinator
+for other applications or separately running Perkeep processes.
+
+A fresh ten-activity test import normally needs **21 REST requests**:
+one listing and two requests per activity (detail and streams). OAuth
+setup/refresh is separate; missing activities, fewer returned summaries,
+or errors may change the request count. Rerun after resolving an error or
+waiting for the relevant window. Successfully completed activities remain
+skippable; an incomplete activity is retried.
 
 ## Formats and scope
 

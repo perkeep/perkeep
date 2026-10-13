@@ -41,6 +41,7 @@ const (
 type apiClient struct {
 	httpClient  *http.Client
 	accessToken string
+	limiter     *rateLimiter
 }
 
 type activity struct {
@@ -90,11 +91,21 @@ type stream struct {
 	Resolution   string          `json:"resolution"`
 }
 
-func (c *apiClient) listActivities(ctx context.Context, page int) ([]activity, error) {
+func (c *apiClient) listActivities(ctx context.Context, page int, pageSizes ...int) ([]activity, error) {
 	if page < 1 {
 		return nil, errors.New("strava: page must be at least 1")
 	}
-	query := url.Values{"page": {strconv.Itoa(page)}, "per_page": {"100"}}
+	pageSize := 100
+	if len(pageSizes) > 1 {
+		return nil, errors.New("strava: expected at most one activity page size")
+	}
+	if len(pageSizes) == 1 {
+		pageSize = pageSizes[0]
+	}
+	if pageSize < 1 || pageSize > 100 {
+		return nil, errors.New("strava: activity page size must be between 1 and 100")
+	}
+	query := url.Values{"page": {strconv.Itoa(page)}, "per_page": {strconv.Itoa(pageSize)}}
 	raw, _, err := c.get(ctx, "/athlete/activities?"+query.Encode(), false)
 	if err != nil {
 		return nil, err
@@ -155,7 +166,23 @@ func (c *apiClient) get(ctx context.Context, path string, allowNotFound bool) (j
 	}
 	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	req.Header.Set("Accept", "application/json")
-	return readResponse(c.httpClient, req, maxAPIResponseBytes, allowNotFound)
+	client := c.httpClient
+	if c.limiter != nil {
+		if client == nil {
+			client = http.DefaultClient
+		}
+		limited := *client
+		if limited.Timeout > 60*time.Second {
+			limited.Timeout = 60 * time.Second
+		}
+		base := limited.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		limited.Transport = &rateLimitedTransport{limiter: c.limiter, base: base}
+		client = &limited
+	}
+	return readResponse(client, req, maxAPIResponseBytes, allowNotFound)
 }
 
 // exchangeToken handles both authorization-code exchanges and refreshes. The
@@ -205,6 +232,12 @@ func readResponse(client *http.Client, req *http.Request, limit int64, allowNotF
 	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	res, err := noRedirect.Do(req)
 	if err != nil {
+		// Only our typed, sanitized quota errors may bypass redaction. In
+		// particular, never expose url.Error's request URL or transport text.
+		var quotaErr *rateLimitError
+		if errors.As(err, &quotaErr) {
+			return nil, false, quotaErr
+		}
 		return nil, false, &responseError{"HTTP request", err}
 	}
 	defer res.Body.Close()

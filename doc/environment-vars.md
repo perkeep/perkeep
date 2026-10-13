@@ -67,6 +67,13 @@ or
 : If true, importers are disabled (at least automatic background
   importing, e.g. at start-up). Mostly for debugging.
 
+`PERKEEP_STRAVA_MAX_ACTIVITIES` (positive integer)
+: Limit each Strava importer run to the most recent N activity summaries,
+  including activities already imported. Reaching the cap counts as a
+  successful run. Unset or empty means no cap; other nonpositive or invalid
+  values fail before API requests. Set this in the server's environment,
+  for example `PERKEEP_STRAVA_MAX_ACTIVITIES=10` for testing.
+
 `CAMLI_FORCE_OSARCH` (bool)
   Used by make.go to force building an unrecommended OS/ARCH pair.
 

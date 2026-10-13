@@ -389,6 +389,11 @@ func (rc *RunContext) Credentials() (clientID, clientSecret string, err error) {
 	return rc.ia.im.credentials()
 }
 
+// ImporterNode returns the configuration permanode shared by all accounts of
+// this importer. It can store application-wide state, such as API budgets.
+// Do not change its camliNodeType, importerType, or credential attributes.
+func (rc *RunContext) ImporterNode() (*Object, error) { return rc.ia.im.Node() }
+
 // AccountNode returns the permanode storing account information for this permanode.
 // It will contain the attributes:
 //   - camliNodeType = "importerAccount"
@@ -1078,6 +1083,7 @@ func (im *importer) Node() (*Object, error) {
 		return nil, err
 	}
 	if best != nil {
+		im.nodeCache = best
 		return best, nil
 	}
 
