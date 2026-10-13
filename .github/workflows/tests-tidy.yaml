@@ -15,11 +15,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: ./.github/actions/setup-go
+    # No Go cache: go mod tidy only needs the modules, and a saved cache
+    # would use about 0.7 GB of the repository's 10 GB of Actions cache space.
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: false
 
     - name: Check 'go mod tidy'
       run: |
         go mod tidy
         test -z "$(git status --porcelain)"
-
-    - uses: ./.github/actions/save-go-cache
