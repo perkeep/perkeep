@@ -121,7 +121,6 @@ func (c *testCmd) buildSelf() error {
 
 func (c *testCmd) runTests(args []string) error {
 	targs := []string{"test"}
-	targs = append(targs, "--tags=fake_android")
 	if c.short {
 		targs = append(targs, "-short")
 	}

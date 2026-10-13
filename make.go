@@ -120,11 +120,10 @@ func main() {
 		targs = []string{"perkeep.org/website/pk-web"}
 	}
 
-	tags := []string{"purego"} // for cznic/zappy
-	if *static {
-		tags = append(tags, "netgo", "osusergo")
-	}
 	baseArgs := []string{"install", "-v"}
+	if *static {
+		baseArgs = append(baseArgs, "--tags=netgo,osusergo")
+	}
 	if *race {
 		baseArgs = append(baseArgs, "-race")
 	}
@@ -145,7 +144,6 @@ func main() {
 	if ldFlags != "" {
 		baseArgs = append(baseArgs, "--ldflags="+ldFlags)
 	}
-	baseArgs = append(baseArgs, "--tags="+strings.Join(tags, ","))
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <perkeep_root>/bin:
