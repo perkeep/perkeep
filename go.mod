@@ -24,7 +24,7 @@ require (
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipfs/go-ipfs-blockstore v1.3.1
 	github.com/ipld/go-car v0.6.1-0.20230509095817-92d28eb23ba4
-	github.com/lib/pq v1.10.9
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
@@ -128,6 +128,9 @@ require (
 	github.com/ipfs/go-verifcid v0.0.3 // indirect
 	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/ipld/go-ipld-prime v0.24.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/jonas-p/go-shp v0.1.1 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.1 // indirect

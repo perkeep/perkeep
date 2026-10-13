@@ -32,7 +32,7 @@ import (
 	"perkeep.org/pkg/sorted/sqlite"
 
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type dbinitCmd struct {
@@ -99,7 +99,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	switch c.dbType {
 	case "postgres":
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
-		rootdb, err = sql.Open("postgres", conninfo)
+		rootdb, err = sql.Open("pgx", conninfo)
 	case "mysql":
 		// need to use an empty dbname to query tables
 		rootdb, err = sql.Open("mysql", c.mysqlDSN(""))
@@ -148,7 +148,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	switch c.dbType {
 	case "postgres":
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, dbname, c.host, c.password, c.sslMode)
-		db, err = sql.Open("postgres", conninfo)
+		db, err = sql.Open("pgx", conninfo)
 	case "sqlite":
 		db, err = sql.Open("sqlite", dbname)
 	default:
