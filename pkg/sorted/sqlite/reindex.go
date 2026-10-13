@@ -22,7 +22,9 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
+	"time"
 
 	"perkeep.org/pkg/sorted"
 )
@@ -61,7 +63,7 @@ func (kv *keyValue) BeginReindex() (sorted.ReindexSession, error) {
 	}
 	s.currentTx, err = conn.BeginTx(context.Background(), nil)
 	if err == nil {
-		_, err = s.currentTx.Exec("DELETE FROM rows")
+		err = clearRows(s.currentTx)
 	}
 	if err == nil {
 		_, err = s.currentTx.Exec("REPLACE INTO meta (metakey, value) VALUES ('reindexing', '1')")
@@ -394,6 +396,9 @@ func (s *reindexSession) Finish(success bool) error {
 		}
 	}
 	s.rollbackLocked()
+	if success && s.err == nil && s.conn != nil {
+		s.vacuumLocked()
+	}
 	if s.conn != nil {
 		s.failLocked(s.conn.Close())
 		s.conn = nil
@@ -403,6 +408,27 @@ func (s *reindexSession) Finish(success bool) error {
 	s.finishErr = s.err
 	s.owner.Gate.Done()
 	return s.finishErr
+}
+
+// vacuumLocked rewrites the database in key order after a successful
+// rebuild. A rebuild inserts keys in blob order, not key order, which
+// scatters the pages of key ranges across the file; once the file is no
+// longer cached, scanning them (as loading the corpus does) then costs a
+// random read per page. The rebuild is already committed and complete, so
+// a failure (such as running out of disk space for the copy VACUUM makes)
+// is only logged.
+func (s *reindexSession) vacuumLocked() {
+	ctx := context.Background()
+	t0 := time.Now()
+	if _, err := s.conn.ExecContext(ctx, "VACUUM"); err != nil {
+		log.Printf("sqlite: VACUUM of rebuilt %s failed; the index is complete, but scanning it may be slower: %v", s.owner.file, err)
+		return
+	}
+	// VACUUM writes the whole database to the WAL; don't leave it that big.
+	if _, err := s.conn.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		log.Printf("sqlite: checkpointing %s after VACUUM: %v", s.owner.file, err)
+	}
+	log.Printf("sqlite: compacted rebuilt %s in %v", s.owner.file, time.Since(t0).Round(time.Millisecond))
 }
 
 // Close aborts only this session, not the parent database.
