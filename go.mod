@@ -47,7 +47,7 @@ require (
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.278.0
 	honnef.co/go/tools v0.8.1
-	modernc.org/kv v1.0.4
+	modernc.org/kv v1.0.6
 	modernc.org/sqlite v1.60.1
 	rsc.io/qr v0.2.0
 	tailscale.com v1.102.5
@@ -205,11 +205,11 @@ require (
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/fileutil v1.4.0 // indirect
-	modernc.org/internal v1.0.3 // indirect
+	modernc.org/internal v1.0.7 // indirect
 	modernc.org/libc v1.77.1 // indirect
-	modernc.org/lldb v1.0.2 // indirect
+	modernc.org/lldb v1.0.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	modernc.org/sortutil v1.2.1 // indirect
-	modernc.org/zappy v1.0.3 // indirect
+	modernc.org/zappy v1.0.8 // indirect
 )
