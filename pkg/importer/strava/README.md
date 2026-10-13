@@ -209,3 +209,12 @@ Strava-client dependency. The current official
 [developer documentation](https://developers.strava.com/docs/) recommends
 Swagger-generated clients; it does not establish a maintained official Go
 replacement to adopt. The private client covers only the endpoints needed here.
+
+## Web UI
+
+The generic fitness renderer uses the archived GPX to show a red route preview
+with an activity icon, distance, and duration. It works from `fitnessActivity`
+attributes, not Strava-specific fields, and makes no additional Strava requests.
+Routes are rendered locally without uploading coordinates to a map service.
+See [fitness activity rendering](/doc/schema/fitness.md#web-ui-rendering) for
+display units, the rough US miles heuristic, and basemap considerations.

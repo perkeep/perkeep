@@ -44,6 +44,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
 )
 
@@ -329,6 +330,9 @@ var singleResize singleflight.Group
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	ctx := req.Context()
+	if ctx.Err() != nil {
+		return
+	}
 
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", http.StatusBadRequest)
@@ -336,8 +340,35 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	mw, mh := ih.MaxWidth, ih.MaxHeight
-	if mw == 0 || mh == 0 || mw > search.MaxImageSize || mh > search.MaxImageSize {
+	if mw <= 0 || mh <= 0 || mw > search.MaxImageSize || mh > search.MaxImageSize {
 		http.Error(rw, "bogus dimensions", http.StatusBadRequest)
+		return
+	}
+
+	// Permanodes are mutable: describe them before considering any validator.
+	if ih.Search == nil {
+		http.Error(rw, "thumbnail search unavailable", http.StatusInternalServerError)
+		return
+	}
+	res, err := ih.Search.Describe(ctx, &search.DescribeRequest{BlobRef: file, Depth: 1})
+	if ctx.Err() != nil {
+		return
+	}
+	if err != nil {
+		http.Error(rw, "thumbnail metadata unavailable", http.StatusInternalServerError)
+		return
+	}
+	db := res.Meta[file.String()]
+	if db == nil {
+		http.NotFound(rw, req)
+		return
+	}
+	if db.Permanode != nil && db.Permanode.Attr.Get(nodeattr.Type) == nodeattr.FitnessActivity {
+		ih.serveFitnessThumbnail(rw, req, file, db.Permanode)
+		return
+	}
+	if db.File == nil || !strings.HasPrefix(db.File.MIMEType, "image/") {
+		http.NotFound(rw, req)
 		return
 	}
 
@@ -350,26 +381,9 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			rw.WriteHeader(http.StatusNotModified)
 			return
 		}
-	} else {
-		if !disableThumbCache && req.Header.Get("If-Modified-Since") != "" {
-			thumbCacheHeader304.Add(1)
-			rw.WriteHeader(http.StatusNotModified)
-			return
-		}
-	}
-
-	res, err := ih.Search.Describe(ctx, &search.DescribeRequest{
-		BlobRef: file,
-		Depth:   1,
-	})
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	db, ok := res.Meta[file.String()]
-	if !ok {
-		http.Error(rw, "blob meta not found", http.StatusInternalServerError)
+	} else if !disableThumbCache && req.Header.Get("If-Modified-Since") != "" {
+		thumbCacheHeader304.Add(1)
+		rw.WriteHeader(http.StatusNotModified)
 		return
 	}
 
