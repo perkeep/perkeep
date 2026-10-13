@@ -19,6 +19,7 @@ package main // import "perkeep.org/server/perkeepd"
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -89,10 +90,11 @@ import (
 )
 
 var (
-	flagVersion    = flag.Bool("version", false, "show version")
-	flagHelp       = flag.Bool("help", false, "show usage")
-	flagLegal      = flag.Bool("legal", false, "show licenses")
-	flagConfigFile = flag.String("configfile", "",
+	flagVersion     = flag.Bool("version", false, "show version")
+	flagBuildConfig = flag.Bool("build-config", false, "print the build configuration and optional features (such as how HEIC images are decoded) as JSON to stdout, and exit")
+	flagHelp        = flag.Bool("help", false, "show usage")
+	flagLegal       = flag.Bool("legal", false, "show licenses")
+	flagConfigFile  = flag.String("configfile", "",
 		"Config file to use, relative to the Perkeep configuration directory root. "+
 			"If blank, the default is used or auto-generated. "+
 			"If it starts with 'http:' or 'https:', it is fetched from the network.")
@@ -379,6 +381,14 @@ func main() {
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "perkeepd version: %s\nGo version: %s (%s/%s)\n",
 			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		return
+	}
+	if *flagBuildConfig {
+		j, err := json.MarshalIndent(buildinfo.CurrentFeatures(), "", "\t")
+		if err != nil {
+			exitf("%v", err)
+		}
+		fmt.Printf("%s\n", j)
 		return
 	}
 	if *flagHelp {

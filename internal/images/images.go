@@ -62,12 +62,13 @@ import (
 )
 
 func init() {
-	buildinfo.RegisterHEICStatusFunc(func() string {
-		err := heic.Dynamic()
-		if err == nil {
-			return "libheif available (optimized)"
+	buildinfo.RegisterFeatureFunc(func(f *buildinfo.Features) {
+		if err := heic.Dynamic(); err != nil {
+			f.HEIC = "wasm"
+			f.LibheifError = err.Error()
+		} else {
+			f.HEIC = "libheif"
 		}
-		return "libheif not available (using WASM fallback)"
 	})
 }
 
