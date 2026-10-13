@@ -21,6 +21,14 @@ jobs:
     - uses: actions/checkout@v4
     - uses: ./.github/actions/setup-go
 
+    # The default temp directory is on C:, which is much slower than D:,
+    # especially for tests that sync files (such as SQLite's).
+    - name: "Use a temp directory on D:"
+      shell: bash
+      run: |
+        echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
     - name: Build and test
       run: |
         go run make.go -v
