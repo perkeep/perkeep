@@ -10,6 +10,12 @@ description: >
 runs:
   using: composite
   steps:
+    # Don't generate DWARF, which nothing in CI uses: it makes linking
+    # (of each test binary, and of the binaries tests run) take about
+    # twice as long. make.go's --ldflags, when given, override this.
+    - shell: bash
+      run: echo "GOFLAGS=-ldflags=-w" >> "$GITHUB_ENV"
+
     # On Windows, the Go caches default to the user's profile on C:, which
     # is much slower than D:, where the checkout is. Extracting the caches
     # there took most of the job's time.
