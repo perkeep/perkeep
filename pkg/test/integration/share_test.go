@@ -18,6 +18,7 @@ package integration
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,14 @@ func TestFileSharing(t *testing.T) {
 // like TestFileSharing, but with a file large enough to have several parts,
 // including some bytesRef parts.
 func TestFileWithBytesSharing(t *testing.T) {
-	share(t, test.GetWorld(t).ServerBinary())
+	// A few MB of random data is enough for several bytesRef parts.
+	data := make([]byte, 4<<20)
+	rand.NewChaCha8([32]byte{}).Read(data)
+	file := filepath.Join(t.TempDir(), "random.bin")
+	if err := os.WriteFile(file, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	share(t, file)
 }
 
 func TestDirSharing(t *testing.T) {
