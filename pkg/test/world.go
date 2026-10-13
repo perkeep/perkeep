@@ -86,45 +86,67 @@ func (w *World) SourceRoot() string {
 	return w.srcRoot
 }
 
-// Build builds the Perkeep binaries.
+// WorldBinDirEnv is the environment variable naming a directory of
+// prebuilt World binaries (see BuildWorldBinaries). If set, World.Build uses
+// them instead of building its own. devcam test sets it, so that each test
+// package doesn't build the same binaries again.
+const WorldBinDirEnv = "PERKEEP_TEST_BIN_DIR"
+
+// worldTargets are the binaries a World needs.
+var worldTargets = []string{
+	"perkeep.org/server/perkeepd",
+	"perkeep.org/cmd/pk",
+	"perkeep.org/cmd/pk-get",
+	"perkeep.org/cmd/pk-put",
+	"perkeep.org/cmd/pk-mount",
+}
+
+// BuildWorldBinaries builds the binaries a World needs from the source tree
+// at srcRoot, installing them into the directory gobin.
+func BuildWorldBinaries(srcRoot, gobin string, verbose bool) error {
+	cmd := exec.Command("go", "run", "make.go",
+		"--stampversion=false",
+		"--targets="+strings.Join(worldTargets, ","))
+	if verbose {
+		cmd.Args = append(cmd.Args, "-v=true")
+	}
+	cmd.Dir = srcRoot
+	cmd.Env = append(os.Environ(), "GOBIN="+gobin)
+	log.Print("Running make.go to build perkeep binaries for testing...")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Error building world: %w, %s", err, string(out))
+	}
+	if verbose {
+		log.Printf("%s\n", out)
+	}
+	log.Print("Ran make.go.")
+	return nil
+}
+
+// Build builds the Perkeep binaries, or uses the prebuilt ones in
+// $PERKEEP_TEST_BIN_DIR if that's set.
 func (w *World) Build() error {
 	var err error
 	w.tempDir, err = os.MkdirTemp("", "perkeep-test-")
 	if err != nil {
 		return err
 	}
+	if dir := os.Getenv(WorldBinDirEnv); dir != "" {
+		w.gobin = dir
+		if _, err := os.Stat(w.lookPathGobin("perkeepd")); err != nil {
+			w.removeTempDir()
+			return fmt.Errorf("using prebuilt binaries from $%s: %w", WorldBinDirEnv, err)
+		}
+		return nil
+	}
 	w.gobin = filepath.Join(w.tempDir, "bin")
 	if err := os.MkdirAll(w.gobin, 0700); err != nil {
 		return err
 	}
-	// Build.
-	{
-		cmd := exec.Command("go", "run", "make.go",
-			"--stampversion=false",
-			"--targets="+strings.Join([]string{
-				"perkeep.org/server/perkeepd",
-				"perkeep.org/cmd/pk",
-				"perkeep.org/cmd/pk-get",
-				"perkeep.org/cmd/pk-put",
-				"perkeep.org/cmd/pk-mount",
-			}, ","))
-		if testing.Verbose() {
-			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
-			// can be made true if devcam test -verbose ?
-			cmd.Args = append(cmd.Args, "-v=true")
-		}
-		cmd.Dir = w.srcRoot
-		cmd.Env = append(os.Environ(), "GOBIN="+w.gobin)
-		log.Print("Running make.go to build perkeep binaries for testing...")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			w.removeTempDir()
-			return fmt.Errorf("Error building world: %w, %s", err, string(out))
-		}
-		if testing.Verbose() {
-			log.Printf("%s\n", out)
-		}
-		log.Print("Ran make.go.")
+	if err := BuildWorldBinaries(w.srcRoot, w.gobin, testing.Verbose()); err != nil {
+		w.removeTempDir()
+		return err
 	}
 	return nil
 }

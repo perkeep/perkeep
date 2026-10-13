@@ -199,6 +199,12 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `RUN_BROKEN_TESTS` (bool)
 : Run known-broken tests.
 
+`PERKEEP_TEST_BIN_DIR` (string)
+: Directory of prebuilt perkeepd, pk, pk-get, pk-put, and pk-mount binaries
+  for tests that start a test World (pkg/test) to use, instead of building
+  their own. `devcam test` sets it, building the binaries once for all test
+  packages, when testing the whole tree.
+
 `PERKEEP_TEST_MYSQL_HOST` (string)
 : host[:port] of a MySQL server for the MySQL tests to use (user "root",
   password "root"). Each test creates and then drops its own database. If
