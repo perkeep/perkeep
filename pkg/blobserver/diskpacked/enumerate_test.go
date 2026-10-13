@@ -280,7 +280,7 @@ func TestEnumerateBlobsSQLiteInvalidValue(t *testing.T) {
 func TestEnumerateBlobsSQLiteFetch(t *testing.T) {
 	dir := t.TempDir()
 	synctest.Test(t, func(t *testing.T) {
-		sto, err := newStorage(dir, 1<<20, jsonconfig.Obj{
+		sto, err := newStorage(dir, 1<<20, 30, jsonconfig.Obj{
 			"type": "sqlite", "file": filepath.Join(dir, "index.sqlite"),
 		})
 		if err != nil {

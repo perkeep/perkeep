@@ -22,12 +22,19 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"io"
+	"maps"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
@@ -40,6 +47,10 @@ import (
 
 var ctxbg = context.Background()
 
+func init() {
+	debug = debugT(env.IsDebug())
+}
+
 func newTempDiskpacked(t *testing.T) blobserver.Storage {
 	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{})
 }
@@ -50,6 +61,11 @@ func newTempDiskpackedMemory(t *testing.T) blobserver.Storage {
 	})
 }
 
+const (
+	testMaxFileSize  = 8192
+	testFdCacheLimit = 3
+)
+
 func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) blobserver.Storage {
 	test.TLog(t)
 	dir, err := os.MkdirTemp("", "diskpacked-test")
@@ -57,7 +73,7 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) blobserv
 		t.Fatal(err)
 	}
 	t.Logf("diskpacked test dir is %q", dir)
-	s, err := newStorage(dir, 1<<20, indexConf)
+	s, err := newStorage(dir, testMaxFileSize, testFdCacheLimit, indexConf)
 	if err != nil {
 		t.Fatalf("newStorage: %v", err)
 	}
@@ -333,8 +349,76 @@ func TestClose(t *testing.T) {
 
 }
 
+func TestFetchReadStats(t *testing.T) {
+	sto := newTempDiskpackedMemory(t)
+	s := sto.(*storage)
+	b := &test.Blob{Contents: "some blob contents"}
+	if _, err := blobserver.Receive(ctxbg, sto, b.BlobRef(), b.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	rc, _, err := sto.Fetch(ctxbg, b.BlobRef())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	if _, err := io.Copy(io.Discard, rc); err != nil {
+		t.Fatal(err)
+	}
+	want := strconv.Itoa(len(b.Contents))
+	if got := readVar.Get(s.filename(0)).String(); got != want {
+		t.Errorf("per-file read bytes = %s; want %s", got, want)
+	}
+	if got := readTotVar.Get(s.root).String(); got != want {
+		t.Errorf("total read bytes = %s; want %s", got, want)
+	}
+}
+
+// TestCloseWithActiveReader verifies that Close doesn't wait for
+// readers still holding a pack file, and that the file is closed
+// when the reader is.
+func TestCloseWithActiveReader(t *testing.T) {
+	dir := t.TempDir()
+	synctest.Test(t, func(t *testing.T) {
+		sto, err := newStorage(dir, 1<<20, 1, jsonconfig.Obj{"type": "memory"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := &test.Blob{Contents: "some blob contents"}
+		if _, err := blobserver.Receive(ctxbg, sto, b.BlobRef(), b.Reader()); err != nil {
+			t.Fatal(err)
+		}
+		rc, _, err := sto.Fetch(ctxbg, b.BlobRef())
+		if err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, 4)
+		if _, err := io.ReadFull(rc, buf); err != nil {
+			t.Fatal(err)
+		}
+
+		// With an active reader, this deadlocks the bubble if Close waits.
+		if err := sto.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		rest, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("reading after Close: %v", err)
+		}
+		if got := string(buf) + string(rest); got != b.Contents {
+			t.Errorf("read %q; want %q", got, b.Contents)
+		}
+		if err := rc.Close(); err != nil {
+			t.Fatalf("reader Close: %v", err)
+		}
+		if got := openFdsVar.Get(dir).String(); got != "0" {
+			t.Errorf("open fds after reader Close = %s; want 0", got)
+		}
+	})
+}
+
 func TestBadDir(t *testing.T) {
-	s, err := newStorage("hopefully this is a not existing directory", 1<<20, jsonconfig.Obj{"type": "memory"})
+	s, err := newStorage("hopefully this is a not existing directory", 1<<20, 1, jsonconfig.Obj{"type": "memory"})
 	if err == nil {
 		s.Close()
 		t.Errorf("expected error for non-existing directory")
@@ -357,9 +441,54 @@ func TestWriteError(t *testing.T) {
 	if err := os.Symlink("/non existing file", fn); err != nil {
 		t.Fatal(err)
 	}
-	s, err := newStorage(dir, 1, jsonconfig.Obj{"type": "memory"})
+	s, err := newStorage(dir, 1, 1, jsonconfig.Obj{"type": "memory"})
 	if err == nil {
 		s.Close()
 		t.Fatal("expected error for non-existing directory")
 	}
+}
+
+func TestConcurrentFetch(t *testing.T) {
+	sto := newTempDiskpacked(t)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	const blobSize = testMaxFileSize + 1
+	brs := make(map[string]blob.Ref, 2)
+	for i := range testFdCacheLimit + 1 {
+		k := string([]byte{'a' + byte(i)})
+		b := &test.Blob{Contents: strings.Repeat(k, blobSize)}
+		br := b.BlobRef()
+		brs[k] = br
+
+		_, err := blobserver.Receive(ctxbg, sto, br, b.Reader())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for range 2 * len(brs) {
+		wg.Go(func() {
+			keys := slices.Collect(maps.Keys(brs))
+			rand.Shuffle(len(brs), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+			for _, k := range keys {
+				br := brs[k]
+				rc, size, err := sto.Fetch(ctx, br)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				t.Logf("size: %d", size)
+				if got, readErr := io.Copy(io.Discard, rc); readErr != nil {
+					t.Errorf("read: %+v", readErr)
+				} else if got != int64(size) {
+					t.Errorf("got %d, wanted %d bytes", got, size)
+				}
+				if err := rc.Close(); err != nil {
+					t.Errorf("Close: %v", err)
+				}
+			}
+		})
+	}
+	wg.Wait()
 }
