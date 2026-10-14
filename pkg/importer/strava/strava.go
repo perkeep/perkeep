@@ -275,7 +275,7 @@ type persistedRateLimit struct {
 
 // Hash the Client ID to keep keys bounded and independent of user input.
 func rateLimitCacheKey(id string) string {
-	return fmt.Sprintf("strava:rateLimit:%x", sha256.Sum256([]byte(id)))
+	return fmt.Sprintf("ratelimit:%x", sha256.Sum256([]byte(id)))
 }
 
 func restoreRateLimit(cache sorted.KeyValue, id string, limiter *rateLimiter) error {
@@ -361,7 +361,7 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 		return err
 	}
 	limiter := rateLimiterForApp(id)
-	cache := rc.Host.Cache()
+	cache := rc.ImporterCache()
 	if err := restoreRateLimit(cache, id, limiter); err != nil {
 		return err
 	}

@@ -12,11 +12,20 @@ twitterAccount: "bradfitz"
 Local mutable cache
 -------------------
 
-Host.Cache provides sorted.KeyValue storage for local operational state, such
-as API rate quotas. Cache updates do not create permanode claims and are not
-replicated with imported blobs. Importers must namespace their keys and handle
-missing or stale entries. Deleting the cache resets persisted state, not state
-already loaded by a running importer; stop the server before removing it.
+RunContext and SetupContext provide two automatically scoped sorted.KeyValue
+views for local operational state:
+
+- ImporterCache is shared by all accounts of one registered importer.
+- AccountCache is private to one importer account, identified by its permanode.
+
+Both views can use simple keys such as "ratelimit" without colliding with
+other importers, accounts, or the other scope. Get, writes, batches, and Find
+all stay within the selected scope, including unbounded scans. Close on a
+cache view is a no-op, so an importer cannot close the shared backing store.
+Cache updates do not create permanode claims and are not replicated with
+imported blobs. Entries may be missing or stale after cache deletion. Deleting
+the cache resets persisted state, not state already loaded by a running
+importer; stop the server before removing it.
 
 The server opens a file-backed sorted.DefaultKVFileType cache automatically
 under osutil.CacheDir()/importer/. Each store is named with a SHA-256 hash of

@@ -383,7 +383,7 @@ func TestImporterInvalidSavedRateStateBeforeNetwork(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			f := newCoreFixture(t, nil)
 			f.configure(t)
-			if err := f.rc.Host.Cache().Set(rateLimitCacheKey(f.clientID), state); err != nil {
+			if err := f.rc.ImporterCache().Set(rateLimitCacheKey(f.clientID), state); err != nil {
 				t.Fatal(err)
 			}
 			err := (imp{}).Run(f.rc)
@@ -406,7 +406,7 @@ func TestImporterSavedRateStateForAnotherAppIgnored(t *testing.T) {
 	f.configure(t)
 	// Its envelope is valid, but the other app's state cannot be restored by
 	// this limiter. Ignore it before attempting to validate the inner state.
-	if err := f.rc.Host.Cache().Set(rateLimitCacheKey(f.clientID), `{"clientID":"another-app","state":{"version":999}}`); err != nil {
+	if err := f.rc.ImporterCache().Set(rateLimitCacheKey(f.clientID), `{"clientID":"another-app","state":{"version":999}}`); err != nil {
 		t.Fatal(err)
 	}
 	if err := (imp{}).Run(f.rc); err != nil {
@@ -467,7 +467,7 @@ func TestImporterRateStateCacheFailureReported(t *testing.T) {
 	}))
 	f.configure(t)
 	cacheErr := errors.New("rate cache write failed")
-	f.rc.Host.Cache().(*coreRateCache).setErr = cacheErr
+	f.hostConfig.Cache.(*coreRateCache).setErr = cacheErr
 	err := (imp{}).Run(f.rc)
 	if !errors.Is(err, cacheErr) {
 		t.Errorf("snapshot failure cause lost: %v", err)
@@ -477,7 +477,7 @@ func TestImporterRateStateCacheFailureReported(t *testing.T) {
 		t.Errorf("quota failure cause lost when saving snapshot: %v", err)
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1, "/activities/1000": 1})
-	if _, err := f.rc.Host.Cache().Get(rateLimitCacheKey(f.clientID)); !errors.Is(err, sorted.ErrNotFound) {
+	if _, err := f.rc.ImporterCache().Get(rateLimitCacheKey(f.clientID)); !errors.Is(err, sorted.ErrNotFound) {
 		t.Errorf("failed write left cache entry: %v", err)
 	}
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: ""})
@@ -661,7 +661,7 @@ func TestImporterRateCacheReadFailureBeforeNetwork(t *testing.T) {
 	f := newCoreFixture(t, nil)
 	f.configure(t)
 	want := errors.New("rate cache unavailable")
-	f.rc.Host.Cache().(*coreRateCache).getErr = want
+	f.hostConfig.Cache.(*coreRateCache).getErr = want
 	if err := (imp{}).Run(f.rc); !errors.Is(err, want) {
 		t.Fatalf("Run = %v; want cache read failure", err)
 	}

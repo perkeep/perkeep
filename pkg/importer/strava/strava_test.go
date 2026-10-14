@@ -285,7 +285,7 @@ func (f *coreFixture) rateNode(t *testing.T) *importer.Object {
 
 func (f *coreFixture) rateState(t *testing.T) string {
 	t.Helper()
-	raw, err := f.rc.Host.Cache().Get(rateLimitCacheKey(f.clientID))
+	raw, err := f.rc.ImporterCache().Get(rateLimitCacheKey(f.clientID))
 	if err != nil {
 		t.Fatal(err)
 	}

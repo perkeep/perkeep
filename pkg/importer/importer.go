@@ -371,6 +371,15 @@ type SetupContext struct {
 	ia *importerAcct
 }
 
+// ImporterCache returns local mutable state shared by this importer's accounts.
+// Keys are automatically isolated from other importers and account caches.
+// Closing the view is a no-op and never closes the backing store.
+func (sc *SetupContext) ImporterCache() sorted.KeyValue { return sc.ia.im.cache() }
+
+// AccountCache returns local mutable state isolated to this importer account.
+// Closing the view is a no-op and never closes the backing store.
+func (sc *SetupContext) AccountCache() sorted.KeyValue { return sc.ia.cache() }
+
 func (sc *SetupContext) Credentials() (clientID, clientSecret string, err error) {
 	return sc.ia.im.credentials()
 }
@@ -442,8 +451,17 @@ func (rc *RunContext) Credentials() (clientID, clientSecret string, err error) {
 	return rc.ia.im.credentials()
 }
 
+// ImporterCache returns local mutable state shared by this importer's accounts.
+// Keys are automatically isolated from other importers and account caches.
+// Closing the view is a no-op and never closes the backing store.
+func (rc *RunContext) ImporterCache() sorted.KeyValue { return rc.ia.im.cache() }
+
+// AccountCache returns local mutable state isolated to this importer account.
+// Closing the view is a no-op and never closes the backing store.
+func (rc *RunContext) AccountCache() sorted.KeyValue { return rc.ia.cache() }
+
 // ImporterNode returns the configuration permanode shared by all accounts of
-// this importer. Use Host.Cache for local mutable state such as API budgets,
+// this importer. Use ImporterCache for local mutable state such as API budgets,
 // rather than creating a permanent claim for each update.
 // Do not change its camliNodeType, importerType, or credential attributes.
 func (rc *RunContext) ImporterNode() (*Object, error) { return rc.ia.im.Node() }
@@ -506,11 +524,6 @@ type Host struct {
 	client    *http.Client
 	transport http.RoundTripper
 }
-
-// Cache returns the Host's non-nil local mutable importer cache.
-// Importers must namespace their keys and tolerate missing or stale values.
-// The cache is not replicated with imported blobs. Callers must not close it.
-func (h *Host) Cache() sorted.KeyValue { return h.cache }
 
 // Close cancels managed importer runs and long polls and waits up to one second
 // for them to return and the owned cache to close. If shutdown times out, Close
@@ -945,6 +958,9 @@ func (h *Host) Searcher() search.QueryDescriber { return h.search }
 
 // importer is an importer for a certain site, but not a specific account on that site.
 type importer struct {
+	cacheOnce  sync.Once
+	cacheStore sorted.KeyValue
+
 	host  *Host
 	name  string // importer name e.g. "twitter"
 	impl  Importer
@@ -961,6 +977,23 @@ type importer struct {
 	acctmu    sync.Mutex
 	acct      map[blob.Ref]*importerAcct // key: account permanode
 	allLoaded bool
+}
+
+// Importer and account cache namespaces are siblings, so importer-wide Find
+// cannot enumerate account-private keys. Length-prefix the registered name to
+// avoid ambiguous boundaries even for names containing separators.
+func (im *importer) cache() sorted.KeyValue {
+	im.cacheOnce.Do(func() {
+		im.cacheStore = sorted.WithPrefix(im.host.cache, fmt.Sprintf("importer:%d:%s:", len(im.name), im.name))
+	})
+	return im.cacheStore
+}
+
+func (ia *importerAcct) cache() sorted.KeyValue {
+	ia.cacheOnce.Do(func() {
+		ia.cacheStore = sorted.WithPrefix(ia.im.host.cache, fmt.Sprintf("account:%d:%s:%s:", len(ia.im.name), ia.im.name, ia.acct.PermanodeRef()))
+	})
+	return ia.cacheStore
 }
 
 func (im *importer) Name() string { return im.name }
@@ -1283,6 +1316,9 @@ func (im *importer) bestNode(res *search.SearchResult) (*Object, error) {
 
 // importerAcct is a long-lived type representing account
 type importerAcct struct {
+	cacheOnce  sync.Once
+	cacheStore sorted.KeyValue
+
 	im   *importer
 	acct *Object
 	root *Object

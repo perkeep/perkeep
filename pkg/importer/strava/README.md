@@ -156,9 +156,10 @@ It learns limits and observed usage from `X-RateLimit-Limit`,
 Usage reported by other clients of the same application is included.
 Accounts and runs sharing a Client ID share one in-process budget. A
 snapshot keyed to that Client ID is overwritten in the importer host's
-local `sorted.KeyValue` cache after each run, including failed runs and
-polls that find no changed activities. No quota bookkeeping blobs or
-permanode mutation claims are written. Restarting with a different account
+automatically scoped `ImporterCache` after each run, including failed runs
+and polls that find no changed activities. This is shared across Strava accounts
+and isolated from other importers and account-private caches. No quota
+bookkeeping blobs or permanode mutation claims are written. Restarting with a different account
 restores the latest application-wide budget, not that account's older usage.
 The server uses a file-backed store in Perkeep's cache directory by default;
 its low-level importer handler configuration can override the `cache` sorted

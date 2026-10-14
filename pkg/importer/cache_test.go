@@ -47,13 +47,13 @@ func TestHostMemoryCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer second.Close()
-	if first.Cache() == nil || second.Cache() == nil {
+	if first.cache == nil || second.cache == nil {
 		t.Fatal("NewHost returned a nil cache")
 	}
-	if err := first.Cache().Set("test:state", "first"); err != nil {
+	if err := first.cache.Set("test:state", "first"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := second.Cache().Get("test:state"); !errors.Is(err, sorted.ErrNotFound) {
+	if _, err := second.cache.Get("test:state"); !errors.Is(err, sorted.ErrNotFound) {
 		t.Errorf("second host Get = %v; want ErrNotFound", err)
 	}
 }
@@ -97,7 +97,7 @@ func TestHostInjectedCacheOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.Cache() != cache {
+	if h.cache != cache {
 		t.Fatal("Host did not use the supplied cache")
 	}
 	for range 2 {
@@ -150,14 +150,14 @@ func TestHostDefaultCachePersistenceAndIsolation(t *testing.T) {
 	t.Setenv("PERKEEP_CACHE_DIR", dir)
 	ld := cacheLoader{test.NewLoader(), "https://example.test", "/importer/"}
 	first := configuredCacheHost(t, ld, jsonconfig.Obj{})
-	if err := first.Cache().Set("test:state", "saved"); err != nil {
+	if err := first.cache.Set("test:state", "saved"); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
 	reopened := configuredCacheHost(t, ld, jsonconfig.Obj{})
-	if got, err := reopened.Cache().Get("test:state"); err != nil || got != "saved" {
+	if got, err := reopened.cache.Get("test:state"); err != nil || got != "saved" {
 		t.Fatalf("reopened Get = %q, %v; want saved", got, err)
 	}
 	for _, other := range []cacheLoader{
@@ -169,10 +169,10 @@ func TestHostDefaultCachePersistenceAndIsolation(t *testing.T) {
 		{test.NewLoader(), "https://example.test", "/a/b/"},
 	} {
 		host := configuredCacheHost(t, other, jsonconfig.Obj{})
-		if _, err := host.Cache().Get("test:state"); !errors.Is(err, sorted.ErrNotFound) {
+		if _, err := host.cache.Get("test:state"); !errors.Is(err, sorted.ErrNotFound) {
 			t.Errorf("%s + %s Get = %v; want ErrNotFound", other.baseURL, other.prefix, err)
 		}
-		if err := host.Cache().Set("test:state", "isolated"); err != nil {
+		if err := host.cache.Set("test:state", "isolated"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -193,14 +193,14 @@ func TestHostConfiguredCachePersistence(t *testing.T) {
 		}}
 	}
 	first := configuredCacheHost(t, test.NewLoader(), config())
-	if err := first.Cache().Set("test:state", "configured"); err != nil {
+	if err := first.cache.Set("test:state", "configured"); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
 	reopened := configuredCacheHost(t, test.NewLoader(), config())
-	if got, err := reopened.Cache().Get("test:state"); err != nil || got != "configured" {
+	if got, err := reopened.cache.Get("test:state"); err != nil || got != "configured" {
 		t.Fatalf("reopened Get = %q, %v; want configured", got, err)
 	}
 }
@@ -267,7 +267,7 @@ type cacheBlockingImporter struct {
 func (im *cacheBlockingImporter) Run(rc *RunContext) error {
 	close(im.entered)
 	<-rc.Context().Done()
-	im.cancelled <- rc.Host.Cache().Set("test:final", "saved before close")
+	im.cancelled <- rc.ImporterCache().Set("test:final", "saved before close")
 	<-im.release
 	return rc.Context().Err()
 }
@@ -375,7 +375,7 @@ func (im *cacheUncancellableImporter) Run(rc *RunContext) error {
 	close(im.entered)
 	// Model a legacy importer blocked in IO that does not use rc.Context.
 	<-im.release
-	err := rc.Host.Cache().Set("test:final", "saved after shutdown timeout")
+	err := rc.ImporterCache().Set("test:final", "saved after shutdown timeout")
 	im.finished <- err
 	return err
 }
@@ -503,5 +503,121 @@ func TestHostCloseTimeoutIncludesBackendClose(t *testing.T) {
 	}
 	if err := h.Close(); err != timeoutErr {
 		t.Errorf("Close after cleanup = %v; want original timeout %v", err, timeoutErr)
+	}
+}
+
+func cacheTestContexts(h *Host, name, account string) (*RunContext, *SetupContext) {
+	ia := &importerAcct{
+		im: h.imp[name], acct: &Object{pn: blob.RefFromString(account)},
+	}
+	return &RunContext{Host: h, ia: ia}, &SetupContext{Host: h, ia: ia}
+}
+
+func TestContextCachesAreScopedAndNonClosing(t *testing.T) {
+	backing := &closeTrackingCache{KeyValue: sorted.NewMemoryKeyValue()}
+	h, err := NewHost(HostConfig{Cache: backing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	first, setup := cacheTestContexts(h, "dummy1", "first")
+	sibling, _ := cacheTestContexts(h, "dummy1", "second")
+	other, _ := cacheTestContexts(h, "dummy2", "first")
+	if first.ImporterCache() != sibling.ImporterCache() || first.ImporterCache() != setup.ImporterCache() {
+		t.Fatal("importer cache is not shared across accounts and setup/run contexts")
+	}
+	if first.AccountCache() != first.AccountCache() || first.AccountCache() != setup.AccountCache() {
+		t.Fatal("account cache view is not stable across setup/run calls")
+	}
+	views := []sorted.KeyValue{
+		first.ImporterCache(), first.AccountCache(), sibling.AccountCache(),
+		other.ImporterCache(), other.AccountCache(),
+	}
+	for i, cache := range views {
+		if err := cache.Set("ratelimit", fmt.Sprint(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, cache := range views {
+		if got, err := cache.Get("ratelimit"); err != nil || got != fmt.Sprint(i) {
+			t.Errorf("view %d Get = %q, %v; want %d", i, got, err, i)
+		}
+		it := cache.Find("", "")
+		if !it.Next() || it.Key() != "ratelimit" || it.Value() != fmt.Sprint(i) || it.Next() {
+			t.Errorf("view %d Find leaked other importer/account entries", i)
+		}
+		if err := it.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Set("ratelimit", fmt.Sprint(i)); err != nil {
+			t.Fatalf("closing view %d disabled cache: %v", i, err)
+		}
+	}
+	if got := backing.closeCount(); got != 0 {
+		t.Fatalf("closing scoped views closed the backing store %d times", got)
+	}
+	if got, err := sibling.ImporterCache().Get("ratelimit"); err != nil || got != "0" {
+		t.Errorf("sibling importer cache Get = %q, %v; want shared 0", got, err)
+	}
+}
+
+func TestContextCacheNamespacesSurviveRestart(t *testing.T) {
+	t.Setenv("PERKEEP_CACHE_DIR", t.TempDir())
+	ld := cacheLoader{test.NewLoader(), "https://example.test", "/importer/"}
+	h := configuredCacheHost(t, ld, jsonconfig.Obj{})
+	first, _ := cacheTestContexts(h, "dummy1", "first")
+	if err := first.ImporterCache().Set("ratelimit", "shared"); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.AccountCache().Set("ratelimit", "private"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened := configuredCacheHost(t, ld, jsonconfig.Obj{})
+	same, _ := cacheTestContexts(reopened, "dummy1", "first")
+	sibling, _ := cacheTestContexts(reopened, "dummy1", "second")
+	other, _ := cacheTestContexts(reopened, "dummy2", "first")
+	for _, cache := range []sorted.KeyValue{same.ImporterCache(), sibling.ImporterCache()} {
+		if got, err := cache.Get("ratelimit"); err != nil || got != "shared" {
+			t.Errorf("restored importer cache Get = %q, %v; want shared", got, err)
+		}
+	}
+	if got, err := same.AccountCache().Get("ratelimit"); err != nil || got != "private" {
+		t.Errorf("restored account cache Get = %q, %v; want private", got, err)
+	}
+	for _, cache := range []sorted.KeyValue{sibling.AccountCache(), other.ImporterCache(), other.AccountCache()} {
+		if _, err := cache.Get("ratelimit"); !errors.Is(err, sorted.ErrNotFound) {
+			t.Errorf("different importer/account restored another scope's entry: %v", err)
+		}
+	}
+}
+
+func TestCacheNamespacesCannotOverlapViaNamesOrKeys(t *testing.T) {
+	h, err := NewHost(HostConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	im := &importer{host: h, name: "a"}
+	other := &importer{host: h, name: "a:b"}
+	ia := &importerAcct{im: im, acct: &Object{pn: blob.RefFromString("namespace account")}}
+	for _, key := range []string{"", "b:ratelimit", "\x00ratelimit", "\xff", "account:1:a:" + ia.acct.PermanodeRef().String() + ":ratelimit"} {
+		if err := im.cache().Set(key, "importer-private"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, cache := range []sorted.KeyValue{other.cache(), ia.cache()} {
+		it := cache.Find("", "")
+		if it.Next() {
+			t.Errorf("namespace leaked entry %q = %q", it.Key(), it.Value())
+		}
+		if err := it.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
