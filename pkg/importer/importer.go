@@ -1712,26 +1712,51 @@ func (o *Object) SetAttrs(keyval ...string) error {
 // The provided keyval should be an even number of alternating key/value pairs
 // to set; repeated keys are processed in argument order.
 func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
+	return o.setAttrsWithDeletes(nil, keyval...)
+}
+
+// SetAttrsWithDeletes atomically removes whole attributes and sets attributes
+// in one claim. Deletions are applied first, in deleteKeys order, then sets in
+// keyval order. Repeated deletions are ignored; repeated sets retain their
+// order. A key in both lists is therefore removed before it is set again.
+//
+// Unchanged operations are skipped. Cached attributes change only after the
+// upload succeeds. The keyval list must contain alternating key/value pairs.
+func (o *Object) SetAttrsWithDeletes(deleteKeys []string, keyval ...string) error {
+	_, err := o.setAttrsWithDeletes(deleteKeys, keyval...)
+	return err
+}
+
+func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (changes bool, err error) {
 	if len(keyval)%2 == 1 {
 		panic("importer.SetAttrs: odd argument count")
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	updates := make(map[string]string)
+	updates := make(map[string][]string)
 	var claims []*schema.Builder
+	for _, key := range deleteKeys {
+		if _, pending := updates[key]; pending || len(o.attr[key]) == 0 {
+			continue
+		}
+		updates[key] = nil
+		claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, ""))
+	}
 	for i := 0; i < len(keyval); i += 2 {
 		key, val := keyval[i], keyval[i+1]
-		old, pending := updates[key]
+		values, pending := updates[key]
 		if !pending {
-			if values := o.attr[key]; len(values) > 0 {
-				old = values[0]
-			}
+			values = o.attr[key]
+		}
+		old := ""
+		if len(values) > 0 {
+			old = values[0]
 		}
 		if val == old {
 			continue
 		}
-		updates[key] = val
+		updates[key] = []string{val}
 		claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, key, val))
 	}
 	if len(claims) == 0 {
@@ -1743,8 +1768,12 @@ func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
 	if o.attr == nil {
 		o.attr = make(map[string][]string)
 	}
-	for key, val := range updates {
-		o.attr[key] = []string{val}
+	for key, values := range updates {
+		if values == nil {
+			delete(o.attr, key)
+		} else {
+			o.attr[key] = values
+		}
 	}
 	return true, nil
 }
