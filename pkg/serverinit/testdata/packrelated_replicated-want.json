@@ -69,7 +69,10 @@
 		},
 		"/importer/": {
 			"handler": "importer",
-			"handlerArgs": {}
+			"handlerArgs": {
+				"cacheRoot": "/path/to/blobs/importer-cache",
+				"cacheType": "kv"
+			}
 		},
 		"/index/": {
 			"handler": "storage-index",

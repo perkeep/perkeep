@@ -222,6 +222,38 @@ Perkeep has several built-in importers, including:
 
 These can be setup by visiting the "`/importer/`" URL prefix path, e.g. `http://localhost:3179/importer/`
 
+### Importer scratch caches
+
+Importers have optional scratch key/value caches, separate from their imported
+blobs and permanode claims. **A cache may be deleted, absent, or stale. It must
+only accelerate an import; it must not be required for importer correctness.**
+Even when persisted, it is not stored or replicated in the main blob storage.
+
+With a local `blobPath`, scratch stores default to
+`<blobPath>/importer-cache/`. Importer-wide stores use a directory such as
+`strava/`; account stores use `strava-<account-permanode-blobref>/`, for example
+`strava-sha224-.../`. Each directory contains the selected backend's files,
+such as `cache.sqlite` or a `cache.leveldb/` directory. Stores are created only
+when used. The backend follows the configured file-based index type; with a
+database-server or memory-only index it defaults to LevelDB.
+
+Without a local `blobPath`, caches are memory-only. Low-level configurations
+can set the importer handler's `cacheRoot` and `cacheType` explicitly:
+
+```json
+{
+    "handler": "importer",
+    "handlerArgs": {
+        "cacheRoot": "/srv/perkeep/blobs/importer-cache",
+        "cacheType": "sqlite"
+    }
+}
+```
+
+No existing importer uses these cache APIs yet. Stop the server before
+deleting persistent scratch stores. Restoring or reindexing the main blobs
+does not restore these caches.
+
 ## Windows {#windows}
 
 The default SQLite indexer works on Windows. Its pure-Go driver does not

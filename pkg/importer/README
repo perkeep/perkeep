@@ -8,3 +8,67 @@ authClientSecret: "sdkojfsldfjlsdkf"
 camliNodeType: "importerAccount"
 importerType: "twitter"
 twitterAccount: "bradfitz"
+
+Scratch caches
+--------------
+
+RunContext and SetupContext provide two automatically scoped sorted.KeyValue
+caches, opened on demand:
+
+- ImporterCache is shared by all accounts of one registered importer.
+- AccountCache is private to one importer account, identified by its permanode.
+
+Both methods return (sorted.KeyValue, error). Both scopes can use plain keys
+such as "ratelimit" without colliding with other importers, accounts, or the
+other scope. Reads, writes, batches, and scans stay in the selected scope.
+Close on a cache view returns nil without closing its backing store.
+
+These are disposable scratch caches, NOT authoritative importer state.
+Even when persisted, they are not stored, indexed, or replicated in the main
+blob storage. A cache may be missing, stale, deleted, or unavailable. An
+importer must remain correct without it: cache contents may accelerate work,
+but must not be the only record of progress, credentials, or imported data.
+Reindexing or restoring blobs does not restore these caches. No existing
+importer uses these APIs yet.
+
+With a configured local blobPath, the server defaults to:
+
+    <blobPath>/importer-cache/strava/cache.sqlite
+    <blobPath>/importer-cache/strava-sha224-<account-digest>/cache.sqlite
+
+The importer-wide directory is the registered importer name; the account
+directory appends its permanode blobref. Usual lowercase names stay readable;
+unusual names are percent-escaped to avoid path and namespace collisions.
+The backend follows the file-based index type (sqlite, leveldb, or kv),
+defaulting to sorted.DefaultKVFileType when the index has no file-based
+backend. LevelDB uses a cache.leveldb directory containing its own files
+rather than one SQLite file. Stores and directories are created only when a
+cache is first requested, not when the server starts.
+
+Without a local blobPath, the default is memory-only; there is no fallback
+to $HOME/.cache. The low-level importer handler can choose a local root and
+backend explicitly:
+
+    "handler": "importer",
+    "handlerArgs": {
+        "cacheRoot": "/srv/perkeep/blobs/importer-cache",
+        "cacheType": "sqlite"
+    }
+
+cacheType supports sqlite, leveldb, and kv, and defaults to
+sorted.DefaultKVFileType. An empty cacheRoot means memory-only. Separate
+hosts should use separate roots. Stop the server before deleting stores.
+
+For embedding and tests, HostConfig.CacheRoot and CacheType configure the
+same on-demand file stores. HostConfig.Cache can instead inject a backing
+sorted.KeyValue whose caller owns its lifetime; it cannot be combined with
+CacheRoot or CacheType. Without either option, each importer and account
+gets its own memory store, created on demand just like disk stores. Only an
+explicitly injected backing store shares storage via prefixed views.
+
+Host.Close cancels managed importer runs and long polls, waiting up to one
+second for them to return and owned stores to close. On timeout it returns
+an error; background cleanup leaves stores open until managed work returns,
+then closes them. Repeated Close calls return the original result, even if
+cleanup later finishes. Stop direct users of the Host, including independently
+invoked Importer.Run calls, before closing it.

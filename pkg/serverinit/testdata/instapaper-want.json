@@ -54,6 +54,8 @@
 		"/importer/": {
 			"handler": "importer",
 			"handlerArgs": {
+				"cacheRoot": "/tmp/blobs/importer-cache",
+				"cacheType": "kv",
 				"instapaper": {
 					"clientSecret": "key:secret"
 				}

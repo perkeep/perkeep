@@ -31,6 +31,7 @@ func init() {
 }
 
 func TestStaticConfig(t *testing.T) {
+
 	ld := test.NewLoader()
 	h, err := newFromConfig(ld, jsonconfig.Obj{
 		"dummy1": map[string]any{
@@ -45,6 +46,7 @@ func TestStaticConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	host := h.(*Host)
+	t.Cleanup(func() { host.Close() })
 	if g, w := host.imp["dummy1"].clientID, "id1"; g != w {
 		t.Errorf("dummy1 id = %q; want %q", g, w)
 	}

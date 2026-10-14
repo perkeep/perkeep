@@ -825,6 +825,13 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	b.addPrefix("/help/", "help", nil)
 
 	importerArgs := args{}
+	if b.high.BlobPath != "" {
+		// Scratch state stays near the local blobs, but is not blob storage.
+		// Without a local blobPath, importers get memory-only caches unless
+		// a low-level configuration supplies an explicit cacheRoot.
+		importerArgs["cacheRoot"] = filepath.Join(b.high.BlobPath, "importer-cache")
+		importerArgs["cacheType"] = b.kvFileType()
+	}
 	if b.high.Flickr != "" {
 		importerArgs["flickr"] = map[string]any{
 			"clientSecret": b.high.Flickr,

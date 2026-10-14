@@ -301,10 +301,15 @@ func TestInstallHandlers(t *testing.T) {
 
 	hi := http.NewServeMux()
 	address := "http://" + conf.Listen
-	_, err = lowConf.InstallHandlers(hi, address)
+	shutdown, err := lowConf.InstallHandlers(hi, address)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := shutdown.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	tests := []struct {
 		prefix        string
@@ -418,6 +423,62 @@ func TestInstallHandlers(t *testing.T) {
 		if reflect.TypeOf(h) != v.handlerType {
 			t.Errorf("for %v: want %v, got %v", v.prefix, v.handlerType, reflect.TypeOf(h))
 		}
+	}
+}
+
+func TestImporterScratchCacheConfig(t *testing.T) {
+	for _, backend := range []string{"sqlite", "leveldb", "kv", "mysql", "postgres", "memory", "memoryStorage"} {
+		t.Run(backend, func(t *testing.T) {
+			blobPath := filepath.Join(t.TempDir(), "blobs")
+			conf := &serverconfig.Config{
+				Auth: "none", BlobPath: blobPath,
+				Identity: "26F5ABDA", IdentitySecretRing: relativeRing,
+			}
+			wantType := backend
+			switch backend {
+			case "sqlite":
+				conf.SQLite = filepath.Join(t.TempDir(), "index.sqlite")
+			case "leveldb":
+				conf.LevelDB = filepath.Join(t.TempDir(), "index.leveldb")
+			case "kv":
+				conf.KVFile = filepath.Join(t.TempDir(), "index.kv")
+			case "mysql":
+				conf.MySQL = "user@localhost:password"
+				wantType = "leveldb"
+			case "postgres":
+				conf.PostgreSQL = "user@localhost:password"
+				wantType = "leveldb"
+			case "memory":
+				conf.MemoryIndex = true
+				wantType = "leveldb"
+			case "memoryStorage":
+				conf.MemoryIndex, conf.MemoryStorage = true, true
+				conf.BlobPath = ""
+			}
+			low, err := serverinit.GenLowLevelConfig(conf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prefixes := low.Export_Obj()["prefixes"].(map[string]any)
+			args := prefixes["/importer/"].(map[string]any)["handlerArgs"].(map[string]any)
+			if conf.BlobPath == "" {
+				if _, ok := args["cacheRoot"]; ok {
+					t.Fatal("memory storage configured a persistent importer cache")
+				}
+				if _, ok := args["cacheType"]; ok {
+					t.Fatal("memory storage configured a persistent cache backend")
+				}
+				return
+			}
+			wantRoot := filepath.Join(blobPath, "importer-cache")
+			if args["cacheRoot"] != wantRoot || args["cacheType"] != wantType {
+				t.Errorf("cache root/type = %v/%v; want %s/%s",
+					args["cacheRoot"], args["cacheType"], wantRoot, wantType)
+			}
+			if _, err := os.Stat(wantRoot); !os.IsNotExist(err) {
+				t.Errorf("unused cache directory was created: %v", err)
+			}
+		})
 	}
 }
 
