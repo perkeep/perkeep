@@ -36,34 +36,45 @@ type keyRange struct {
 	start, end string
 }
 
-// metaScanRanges returns key ranges that together cover every "meta:" row,
-// for scanning them in parallel: one for each leading byte of each hash
-// type's digests, and ones for the gaps before, between, and after those,
-// where no well-formed rows are. The ranges are ordered round-robin across
-// hash types (sha1-00, sha224-00, sha256-00, sha1-01, ...), so the first
-// few to be scanned are an even sample of all of them, followed by the gaps.
-func metaScanRanges() []keyRange {
+// prefixRange returns the range of keys starting with prefix.
+func prefixRange(prefix string) keyRange {
+	last := prefix[len(prefix)-1]
+	if last == 0xff {
+		panic("unsupported prefix ending in 0xff")
+	}
+	return keyRange{prefix, prefix[:len(prefix)-1] + string(last+1)}
+}
+
+// scanRanges returns key ranges that together cover every row starting
+// with prefix, for rows whose keys continue with a blobref (such as
+// "meta:" and "claim|"), to scan them in parallel: one for each leading
+// byte of each hash type's digests, and ones for the gaps before, between,
+// and after those, where no well-formed rows are. The ranges are ordered
+// round-robin across hash types (sha1-00, sha224-00, sha256-00, sha1-01,
+// ...), so the first few to be scanned are an even sample of all of them,
+// followed by the gaps.
+func scanRanges(prefix string) []keyRange {
 	hashes := blob.HashFuncs()
 	slices.Sort(hashes)
 	// Range boundaries, in key order. "." sorts just after "-", so
-	// "meta:sha1." ends the last sha1 range.
-	bounds := []string{"meta:"}
+	// prefix+"sha1." ends the last sha1 range.
+	bounds := []string{prefix}
 	for _, h := range hashes {
 		for b := range 256 {
-			bounds = append(bounds, fmt.Sprintf("meta:%s-%02x", h, b))
+			bounds = append(bounds, fmt.Sprintf("%s%s-%02x", prefix, h, b))
 		}
-		bounds = append(bounds, "meta:"+h+".")
+		bounds = append(bounds, prefix+h+".")
 	}
-	bounds = append(bounds, "meta;")
+	bounds = append(bounds, prefixRange(prefix).end)
 	if !slices.IsSorted(bounds) {
-		panic("meta scan range boundaries aren't sorted")
+		panic("scan range boundaries aren't sorted")
 	}
 
 	byStart := make(map[string]keyRange, len(bounds))
 	var gaps []keyRange
 	for i := 0; i+1 < len(bounds); i++ {
 		r := keyRange{bounds[i], bounds[i+1]}
-		if strings.HasSuffix(r.start, ".") || r.start == "meta:" {
+		if strings.HasSuffix(r.start, ".") || r.start == prefix {
 			gaps = append(gaps, r)
 		} else {
 			byStart[r.start] = r
@@ -72,7 +83,7 @@ func metaScanRanges() []keyRange {
 	ranges := make([]keyRange, 0, len(bounds)-1)
 	for b := range 256 {
 		for _, h := range hashes {
-			ranges = append(ranges, byStart[fmt.Sprintf("meta:%s-%02x", h, b)])
+			ranges = append(ranges, byStart[fmt.Sprintf("%s%s-%02x", prefix, h, b)])
 		}
 	}
 	return append(ranges, gaps...)
@@ -106,7 +117,7 @@ const metaSizingShards = 32
 // must be empty. It's the first and largest part of loading the corpus.
 //
 // Several goroutines scan and parse the rows, taking ranges of keys
-// from metaScanRanges in turn, while this one adds them to the maps.
+// from scanRanges in turn, while this one adds them to the maps.
 // It waits for a sample of ranges first, to estimate how big to make
 // the maps, so they don't have to grow repeatedly.
 func (c *Corpus) scanMeta(s sorted.KeyValue) error {
@@ -114,7 +125,7 @@ func (c *Corpus) scanMeta(s sorted.KeyValue) error {
 		panic("scanMeta called with blobs already loaded")
 	}
 	t0 := time.Now()
-	ranges := metaScanRanges()
+	ranges := scanRanges("meta:")
 	workers := min(runtime.GOMAXPROCS(0), len(ranges))
 
 	grp, ctx := errgroup.WithContext(context.Background())
