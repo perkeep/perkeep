@@ -39,7 +39,6 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/strutil"
-	"go4.org/syncutil"
 	"tailscale.com/util/set"
 )
 
@@ -445,29 +444,12 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		return err
 	}
 
-	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs[schema.TypeFile]))
-	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs[schema.TypePermanode]))
 	cpu0 := osutil.CPUUsage()
-
-	var grp syncutil.Group
-	for i, prefix := range slurpPrefixes[2:] {
-		if logCorpusStats {
-			c.logf("loading into memory... (%d/%d: prefix %q)", i+2, len(slurpPrefixes),
-				prefix[:len(prefix)-1])
-		}
-		prefix := prefix
-		grp.Go(func() error { return c.scanPrefix(scanmu, s, prefix) })
+	if logCorpusStats {
+		c.logf("loading into memory... (3-%d/%d: other prefixes)", len(slurpPrefixes), len(slurpPrefixes))
 	}
-	if err := grp.Err(); err != nil {
+	if err := c.scanRest(s); err != nil {
 		return err
-	}
-
-	// Post-load optimizations and restoration of invariants.
-	for _, pm := range c.permanodes {
-		// Restore invariants violated during building:
-		if err := pm.restoreInvariants(c.keyId); err != nil {
-			return err
-		}
 	}
 	c.brOfStr = nil // drop this now.
 	c.building = false
