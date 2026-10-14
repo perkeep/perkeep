@@ -175,8 +175,11 @@ func All() map[string]Importer {
 }
 
 // Register registers a site-specific importer. It should only be called from init,
-// and not from concurrent goroutines.
+// and not from concurrent goroutines. Names must not contain ':'.
 func Register(name string, im Importer) {
+	if strings.Contains(name, ":") {
+		panic(fmt.Sprintf("importer: name %q must not contain ':'", name))
+	}
 	if _, dup := importers[name]; dup {
 		panic("Dup registration of importer " + name)
 	}
