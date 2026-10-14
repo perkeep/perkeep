@@ -58,7 +58,11 @@ type Index struct {
 	*blobserver.NoImplStorage
 	reindex   bool // whether "reindex" was set in config (likely via perkeepd flag)
 	keepGoing bool // whether "keepGoing" was set in config (likely via perkeepd flag)
-	s         sorted.KeyValue
+
+	// stopIntegrityCheck, if non-nil, stops the integrity check started
+	// by startIntegrityCheck and waits for it to finish.
+	stopIntegrityCheck func()
+	s                  sorted.KeyValue
 
 	KeyFetcher blob.Fetcher // for verifying claims
 
@@ -415,9 +419,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	ix.InitBlobSource(sto)
 
 	if !reindex {
-		if err := ix.integrityCheck(3 * time.Second); err != nil {
-			return nil, err
-		}
+		ix.startIntegrityCheck(3 * time.Second)
 	}
 
 	installed = true
@@ -669,11 +671,34 @@ func (x *Index) needSampleLocked() string {
 	return sb.String()
 }
 
+// startIntegrityCheck runs integrityCheck in the background, so it
+// doesn't hold up the rest of startup. Close stops it. If the check fails
+// (as opposed to finding blobs that aren't indexed, which it logs), the
+// process exits, as startup would have failed if it had run first.
+// TODO: report the result to a health (and scrub) subsystem instead.
+func (x *Index) startIntegrityCheck(timeout time.Duration) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	x.stopIntegrityCheck = func() {
+		cancel()
+		<-done
+	}
+	go func() {
+		defer close(done)
+		if err := x.integrityCheck(ctx, timeout); err != nil && ctx.Err() == nil {
+			log.Fatalf("index: integrity check failed: %v", err)
+		}
+	}()
+}
+
 // integrityCheck enumerates blobs through x.blobSource during timeout, and
 // verifies for each of them that it has a meta row in the index. It logs a message
 // if any of them is not found. It only returns an error if something went wrong
 // during the enumeration.
-func (x *Index) integrityCheck(timeout time.Duration) error {
+//
+// It reads the meta rows from the index's storage, not its corpus, which
+// may be loading at the same time.
+func (x *Index) integrityCheck(ctx context.Context, timeout time.Duration) error {
 	t0 := time.Now()
 	x.logf("starting integrity check...")
 	defer func() {
@@ -687,18 +712,17 @@ func (x *Index) integrityCheck(timeout time.Duration) error {
 	// point, so we can display the blobs that were tested/seen/missed on the web UI.
 	seen := make([]blob.Ref, 0)
 	notFound := make([]blob.Ref, 0)
-	enumCtx := context.TODO()
 	stopTime := time.NewTimer(timeout)
 	defer stopTime.Stop()
 	var errEOT = errors.New("time's out")
-	if err := blobserver.EnumerateAll(enumCtx, x.blobSource, func(sb blob.SizedRef) error {
+	if err := blobserver.EnumerateAll(ctx, x.blobSource, func(sb blob.SizedRef) error {
 		select {
 		case <-stopTime.C:
 			return errEOT
 		default:
 		}
-		if _, err := x.GetBlobMeta(enumCtx, sb.Ref); err != nil {
-			if !os.IsNotExist(err) {
+		if _, err := x.s.Get("meta:" + sb.Ref.String()); err != nil {
+			if !errors.Is(err, sorted.ErrNotFound) {
 				return err
 			}
 			notFound = append(notFound, sb.Ref)
@@ -1937,6 +1961,9 @@ func (x *Index) Storage() sorted.KeyValue { return x.s }
 // The return value is the return value of the underlying Close, or
 // nil otherwise.
 func (x *Index) Close() error {
+	if stop := x.stopIntegrityCheck; stop != nil {
+		stop()
+	}
 	if cl, ok := x.s.(io.Closer); ok {
 		return cl.Close()
 	}
