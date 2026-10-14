@@ -32,6 +32,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Use WASM image decoders on 32-bit architectures
+        if: contains(fromJSON('["386", "arm", "mips", "mipsle"]'), matrix.GOARCH)
+        run: echo "GOFLAGS=${GOFLAGS:+$GOFLAGS }-tags=nodynamic" >> "$GITHUB_ENV"
+
       - name: build (unix)
         if: matrix.GOOS != 'windows'
         env:

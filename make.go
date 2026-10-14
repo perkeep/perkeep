@@ -121,8 +121,8 @@ func main() {
 	}
 
 	baseArgs := []string{"install", "-v"}
-	if *static {
-		baseArgs = append(baseArgs, "--tags=netgo,osusergo")
+	if tags := buildTags(*buildARCH, *static); tags != "" {
+		baseArgs = append(baseArgs, "--tags="+tags)
 	}
 	if *race {
 		baseArgs = append(baseArgs, "-race")
@@ -186,6 +186,19 @@ func main() {
 	if !*quiet {
 		log.Printf("Success. Binaries are in %s", actualBinDir())
 	}
+}
+
+func buildTags(arch string, static bool) string {
+	var tags []string
+	if static {
+		tags = append(tags, "netgo", "osusergo")
+	}
+	// Official 32-bit builds use the WASM image decoders, not purego.
+	switch arch {
+	case "386", "arm", "mips", "mipsle":
+		tags = append(tags, "nodynamic")
+	}
+	return strings.Join(tags, ",")
 }
 
 func actualBinDir() string {
