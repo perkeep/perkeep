@@ -1301,9 +1301,13 @@ func TestCheckLargeIntegrity(t *testing.T) {
 	}
 	wholeRef := blob.RefFromString("whole")
 	tests := []struct {
-		name     string
-		inLarge  []string          // contents of zips in large storage
-		rows     map[string]string // z: rows to add, by zip contents; "" means a valid row
+		name    string
+		inLarge []string          // contents of zips in large storage
+		rows    map[string]string // z: rows to add, by zip contents; "" means a valid row
+		// packed, if non-empty, is the contents of a zip that's packed
+		// while the check pauses before looking again at mismatches:
+		// written to large, and given a valid z: row.
+		packed   string
 		wantMode RecoveryMode
 		wantErr  string
 	}{
@@ -1332,6 +1336,23 @@ func TestCheckLargeIntegrity(t *testing.T) {
 			wantErr:  "2 large blobs in index but not actually in storage",
 		},
 		{
+			// The zip was in large, but its z: row wasn't yet
+			// written when meta was read.
+			name:     "zip_packed_during_check",
+			inLarge:  []string{"a", "b"},
+			rows:     map[string]string{"a": ""},
+			packed:   "b",
+			wantMode: NoRecovery,
+		},
+		{
+			// The z: row was written after large was listed.
+			name:     "row_packed_during_check",
+			inLarge:  []string{"a"},
+			rows:     map[string]string{"a": "", "b": ""},
+			packed:   "b",
+			wantMode: NoRecovery,
+		},
+		{
 			name:     "bad_row",
 			inLarge:  []string{"a"},
 			rows:     map[string]string{"a": "garbage"},
@@ -1347,13 +1368,25 @@ func TestCheckLargeIntegrity(t *testing.T) {
 					(&test.Blob{Contents: s}).MustUpload(t, large)
 				}
 				meta := sorted.NewMemoryKeyValue()
-				for s, row := range tt.rows {
+				setRow := func(s, row string) {
+					t.Helper()
 					zip := &test.Blob{Contents: s}
 					if row == "" {
 						row = fmt.Sprintf("%d %v 100 0 %d", zip.Size(), wholeRef, zip.Size())
 					}
 					if err := meta.Set(zipMetaPrefix+zip.BlobRef().String(), row); err != nil {
 						t.Fatal(err)
+					}
+				}
+				for s, row := range tt.rows {
+					setRow(s, row)
+				}
+				oldWait := largeIntegrityRecheckWait
+				t.Cleanup(func() { largeIntegrityRecheckWait = oldWait })
+				largeIntegrityRecheckWait = func() {
+					if tt.packed != "" {
+						(&test.Blob{Contents: tt.packed}).MustUpload(t, large)
+						setRow(tt.packed, "")
 					}
 				}
 				s := &storage{large: large, meta: meta}
