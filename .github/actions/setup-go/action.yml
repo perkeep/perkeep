@@ -7,6 +7,14 @@ description: >
   same Go version is restored instead, so most of the build cache survives
   dependency changes.
 
+inputs:
+  cache-key-suffix:
+    description: >
+      Appended to the workflow name in the cache key, to give each job of a
+      matrix its own cache. It must match the save-go-cache input.
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -35,7 +43,7 @@ runs:
       run: |
         echo "modcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         echo "buildcache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-        echo "prefix=go-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION | sed 's/^go//')" >> "$GITHUB_OUTPUT"
+        echo "prefix=go-${{ github.workflow }}${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION | sed 's/^go//')" >> "$GITHUB_OUTPUT"
 
     - uses: actions/cache/restore@v4
       with:

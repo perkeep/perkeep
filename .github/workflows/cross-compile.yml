@@ -1,0 +1,40 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+    # all PRs on all branches
+name: "cross-compile"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Cross-compile all packages and their tests, without cgo, for platforms
+# we don't run tests on, to catch dependencies that don't build there.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [freebsd, openbsd]
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/setup-go
+      with:
+        cache-key-suffix: -${{ matrix.goos }}
+
+    - name: Build packages and tests
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: amd64
+        CGO_ENABLED: "0"
+      run: |
+        go build ./...
+        go test -exec=true ./...
+
+    - uses: ./.github/actions/save-go-cache
+      with:
+        cache-key-suffix: -${{ matrix.goos }}
