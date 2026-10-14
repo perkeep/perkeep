@@ -289,7 +289,7 @@ cam.BlobItemFitnessContent.getThumbnailURL = function(blobref, track, type, size
 	// Trackless activities still get a server-rendered neutral preview and sport
 	// badge. These query values partition the cache; the server reads real attrs.
 	var mapProfile = config && config.fitnessMapEnabled === true ? '&mapProfile=' + encodeURIComponent(typeof config.fitnessMapProfile == 'string' ? config.fitnessMapProfile : '') : '';
-	return root + 'thumbnail/' + encodeURIComponent(blobref) + '/track.png?mw=' + mw + '&mh=' + mh + '&fitnessTrack=' + encodeURIComponent(track || '') + '&fitnessActivityType=' + encodeURIComponent(type || 'other') + '&ftv=3' + mapProfile;
+	return root + 'thumbnail/' + encodeURIComponent(blobref) + '/track.png?mw=' + mw + '&mh=' + mh + '&fitnessTrack=' + encodeURIComponent(track || '') + '&fitnessActivityType=' + encodeURIComponent(type || 'other') + '&ftv=4' + mapProfile;
 };
 
 cam.BlobItemFitnessContent.getHandler = function(blobref, searchSession, href) {
