@@ -373,6 +373,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	}
 
 	hl.handler[prefix] = hh
+	if cl, ok := hh.(io.Closer); ok {
+		// Stop HTTP handlers' background work before closing any storage it
+		// might still use, regardless of handler construction order.
+		hl.closers = append([]io.Closer{cl}, hl.closers...)
+	}
 	var wrappedHandler http.Handler
 	if h.internal {
 		wrappedHandler = unauthorizedHandler{}
@@ -657,11 +662,17 @@ func (c *Config) SetKeepGoing(v bool) {
 // handlers.
 func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown io.Closer, err error) {
 	config := c
+	var hl *handlerLoader
 	defer func() {
 		if e := recover(); e != nil {
 			log.Printf("Caught panic installer handlers: %v", e)
 			debug.PrintStack()
 			err = fmt.Errorf("Caught panic: %v", e)
+		}
+		if err != nil && hl != nil {
+			if closeErr := multiCloser(hl.closers).Close(); closeErr != nil {
+				log.Printf("Closing handlers after startup failure: %v", closeErr)
+			}
 		}
 	}()
 
@@ -683,7 +694,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		defer rpprof.WriteHeapProfile(memf)
 	}
 
-	hl := &handlerLoader{
+	hl = &handlerLoader{
 		installer: hi,
 		baseURL:   baseURL,
 		config:    make(map[string]*handlerConfig),

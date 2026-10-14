@@ -73,8 +73,8 @@ type rateLimitState struct {
 }
 
 type rateLimiter struct {
-	// Serialize snapshot plus persistent claim upload without holding mu over
-	// storage I/O. Otherwise an older snapshot could finish uploading after a
+	// Serialize snapshot plus persistent cache write without holding mu over
+	// storage I/O. Otherwise an older snapshot could finish writing after a
 	// newer one and weaken the application's restart budget.
 	persistMu sync.Mutex
 	// A semaphore rather than a mutex lets requests cancel while waiting for
@@ -360,7 +360,7 @@ func (l *rateLimiter) restore(raw string) error {
 	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	invalid := errors.New("strava: invalid persisted rate limit state; repair the account rate limit state before importing")
+	invalid := errors.New("strava: invalid persisted rate limit state; clear the rate limit cache entry before importing")
 	if len(raw) > 4096 {
 		return invalid
 	}

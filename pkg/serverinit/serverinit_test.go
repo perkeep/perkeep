@@ -277,6 +277,7 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 }
 
 func TestInstallHandlers(t *testing.T) {
+	t.Setenv("PERKEEP_CACHE_DIR", t.TempDir())
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
 		t.Fatalf("source root folder not found: %v", err)
@@ -301,10 +302,15 @@ func TestInstallHandlers(t *testing.T) {
 
 	hi := http.NewServeMux()
 	address := "http://" + conf.Listen
-	_, err = lowConf.InstallHandlers(hi, address)
+	shutdown, err := lowConf.InstallHandlers(hi, address)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := shutdown.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	tests := []struct {
 		prefix        string

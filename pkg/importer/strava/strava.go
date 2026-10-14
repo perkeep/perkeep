@@ -39,6 +39,7 @@ import (
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/sorted"
 )
 
 const (
@@ -52,7 +53,6 @@ const (
 	attrSummaryHash      = "stravaSummaryHash"
 	attrActivityJSON     = "stravaActivityJSON"
 	attrStreamsJSON      = "stravaStreamsJSON"
-	attrRateLimitState   = "stravaRateLimitState"
 	maxActivitiesEnv     = "PERKEEP_STRAVA_MAX_ACTIVITIES"
 	runCompleteVersion   = "2"
 )
@@ -266,18 +266,25 @@ func activityLimit() (int, error) {
 	return limit, nil
 }
 
-// Persist the application identity with its budget on the shared importer
-// configuration, not an account: a restart must restore the latest budget
-// regardless of which account starts first.
+// Cache the application identity with its budget locally, not in permanent
+// claim history. All accounts using the application share one mutable entry.
 type persistedRateLimit struct {
 	ClientID string          `json:"clientID"`
 	State    json.RawMessage `json:"state"`
 }
 
-func restoreRateLimit(acct *importer.Object, id string, limiter *rateLimiter) error {
-	raw := acct.Attr(attrRateLimitState)
-	if raw == "" {
+// Hash the Client ID to keep keys bounded and independent of user input.
+func rateLimitCacheKey(id string) string {
+	return fmt.Sprintf("strava:rateLimit:%x", sha256.Sum256([]byte(id)))
+}
+
+func restoreRateLimit(cache sorted.KeyValue, id string, limiter *rateLimiter) error {
+	raw, err := cache.Get(rateLimitCacheKey(id))
+	if errors.Is(err, sorted.ErrNotFound) {
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("strava: reading rate-limit cache: %w", err)
 	}
 	var stored persistedRateLimit
 	if json.Unmarshal([]byte(raw), &stored) != nil || stored.ClientID == "" || len(stored.State) == 0 {
@@ -289,16 +296,16 @@ func restoreRateLimit(acct *importer.Object, id string, limiter *rateLimiter) er
 	return limiter.restore(string(stored.State))
 }
 
-func persistRateLimit(acct *importer.Object, id string, limiter *rateLimiter) error {
+func persistRateLimit(cache sorted.KeyValue, id string, limiter *rateLimiter) error {
 	// A newer snapshot must not be persisted before an older snapshot's
-	// delayed claim upload. Serialize the snapshot and its write per app.
+	// delayed cache write. Serialize the snapshot and its write per app.
 	limiter.persistMu.Lock()
 	defer limiter.persistMu.Unlock()
 	raw, err := json.Marshal(persistedRateLimit{ClientID: id, State: json.RawMessage(limiter.snapshot())})
 	if err != nil {
 		return errors.New("strava: could not encode rate-limit state")
 	}
-	return acct.SetAttr(attrRateLimitState, string(raw))
+	return cache.Set(rateLimitCacheKey(id), string(raw))
 }
 
 // client checks expiry before each API call, including during long backfills.
@@ -354,17 +361,14 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 		return err
 	}
 	limiter := rateLimiterForApp(id)
-	rateNode, err := rc.ImporterNode()
-	if err != nil {
-		return err
-	}
-	if err := restoreRateLimit(rateNode, id, limiter); err != nil {
+	cache := rc.Host.Cache()
+	if err := restoreRateLimit(cache, id, limiter); err != nil {
 		return err
 	}
 	// Retain consumed budgets even on rate-limit, HTTP, or import failures.
 	// Subsequent runs and clean server restarts must not reset the counters.
 	defer func() {
-		if persistErr := persistRateLimit(rateNode, id, limiter); persistErr != nil {
+		if persistErr := persistRateLimit(cache, id, limiter); persistErr != nil {
 			err = errors.Join(err, fmt.Errorf("strava: saving rate-limit state: %w", persistErr))
 		}
 	}()

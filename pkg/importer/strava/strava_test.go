@@ -45,6 +45,7 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/sorted"
 )
 
 // coreStorage is a synchronous, minimal claim index for importer tests. The
@@ -168,6 +169,27 @@ type coreTransport func(*http.Request) (*http.Response, error)
 
 func (f coreTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
+// coreRateCache can fail cache operations independently of blob uploads.
+type coreRateCache struct {
+	sorted.KeyValue
+	getErr error
+	setErr error
+}
+
+func (c *coreRateCache) Get(key string) (string, error) {
+	if c.getErr != nil {
+		return "", c.getErr
+	}
+	return c.KeyValue.Get(key)
+}
+
+func (c *coreRateCache) Set(key, value string) error {
+	if c.setErr != nil {
+		return c.setErr
+	}
+	return c.KeyValue.Set(key, value)
+}
+
 type coreFixture struct {
 	rc         *importer.RunContext
 	storage    *coreStorage
@@ -178,7 +200,7 @@ type coreFixture struct {
 
 var coreFixtureClientCounter uint64
 
-func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
+func newCoreFixture(t *testing.T, transport http.RoundTripper, caches ...sorted.KeyValue) *coreFixture {
 	t.Helper()
 	// App-wide rate limits must not leak between fixtures or repeated test runs.
 	clientID := fmt.Sprintf("test-client-id:%s:%d", t.Name(), atomic.AddUint64(&coreFixtureClientCounter, 1))
@@ -207,6 +229,10 @@ func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
 			return nil, errors.New("unexpected HTTP request")
 		})
 	}
+	cache := sorted.KeyValue(&coreRateCache{KeyValue: sorted.NewMemoryKeyValue()})
+	if len(caches) > 0 {
+		cache = caches[0]
+	}
 	hostConfig := importer.HostConfig{
 		BaseURL:      "https://perkeep.example",
 		Prefix:       "/importer/",
@@ -217,6 +243,7 @@ func newCoreFixture(t *testing.T, transport http.RoundTripper) *coreFixture {
 		ClientId:     map[string]string{"strava": clientID},
 		ClientSecret: map[string]string{"strava": "test-client-secret"},
 		HTTPClient:   &http.Client{Transport: transport},
+		Cache:        cache,
 	}
 	host, err := importer.NewHost(hostConfig)
 	if err != nil {
@@ -254,6 +281,15 @@ func (f *coreFixture) rateNode(t *testing.T) *importer.Object {
 		t.Fatal(err)
 	}
 	return node
+}
+
+func (f *coreFixture) rateState(t *testing.T) string {
+	t.Helper()
+	raw, err := f.rc.Host.Cache().Get(rateLimitCacheKey(f.clientID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
 
 func (f *coreFixture) permanodes(t *testing.T, want int) {
@@ -543,7 +579,7 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	coreAttrs(t, f.rc.RootNode(), map[string]string{nodeattr.Title: "Strava workouts", nodeattr.DefaultVisibility: "hide"})
 	parent := coreChild(t, f.rc.RootNode(), "activities")
 	coreAttrs(t, parent, map[string]string{nodeattr.Title: "Activities", nodeattr.DefaultVisibility: ""})
-	f.permanodes(t, 4+2) // account, config, root, collection, and two activities
+	f.permanodes(t, 3+2) // account, root, collection, and two activities
 	firstObj, secondObj := f.activity(t, first.ID), f.activity(t, second.ID)
 	firstRef, secondRef := firstObj.PermanodeRef(), secondObj.PermanodeRef()
 	fileRefs := map[string]string{}
@@ -610,15 +646,14 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if !reflect.DeepEqual(api.calls, wantCalls) {
 		t.Errorf("unchanged run re-fetched details/streams: %v; want %v", api.calls, wantCalls)
 	}
-	// Only the shared configuration's quota bookkeeping claim changes;
-	// activity permanodes and file-schema references remain unchanged.
-	if got := f.storage.NumBlobs(); got != before+1 {
-		t.Errorf("unchanged run wrote %d blobs; want one quota bookkeeping claim", got-before)
+	// Polling unchanged activities updates only the mutable local cache.
+	if got := f.storage.NumBlobs(); got != before {
+		t.Errorf("unchanged run wrote %d blobs; want none", got-before)
 	}
 	if f.activity(t, first.ID).PermanodeRef() != firstRef || f.activity(t, second.ID).PermanodeRef() != secondRef {
 		t.Error("unchanged run replaced activity permanodes")
 	}
-	f.permanodes(t, 4+2)
+	f.permanodes(t, 3+2)
 	for attr, ref := range fileRefs {
 		if got := f.activity(t, first.ID).Attr(attr); got != ref {
 			t.Errorf("unchanged run replaced %s file ref: %q; want %q", attr, got, ref)
@@ -645,7 +680,7 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	if firstObj.PermanodeRef() != firstRef || secondObj.PermanodeRef() != secondRef {
 		t.Error("activity permanode changed across runs")
 	}
-	f.permanodes(t, 4+2)
+	f.permanodes(t, 3+2)
 	coreAttrs(t, firstObj, map[string]string{
 		nodeattr.Title: first.Name, nodeattr.FitnessDistance: decimal(first.Distance), attrSummaryHash: summaryHash(&first),
 	})
@@ -722,7 +757,7 @@ func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
 			if err := f.rc.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, "1"); err != nil {
 				t.Fatal(err)
 			}
-			wantPermanodes := 4 + 1 + len(oldAttachments)
+			wantPermanodes := 3 + 1 + len(oldAttachments)
 			f.permanodes(t, wantPermanodes)
 			if tc.noStreams {
 				delete(api.streams, a.ID)

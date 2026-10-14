@@ -155,10 +155,19 @@ It learns limits and observed usage from `X-RateLimit-Limit`,
 `X-RateLimit-Usage`, `X-ReadRateLimit-Limit`, and `X-ReadRateLimit-Usage`.
 Usage reported by other clients of the same application is included.
 Accounts and runs sharing a Client ID share one in-process budget. A
-snapshot keyed to that Client ID is persisted as `stravaRateLimitState`
-on the shared importer configuration permanode after each run, including
-failed runs. Restarting with a different account therefore restores the
-latest application-wide budget, not that account's older usage.
+snapshot keyed to that Client ID is overwritten in the importer host's
+local `sorted.KeyValue` cache after each run, including failed runs and
+polls that find no changed activities. No quota bookkeeping blobs or
+permanode mutation claims are written. Restarting with a different account
+restores the latest application-wide budget, not that account's older usage.
+The server uses a file-backed store in Perkeep's cache directory by default;
+its low-level importer handler configuration can override the `cache` sorted
+store. Embedded hosts use memory unless `HostConfig.Cache` is supplied.
+
+This is disposable local state, not synced or backed up with your blobs.
+Deleting the cache or upgrading from the old `stravaRateLimitState` permanode
+attribute starts with fresh conservative budgets; old quota claims are left
+untouched and ignored. The next response rediscovers Strava's observed usage.
 
 Access tokens are also bound to the Client ID that issued them. Changing
 application credentials requires a validated OAuth refresh or reconnect

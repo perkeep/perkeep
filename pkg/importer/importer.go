@@ -19,6 +19,7 @@ package importer // import "perkeep.org/pkg/importer"
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"html/template"
@@ -26,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,12 +35,15 @@ import (
 	"time"
 
 	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/sorted"
+	_ "perkeep.org/pkg/sorted/defaultkv"
 	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/webserver"
 
@@ -218,6 +223,11 @@ type HostConfig struct {
 	// HTTPClient optionally specifies how to fetch external network
 	// resources. The Host will use http.DefaultClient otherwise.
 	HTTPClient *http.Client
+
+	// Cache optionally supplies local mutable importer state, separate from
+	// imported blobs and permanode claims. The caller owns its lifetime.
+	// If nil, NewHost creates an in-memory cache owned by the Host.
+	Cache sorted.KeyValue
 	// TODO: add more if/when needed
 }
 
@@ -265,6 +275,12 @@ func NewHost(hc HostConfig) (*Host, error) {
 	h.signer = hc.Signer
 	h.search = hc.Search
 	h.client = hc.HTTPClient
+	h.cache = hc.Cache
+	if h.cache == nil {
+		h.cache = sorted.NewMemoryKeyValue()
+		h.ownsCache = true
+	}
+	h.ctx, h.cancel = context.WithCancel(context.Background())
 
 	return h, nil
 }
@@ -295,17 +311,54 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 			ClientSecret[k] = clientSecret
 		}
 	}
+	cacheConfig := cfg.OptionalObject("cache")
+	if _, ok := cfg["cache"]; !ok {
+		cacheConfig = nil
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	hc.ClientId = ClientId
 	hc.ClientSecret = ClientSecret
-	host, err := NewHost(hc)
+	cache, err := newCache(hc.BaseURL, hc.Prefix, cacheConfig)
 	if err != nil {
 		return nil, err
 	}
+	hc.Cache = cache
+	host, err := NewHost(hc)
+	if err != nil {
+		cache.Close()
+		return nil, err
+	}
+	host.ownsCache = true
 	host.didInit.Add(1)
 	return host, nil
+}
+
+// newCache opens the configured local store, or a file-backed cache isolated
+// from other importer hosts using the same cache directory.
+func newCache(baseURL, prefix string, cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	if cfg == nil {
+		dir := filepath.Join(osutil.CacheDir(), "importer")
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, fmt.Errorf("importer cache directory: %w", err)
+		}
+		namespace := sha256.Sum256([]byte(baseURL + "\x00" + prefix))
+		cfg = jsonconfig.Obj{
+			"type": sorted.DefaultKVFileType,
+			"file": filepath.Join(dir, fmt.Sprintf("%x.%s", namespace, sorted.DefaultKVFileType)),
+		}
+	}
+	cache, err := sorted.NewKeyValue(cfg)
+	if err != nil {
+		// Constructors can return an open store along with a NeedWipeError
+		// or a configuration validation error. Don't leave it locked.
+		if cache != nil {
+			cache.Close()
+		}
+		return nil, fmt.Errorf("importer cache: %w", err)
+	}
+	return cache, nil
 }
 
 var _ blobserver.HandlerIniter = (*Host)(nil)
@@ -377,7 +430,7 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
 	return rc, nil
 
 }
@@ -390,7 +443,8 @@ func (rc *RunContext) Credentials() (clientID, clientSecret string, err error) {
 }
 
 // ImporterNode returns the configuration permanode shared by all accounts of
-// this importer. It can store application-wide state, such as API budgets.
+// this importer. Use Host.Cache for local mutable state such as API budgets,
+// rather than creating a permanent claim for each update.
 // Do not change its camliNodeType, importerType, or credential attributes.
 func (rc *RunContext) ImporterNode() (*Object, error) { return rc.ia.im.Node() }
 
@@ -427,6 +481,18 @@ type Host struct {
 	signer       *schema.Signer
 	uiPrefix     string // or empty if no UI handler
 
+	cache     sorted.KeyValue
+	ownsCache bool
+
+	// Managed runs and long polls inherit ctx. workMu serializes adding work
+	// with cancellation, so Close can safely wait before closing the cache.
+	ctx       context.Context
+	cancel    context.CancelFunc
+	workMu    sync.Mutex
+	work      sync.WaitGroup
+	closeOnce sync.Once
+	closeErr  error
+
 	// didInit is incremented by newFromConfig and marked done
 	// after InitHandler. Any method on Host that requires Init
 	// then calls didInit.Wait to guard against initialization
@@ -439,6 +505,59 @@ type Host struct {
 	// resources. Defaults to http.DefaultClient.
 	client    *http.Client
 	transport http.RoundTripper
+}
+
+// Cache returns the Host's non-nil local mutable importer cache.
+// Importers must namespace their keys and tolerate missing or stale values.
+// The cache is not replicated with imported blobs. Callers must not close it.
+func (h *Host) Cache() sorted.KeyValue { return h.cache }
+
+// Close cancels managed importer runs and long polls and waits up to one second
+// for them to return and the owned cache to close. If shutdown times out, Close
+// returns an error; cleanup continues in the background, leaving the cache open
+// until managed work has returned. Importers should honor cancellation.
+// Callers must stop any direct uses of the Host (including runs made outside
+// RunImporterAccount) before calling Close. Repeated calls return the same result.
+func (h *Host) Close() error {
+	return h.closeWithTimeout(time.Second)
+}
+
+func (h *Host) closeWithTimeout(timeout time.Duration) error {
+	h.closeOnce.Do(func() {
+		// Gate new work synchronously before starting the waiter. Every
+		// successful beginWork has added to work before we release workMu.
+		h.workMu.Lock()
+		h.cancel()
+		h.workMu.Unlock()
+
+		done := make(chan error, 1)
+		go func() {
+			h.work.Wait()
+			var err error
+			if h.ownsCache {
+				err = h.cache.Close()
+			}
+			done <- err
+		}()
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		select {
+		case h.closeErr = <-done:
+		case <-timer.C:
+			h.closeErr = fmt.Errorf("importer host shutdown timed out after %v; cleanup continues in background", timeout)
+		}
+	})
+	return h.closeErr
+}
+
+func (h *Host) beginWork() bool {
+	h.workMu.Lock()
+	defer h.workMu.Unlock()
+	if h.ctx.Err() != nil {
+		return false
+	}
+	h.work.Add(1)
+	return true
 }
 
 // accountStatus is the JSON representation of the status of a configured importer account.
@@ -692,7 +811,11 @@ func (h *Host) serveImporterAccount(w http.ResponseWriter, r *http.Request, imp 
 }
 
 func (h *Host) startPeriodicImporters() {
-	res, err := h.search.Query(context.TODO(), &search.SearchQuery{
+	if !h.beginWork() {
+		return
+	}
+	defer h.work.Done()
+	res, err := h.search.Query(h.ctx, &search.SearchQuery{
 		Sort:       search.Unsorted,
 		Expression: "attr:camliNodeType:importerAccount",
 		Describe: &search.DescribeRequest{
@@ -734,6 +857,11 @@ func (h *Host) startPeriodicImporters() {
 var disableImporters, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_IMPORTERS"))
 
 func (ia *importerAcct) maybeStart() {
+	h := ia.im.host
+	if !h.beginWork() {
+		return
+	}
+	defer h.work.Done()
 	if disableImporters {
 		log.Printf("Importers disabled, per environment.")
 		return
@@ -755,8 +883,11 @@ func (ia *importerAcct) maybeStart() {
 	if ia.lastRunDone.After(time.Now().Add(-duration)) {
 		// Kick off long poller wait if supported.
 		if lp, ok := ia.im.impl.(LongPoller); ok {
+			if !h.beginWork() {
+				return
+			}
 			sleepFor := time.Until(ia.lastRunDone.Add(duration))
-			sleepCtx, cancel := context.WithTimeout(context.Background(), sleepFor)
+			sleepCtx, cancel := context.WithTimeout(h.ctx, sleepFor)
 			log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
 			timer := time.AfterFunc(sleepFor, ia.maybeStart)
 
@@ -766,7 +897,13 @@ func (ia *importerAcct) maybeStart() {
 				ia:   ia,
 			}
 			go func() {
+				defer h.work.Done()
 				defer cancel()
+				defer func() {
+					if h.ctx.Err() != nil {
+						timer.Stop()
+					}
+				}()
 
 				if err := lp.LongPoll(rc); err == nil {
 					log.Printf("importer: long poll for %s found an update. Starting run...", ia)
@@ -1308,20 +1445,27 @@ func (ia *importerAcct) setup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) start() {
+	h := ia.im.host
+	if !h.beginWork() {
+		return
+	}
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	if ia.current != nil {
+		h.work.Done()
 		return
 	}
 	rc := &RunContext{
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
 	go func() {
+		defer h.work.Done()
+		defer rc.cancel()
 		log.Printf("Starting %v: %s", ia, ia.AccountLinkSummary())
 		err := ia.im.impl.Run(rc)
 		if err != nil {
@@ -1341,6 +1485,11 @@ func (ia *importerAcct) start() {
 
 // TODO(mpl): review this code more carefully. mostly copied from start().
 func (ia *importerAcct) run() error {
+	h := ia.im.host
+	if !h.beginWork() {
+		return errors.New("importer host is closed")
+	}
+	defer h.work.Done()
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	if ia.current != nil {
@@ -1350,7 +1499,8 @@ func (ia *importerAcct) run() error {
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
+	defer rc.cancel()
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()

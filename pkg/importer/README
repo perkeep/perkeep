@@ -8,3 +8,41 @@ authClientSecret: "sdkojfsldfjlsdkf"
 camliNodeType: "importerAccount"
 importerType: "twitter"
 twitterAccount: "bradfitz"
+
+Local mutable cache
+-------------------
+
+Host.Cache provides sorted.KeyValue storage for local operational state, such
+as API rate quotas. Cache updates do not create permanode claims and are not
+replicated with imported blobs. Importers must namespace their keys and handle
+missing or stale entries. Deleting the cache resets persisted state, not state
+already loaded by a running importer; stop the server before removing it.
+
+The server opens a file-backed sorted.DefaultKVFileType cache automatically
+under osutil.CacheDir()/importer/. Each store is named with a SHA-256 hash of
+the server base URL and importer handler prefix, keeping hosts isolated.
+CacheDir respects PERKEEP_CACHE_DIR (or the legacy CAMLI_CACHE_DIR).
+
+The low-level importer handlerArgs can optionally override the sorted backend:
+
+    "handler": "importer",
+    "handlerArgs": {
+        "cache": {
+            "type": "leveldb",
+            "file": "/var/cache/perkeep/importer-cache.leveldb"
+        }
+    }
+
+An explicit cache configuration must include its backend's required fields.
+Separate hosts should use separate stores unless sharing is intentional.
+
+For embedding and tests, NewHost defaults to a private in-memory cache.
+HostConfig.Cache can supply another sorted.KeyValue; its caller owns its
+lifetime, and Host.Close will not close it. Server-configured caches and the
+default in-memory cache are owned by the Host. Host.Close cancels managed
+importer runs and long polls, waiting up to one second for them to return and
+owned storage to close. On timeout it returns an error; background cleanup
+leaves the cache open until managed work returns, then closes it. Repeated
+Close calls return the original result, even if cleanup later finishes. Stop
+direct users of the Host, including independently invoked Importer.Run calls,
+before closing it.
