@@ -30,7 +30,9 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -582,5 +584,75 @@ func TestMongoIndexRejected(t *testing.T) {
 `))
 	if err == nil || !strings.Contains(err.Error(), "MongoDB index is no longer supported") {
 		t.Fatalf("Load with mongo = %v; want MongoDB-no-longer-supported error", err)
+	}
+}
+
+// recordingInstaller is a HandlerInstaller that records the patterns
+// handlers are installed for.
+type recordingInstaller struct {
+	*http.ServeMux
+	mu        sync.Mutex
+	installed []string
+}
+
+func (ri *recordingInstaller) Handle(pattern string, h http.Handler) {
+	ri.mu.Lock()
+	ri.installed = append(ri.installed, pattern)
+	ri.mu.Unlock()
+	ri.ServeMux.Handle(pattern, h)
+}
+
+func (ri *recordingInstaller) has(pattern string) bool {
+	ri.mu.Lock()
+	defer ri.mu.Unlock()
+	return slices.Contains(ri.installed, pattern)
+}
+
+// TestInstallHandlersLazyBaseURL checks that the search handler, which
+// loads the corpus, is set up before anything asks for the base URL,
+// which may not be known yet.
+func TestInstallHandlersLazyBaseURL(t *testing.T) {
+	srcRoot, err := osutil.PkSourceRoot()
+	if err != nil {
+		t.Fatalf("source root folder not found: %v", err)
+	}
+	conf := serverinit.DefaultBaseConfig
+	conf.Identity = "26F5ABDA"
+	conf.IdentitySecretRing = filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
+	conf.MemoryStorage = true
+	conf.MemoryIndex = true
+	confData, err := json.MarshalIndent(conf, "", "    ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	lowConf, err := serverinit.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hi := &recordingInstaller{ServeMux: http.NewServeMux()}
+	baseURL := "http://" + conf.Listen
+	shutdown, err := lowConf.InstallHandlersLazy(hi, func() string {
+		if !hi.has("/my-search/") {
+			t.Error("base URL requested before the search handler was set up")
+		}
+		return baseURL
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := shutdown.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	// The blob handlers get the base URL when they first serve a request.
+	req := httptest.NewRequest("GET", "/bs/camli/sha224-00000000000000000000000000000000000000000000000000000000", nil)
+	rec := httptest.NewRecorder()
+	hi.ServeHTTP(rec, req)
+	if rec.Code == http.StatusInternalServerError {
+		t.Errorf("blob handler: got %d: %s", rec.Code, rec.Body)
 	}
 }
