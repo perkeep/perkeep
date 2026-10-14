@@ -132,6 +132,7 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	f.permanodes(t, 3+10) // account, root, collection, not 30 attachment wrappers
 	for _, a := range summaries[:10] {
 		obj := f.activity(t, a.ID)
+		f.assertNewActivityClaim(t, obj, &a)
 		coreAttrs(t, obj, map[string]string{nodeattr.DefaultVisibility: ""})
 		if got := f.file(t, obj, attrActivityJSON, "activity.json"); !bytes.Equal(got, api.details[a.ID]) {
 			t.Errorf("activity %d details file did not preserve raw JSON", a.ID)
@@ -152,6 +153,9 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
 	coreLimitPaths(t, f, summaries, 10)
 	f.permanodes(t, 3+10)
+	for _, a := range summaries[:10] {
+		f.assertNewActivityClaim(t, f.activity(t, a.ID), &a)
+	}
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 

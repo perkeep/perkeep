@@ -40,6 +40,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/jsonsign"
@@ -58,9 +59,11 @@ type coreStorage struct {
 	mu        sync.Mutex
 	attrs     map[blob.Ref]url.Values
 	failClaim string // fail the next set-attribute claim for this key
+	failFile  string // "content" or the filename of the next file schema to reject
 }
 
 var errCoreClaimFailure = errors.New("injected claim storage failure")
+var errCoreFileFailure = errors.New("injected file storage failure")
 
 func (s *coreStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, src io.Reader) (blob.SizedRef, error) {
 	data, err := io.ReadAll(src)
@@ -74,6 +77,11 @@ func (s *coreStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, src io.Read
 		return s.Storage.ReceiveBlob(ctx, ref, bytes.NewReader(data))
 	}
 	b, parseErr := schema.BlobFromReader(ref, bytes.NewReader(data))
+	if s.failFile != "" && ((s.failFile == "content" && (parseErr != nil || b.Type() == "")) ||
+		(parseErr == nil && b.Type() == schema.TypeFile && b.FileName() == s.failFile)) {
+		s.failFile = ""
+		return blob.SizedRef{}, errCoreFileFailure
+	}
 	var operations []schema.AttributeClaim
 	if parseErr == nil && b.Type() == schema.TypeClaim {
 		claim, ok := b.AsClaim()
@@ -141,6 +149,12 @@ func (s *coreStorage) failNextClaim(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failClaim = key
+}
+
+func (s *coreStorage) failNextFileUpload(stage string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failFile = stage
 }
 
 func (s *coreStorage) Describe(_ context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
@@ -436,6 +450,130 @@ func coreAttrs(t *testing.T, obj *importer.Object, want map[string]string) {
 			t.Errorf("%s = %q; want %q", key, got, value)
 		}
 	}
+}
+
+// activityClaims counts physical signed blobs, not their child operations, and
+// ignores the parent membership and account bookkeeping claims.
+func (f *coreFixture) activityClaims(t *testing.T, ref blob.Ref) []schema.Claim {
+	t.Helper()
+	var claims []schema.Claim
+	err := blobserver.EnumerateAll(context.Background(), &f.storage.Storage, func(sb blob.SizedRef) error {
+		data, ok := f.storage.BlobContents(sb.Ref)
+		if !ok {
+			return fmt.Errorf("enumerated missing blob %v", sb.Ref)
+		}
+		b, err := schema.BlobFromReader(sb.Ref, strings.NewReader(data))
+		if err != nil || b.Type() != schema.TypeClaim {
+			return nil
+		}
+		claim, ok := b.AsClaim()
+		if !ok {
+			return errors.New("invalid signed claim")
+		}
+		operations, err := claim.AttributeClaims()
+		if err != nil {
+			return err
+		}
+		for _, operation := range operations {
+			if operation.Permanode == ref {
+				claims = append(claims, claim)
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return claims
+}
+
+func (f *coreFixture) activityState(ref blob.Ref) url.Values {
+	f.storage.mu.Lock()
+	defer f.storage.mu.Unlock()
+	attrs := make(url.Values)
+	for key, values := range f.storage.attrs[ref] {
+		attrs[key] = append([]string(nil), values...)
+	}
+	return attrs
+}
+
+// Check both persisted claims and the Object cache, including attributes that
+// would only exist in the new state if a failed upload partially mutated it.
+func (f *coreFixture) assertActivityState(t *testing.T, obj *importer.Object, want url.Values, a *activity) {
+	t.Helper()
+	if got := f.activityState(obj.PermanodeRef()); !reflect.DeepEqual(got, want) {
+		t.Errorf("stored activity attrs = %v; want %v", got, want)
+	}
+	sets, keys := activityAttrs(a)
+	for i := 0; i < len(sets); i += 2 {
+		keys = append(keys, sets[i])
+	}
+	keys = append(keys, attrActivityJSON, attrStreamsJSON, nodeattr.FitnessTrack,
+		"camliPath:activity.json", "camliPath:streams.json", "camliPath:track.gpx", attrSummaryHash, attrImportVersion)
+	for key := range want {
+		keys = append(keys, key)
+	}
+	for _, key := range keys {
+		if got := obj.Attrs(key); !slices.Equal(got, want[key]) {
+			t.Errorf("cached %s = %v; want %v", key, got, want[key])
+		}
+	}
+}
+
+func (f *coreFixture) assertNewActivityClaim(t *testing.T, obj *importer.Object, a *activity) {
+	t.Helper()
+	claims := f.activityClaims(t, obj.PermanodeRef())
+	if len(claims) != 1 {
+		t.Fatalf("activity %d has %d physical claim blobs; want exactly one", a.ID, len(claims))
+	}
+	claim := claims[0]
+	if got := claim.ClaimType(); got != schema.MultiClaim {
+		t.Fatalf("activity claim type = %q; want multi", got)
+	}
+	operations, err := claim.AttributeClaims()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		nodeattr.Type: nodeattr.FitnessActivity, nodeattr.Title: a.Name,
+		nodeattr.Description: a.Description, nodeattr.StartDate: a.StartDate.UTC().Format(time.RFC3339),
+		nodeattr.URL:           "https://www.strava.com/activities/" + strconv.FormatInt(a.ID, 10),
+		nodeattr.FitnessSource: "strava", nodeattr.FitnessSourceID: strconv.FormatInt(a.ID, 10),
+		nodeattr.FitnessDistance: decimal(a.Distance), nodeattr.FitnessMovingDuration: strconv.FormatInt(a.MovingTime, 10),
+		nodeattr.FitnessElapsedDuration: strconv.FormatInt(a.ElapsedTime, 10), nodeattr.FitnessElevationGain: decimal(a.TotalElevationGain),
+		"stravaSportType": a.SportType, "stravaActivityType": a.Type, "stravaTimezone": a.Timezone,
+		"stravaExternalID": a.ExternalID, "stravaGearID": a.GearID,
+		"stravaTrainer": strconv.FormatBool(a.Trainer), "stravaCommute": strconv.FormatBool(a.Commute),
+		"stravaManual": strconv.FormatBool(a.Manual), "stravaPrivate": strconv.FormatBool(a.Private),
+		nodeattr.FitnessActivityType: "ride", nodeattr.FitnessAverageHeartRate: decimal(*a.AverageHeartrate),
+		nodeattr.FitnessMaxHeartRate: decimal(*a.MaxHeartrate), nodeattr.FitnessEnergy: decimal(*a.Calories * 4184),
+		nodeattr.Latitude: decimal(a.StartLatlng[0]), nodeattr.Longitude: decimal(a.StartLatlng[1]),
+		attrActivityJSON: obj.Attr(attrActivityJSON), attrStreamsJSON: obj.Attr(attrStreamsJSON),
+		nodeattr.FitnessTrack: obj.Attr(nodeattr.FitnessTrack),
+		attrSummaryHash:       summaryHash(a), attrImportVersion: "2",
+	}
+	if got := len(operations); got != len(want) {
+		t.Fatalf("activity %d has %d attribute operations; want %d", a.ID, got, len(want))
+	}
+	seen := make(map[string]bool)
+	for _, operation := range operations {
+		value, ok := want[operation.Attribute]
+		if operation.Permanode != obj.PermanodeRef() || operation.Type != schema.SetAttributeClaim || !ok || operation.Value != value || seen[operation.Attribute] {
+			t.Errorf("unexpected activity operation: %+v", operation)
+		}
+		seen[operation.Attribute] = true
+	}
+	for i, key := range []string{attrSummaryHash, attrImportVersion} {
+		if operation := operations[len(operations)-2+i]; operation.Attribute != key {
+			t.Errorf("activity claim's last two children = %v; want hash then completion", operations[len(operations)-2:])
+		}
+	}
+	wantState := make(url.Values, len(want))
+	for key, value := range want {
+		wantState.Set(key, value)
+	}
+	f.assertActivityState(t, obj, wantState, a)
 }
 
 func coreJSON(t *testing.T, v any) []byte {
@@ -914,36 +1052,267 @@ func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
 	}
 }
 
-func TestAttachEmptyClearsSemanticAttrAndLegacyPath(t *testing.T) {
-	for _, file := range []struct{ attr, filename string }{
-		{attrActivityJSON, "activity.json"},
-		{attrStreamsJSON, "streams.json"},
-		{nodeattr.FitnessTrack, "track.gpx"},
-	} {
-		t.Run(file.filename, func(t *testing.T) {
-			f := newCoreFixture(t, nil)
-			obj := f.rc.RootNode()
-			r := &run{f.rc}
-			if err := r.attach(obj, file.attr, file.filename, []byte("old attachment")); err != nil {
-				t.Fatal(err)
-			}
-			ref := obj.Attr(file.attr)
-			if err := obj.SetAttr("camliPath:"+file.filename, ref); err != nil {
-				t.Fatal(err)
-			}
-			if err := r.attach(obj, file.attr, file.filename, nil); err != nil {
-				t.Fatal(err)
-			}
-			coreAttrs(t, obj, map[string]string{file.attr: "", "camliPath:" + file.filename: ""})
-			before := f.storage.NumBlobs()
-			if err := r.attach(obj, file.attr, file.filename, []byte{}); err != nil {
-				t.Fatal(err)
-			}
-			if got := f.storage.NumBlobs(); got != before {
-				t.Errorf("clearing absent attachments wrote %d blobs", got-before)
-			}
-		})
+func TestWriteAttachmentStagesFilesWithoutClaims(t *testing.T) {
+	f := newCoreFixture(t, nil)
+	r := &run{f.rc}
+	objects := []*importer.Object{f.rc.RootNode(), f.rc.AccountNode()}
+	beforeClaims := make(map[blob.Ref]int)
+	for _, obj := range objects {
+		beforeClaims[obj.PermanodeRef()] = len(f.activityClaims(t, obj.PermanodeRef()))
 	}
+	before := f.storage.NumBlobs()
+	for _, data := range [][]byte{nil, {}} {
+		ref, err := r.writeAttachment("empty.json", data)
+		if err != nil || ref.Valid() {
+			t.Fatalf("empty attachment = %v, %v; want zero ref, nil", ref, err)
+		}
+	}
+	if got := f.storage.NumBlobs(); got != before {
+		t.Errorf("empty attachments wrote %d blobs", got-before)
+	}
+	ref, err := r.writeAttachment("activity.json", []byte("attachment contents"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := schema.NewFileReader(context.Background(), f.storage, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader)
+	if err != nil || string(data) != "attachment contents" || reader.FileName() != "activity.json" {
+		t.Fatalf("staged file = %q, %v (name %q)", data, err, reader.FileName())
+	}
+	for _, obj := range objects {
+		if got := len(f.activityClaims(t, obj.PermanodeRef())); got != beforeClaims[obj.PermanodeRef()] {
+			t.Errorf("staging a file changed permanode claim count to %d; want %d", got, beforeClaims[obj.PermanodeRef()])
+		}
+	}
+}
+
+func TestImporterAtomicActivityFailures(t *testing.T) {
+	for _, refresh := range []bool{false, true} {
+		for _, failure := range []string{
+			"detail-http", "streams-http", "invalid-track", "file-content",
+			"activity-schema", "streams-schema", "track-schema", "publish-title", "publish-track", "publish-version",
+		} {
+			// A refresh keeps the same completion version, so it is a no-op
+			// within that envelope. Exercise its upload failure on insertion.
+			if refresh && failure == "publish-version" {
+				continue
+			}
+			t.Run(fmt.Sprintf("refresh=%t/%s", refresh, failure), func(t *testing.T) {
+				api := newCoreAPI(t)
+				a := coreActivity(101)
+				api.details[a.ID], api.streams[a.ID] = coreJSON(t, a), []byte(coreTrackStreams)
+				f := newCoreFixture(t, api)
+				f.configure(t)
+				r := &run{f.rc}
+				parent := f.rc.RootNode()
+				var obj *importer.Object
+				want := make(url.Values)
+				if refresh {
+					if err := r.importActivity(parent, &a); err != nil {
+						t.Fatal(err)
+					}
+					obj = coreChild(t, parent, "101")
+					if err := obj.SetAttrs("personalNote", "preserve me",
+						"camliPath:activity.json", obj.Attr(attrActivityJSON),
+						"camliPath:streams.json", obj.Attr(attrStreamsJSON),
+						"camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack)); err != nil {
+						t.Fatal(err)
+					}
+					want = f.activityState(obj.PermanodeRef())
+				}
+				// Change every file's content, so upload failures cannot be hidden
+				// by existing content-addressed blobs during a refresh.
+				a.Name, a.Description = "Changed activity", "Changed description"
+				a.Distance++
+				a.StartDate = a.StartDate.Add(time.Hour)
+				api.details[a.ID] = coreJSON(t, a)
+				api.streams[a.ID] = bytes.ReplaceAll([]byte(coreTrackStreams), []byte("12.5"), []byte("14.5"))
+				goodStreams := append([]byte(nil), api.streams[a.ID]...)
+				switch failure {
+				case "detail-http":
+					api.failures["/activities/101"] = http.StatusBadGateway
+				case "streams-http":
+					api.failures["/activities/101/streams"] = http.StatusBadGateway
+				case "invalid-track":
+					api.streams[a.ID] = []byte(`{"latlng":{"data":[[200,0]],"series_type":"time"}}`)
+				case "file-content":
+					f.storage.failNextFileUpload("content")
+				case "activity-schema":
+					f.storage.failNextFileUpload("activity.json")
+				case "streams-schema":
+					f.storage.failNextFileUpload("streams.json")
+				case "track-schema":
+					f.storage.failNextFileUpload("track.gpx")
+				case "publish-title":
+					f.storage.failNextClaim(nodeattr.Title)
+				case "publish-track":
+					f.storage.failNextClaim(nodeattr.FitnessTrack)
+				case "publish-version":
+					f.storage.failNextClaim(attrImportVersion)
+				}
+				beforeClaims := 0
+				if obj != nil {
+					beforeClaims = len(f.activityClaims(t, obj.PermanodeRef()))
+				}
+				err := r.importActivity(parent, &a)
+				if err == nil {
+					t.Fatal("activity import with injected failure succeeded")
+				}
+				if strings.HasPrefix(failure, "publish-") && !errors.Is(err, errCoreClaimFailure) {
+					t.Errorf("publish failure = %v; want injected claim failure", err)
+				}
+				if (strings.HasSuffix(failure, "-schema") || failure == "file-content") && !errors.Is(err, errCoreFileFailure) {
+					t.Errorf("file upload failure = %v; want injected file failure", err)
+				}
+				obj = coreChild(t, parent, "101")
+				ref := obj.PermanodeRef()
+				f.assertActivityState(t, obj, want, &a)
+				if got := len(f.activityClaims(t, ref)); got != beforeClaims {
+					t.Errorf("failed import wrote %d activity claims", got-beforeClaims)
+				}
+				if !refresh {
+					// The parent's path can exist before import completes, but the
+					// new permanode must remain entirely blank and untyped.
+					if got := len(f.activityState(ref)); got != 0 {
+						t.Errorf("failed insertion published %d attrs", got)
+					}
+				}
+				delete(api.failures, "/activities/101")
+				delete(api.failures, "/activities/101/streams")
+				api.streams[a.ID] = goodStreams
+				if err := r.importActivity(parent, &a); err != nil {
+					t.Fatal(err)
+				}
+				obj = coreChild(t, parent, "101")
+				if obj.PermanodeRef() != ref {
+					t.Error("retry replaced the activity permanode")
+				}
+				if got := len(f.activityClaims(t, ref)); got != beforeClaims+1 {
+					t.Errorf("retry added %d activity claims; want one", got-beforeClaims)
+				}
+				coreAttrs(t, obj, map[string]string{
+					nodeattr.Title: a.Name, nodeattr.Description: a.Description,
+					attrSummaryHash: summaryHash(&a), attrImportVersion: runCompleteVersion,
+					"camliPath:activity.json": "", "camliPath:streams.json": "", "camliPath:track.gpx": "",
+				})
+				if refresh {
+					coreAttrs(t, obj, map[string]string{"personalNote": "preserve me"})
+				}
+				for _, file := range []struct{ attr, name string }{
+					{attrActivityJSON, "activity.json"}, {attrStreamsJSON, "streams.json"}, {nodeattr.FitnessTrack, "track.gpx"},
+				} {
+					f.file(t, obj, file.attr, file.name)
+				}
+				if err := r.importActivity(parent, &a); err != nil {
+					t.Fatal(err)
+				}
+				if got := len(f.activityClaims(t, ref)); got != beforeClaims+1 {
+					t.Error("unchanged retry wrote another activity claim")
+				}
+			})
+		}
+	}
+}
+
+func TestImporterUnknownOptionalAndLegacyDeletesShareActivityClaim(t *testing.T) {
+	api := newCoreAPI(t)
+	a := coreActivity(101)
+	api.details[a.ID], api.streams[a.ID] = coreJSON(t, a), []byte(coreTrackStreams)
+	f := newCoreFixture(t, api)
+	f.configure(t)
+	r := &run{f.rc}
+	parent := f.rc.RootNode()
+	if err := r.importActivity(parent, &a); err != nil {
+		t.Fatal(err)
+	}
+	obj := coreChild(t, parent, "101")
+	if err := obj.SetAttrs("personalNote", "keep me",
+		"camliPath:activity.json", obj.Attr(attrActivityJSON),
+		"camliPath:streams.json", obj.Attr(attrStreamsJSON),
+		"camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack)); err != nil {
+		t.Fatal(err)
+	}
+	if err := obj.SetAttrValues(nodeattr.FitnessAverageHeartRate, []string{"142.5", "143"}); err != nil {
+		t.Fatal(err)
+	}
+	previous := make(map[blob.Ref]bool)
+	for _, claim := range f.activityClaims(t, obj.PermanodeRef()) {
+		previous[claim.Blob().BlobRef()] = true
+	}
+	a.Name, a.Description, a.Type, a.SportType = "Unknown sport without optional data", "", "", ""
+	a.AverageHeartrate, a.MaxHeartrate, a.Calories, a.StartLatlng = nil, nil, nil, nil
+	api.details[a.ID] = coreJSON(t, a)
+	delete(api.streams, a.ID)
+	if err := r.importActivity(parent, &a); err != nil {
+		t.Fatal(err)
+	}
+	obj = coreChild(t, parent, "101")
+	claims := f.activityClaims(t, obj.PermanodeRef())
+	if len(claims) != len(previous)+1 {
+		t.Fatalf("refresh added %d activity claim blobs; want one", len(claims)-len(previous))
+	}
+	var operations []schema.AttributeClaim
+	for _, claim := range claims {
+		if !previous[claim.Blob().BlobRef()] {
+			if claim.ClaimType() != schema.MultiClaim {
+				t.Fatalf("refresh claim type = %q; want multi", claim.ClaimType())
+			}
+			var err error
+			operations, err = claim.AttributeClaims()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	wantDeletes := map[string]bool{
+		nodeattr.FitnessActivityType: true, nodeattr.FitnessAverageHeartRate: true, nodeattr.FitnessMaxHeartRate: true,
+		nodeattr.FitnessEnergy: true, nodeattr.Latitude: true, nodeattr.Longitude: true,
+		attrStreamsJSON: true, nodeattr.FitnessTrack: true,
+		"camliPath:activity.json": true, "camliPath:streams.json": true, "camliPath:track.gpx": true,
+	}
+	setsStarted := false
+	for _, operation := range operations {
+		if operation.Permanode != obj.PermanodeRef() {
+			t.Errorf("operation targets another permanode: %+v", operation)
+		}
+		if operation.Type == schema.DelAttributeClaim {
+			if setsStarted || operation.Value != "" || !wantDeletes[operation.Attribute] {
+				t.Errorf("unexpected or out-of-order delete: %+v", operation)
+			}
+			delete(wantDeletes, operation.Attribute)
+			if got := obj.Attrs(operation.Attribute); len(got) != 0 {
+				t.Errorf("deleted %s retained values %v", operation.Attribute, got)
+			}
+		} else {
+			setsStarted = true
+			if operation.Type != schema.SetAttributeClaim {
+				t.Errorf("unexpected operation: %+v", operation)
+			}
+		}
+	}
+	if len(wantDeletes) != 0 {
+		t.Errorf("missing delete-all operations: %v", wantDeletes)
+	}
+	if len(operations) == 0 || operations[len(operations)-1].Attribute != attrSummaryHash {
+		t.Errorf("refresh must end with its changed summary hash (version is unchanged): %v", operations)
+	}
+	coreAttrs(t, obj, map[string]string{
+		nodeattr.Title: a.Name, nodeattr.Description: "", "stravaSportType": "", "stravaActivityType": "",
+		attrImportVersion: "2", attrSummaryHash: summaryHash(&a), "personalNote": "keep me",
+	})
+	state := f.activityState(obj.PermanodeRef())
+	for _, key := range []string{nodeattr.FitnessActivityType, nodeattr.FitnessAverageHeartRate, nodeattr.FitnessMaxHeartRate,
+		nodeattr.FitnessEnergy, nodeattr.Latitude, nodeattr.Longitude, attrStreamsJSON, nodeattr.FitnessTrack,
+		"camliPath:activity.json", "camliPath:streams.json", "camliPath:track.gpx"} {
+		if _, present := state[key]; present {
+			t.Errorf("unknown or removed %s was stored instead of absent: %v", key, state[key])
+		}
+	}
+	f.file(t, obj, attrActivityJSON, "activity.json")
 }
 
 func TestImporterFailedActivityResumes(t *testing.T) {
@@ -1020,7 +1389,7 @@ func TestImporterFailedActivityResumes(t *testing.T) {
 	}
 }
 
-func TestImporterFailedEditClearsCompletionAndStaleOptionalAttrs(t *testing.T) {
+func TestImporterFailedEditPreservesCompletionThenClearsStaleOptionalAttrs(t *testing.T) {
 	api := newCoreAPI(t)
 	a := coreActivity(101)
 	api.pages[1], api.details[a.ID], api.streams[a.ID] = []activity{a}, coreJSON(t, a), []byte(coreTrackStreams)
@@ -1030,6 +1399,7 @@ func TestImporterFailedEditClearsCompletionAndStaleOptionalAttrs(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := f.activity(t, a.ID).PermanodeRef()
+	old := f.activityState(ref)
 	a.Name = "Private indoor manual workout"
 	a.SportType, a.Private, a.Manual, a.Trainer = "Workout", true, true, true
 	a.Calories, a.AverageHeartrate, a.MaxHeartrate, a.StartLatlng = nil, nil, nil, nil
@@ -1038,7 +1408,7 @@ func TestImporterFailedEditClearsCompletionAndStaleOptionalAttrs(t *testing.T) {
 	if err := (imp{}).Run(f.rc); err == nil {
 		t.Fatal("failed edit succeeded")
 	}
-	coreAttrs(t, f.activity(t, a.ID), map[string]string{attrImportVersion: ""})
+	f.assertActivityState(t, f.activity(t, a.ID), old, &a)
 	delete(api.failures, "/activities/101/streams")
 	delete(api.streams, a.ID) // manual activity returns HTTP 404 for streams
 	if err := (imp{}).Run(f.rc); err != nil {
@@ -1478,6 +1848,11 @@ func TestImporterConcurrentRefreshOnlyRotatesOnce(t *testing.T) {
 		t.Errorf("concurrent refresh exchanges = %d; want 1", got)
 	}
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{attrRefreshToken: "rotated-refresh"})
+}
+
+func setActivityAttrs(obj *importer.Object, a *activity) error {
+	sets, deletes := activityAttrs(a)
+	return obj.SetAttrsWithDeletes(deletes, sets...)
 }
 
 func TestImporterOptionalZeroAndAbsentValues(t *testing.T) {

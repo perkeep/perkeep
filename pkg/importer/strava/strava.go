@@ -447,11 +447,6 @@ func (r *run) importActivity(parent *importer.Object, summary *activity) error {
 	if obj.Attr(attrImportVersion) == runCompleteVersion && obj.Attr(attrSummaryHash) == hash {
 		return nil
 	}
-	// Clear the old completion marker before changing anything, so a failed
-	// refresh cannot leave a partially rewritten activity looking complete.
-	if err := clearAttr(obj, attrImportVersion); err != nil {
-		return err
-	}
 	client, err := r.client()
 	if err != nil {
 		return err
@@ -478,48 +473,45 @@ func (r *run) importActivity(parent *importer.Object, summary *activity) error {
 	if err != nil {
 		return err
 	}
-	if err := r.attach(obj, attrActivityJSON, "activity.json", rawActivity); err != nil {
-		return err
-	}
-	if err := r.attach(obj, attrStreamsJSON, "streams.json", rawStreams); err != nil {
-		return err
-	}
-	if err := r.attach(obj, nodeattr.FitnessTrack, "track.gpx", gpx); err != nil {
-		return err
-	}
-	if err := setActivityAttrs(obj, a); err != nil {
-		return err
-	}
-	if err := obj.SetAttr(attrSummaryHash, hash); err != nil {
-		return err
-	}
-	return obj.SetAttr(attrImportVersion, runCompleteVersion)
-}
-
-func clearAttr(obj *importer.Object, key string) error {
-	if obj.Attr(key) == "" {
-		return nil
-	}
-	return obj.DelAttr(key, "")
-}
-
-func (r *run) attach(obj *importer.Object, key, filename string, data []byte) error {
-	if len(data) == 0 {
-		if err := clearAttr(obj, key); err != nil {
+	// Stage every attachment before publishing any activity attributes. A failed
+	// refresh must leave the previous complete activity (including its hash and
+	// file refs) intact so that the changed summary will be retried.
+	sets, deletes := activityAttrs(a)
+	for _, file := range []struct {
+		key, filename string
+		data          []byte
+	}{
+		{attrActivityJSON, "activity.json", rawActivity},
+		{attrStreamsJSON, "streams.json", rawStreams},
+		{nodeattr.FitnessTrack, "track.gpx", gpx},
+	} {
+		ref, err := r.writeAttachment(file.filename, file.data)
+		if err != nil {
 			return err
 		}
-		return clearAttr(obj, "camliPath:"+filename)
+		if ref.Valid() {
+			sets = append(sets, file.key, ref.String())
+		} else {
+			deletes = append(deletes, file.key)
+		}
+		// Unlink the previous layout's filename paths without changing its
+		// historical wrapper permanodes.
+		deletes = append(deletes, "camliPath:"+file.filename)
 	}
-	ref, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, bytes.NewReader(data))
-	if err != nil {
+	// Completion is the last child in the same atomic claim as the data.
+	sets = append(sets, attrSummaryHash, hash, attrImportVersion, runCompleteVersion)
+	if err := r.Context().Err(); err != nil {
 		return err
 	}
-	if err := obj.SetAttr(key, ref.String()); err != nil {
-		return err
+	return obj.SetAttrsWithDeletes(deletes, sets...)
+}
+
+// writeAttachment uploads a named file schema without mutating any permanode.
+func (r *run) writeAttachment(filename string, data []byte) (blob.Ref, error) {
+	if len(data) == 0 {
+		return blob.Ref{}, nil
 	}
-	// Older imports created attachment wrapper permanodes. Unlink their
-	// filename paths on refresh; attachments need only the semantic file ref.
-	return clearAttr(obj, "camliPath:"+filename)
+	return schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, bytes.NewReader(data))
 }
 
 func decimal(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
@@ -543,16 +535,17 @@ func validateActivity(a *activity) error {
 	return nil
 }
 
-func setActivityAttrs(obj *importer.Object, a *activity) error {
+// activityAttrs builds the modeled values and deletions without publishing them.
+func activityAttrs(a *activity) (sets, deletes []string) {
 	typ := a.SportType
 	if typ == "" {
 		typ = a.Type
 	}
-	if err := obj.SetAttrs(
+	sets = []string{
 		nodeattr.Type, nodeattr.FitnessActivity,
 		nodeattr.Title, a.Name, nodeattr.Description, a.Description,
 		nodeattr.StartDate, a.StartDate.UTC().Format(time.RFC3339),
-		nodeattr.URL, "https://www.strava.com/activities/"+strconv.FormatInt(a.ID, 10),
+		nodeattr.URL, "https://www.strava.com/activities/" + strconv.FormatInt(a.ID, 10),
 		nodeattr.FitnessSource, "strava", nodeattr.FitnessSourceID, strconv.FormatInt(a.ID, 10),
 		nodeattr.FitnessDistance, decimal(a.Distance),
 		nodeattr.FitnessMovingDuration, strconv.FormatInt(a.MovingTime, 10),
@@ -562,42 +555,33 @@ func setActivityAttrs(obj *importer.Object, a *activity) error {
 		"stravaTimezone", a.Timezone, "stravaExternalID", a.ExternalID, "stravaGearID", a.GearID,
 		"stravaTrainer", strconv.FormatBool(a.Trainer), "stravaCommute", strconv.FormatBool(a.Commute),
 		"stravaManual", strconv.FormatBool(a.Manual), "stravaPrivate", strconv.FormatBool(a.Private),
-	); err != nil {
-		return err
 	}
 	if typ == "" {
-		if err := clearAttr(obj, nodeattr.FitnessActivityType); err != nil {
-			return err
+		deletes = append(deletes, nodeattr.FitnessActivityType)
+	} else {
+		sets = append(sets, nodeattr.FitnessActivityType, activityType(typ))
+	}
+	optional := func(key string, val *float64) {
+		if val == nil {
+			deletes = append(deletes, key)
+		} else {
+			sets = append(sets, key, decimal(*val))
 		}
-	} else if err := obj.SetAttr(nodeattr.FitnessActivityType, activityType(typ)); err != nil {
-		return err
 	}
-	optional := map[string]*float64{
-		nodeattr.FitnessAverageHeartRate: a.AverageHeartrate, nodeattr.FitnessMaxHeartRate: a.MaxHeartrate,
-	}
+	optional(nodeattr.FitnessAverageHeartRate, a.AverageHeartrate)
+	optional(nodeattr.FitnessMaxHeartRate, a.MaxHeartrate)
+	var energy, latitude, longitude *float64
 	if a.Calories != nil {
 		joules := *a.Calories * 4184
-		optional[nodeattr.FitnessEnergy] = &joules
-	} else {
-		optional[nodeattr.FitnessEnergy] = nil
+		energy = &joules
 	}
+	optional(nodeattr.FitnessEnergy, energy)
 	if len(a.StartLatlng) == 2 {
-		optional[nodeattr.Latitude] = &a.StartLatlng[0]
-		optional[nodeattr.Longitude] = &a.StartLatlng[1]
-	} else {
-		optional[nodeattr.Latitude] = nil
-		optional[nodeattr.Longitude] = nil
+		latitude, longitude = &a.StartLatlng[0], &a.StartLatlng[1]
 	}
-	for key, val := range optional {
-		if val == nil {
-			if err := clearAttr(obj, key); err != nil {
-				return err
-			}
-		} else if err := obj.SetAttr(key, decimal(*val)); err != nil {
-			return err
-		}
-	}
-	return nil
+	optional(nodeattr.Latitude, latitude)
+	optional(nodeattr.Longitude, longitude)
+	return sets, deletes
 }
 
 // activityType deliberately groups provider-specific subtypes. The original

@@ -93,7 +93,9 @@ The activity's `stravaActivityJSON`, `stravaStreamsJSON`, and `fitnessTrack`
 attributes reference named file-schema blobs directly. Attachments do not create
 wrapper permanodes or `camliPath:<filename>` links. Refreshing an activity removes
 any filename paths left by the previous layout; it does not modify or delete
-historical wrapper permanodes.
+historical wrapper permanodes. These path deletions, missing optional-attribute
+deletions, modeled attributes, attachment refs, and completion markers are
+published together in one signed activity claim after every file upload succeeds.
 
 The client requests `time`, `latlng`, `altitude`, `distance`, `heartrate`,
 `cadence`, `watts`, `temp`, `moving`, and `velocity_smooth` streams. Strava may
@@ -119,10 +121,23 @@ enumeration and skips completed, unchanged activities.
 Detailed activity and streams requests are skipped only when the existing
 activity has `stravaImportVersion="2"` **and** its `stravaSummaryHash` matches
 the newly listed modeled summary. New or changed summaries trigger an import
-into the stable activity permanode. The completion version is written last,
-after all attachments and attributes succeed. The account's
-`completedVersion="2"` marks completion of the selected enumeration window
-(capped or complete), not a reason to stop future enumeration.
+into the stable activity permanode. Detail and streams are fetched and validated,
+GPX is generated, and all file content and schemas are uploaded before publishing
+any activity attributes. One atomic signed claim publishes the modeled values,
+attachment refs, removal of absent optional values and legacy filename paths,
+summary hash, and finally the completion version. A new successful activity needs
+exactly one activity-specific claim blob; an unchanged activity needs none.
+
+A failed fetch, file upload, or claim publication leaves an existing activity's
+previous attributes, file refs, summary hash, and completion version intact. Its
+old hash still differs from the changed summary, so the next run retries it.
+A new failed activity may already have a collection path to its blank, untyped
+permanode, but no activity attributes or attachment refs are published. Files
+uploaded before a later failure can remain unreferenced; retries reuse identical
+content-addressed blobs rather than deleting historical data.
+
+The account's `completedVersion="2"` marks completion of the selected enumeration
+window (capped or complete), not a reason to stop future enumeration.
 
 `SupportsIncremental=true` describes incremental **detail/stream fetching**,
 not a server-side modified-since listing API or a complete synchronization
