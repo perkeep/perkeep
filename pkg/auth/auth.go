@@ -25,8 +25,10 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"perkeep.org/internal/httputil"
 )
@@ -53,12 +55,20 @@ const (
 
 const OmitAuthToken = "OmitAuthToken"
 
-var (
-	// Each mode defines an auth logic which depends on the chosen auth mechanism.
-	// Access is allowed if any of the modes allows it.
-	// No need to guard for now as all the writes are done sequentially during setup.
-	modes []AuthMode
-)
+// modesPtr holds the auth modes. Each mode defines an auth logic which
+// depends on the chosen auth mechanism. Access is allowed if any of the
+// modes allows it. Writes happen sequentially during setup, but reads can
+// happen concurrently with them (such as from the page perkeepd serves
+// while starting up), so the slice is replaced rather than modified.
+var modesPtr atomic.Pointer[[]AuthMode]
+
+// modes returns the current auth modes. Callers must not modify it.
+func modes() []AuthMode {
+	if p := modesPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
 
 // An AuthMode is the interface implemented by diffent authentication
 // schemes.
@@ -200,13 +210,14 @@ func FromConfig(authConfig string) (AuthMode, error) {
 // SetMode sets the given authentication mode as the only allowed one for
 // future requests. That is, it replaces all modes that were previously added.
 func SetMode(m AuthMode) {
-	modes = []AuthMode{m}
+	modesPtr.Store(&[]AuthMode{m})
 }
 
 // AddMode adds the given authentication mode to the list of modes that future
 // requests can authenticate against.
 func AddMode(am AuthMode) {
-	modes = append(modes, am)
+	ms := append(slices.Clip(modes()), am)
+	modesPtr.Store(&ms)
 }
 
 type tokenAuth struct {
@@ -350,7 +361,7 @@ func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool {
 // Allowed returns whether the given request
 // has access to perform all the operations in op.
 func Allowed(req *http.Request, op Operation) bool {
-	for _, m := range modes {
+	for _, m := range modes() {
 		if AllowedWithAuth(m, req, op) {
 			return true
 		}
@@ -385,7 +396,7 @@ func TriedAuthorization(req *http.Request) bool {
 }
 
 func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
-	for _, m := range modes {
+	for _, m := range modes() {
 		if us, ok := m.(UnauthorizedSender); ok {
 			if us.SendUnauthorized(rw, req) {
 				return
@@ -394,7 +405,7 @@ func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
 	}
 	var realm string
 	hasDevAuth := func() (*DevAuth, bool) {
-		for _, m := range modes {
+		for _, m := range modes() {
 			if devAuth, ok := m.(*DevAuth); ok {
 				return devAuth, ok
 			}
@@ -457,10 +468,11 @@ func Token() string {
 // DiscoveryToken returns OmitAuthToken if the first registered auth mode is of
 // type None, and Token() otherwise.
 func DiscoveryToken() string {
-	if len(modes) == 0 {
+	ms := modes()
+	if len(ms) == 0 {
 		return Token()
 	}
-	if _, ok := modes[0].(None); ok {
+	if _, ok := ms[0].(None); ok {
 		return OmitAuthToken
 	}
 	return Token()

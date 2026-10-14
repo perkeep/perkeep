@@ -66,12 +66,10 @@ func TestMultiMode(t *testing.T) {
 	}
 	(&UserPass{Username: "foo", Password: "bar"}).AddAuthHeader(req)
 
-	modes = []AuthMode{
-		&UserPass{
-			Username: "foo",
-			Password: "baz",
-		},
-	}
+	SetMode(&UserPass{
+		Username: "foo",
+		Password: "baz",
+	})
 
 	if Allowed(req, OpAll) {
 		t.Fatalf("req should not be allowed")
