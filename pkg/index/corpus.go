@@ -436,7 +436,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// We do the "meta" rows first, before the prefixes below, because it
 	// populates the blobs map (used for blobref interning) and the camBlobs
 	// map (used for hinting the size of other maps)
-	if err := c.scanPrefix(scanmu, s, "meta:"); err != nil {
+	if err := c.scanMeta(s); err != nil {
 		return err
 	}
 
