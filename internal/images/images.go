@@ -51,6 +51,7 @@ import (
 	_ "image/gif" // register GIF support
 	_ "image/png" // register PNG support
 
+	_ "github.com/gen2brain/avif" // register AVIF format
 	"github.com/gen2brain/heic"
 	_ "github.com/gen2brain/heic" // register HEIC format
 
