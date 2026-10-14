@@ -93,7 +93,9 @@ properties.
 
 The web UI recognizes `fitnessActivity` without consulting provider-specific
 attributes. Its thumbnail handler reads the referenced GPX locally and draws
-a red route with an activity-type badge at the bottom left. Track segments
+a red route with an activity-type badge at the bottom left. The badge artwork
+uses Google's Apache-2.0-licensed Material Design rounded icons, bundled
+locally with their licence and upstream provenance. Track segments
 remain separate; missing GPS data has a neutral preview instead of an invented
 route. Generated images belong in the thumbnail cache, not in the archived
 activity's claims or as new permanodes.

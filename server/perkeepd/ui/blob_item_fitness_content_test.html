@@ -209,7 +209,7 @@ limitations under the License.
 					assert(url.indexOf('/ui/thumbnail/sha1-test-activity/track.png?') == 0);
 					equal('256', parameter(url, 'mw'));
 					equal('154', parameter(url, 'mh'));
-					equal('3', parameter(url, 'ftv'));
+					equal('4', parameter(url, 'ftv'));
 				});
 				test('thumbnail cache keys include semantic inputs', function() {
 					var url = thumbnail('sha1-test-track', 'run');

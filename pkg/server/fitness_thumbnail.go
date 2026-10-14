@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	fitnessRenderVersion = 3
+	fitnessRenderVersion = 4
 	fitnessMaxGPXBytes   = 16 << 20
 	fitnessMaxPoints     = 200000
 )
@@ -661,94 +661,5 @@ func drawFitnessIcon(img *image.RGBA, pen fitnessPen, sport string) {
 	pen.paint(img, color.NRGBA{211, 218, 227, 200})
 	pen.circle(cx, cy, size/2)
 	pen.paint(img, color.NRGBA{255, 255, 255, 250})
-	unit := size / 32
-	point := func(x, y float64) fitnessPoint { return fitnessPoint{cx + x*unit, cy + y*unit} }
-	line := func(x1, y1, x2, y2 float64) { pen.line(point(x1, y1), point(x2, y2), 1.05*unit) }
-	circle := func(x, y, r float64) { p := point(x, y); pen.circle(p.x, p.y, r*unit) }
-	switch sport {
-	case "ride":
-		// Hollow wheels and recognizable bicycle frame.
-		for _, x := range []float64{-8, 8} {
-			for i := 0; i < 16; i++ {
-				a, b := float64(i)*math.Pi/8, float64(i+1)*math.Pi/8
-				line(x+5*math.Cos(a), 5+5*math.Sin(a), x+5*math.Cos(b), 5+5*math.Sin(b))
-			}
-		}
-		line(-8, 5, -3, -5)
-		line(-3, -5, 3, 5)
-		line(3, 5, -8, 5)
-		line(-3, -5, 5, -5)
-		line(5, -5, 3, 5)
-		line(5, -5, 8, 5)
-		line(5, -5, 4, -9)
-		line(4, -9, 8, -9)
-		line(-5, -7, -1, -7)
-	case "run", "walk", "hike":
-		circle(1, -9, 2.5)
-		line(0, -4, -3, 3)
-		if sport == "run" {
-			line(0, -3, 6, 0)
-			line(6, 0, 9, -3)
-			line(-1, -2, -7, -3)
-			line(-7, -3, -9, 1)
-			line(-3, 3, 3, 6)
-			line(3, 6, 1, 11)
-			line(-3, 3, -8, 8)
-			line(-8, 8, -12, 6)
-		} else {
-			line(0, -3, 6, 2)
-			line(-1, -2, -6, 2)
-			line(-3, 3, 2, 10)
-			line(-3, 3, -8, 10)
-		}
-		if sport == "hike" {
-			line(8, -2, 8, 11)
-			line(-5, -4, -7, 0)
-			line(-7, 0, -4, 2)
-		}
-	case "swim":
-		circle(7, -5, 2.4)
-		line(3, -3, -3, 0)
-		line(-3, 0, -8, -5)
-		line(-8, -5, -3, -9)
-		for y := 4.0; y <= 9; y += 5 {
-			line(-11, y, -6, y-2)
-			line(-6, y-2, 0, y)
-			line(0, y, 6, y-2)
-			line(6, y-2, 11, y)
-		}
-	case "row":
-		circle(0, -8, 2.5)
-		line(-1, -4, -3, 2)
-		line(-3, 2, 4, 4)
-		line(-1, -3, 5, 0)
-		line(-9, -4, 10, 10)
-		line(-10, 5, -7, 9)
-		line(-7, 9, 8, 9)
-		line(8, 9, 11, 5)
-	case "ski":
-		circle(2, -9, 2.5)
-		line(1, -4, -4, 2)
-		line(-4, 2, 3, 5)
-		line(3, 5, -1, 9)
-		line(0, -3, 7, 0)
-		line(7, 0, 9, 8)
-		line(-11, 9, 9, 11)
-		line(-8, 6, 12, 8)
-	case "workout":
-		line(-8, 0, 8, 0)
-		line(-9, -6, -9, 6)
-		line(-6, -4, -6, 4)
-		line(9, -6, 9, 6)
-		line(6, -4, 6, 4)
-	default:
-		// Generic fitness pulse; not an invented route.
-		line(-11, 0, -6, 0)
-		line(-6, 0, -3, -7)
-		line(-3, -7, 1, 8)
-		line(1, 8, 5, -2)
-		line(5, -2, 8, 0)
-		line(8, 0, 11, 0)
-	}
-	pen.paint(img, color.NRGBA{63, 80, 101, 255})
+	drawFitnessMaterialIcon(img, pen, sport, cx, cy, size)
 }
