@@ -811,25 +811,32 @@ func (x *Index) initDeletesCacheLocked() (err error) {
 }
 
 func kvDeleted(k string) (c camtypes.Claim, ok bool) {
-	// TODO(bradfitz): garbage
-	keyPart := strings.Split(k, "|")
-	if len(keyPart) != 4 {
-		return
+	var keyPart [4]string
+	n := 0
+	for part := range strings.SplitSeq(k, "|") {
+		if n == len(keyPart) {
+			return camtypes.Claim{}, false
+		}
+		keyPart[n] = part
+		n++
+	}
+	if n != len(keyPart) {
+		return camtypes.Claim{}, false
 	}
 	if keyPart[0] != "deleted" {
-		return
+		return camtypes.Claim{}, false
 	}
 	target, ok := blob.Parse(keyPart[1])
 	if !ok {
-		return
+		return camtypes.Claim{}, false
 	}
 	claimRef, ok := blob.Parse(keyPart[3])
 	if !ok {
-		return
+		return camtypes.Claim{}, false
 	}
 	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[2]))
 	if err != nil {
-		return
+		return camtypes.Claim{}, false
 	}
 	return camtypes.Claim{
 		BlobRef: claimRef,
@@ -1350,40 +1357,38 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 }
 
 func kvPathBackward(k, v string) (p camtypes.Path, ok bool, active bool) {
-	// TODO(bradfitz): garbage
-	keyPart := strings.Split(k, "|")
-	valPart := strings.Split(v, "|")
+	var keyBuf, valBuf [5]string
+	keyPart := strutil.AppendSplitN(keyBuf[:0], k, "|", len(keyBuf))
+	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if len(keyPart) != 4 || len(valPart) != 4 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keyPathBackward index entry: %q = %q", k, v)
-		return
+		return camtypes.Path{}, false, false
 	}
 	if keyPart[0] != "signertargetpath" {
-		return
+		return camtypes.Path{}, false, false
 	}
 	target, ok := blob.Parse(keyPart[2])
 	if !ok {
 		log.Printf("bogus target in keyPathBackward index entry: %q", keyPart[2])
-		return
+		return camtypes.Path{}, false, false
 	}
 	claim, ok := blob.Parse(keyPart[3])
 	if !ok {
 		log.Printf("bogus claim in keyPathBackward index entry: %q", keyPart[3])
-		return
+		return camtypes.Path{}, false, false
 	}
 	date, err := time.Parse(time.RFC3339, valPart[0])
 	if err != nil {
 		log.Printf("bogus date in keyPathBackward index entry: %q", valPart[0])
-		return
+		return camtypes.Path{}, false, false
 	}
 	base, ok := blob.Parse(valPart[1])
 	if !ok {
 		log.Printf("bogus base in keyPathBackward index entry: %q", valPart[1])
-		return
+		return camtypes.Path{}, false, false
 	}
-	if valPart[2] == "Y" {
-		active = true
-	}
+	active = valPart[2] == "Y"
 	return camtypes.Path{
 		Claim:     claim,
 		Base:      base,
@@ -1428,40 +1433,39 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 }
 
 func kvPathForward(k, v string) (p camtypes.Path, ok bool, active bool) {
-	// TODO(bradfitz): garbage
-	keyPart := strings.Split(k, "|")
-	valPart := strings.Split(v, "|")
+	var keyBuf [7]string
+	var valBuf [3]string
+	keyPart := strutil.AppendSplitN(keyBuf[:0], k, "|", len(keyBuf))
+	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if len(keyPart) != 6 || len(valPart) != 2 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keyPathForward index entry: %q = %q", k, v)
-		return
+		return camtypes.Path{}, false, false
 	}
 	if keyPart[0] != "path" {
-		return
+		return camtypes.Path{}, false, false
 	}
 	base, ok := blob.Parse(keyPart[2])
 	if !ok {
 		log.Printf("bogus base in keyPathForward index entry: %q", keyPart[2])
-		return
+		return camtypes.Path{}, false, false
 	}
 	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
 	if err != nil {
 		log.Printf("bogus date in keyPathForward index entry: %q", keyPart[4])
-		return
+		return camtypes.Path{}, false, false
 	}
 	claim, ok := blob.Parse(keyPart[5])
 	if !ok {
 		log.Printf("bogus claim in keyPathForward index entry: %q", keyPart[5])
-		return
-	}
-	if valPart[0] == "Y" {
-		active = true
+		return camtypes.Path{}, false, false
 	}
 	target, ok := blob.Parse(valPart[1])
 	if !ok {
 		log.Printf("bogus target in keyPathForward index entry: %q", valPart[1])
-		return
+		return camtypes.Path{}, false, false
 	}
+	active = valPart[0] == "Y"
 	return camtypes.Path{
 		Claim:     claim,
 		Base:      base,

@@ -34,6 +34,132 @@ import (
 
 type kv struct{ K, V string }
 
+func TestKvDeleted(t *testing.T) {
+	target := blob.RefFromString("deleted target")
+	deleter := blob.RefFromString("delete claim")
+	date := "2026-01-02T03:04:05.000123456Z"
+	key := keyDeleted.Key(target, date, deleter)
+	want := camtypes.Claim{
+		BlobRef: deleter,
+		Target:  target,
+		Date:    mustTimeParse(date),
+		Type:    "delete",
+	}
+	if got, ok := kvDeleted(key); !ok || got != want {
+		t.Fatalf("kvDeleted(%q) = %+v, %v; want %+v, true", key, got, ok, want)
+	}
+	for _, malformed := range []string{
+		"deleted",
+		key + "|extra",
+		key + "|",
+		strings.Replace(key, "deleted|", "other|", 1),
+		keyDeleted.Key("invalid", date, deleter),
+		keyDeleted.Key(target, date, "invalid"),
+		strings.Join([]string{"deleted", target.String(), reverseTimeString("not-a-date"), deleter.String()}, "|"),
+		keyDeleted.Key(target, "2026-13-02T03:04:05Z", deleter),
+	} {
+		if got, ok := kvDeleted(malformed); ok || got != (camtypes.Claim{}) {
+			t.Errorf("kvDeleted(%q) = %+v, %v; want zero claim, false", malformed, got, ok)
+		}
+	}
+}
+
+func TestKvPathMalformedDates(t *testing.T) {
+	base := blob.RefFromString("path base")
+	target := blob.RefFromString("path target")
+	claim := blob.RefFromString("path claim")
+	for _, date := range []string{"not-a-date", "2026-13-02T03:04:05Z"} {
+		k := keyPathBackward.Key("KEY", target, claim)
+		v := keyPathBackward.Val(date, base, "Y", "photos")
+		if p, ok, active := kvPathBackward(k, v); ok || active || p != (camtypes.Path{}) {
+			t.Errorf("kvPathBackward with date %q = %+v, %v, %v; want zero path, false, false", date, p, ok, active)
+		}
+		k = strings.Join([]string{"path", "KEY", base.String(), "photos", reverseTimeString(date), claim.String()}, "|")
+		v = keyPathForward.Val("Y", target)
+		if p, ok, active := kvPathForward(k, v); ok || active || p != (camtypes.Path{}) {
+			t.Errorf("kvPathForward with date %q = %+v, %v, %v; want zero path, false, false", date, p, ok, active)
+		}
+	}
+}
+
+func BenchmarkKvDeleted(b *testing.B) {
+	target := blob.RefFromString("deleted target")
+	deleter := blob.RefFromString("delete claim")
+	key := keyDeleted.Key(target, "2026-01-02T03:04:05Z", deleter)
+	b.ReportAllocs()
+	for b.Loop() {
+		c, ok := kvDeleted(key)
+		if !ok || c.Target != target || c.BlobRef != deleter {
+			b.Fatal("incorrect deletion key decoding")
+		}
+	}
+}
+
+func TestKvPathSplit(t *testing.T) {
+	base := blob.RefFromString("path base")
+	target := blob.RefFromString("path target")
+	claim := blob.RefFromString("path claim")
+	date := "2026-01-02T03:04:05.000123456Z"
+	suffix := "photos|summer trip+2026"
+	want := camtypes.Path{
+		Claim: claim, Base: base, Target: target,
+		ClaimDate: mustTimeParse(date), Suffix: suffix,
+	}
+	for _, flag := range []string{"Y", "N"} {
+		for _, tc := range []struct {
+			name  string
+			k, v  string
+			parse func(string, string) (p camtypes.Path, ok bool, active bool)
+		}{
+			{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, flag, suffix), kvPathBackward},
+			{"forward", keyPathForward.Key("KEY", base, suffix, date, claim), keyPathForward.Val(flag, target), kvPathForward},
+		} {
+			t.Run(tc.name+"/"+flag, func(t *testing.T) {
+				if p, ok, active := tc.parse(tc.k, tc.v); !ok || p != want || active != (flag == "Y") {
+					t.Fatalf("decode = %+v, %v, %v; want %+v, true, %v", p, ok, active, want, flag == "Y")
+				}
+				for _, row := range []kv{
+					{tc.k + "|extra", tc.v},
+					{tc.k + "|", tc.v},
+					{tc.k, tc.v + "|extra"},
+					{tc.k, tc.v + "|"},
+					{tc.k[:strings.LastIndex(tc.k, "|")], tc.v},
+					{tc.k, tc.v[:strings.LastIndex(tc.v, "|")]},
+				} {
+					if p, ok, active := tc.parse(row.K, row.V); ok || active || p != (camtypes.Path{}) {
+						t.Errorf("decode(%q, %q) = %+v, %v, %v; want zero path, false, false", row.K, row.V, p, ok, active)
+					}
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkKvPath(b *testing.B) {
+	base := blob.RefFromString("path base")
+	target := blob.RefFromString("path target")
+	claim := blob.RefFromString("path claim")
+	date := "2026-01-02T03:04:05Z"
+	for _, tc := range []struct {
+		name  string
+		k, v  string
+		parse func(string, string) (p camtypes.Path, ok bool, active bool)
+	}{
+		{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, "Y", "photos"), kvPathBackward},
+		{"forward", keyPathForward.Key("KEY", base, "photos", date, claim), keyPathForward.Val("Y", target), kvPathForward},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				p, ok, active := tc.parse(tc.k, tc.v)
+				if !ok || !active || p.Base != base || p.Target != target || p.Claim != claim {
+					b.Fatal("incorrect path decoding")
+				}
+			}
+		})
+	}
+}
+
 func TestDupSkipper(t *testing.T) {
 	var s dupSkipper
 	for _, tc := range []struct {
