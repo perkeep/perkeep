@@ -48,6 +48,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/sorted"
 	"tailscale.com/util/set"
 )
 
@@ -306,7 +307,15 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	// always index it. This is generally only useful when working
 	// on the indexing code and retroactively indexing a subset of
 	// content without forcing a global reindexing.
-	if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
+	//
+	// A batched reindex skips the check: its session starts with no
+	// rows and the reindex enumerates each blob once, so a blob is only
+	// ever already indexed if a dependency retry gets to it twice, and
+	// indexing it again is harmless. The lookup isn't free: it waits on
+	// the session's lock, which is held while other workers commit.
+	if _, ok := ix.s.(sorted.ReindexSession); ok {
+		// Batched reindex; see above.
+	} else if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
 		if strings.HasSuffix(haveVal, "|indexed") {
 			if allowReindex, _ := strconv.ParseBool(os.Getenv("CAMLI_REDO_INDEX_ON_RECEIVE")); allowReindex {
 				if debugEnv {

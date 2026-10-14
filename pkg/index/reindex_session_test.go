@@ -181,9 +181,10 @@ func TestReindexSessionFinalization(t *testing.T) {
 		{name: "schema-set", fault: func(s *recordingReindexKV) { s.view.setErr = fault }, want: []bool{false}, wantErr: true},
 		{name: "deletion-cache-close", fault: func(s *recordingReindexKV) { s.view.cacheErr = fault }, want: []bool{false}, wantErr: true},
 		{name: "final-commit", fault: func(s *recordingReindexKV) { s.view.finishErr = fault }, want: []bool{true}, wantErr: true},
-		// ReceiveBlob intentionally ignores a failed have:Get. A session's
-		// sticky error must still prevent this from being reported as success.
-		{name: "ignored-have-get", fault: func(s *recordingReindexKV) { s.view.getErr = fault }, want: []bool{true}, wantErr: true},
+		// A batched reindex doesn't look up have: rows, so a failing
+		// have:Get (which would make the session's error sticky) is
+		// never reached.
+		{name: "have-get-skipped", fault: func(s *recordingReindexKV) { s.view.getErr = fault }, want: []bool{true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ix, s := newRecordingReindex(t)
