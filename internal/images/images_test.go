@@ -462,12 +462,14 @@ func TestDecodePortraitHEIC(t *testing.T) {
 	}
 
 	for _, baseName := range sampleNames(t) {
-		var wantDim dimensions
+		var wantDim, wantThumbDim dimensions // thumb is within 20x20
 		switch {
 		case strings.HasPrefix(baseName, "ski-throne"):
 			wantDim = dimensions{3024, 4032}
+			wantThumbDim = dimensions{15, 20}
 		case strings.HasPrefix(baseName, "f") && strings.HasSuffix(baseName, "-exif.jpg"):
 			wantDim = dimensions{40, 80}
+			wantThumbDim = dimensions{10, 20}
 		default:
 			continue
 		}
@@ -487,7 +489,7 @@ func TestDecodePortraitHEIC(t *testing.T) {
 				}
 			}
 
-			open := func() *os.File {
+			open := func(t *testing.T) *os.File {
 				f, err := os.Open(filename)
 				if err != nil {
 					t.Fatal(err)
@@ -496,54 +498,74 @@ func TestDecodePortraitHEIC(t *testing.T) {
 				return f
 			}
 
-			t.Run("images.Decode", func(t *testing.T) {
-				im, conf, err := Decode(open(), nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if conf.Format != wantFormat {
-					t.Fatalf("Got format %q; want %q", conf.Format, wantFormat)
-				}
-				t.Run("Image", func(t *testing.T) {
-					check(t, dimensions{im.Bounds().Dx(), im.Bounds().Dy()})
+			test := func(t *testing.T) {
+				t.Run("images.Decode", func(t *testing.T) {
+					im, conf, err := Decode(open(t), nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if conf.Format != wantFormat {
+						t.Fatalf("Got format %q; want %q", conf.Format, wantFormat)
+					}
+					t.Run("Image", func(t *testing.T) {
+						check(t, dimensions{im.Bounds().Dx(), im.Bounds().Dy()})
+					})
+					t.Run("Config", func(t *testing.T) {
+						check(t, dimensions{conf.Width, conf.Height})
+					})
 				})
-				t.Run("Config", func(t *testing.T) {
+				// Thumbnailing gets the image's dimensions from
+				// image.DecodeConfig to compute the scaled size.
+				t.Run("images.Decode-thumbnail", func(t *testing.T) {
+					im, _, err := Decode(open(t), &DecodeOpts{MaxWidth: 20, MaxHeight: 20})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := (dimensions{im.Bounds().Dx(), im.Bounds().Dy()}); got != wantThumbDim {
+						t.Errorf("got %+v; want %+v", got, wantThumbDim)
+					}
+				})
+				t.Run("image.DecodeConfig", func(t *testing.T) {
+					conf, format, err := image.DecodeConfig(open(t))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if format != wantFormat {
+						t.Logf("Got format %q; want %q", format, wantFormat)
+					}
+					got := dimensions{conf.Width, conf.Height}
+					if wantFormat != "jpeg" {
+						check(t, got)
+					} else if got != wantDim {
+						t.Logf("[expected] std image package jpeg dimensions = %v (not %v post-EXIF)", got, wantDim)
+					}
+				})
+				t.Run("images.DecodeConfig", func(t *testing.T) {
+					conf, err := DecodeConfig(open(t))
+					if err != nil {
+						t.Fatal(err)
+					}
 					check(t, dimensions{conf.Width, conf.Height})
 				})
-			})
-			t.Run("image.DecodeConfig", func(t *testing.T) {
-				conf, format, err := image.DecodeConfig(open())
-				if err != nil {
-					t.Fatal(err)
-				}
-				if format != wantFormat {
-					t.Logf("Got format %q; want %q", format, wantFormat)
-				}
-				got := dimensions{conf.Width, conf.Height}
-				if got != wantDim && wantFormat == "jpeg" {
-					t.Logf("[expected] std image package jpeg dimensions = %v (not %v post-EXIF)", got, wantDim)
-				}
-			})
-			t.Run("images.DecodeConfig", func(t *testing.T) {
-				conf, err := DecodeConfig(open())
-				if err != nil {
-					t.Fatal(err)
-				}
-				check(t, dimensions{conf.Width, conf.Height})
-			})
-			t.Run("decodeHEIFConfig", func(t *testing.T) {
-				if wantFormat != "heic" {
-					t.Skipf("skipping heic-specific test for format %q", wantFormat)
-				}
-				conf, err := decodeHEIFConfig(open())
-				if err != nil {
-					t.Fatal(err)
-				}
-				check(t, dimensions{conf.Width, conf.Height})
-				if len(conf.HEICEXIF) == 0 {
-					t.Errorf("expected non-empty HEICEXIF")
-				}
-			})
+				t.Run("decodeHEIFConfig", func(t *testing.T) {
+					if wantFormat != "heic" {
+						t.Skipf("skipping heic-specific test for format %q", wantFormat)
+					}
+					conf, err := decodeHEIFConfig(open(t))
+					if err != nil {
+						t.Fatal(err)
+					}
+					check(t, dimensions{conf.Width, conf.Height})
+					if len(conf.HEICEXIF) == 0 {
+						t.Errorf("expected non-empty HEICEXIF")
+					}
+				})
+			}
+			if wantFormat == "heic" {
+				forEachHEICDecoder(t, test)
+			} else {
+				test(t)
+			}
 		})
 	}
 }
