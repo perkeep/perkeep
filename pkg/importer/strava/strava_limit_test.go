@@ -314,15 +314,18 @@ func TestImporterActivityLimitUnsetOrEmptyIsUnlimited(t *testing.T) {
 			if err := (imp{}).Run(f.rc); err != nil {
 				t.Fatal(err)
 			}
-			want := map[string]int{
-				"/athlete/activities?page=1": 1, "/athlete/activities?page=2": 1,
-				"/athlete/activities?page=3": 1,
-			}
+			// Unlike capped newest-N runs, unset/empty imports every activity
+			// and records complete chronological backfill after discovery reaches EOF.
 			for _, a := range summaries {
-				path := "/activities/" + strconv.FormatInt(a.ID, 10)
-				want[path], want[path+"/streams"] = 1, 1
+				path := progressDetailPath(a.ID)
+				if api.calls[path] != 1 || api.calls[path+"/streams"] != 1 {
+					t.Errorf("unlimited heavy requests for %d = %d/%d; want 1/1", a.ID, api.calls[path], api.calls[path+"/streams"])
+				}
 			}
-			coreLimitCalls(t, api, want)
+			if len(api.queries) == 0 || api.queries[0].Has("after") || api.calls["/athlete/activities?page=3"] == 0 {
+				t.Errorf("unlimited import did not discover complete history: %v", api.queries)
+			}
+			syncWantProgress(t, f, summaries[0], true)
 			coreLimitPaths(t, f, summaries, len(summaries))
 			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 		})
@@ -738,6 +741,7 @@ func TestImporterTokenBoundToOldAppMustRefreshBeforeREST(t *testing.T) {
 }
 
 func TestImporterRateCacheOpenFailureDoesNotPreventImport(t *testing.T) {
+	t.Setenv(coreMaxActivitiesEnv, "10") // isolate quota persistence from the uncapped daily sweep
 	root := filepath.Join(t.TempDir(), "importer-cache")
 	if err := os.WriteFile(root, []byte("obstruct cache directory"), 0600); err != nil {
 		t.Fatal(err)
@@ -783,7 +787,7 @@ func TestImporterRateCacheReadFailureDoesNotPreventImport(t *testing.T) {
 	if err := (imp{}).Run(f.rc); err != nil {
 		t.Fatalf("cache read failure prevented import: %v", err)
 	}
-	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
+	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 2})
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 	if !strings.Contains(logs.String(), want.Error()) {
 		t.Errorf("cache read failure was not logged: %s", logs)
@@ -796,6 +800,7 @@ func TestImporterRateCacheReadFailureDoesNotPreventImport(t *testing.T) {
 }
 
 func TestImporterLostRateCacheRediscoversHeaders(t *testing.T) {
+	t.Setenv(coreMaxActivitiesEnv, "10") // isolate quota persistence from the uncapped daily sweep
 	for _, disk := range []bool{false, true} {
 		name := "default-memory"
 		var config importer.HostConfig
@@ -882,6 +887,7 @@ func TestRateCacheSeparatesApplications(t *testing.T) {
 
 func TestImporterIgnoresLegacyRateClaim(t *testing.T) {
 	api := newCoreAPI(t)
+	now := syncTestTime()
 	f := newCoreFixture(t, api)
 	f.configure(t)
 	const legacyAttr = "stravaRateLimitState"
@@ -895,12 +901,13 @@ func TestImporterIgnoresLegacyRateClaim(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
 	before := f.storage.NumBlobs()
 	beforeState := f.rateState(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	now = now.Add(time.Hour)
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.storage.NumBlobs(); got != before {

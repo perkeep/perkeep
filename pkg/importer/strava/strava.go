@@ -341,7 +341,13 @@ func (r *run) client() (*apiClient, error) {
 	}, nil
 }
 
-func (im imp) Run(rc *importer.RunContext) (err error) {
+func (im imp) Run(rc *importer.RunContext) error {
+	return im.runAt(rc, time.Now)
+}
+
+// runAt keeps the sync clock local to this invocation. OAuth and quota clocks
+// retain their existing behavior.
+func (im imp) runAt(rc *importer.RunContext, now func() time.Time) (err error) {
 	defer func() {
 		if ctxErr := rc.Context().Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
 			err = errors.Join(ctxErr, err)
@@ -413,7 +419,7 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 	if maxActivities > 0 {
 		return r.importCappedActivities(activities, maxActivities)
 	}
-	return r.importChronologicalActivities(activities, progress)
+	return r.syncActivities(activities, progress, now)
 }
 
 // importCappedActivities preserves the explicit newest-N testing mode. Its
@@ -467,45 +473,56 @@ func summaryHash(a *activity) string {
 }
 
 func (r *run) importActivity(parent *importer.Object, summary *activity) error {
+	_, err := r.importActivityWithForce(parent, summary, false)
+	return err
+}
+
+// fetched reports a successful full import, not a summary-hash fast path.
+// Forced reconciliation bypasses only that fast path: validation, attachment
+// staging, and the atomic no-op-aware attribute publication remain shared.
+func (r *run) importActivityWithForce(parent *importer.Object, summary *activity, force bool) (fetched bool, err error) {
 	if err := r.Context().Err(); err != nil {
-		return err
+		return false, err
 	}
 	if summary.ID <= 0 {
-		return errors.New("invalid activity ID")
+		return false, errors.New("invalid activity ID")
 	}
 	obj, err := parent.ChildPathObject(strconv.FormatInt(summary.ID, 10))
 	if err != nil {
-		return err
+		return false, err
 	}
 	hash := summaryHash(summary)
-	if obj.Attr(attrImportVersion) == runCompleteVersion && obj.Attr(attrSummaryHash) == hash {
-		return nil
+	if !force && obj.Attr(attrImportVersion) == runCompleteVersion && obj.Attr(attrSummaryHash) == hash {
+		return false, nil
 	}
 	client, err := r.client()
 	if err != nil {
-		return err
+		return false, err
 	}
 	a, rawActivity, err := client.getActivity(r.Context(), summary.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if a.ID != summary.ID || a.StartDate.IsZero() {
-		return errors.New("invalid detailed activity identity or start date")
+		return false, errors.New("invalid detailed activity identity or start date")
+	}
+	if !summary.StartDate.IsZero() && !a.StartDate.Equal(summary.StartDate) {
+		return false, errors.New("detailed activity start date differs from summary")
 	}
 	if err := validateActivity(a); err != nil {
-		return err
+		return false, err
 	}
 	client, err = r.client()
 	if err != nil {
-		return err
+		return false, err
 	}
 	streams, rawStreams, err := client.getStreams(r.Context(), a.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	gpx, err := activityGPX(a, streams)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// Stage every attachment before publishing any activity attributes. A failed
 	// refresh must leave the previous complete activity (including its hash and
@@ -521,7 +538,7 @@ func (r *run) importActivity(parent *importer.Object, summary *activity) error {
 	} {
 		ref, err := r.writeAttachment(file.filename, file.data)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if ref.Valid() {
 			sets = append(sets, file.key, ref.String())
@@ -535,9 +552,12 @@ func (r *run) importActivity(parent *importer.Object, summary *activity) error {
 	// Completion is the last child in the same atomic claim as the data.
 	sets = append(sets, attrSummaryHash, hash, attrImportVersion, runCompleteVersion)
 	if err := r.Context().Err(); err != nil {
-		return err
+		return false, err
 	}
-	return obj.SetAttrsWithDeletes(deletes, sets...)
+	if err := obj.SetAttrsWithDeletes(deletes, sets...); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // writeAttachment uploads a named file schema without mutating any permanode.
