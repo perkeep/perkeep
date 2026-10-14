@@ -140,8 +140,11 @@ IDs identify individual activities; a whole timestamp group must complete before
 the timestamp-only watermark advances. A failure in a group leaves the
 checkpoint at the preceding completed group.
 
-Checkpoint claims are batched approximately every 100 activities, at the end,
-and on graceful failures when possible. Each checkpoint atomically publishes
+Checkpoint claims are batched after 50 activities or 30 elapsed seconds,
+checked at completed timestamp-group boundaries, at the end, and on graceful
+failures when possible. A slow activity or a large same-time group can extend
+the elapsed-time interval; there is no background checkpoint timer.
+Each checkpoint atomically publishes
 the related account attributes. There is no per-activity cursor write, and an
 unchanged poll does not rewrite progress. A crash can lose the latest
 uncheckpointed progress but not already published activities: their individual
@@ -172,8 +175,9 @@ For a nonzero inclusive boundary, the client sends
 `after=floor(boundary Unix seconds)-1` and locally retains only summaries at
 or after the exact boundary. Including the preceding whole second preserves
 equal timestamps and fractional seconds without importing earlier summaries.
-During partial backfill the boundary is the watermark; after backfill it is
-the watermark minus seven days. With no watermark, no `after` filter is sent.
+During backfill and new-activity catchup the boundary is the watermark.
+Daily reconciliation instead uses the current time minus seven days. With no
+watermark, no `after` filter is sent.
 
 Discovery collects **all** filtered result pages until an empty page, without
 assuming timestamp order or stopping when a listed activity is below the
@@ -197,20 +201,49 @@ ID; conflicting summaries for the same ID fail discovery so a later run can
 retry. Neither deduplication nor sorting recovers items never returned.
 A later full reconciliation may be needed for unobserved source changes.
 
-### Recent overlap and activity publication
+### Hourly discovery and daily reconciliation
 
-Only after historical backfill is actually complete do subsequent runs recheck
-an overlap starting **seven days before the durable watermark**, including the
-boundary. This week is a local importer policy, **not** a Strava guarantee about
-how long activities can be edited or backdated. It is not the unrelated API
-cache-policy limit mentioned above.
+Only after historical backfill is complete do invocations run two kinds of
+incremental checks:
+
+- **Hourly discovery:** check the most recent activity summary. An unchanged
+  summary needs one listing request and no activity writes. A newer activity
+  triggers chronological catchup from the durable watermark, including
+  activities accumulated during a long period offline. A changed most-recent
+  summary triggers a refresh if its activity date is within the last seven days.
+- **Daily reconciliation:** discover activities dated within the last seven
+  days and fetch detailed JSON and streams even when summary hashes are
+  unchanged. This catches description-only and track edits. Successful full
+  fetches within the previous 24 hours are skipped, including activities just
+  imported by discovery or an interrupted daily sweep.
+
+Scheduling and per-activity full-refresh timestamps use the account's mutable
+scratch cache, not a second authoritative checkpoint format. Routine checks
+therefore do not create scheduling claim blobs. Cache loss or failures can
+repeat recent checks, but never rewind the durable historical watermark.
+Failed daily work remains due; only a successful sweep postpones the next one.
+
+These intervals gate work when the importer is invoked; they do not silently
+enable automatic imports or create a separate scheduler. Enable automatic
+imports in the account UI. Its default invocation interval is 30 minutes;
+Strava discovery is still limited to once an hour. Set the account's
+`importAuto` attribute to `1h` for an hourly invocation interval.
+
+The seven-day window is a local importer policy based on **activity date**,
+not a source guarantee about edit or upload time, nor the unrelated API
+cache-policy limit mentioned above. After backfill, an edit made today to a
+month-old activity, or a newly uploaded month-old activity, can be ignored
+intentionally. Backdated uploads within the recent window, and same-time
+additions not visible in the one-summary hourly probe, are picked up daily.
+Source deletions are not mirrored; historical blobs and claims are retained.
+
+### Activity publication
 
 Detailed activity and streams requests are skipped only when the existing
 activity has `stravaImportVersion="2"` **and** its `stravaSummaryHash` matches
-the newly listed modeled summary, including within the overlap. The overlap
-does not force detail refetches for unchanged summaries. New or changed
-summaries trigger an import into the stable activity permanode. Detail and
-streams are fetched and validated, GPX is generated, and all file content and
+the newly listed modeled summary, unless a daily full refresh is due.
+New or changed summaries trigger an import into the stable activity permanode.
+Detail and streams are fetched and validated, GPX is generated, and all file content and
 schemas are uploaded before publishing any activity attributes. One atomic
 signed claim publishes the modeled values, attachment refs, removal of absent
 optional values and legacy filename paths,
@@ -225,13 +258,11 @@ permanode, but no activity attributes or attachment refs are published. Files
 uploaded before a later failure can remain unreferenced; retries reuse identical
 content-addressed blobs rather than deleting historical data.
 
-`SupportsIncremental=true` describes incremental **detail/stream fetching**,
-not a server-side modified-since listing API or a complete synchronization
-guarantee. Unchanged completed nodes are not routinely refreshed. Edits that
-do not alter modeled summary fields, such as a description-only edit, may be
-missed. Older backdated uploads and edits outside the overlap require explicit
-full reconciliation. Source deletions are not mirrored; Perkeep may retain
-historical blobs and claims even after an attachment changes.
+An unchanged full refresh writes no new activity claim or attachment blobs.
+`SupportsIncremental=true` does not imply a modified-since API or complete
+source mirroring. Edits outside the recent window require explicit full
+reconciliation. Offset-page changes can leave unobserved source activities;
+see the discovery limitations above.
 
 To force one activity **inside the next discovery window** to fetch its current
 detail and streams, remove its completion marker:
@@ -313,7 +344,8 @@ local state stale; the next response refreshes observed usage, and a 429 is
 never retried automatically. This is not a distributed quota coordinator
 for other applications or separately running Perkeep processes.
 
-A fresh ten-activity test import normally needs **21 REST requests**:
+With the testing cap enabled, a fresh ten-activity import normally needs
+**21 REST requests**:
 one listing and two requests per activity (detail and streams). OAuth
 setup/refresh is separate; missing activities, fewer returned summaries,
 or errors may change the request count. Rerun after resolving an error or

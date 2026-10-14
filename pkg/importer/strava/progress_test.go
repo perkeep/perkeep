@@ -30,7 +30,41 @@ import (
 
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 )
+
+// progressRun exercises the chronological core independently of disposable
+// hourly/daily scheduling hints. Scheduler behavior is covered in sync_test.go;
+// top-level validation, capped imports, and the run gate still use actual Run.
+func progressRun(f *coreFixture) error {
+	p, err := readImportProgress(f.rc.AccountNode())
+	if err != nil {
+		return err
+	}
+	if err := f.rc.RootNode().SetAttrs(nodeattr.Title, "Strava workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
+		return err
+	}
+	parent, err := f.rc.RootNode().ChildPathObject("activities")
+	if err != nil {
+		return err
+	}
+	if err := parent.SetAttr(nodeattr.Title, "Activities"); err != nil {
+		return err
+	}
+	return (&run{f.rc}).importChronologicalActivities(parent, p)
+}
+
+func progressDailyDue(t *testing.T, f *coreFixture, now time.Time) {
+	t.Helper()
+	cache, err := f.rc.AccountCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedule := syncCache{Version: syncStateVersion, NextPoll: now.Add(time.Hour)}
+	if err := cache.Set(syncCacheKey, string(coreJSON(t, schedule))); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func progressActivity(t *testing.T, api *coreAPI, id int64, start time.Time) activity {
 	t.Helper()
@@ -127,6 +161,11 @@ func progressAccountClaims(t *testing.T, f *coreFixture) []schema.Claim {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Once the schema binding is current, an unchanged binding is a
+		// no-op and a watermark-only scalar claim is already atomic.
+		if len(ops) > 1 && claim.ClaimType() != schema.MultiClaim {
+			t.Errorf("multi-operation progress was not atomic: %s", claim.ClaimType())
+		}
 		for _, op := range ops {
 			if op.Attribute == attrImportThrough || op.Attribute == attrImportThroughVersion || op.Attribute == attrBackfillCompletedVersion {
 				found = append(found, claim)
@@ -163,7 +202,7 @@ func TestProgressDiscoversEverythingBeforeOldestFirstPopulation(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"list:1", "list:2", "list:3", "list:4"}
@@ -197,7 +236,7 @@ func TestProgressFailureFlushesOlderGroupsAndResumeIsInclusive(t *testing.T) {
 	}))
 	f.configure(t)
 	api.failures[progressDetailPath(3)] = http.StatusServiceUnavailable
-	if err := (imp{}).Run(f.rc); err == nil || !strings.Contains(err.Error(), "activity 3") {
+	if err := progressRun(f); err == nil || !strings.Contains(err.Error(), "activity 3") {
 		t.Fatalf("Run error = %v; want activity 3 failure", err)
 	}
 	boundary = base.Add(2 * 24 * time.Hour)
@@ -216,7 +255,7 @@ func TestProgressFailureFlushesOlderGroupsAndResumeIsInclusive(t *testing.T) {
 	}
 	delete(api.failures, progressDetailPath(3))
 	api.calls = make(map[string]int)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	// The server excludes older history, but retains the exact watermark;
@@ -264,7 +303,7 @@ func TestProgressFailedTimestampGroupAcrossPagesDoesNotAdvance(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); !errors.Is(err, errCoreClaimFailure) || !strings.Contains(err.Error(), "activity 4") {
+	if err := progressRun(f); !errors.Is(err, errCoreClaimFailure) || !strings.Contains(err.Error(), "activity 4") {
 		t.Fatalf("Run error = %v; want failed activity claim cause", err)
 	}
 	progressAssertAttrs(t, f, progressWant(old.StartDate, false))
@@ -276,7 +315,7 @@ func TestProgressFailedTimestampGroupAcrossPagesDoesNotAdvance(t *testing.T) {
 		t.Fatal("newer timestamp imported after failed group")
 	}
 	boundary = old.StartDate
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	for id := int64(1); id <= 5; id++ {
@@ -339,7 +378,7 @@ func TestProgressDiscoveryFailureCannotPublishActivitiesOrProgress(t *testing.T)
 				t.Fatal(err)
 			}
 			before := f.activityState(f.rc.AccountNode().PermanodeRef())
-			err := (imp{}).Run(f.rc)
+			err := progressRun(f)
 			if err == nil {
 				t.Fatal("incomplete/invalid discovery succeeded")
 			}
@@ -375,15 +414,16 @@ func TestProgressDiscoveryFailureCannotPublishActivitiesOrProgress(t *testing.T)
 	}
 }
 
-func TestProgressExactResumeAndSevenDayOverlapBoundaries(t *testing.T) {
+func TestProgressExactResumeAndDailyWindowBoundaries(t *testing.T) {
 	t.Setenv(maxActivitiesEnv, "")
 	for _, done := range []bool{false, true} {
 		t.Run(fmt.Sprintf("backfill-done=%t", done), func(t *testing.T) {
 			api := newCoreAPI(t)
 			high := coreActivity(1).StartDate.Add(500123456 * time.Nanosecond)
+			now := high.Add(24 * time.Hour)
 			boundary := high
 			if done {
-				boundary = high.Add(-7 * 24 * time.Hour)
+				boundary = now.Add(-syncRecentWindow)
 			}
 			justBefore := progressActivity(t, api, 1, boundary.Add(-time.Nanosecond))
 			exact := progressActivity(t, api, 2, boundary)
@@ -408,7 +448,10 @@ func TestProgressExactResumeAndSevenDayOverlapBoundaries(t *testing.T) {
 			if err := f.rc.AccountNode().SetAttrs(sets...); err != nil {
 				t.Fatal(err)
 			}
-			if err := (imp{}).Run(f.rc); err != nil {
+			if done {
+				progressDailyDue(t, f, now)
+				syncRun(t, f, now)
+			} else if err := progressRun(f); err != nil {
 				t.Fatal(err)
 			}
 			if api.calls["/athlete/activities?page=5"] != 1 {
@@ -422,12 +465,17 @@ func TestProgressExactResumeAndSevenDayOverlapBoundaries(t *testing.T) {
 					t.Errorf("boundary-selected activity %d fetched %d times; want 1", a.ID, api.calls[progressDetailPath(a.ID)])
 				}
 			}
-			progressAssertAttrs(t, f, progressWant(newest.StartDate, true))
+			through := newest.StartDate
+			if done {
+				// Daily reconciliation cannot bless a new catchup watermark.
+				through = high
+			}
+			progressAssertAttrs(t, f, progressWant(through, true))
 		})
 	}
 }
 
-func TestProgressSteadyOverlapFindsEditsAndBackdatedActivities(t *testing.T) {
+func TestProgressDailyWindowFindsEditsAndBackdatedActivities(t *testing.T) {
 	t.Setenv(maxActivitiesEnv, "")
 	api := newCoreAPI(t)
 	high := coreActivity(1).StartDate
@@ -445,7 +493,7 @@ func TestProgressSteadyOverlapFindsEditsAndBackdatedActivities(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	beforeRecent := f.activity(t, recent.ID).PermanodeRef()
@@ -453,20 +501,20 @@ func TestProgressSteadyOverlapFindsEditsAndBackdatedActivities(t *testing.T) {
 	recent.Name += " edited within overlap"
 	api.details[old.ID] = coreJSON(t, old)
 	api.details[recent.ID] = coreJSON(t, recent)
-	backdated := progressActivity(t, api, 4, high.Add(-7*24*time.Hour))
-	tooOld := progressActivity(t, api, 5, high.Add(-7*24*time.Hour-time.Nanosecond))
+	now := high.Add(24 * time.Hour)
+	boundary = now.Add(-syncRecentWindow)
+	backdated := progressActivity(t, api, 4, boundary)
+	tooOld := progressActivity(t, api, 5, boundary.Add(-time.Nanosecond))
 	history = []activity{tooOld, recent, old, newest, backdated}
-	boundary = high.Add(-7 * 24 * time.Hour)
 	api.calls = make(map[string]int)
-	if err := (imp{}).Run(f.rc); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []int64{old.ID, newest.ID, tooOld.ID} {
+	progressDailyDue(t, f, now)
+	syncRun(t, f, now)
+	for _, id := range []int64{old.ID, tooOld.ID} {
 		if api.calls[progressDetailPath(id)] != 0 {
-			t.Errorf("outside-window or unchanged activity %d refetched", id)
+			t.Errorf("outside-window activity %d refetched", id)
 		}
 	}
-	for _, id := range []int64{recent.ID, backdated.ID} {
+	for _, id := range []int64{recent.ID, newest.ID, backdated.ID} {
 		if api.calls[progressDetailPath(id)] != 1 {
 			t.Errorf("eligible changed/new activity %d not imported once", id)
 		}
@@ -573,7 +621,7 @@ func TestProgressUnknownVersionsRequireFullReconciliation(t *testing.T) {
 				t.Fatal(err)
 			}
 			api.failures[progressDetailPath(newer.ID)] = http.StatusServiceUnavailable
-			if err := (imp{}).Run(f.rc); err == nil {
+			if err := progressRun(f); err == nil {
 				t.Fatal("injected import failure succeeded")
 			}
 			want := progressWant(older.StartDate, false)
@@ -586,7 +634,7 @@ func TestProgressUnknownVersionsRequireFullReconciliation(t *testing.T) {
 			// not a current done flag derived from the old generic completion.
 			delete(api.failures, progressDetailPath(newer.ID))
 			boundary = older.StartDate
-			if err := (imp{}).Run(f.rc); err != nil {
+			if err := progressRun(f); err != nil {
 				t.Fatal(err)
 			}
 			if api.calls[progressDetailPath(older.ID)] != 1 {
@@ -636,7 +684,7 @@ func TestProgressCappedCompletionDoesNotFinishPartialBackfill(t *testing.T) {
 	api.perPage = 0
 	api.pages[1] = []activity{newest, middle, old}
 	boundary = old.StartDate
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range []activity{old, middle, newest} {
@@ -689,12 +737,12 @@ func TestProgressEmptyHistoryHasNoInventedWatermark(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	progressAssertAttrs(t, f, progressWant(time.Time{}, true))
 	before := f.storage.NumBlobs()
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.storage.NumBlobs(); got != before {
@@ -704,7 +752,7 @@ func TestProgressEmptyHistoryHasNoInventedWatermark(t *testing.T) {
 	// not manufacture a wall-clock watermark that would exclude it.
 	a := progressActivity(t, api, 1, coreActivity(1).StartDate.Add(-365*24*time.Hour))
 	api.pages[1] = []activity{a}
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	if api.calls[progressDetailPath(a.ID)] != 1 {
@@ -736,7 +784,7 @@ func TestProgressFinalCheckpointFailureIsAtomicAndRetryable(t *testing.T) {
 			before := f.activityState(f.rc.AccountNode().PermanodeRef())
 			claimCount := len(progressAccountClaims(t, f))
 			f.storage.failNextClaim(key)
-			if err := (imp{}).Run(f.rc); !errors.Is(err, errCoreClaimFailure) || !strings.Contains(err.Error(), "saving chronological progress") {
+			if err := progressRun(f); !errors.Is(err, errCoreClaimFailure) || !strings.Contains(err.Error(), "saving chronological progress") {
 				t.Fatalf("Run error = %v; want checkpoint claim failure", err)
 			}
 			progressAssertAttrs(t, f, old)
@@ -747,7 +795,7 @@ func TestProgressFinalCheckpointFailureIsAtomicAndRetryable(t *testing.T) {
 				t.Errorf("failed final checkpoint was retried/published: %d new claims", got-claimCount)
 			}
 			coreAttrs(t, f.activity(t, a.ID), map[string]string{attrImportVersion: runCompleteVersion})
-			if err := (imp{}).Run(f.rc); err != nil {
+			if err := progressRun(f); err != nil {
 				t.Fatal(err)
 			}
 			if got := api.calls[progressDetailPath(a.ID)]; got != 1 {
@@ -788,7 +836,7 @@ func TestProgressFailureJoinsImportAndCheckpointCauses(t *testing.T) {
 		}
 	}
 	claimCount := len(progressAccountClaims(t, f))
-	err := (imp{}).Run(f.rc)
+	err := progressRun(f)
 	if !errors.Is(err, importFailure) || !errors.Is(err, errCoreClaimFailure) {
 		t.Fatalf("Run error = %v; want joined import and failed checkpoint causes", err)
 	}
@@ -799,7 +847,7 @@ func TestProgressFailureJoinsImportAndCheckpointCauses(t *testing.T) {
 		t.Errorf("failed graceful checkpoint produced %d claims", got-claimCount)
 	}
 	fail = false
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	if got := api.calls[progressDetailPath(older.ID)]; got != 1 {
@@ -828,7 +876,7 @@ func TestProgressCancellationFlushesOnlyCompletedGroups(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); !errors.Is(err, context.Canceled) {
+	if err := progressRun(f); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run error = %v; want context cancellation", err)
 	}
 	if err := f.rc.Context().Err(); !errors.Is(err, context.Canceled) {
@@ -845,11 +893,11 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 	t.Setenv(maxActivitiesEnv, "")
 	api := newCoreAPI(t)
 	base := coreActivity(1).StartDate
-	tie := base.Add(100 * time.Second)
+	tie := base.Add(50 * time.Second)
 	latest := base.Add(103 * time.Second)
 	for id := int64(103); id >= 1; id-- {
 		start := base.Add(time.Duration(id) * time.Second)
-		if id >= 100 && id <= 102 {
+		if id >= 50 && id <= 52 {
 			start = tie
 		}
 		page := int((103-id)/50) + 1
@@ -865,11 +913,13 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 			parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/api/v3/activities/"), "/")
 			id, _ := strconv.ParseInt(parts[0], 10, 64)
 			want := ""
-			if id == 103 {
+			if id >= 53 && id <= 102 {
 				want = tie.Format(time.RFC3339Nano)
+			} else if id >= 103 {
+				want = base.Add(102 * time.Second).Format(time.RFC3339Nano)
 			}
 			if got := f.rc.AccountNode().Attr(attrImportThrough); got != want {
-				t.Errorf("watermark while importing %d = %q; want %q (whole groups, batch of 100)", id, got, want)
+				t.Errorf("watermark while importing %d = %q; want %q (whole groups, batch of 50)", id, got, want)
 			}
 		}
 		res, err := api.RoundTrip(req)
@@ -882,23 +932,25 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 		return res, err
 	}))
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	progressAssertAttrs(t, f, progressWant(latest, true))
 	claims := progressAccountClaims(t, f)
-	if len(claims) != 2 {
-		t.Fatalf("103 successful activities produced %d account progress claims; want 2, not one per timestamp group", len(claims))
+	if len(claims) != 3 {
+		t.Fatalf("103 successful activities produced %d account progress claims; want 3, not one per timestamp group", len(claims))
 	}
 	watermarks := make(map[string]int)
 	doneClaims := 0
 	for _, claim := range claims {
-		if got := claim.ClaimType(); got != schema.MultiClaim {
-			t.Errorf("checkpoint claim type = %q; want atomic multi claim", got)
-		}
 		ops, err := claim.AttributeClaims()
 		if err != nil {
 			t.Fatal(err)
+		}
+		// Once the schema binding is current, an unchanged binding is a
+		// no-op and a watermark-only scalar claim is already atomic.
+		if len(ops) > 1 && claim.ClaimType() != schema.MultiClaim {
+			t.Errorf("multi-operation progress was not atomic: %s", claim.ClaimType())
 		}
 		for _, op := range ops {
 			if op.Attribute == attrImportThrough {
@@ -909,12 +961,12 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 			}
 		}
 	}
-	wantWatermarks := map[string]int{tie.Format(time.RFC3339Nano): 1, latest.Format(time.RFC3339Nano): 1}
+	wantWatermarks := map[string]int{tie.Format(time.RFC3339Nano): 1, base.Add(102 * time.Second).Format(time.RFC3339Nano): 1, latest.Format(time.RFC3339Nano): 1}
 	if !reflect.DeepEqual(watermarks, wantWatermarks) || doneClaims != 1 {
 		t.Errorf("checkpoint watermarks = %v, done claims = %d; want %v, 1", watermarks, doneClaims, wantWatermarks)
 	}
-	// Scratch contains only the disposable app quota, never an activity
-	// ledger or chronological cursor. Removing it cannot lose progress.
+	// The direct core helper needs no scratch. If quota bookkeeping was
+	// initialized, it must never contain an activity ledger or cursor.
 	cache := f.rateCache(t)
 	it := cache.Find("", "")
 	var keys []string
@@ -924,8 +976,8 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 	if err := it.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{rateLimitCacheKey(f.clientID)}; !reflect.DeepEqual(keys, want) {
-		t.Errorf("importer scratch keys = %v; want quota key only %v", keys, want)
+	if want := []string{rateLimitCacheKey(f.clientID)}; len(keys) > 0 && !reflect.DeepEqual(keys, want) {
+		t.Errorf("importer scratch keys = %v; want empty or quota key only %v", keys, want)
 	}
 	accountCache, err := f.rc.AccountCache()
 	if err != nil {
@@ -942,10 +994,10 @@ func TestProgressCheckpointsAreBatchedAcrossWholeGroupsAndPollWritesNothing(t *t
 		t.Fatal(err)
 	}
 	poll = true
-	boundary = latest.Add(-7 * 24 * time.Hour)
+	boundary = latest
 	api.calls = make(map[string]int)
 	before := f.storage.NumBlobs()
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.storage.NumBlobs(); got != before {
@@ -977,17 +1029,17 @@ func TestProgressFailedBatchCheckpointStopsAndDoesNotRetryPublication(t *testing
 	}))
 	f.configure(t)
 	f.storage.failNextClaim(attrImportThroughVersion)
-	if err := (imp{}).Run(f.rc); !errors.Is(err, errCoreClaimFailure) {
+	if err := progressRun(f); !errors.Is(err, errCoreClaimFailure) {
 		t.Fatalf("Run error = %v; want failed batch checkpoint cause", err)
 	}
 	progressAssertAttrs(t, f, nil)
 	if got := len(progressAccountClaims(t, f)); got != 0 {
 		t.Errorf("failed checkpoint was republished by deferred flush: %d claims", got)
 	}
-	if got := api.calls[progressDetailPath(101)]; got != 0 {
+	if got := api.calls[progressDetailPath(51)]; got != 0 {
 		t.Errorf("failed batch checkpoint continued into newer activity: %d calls", got)
 	}
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := progressRun(f); err != nil {
 		t.Fatal(err)
 	}
 	for id := int64(1); id <= 101; id++ {
@@ -995,8 +1047,8 @@ func TestProgressFailedBatchCheckpointStopsAndDoesNotRetryPublication(t *testing
 			t.Errorf("activity %d detail calls = %d; want committed activities reused on retry", id, got)
 		}
 	}
-	if got := len(progressAccountClaims(t, f)); got != 2 {
-		t.Errorf("retry published %d checkpoints; want batch plus final", got)
+	if got := len(progressAccountClaims(t, f)); got != 3 {
+		t.Errorf("retry published %d checkpoints; want two batches plus final", got)
 	}
 	progressAssertAttrs(t, f, progressWant(base.Add(101*time.Second), true))
 }

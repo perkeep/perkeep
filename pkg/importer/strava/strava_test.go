@@ -179,14 +179,17 @@ func (s *coreStorage) Describe(_ context.Context, req *search.DescribeRequest) (
 }
 
 func (s *coreStorage) Query(_ context.Context, req *search.SearchQuery) (*search.SearchResult, error) {
-	if req.Expression != "attr:camliNodeType:importer attr:importerType:strava" {
+	nodeType := "importer"
+	if req.Expression == "attr:camliNodeType:importerAccount attr:importerType:strava" {
+		nodeType = "importerAccount"
+	} else if req.Expression != "attr:camliNodeType:importer attr:importerType:strava" {
 		return nil, errors.New("unexpected search query in importer core test")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := &search.SearchResult{}
 	for ref, attrs := range s.attrs {
-		if attrs.Get("camliNodeType") == "importer" && attrs.Get("importerType") == "strava" {
+		if attrs.Get("camliNodeType") == nodeType && attrs.Get("importerType") == "strava" {
 			res.Blobs = append(res.Blobs, &search.SearchResultBlob{Blob: ref})
 		}
 	}
@@ -604,6 +607,15 @@ type coreAPI struct {
 	streams  map[int64][]byte // absent entry means the API has no streams
 	failures map[string]int
 	calls    map[string]int
+	queries  []url.Values // full listing queries; calls keeps its legacy page-only keys
+	order    []int64      // detailed activity requests, in provider traversal order
+	before   func(*http.Request) error
+	// Large backfill fixtures can announce a larger application budget without
+	// weakening the conservative defaults exercised by the rate-limit tests.
+	highQuota bool
+	// Opt-in filtered offset pagination for scheduler fixtures. Literal canned
+	// pages preserve unordered/duplicate/custom short-page discovery tests.
+	dateFiltered bool
 }
 
 func newCoreAPI(t *testing.T) *coreAPI {
@@ -615,6 +627,11 @@ func newCoreAPI(t *testing.T) *coreAPI {
 
 func (api *coreAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 	api.t.Helper()
+	if api.before != nil {
+		if err := api.before(req); err != nil {
+			return nil, err
+		}
+	}
 	if req.Method != http.MethodGet || req.URL.Host != "www.strava.com" {
 		api.t.Errorf("unexpected request %s %s", req.Method, req.URL)
 	}
@@ -627,26 +644,73 @@ func (api *coreAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 		key += "?page=" + req.URL.Query().Get("page")
 	}
 	api.calls[key]++
+	response := func(status int, body []byte) *http.Response {
+		res := coreResponse(req, status, body)
+		if api.highQuota {
+			res.Header.Set("X-RateLimit-Limit", "10000,100000")
+			res.Header.Set("X-ReadRateLimit-Limit", "10000,100000")
+		}
+		return res
+	}
+	if status := api.failures[key]; status != 0 {
+		return response(status, []byte(`{"message":"test failure"}`)), nil
+	}
 	if status := api.failures[path]; status != 0 {
-		return coreResponse(req, status, []byte(`{"message":"test failure"}`)), nil
+		return response(status, []byte(`{"message":"test failure"}`)), nil
 	}
 	if path == "/athlete/activities" {
+		api.queries = append(api.queries, req.URL.Query())
 		perPage := api.perPage
 		if perPage == 0 {
 			perPage = 100
 		}
-		if got := req.URL.Query().Get("per_page"); got != strconv.Itoa(perPage) {
-			api.t.Errorf("per_page = %q; want %d", got, perPage)
+		requestSize, sizeErr := strconv.Atoi(req.URL.Query().Get("per_page"))
+		// Production's hourly probe can request a single summary. Explicit
+		// perPage fixtures still check the capped import's fixed page size.
+		if sizeErr != nil || requestSize < 1 || requestSize > 100 ||
+			(api.perPage != 0 && requestSize != perPage) {
+			api.t.Errorf("per_page = %q; want valid size (fixture %d)", req.URL.Query().Get("per_page"), perPage)
 		}
 		page, err := strconv.Atoi(req.URL.Query().Get("page"))
 		if err != nil || page < 1 {
 			api.t.Errorf("invalid page query %q", req.URL.RawQuery)
 		}
 		activities := api.pages[page]
+		query := req.URL.Query()
+		if api.dateFiltered {
+			// Filter before paginating, preserving provider order even for
+			// after queries. Never sort away intentionally unordered pages.
+			var all []activity
+			pages := make([]int, 0, len(api.pages))
+			for p := range api.pages {
+				pages = append(pages, p)
+			}
+			slices.Sort(pages)
+			for _, p := range pages {
+				all = append(all, api.pages[p]...)
+			}
+			after, _ := strconv.ParseInt(query.Get("after"), 10, 64)
+			before, _ := strconv.ParseInt(query.Get("before"), 10, 64)
+			filtered := make([]activity, 0, len(all))
+			for _, a := range all {
+				if query.Has("after") && !a.StartDate.After(time.Unix(after, 0)) ||
+					query.Has("before") && !a.StartDate.Before(time.Unix(before, 0)) {
+					continue
+				}
+				filtered = append(filtered, a)
+			}
+			start := (page - 1) * requestSize
+			activities = nil
+			if start < len(filtered) {
+				activities = filtered[start:min(start+requestSize, len(filtered))]
+			}
+		} else if api.perPage == 0 && requestSize == 1 && len(activities) > 1 {
+			activities = activities[:1]
+		}
 		if activities == nil {
 			activities = []activity{}
 		}
-		return coreResponse(req, http.StatusOK, coreJSON(api.t, activities)), nil
+		return response(http.StatusOK, coreJSON(api.t, activities)), nil
 	}
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) < 2 || parts[0] != "activities" {
@@ -658,11 +722,12 @@ func (api *coreAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 		api.t.Errorf("invalid activity path %q", path)
 	}
 	if len(parts) == 2 {
+		api.order = append(api.order, id)
 		body, ok := api.details[id]
 		if !ok {
 			api.t.Errorf("unexpected activity details request %d", id)
 		}
-		return coreResponse(req, http.StatusOK, body), nil
+		return response(http.StatusOK, body), nil
 	}
 	if len(parts) == 3 && parts[2] == "streams" {
 		if got := req.URL.Query().Get("key_by_type"); got != "true" {
@@ -670,9 +735,9 @@ func (api *coreAPI) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		body, ok := api.streams[id]
 		if !ok {
-			return coreResponse(req, http.StatusNotFound, nil), nil
+			return response(http.StatusNotFound, nil), nil
 		}
-		return coreResponse(req, http.StatusOK, body), nil
+		return response(http.StatusOK, body), nil
 	}
 	api.t.Errorf("unexpected API path %q", path)
 	return coreResponse(req, http.StatusNotFound, nil), nil
@@ -812,6 +877,7 @@ func TestImporterRootDefaultVisibility(t *testing.T) {
 func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	api := newCoreAPI(t)
 	first, second := coreActivity(101), coreActivity(202)
+	now := first.StartDate.Add(24 * time.Hour)
 	api.pages[1], api.pages[2] = []activity{first}, []activity{second}
 	// Include a field unknown to the modeled activity: raw archives must
 	// preserve the provider's original response, not marshal the Go struct.
@@ -821,7 +887,7 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	api.streams[first.ID], api.streams[second.ID] = []byte(coreTrackStreams), []byte(coreTrackStreams)
 	f := newCoreFixture(t, api)
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
 	coreAttrs(t, f.rc.RootNode(), map[string]string{nodeattr.Title: "Strava workouts", nodeattr.DefaultVisibility: "hide"})
@@ -877,19 +943,24 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 		importer.AcctAttrCompletedVersion: runCompleteVersion,
 		"importRoot":                      f.rc.RootNode().PermanodeRef().String(),
 	})
-	wantCalls := map[string]int{
-		"/athlete/activities?page=1": 1, "/athlete/activities?page=2": 1, "/athlete/activities?page=3": 1,
-		"/activities/101": 1, "/activities/101/streams": 1, "/activities/202": 1, "/activities/202/streams": 1,
+	// Complete range discovery and the initial daily window share completed
+	// activity markers: neither phase may fetch content twice in one run.
+	for _, id := range []int64{first.ID, second.ID} {
+		path := progressDetailPath(id)
+		if api.calls[path] != 1 || api.calls[path+"/streams"] != 1 {
+			t.Fatalf("initial heavy calls = %v; want once per activity", api.calls)
+		}
 	}
-	if !reflect.DeepEqual(api.calls, wantCalls) {
-		t.Fatalf("first run requests = %v; want %v", api.calls, wantCalls)
+	if len(api.queries) == 0 || api.queries[0].Has("after") || api.calls["/athlete/activities?page=3"] == 0 {
+		t.Fatalf("initial discovery did not enumerate full history through EOF: %v", api.queries)
+	}
+	wantCalls := make(map[string]int, len(api.calls))
+	for path, count := range api.calls {
+		wantCalls[path] = count
 	}
 	before := f.storage.NumBlobs()
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
-	}
-	for page := 1; page <= 3; page++ {
-		wantCalls[fmt.Sprintf("/athlete/activities?page=%d", page)]++
 	}
 	if !reflect.DeepEqual(api.calls, wantCalls) {
 		t.Errorf("unchanged run re-fetched details/streams: %v; want %v", api.calls, wantCalls)
@@ -910,15 +981,14 @@ func TestImporterBackfillRepeatedRunsAndEdits(t *testing.T) {
 	// An edited summary invalidates just that activity. Its stable ID path
 	// must retain the existing permanode, not create a second activity.
 	// Distance affects the details JSON but not the generated GPX.
+	now = now.Add(time.Hour)
 	first.Distance++
 	api.pages[1] = []activity{first}
 	api.details[first.ID] = coreJSON(t, first)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
-	for page := 1; page <= 3; page++ {
-		wantCalls[fmt.Sprintf("/athlete/activities?page=%d", page)]++
-	}
+	wantCalls["/athlete/activities?page=1"]++
 	wantCalls["/activities/101"]++
 	wantCalls["/activities/101/streams"]++
 	if !reflect.DeepEqual(api.calls, wantCalls) {
@@ -965,10 +1035,11 @@ func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			api := newCoreAPI(t)
 			a := coreActivity(101)
+			now := a.StartDate.Add(time.Hour)
 			api.pages[1], api.details[a.ID], api.streams[a.ID] = []activity{a}, coreJSON(t, a), []byte(coreTrackStreams)
 			f := newCoreFixture(t, api)
 			f.configure(t)
-			if err := (imp{}).Run(f.rc); err != nil {
+			if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 				t.Fatal(err)
 			}
 			obj := f.activity(t, a.ID)
@@ -1010,7 +1081,8 @@ func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
 			if tc.noStreams {
 				delete(api.streams, a.ID)
 			}
-			if err := (imp{}).Run(f.rc); err != nil {
+			now = now.Add(25 * time.Hour)
+			if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 				t.Fatal(err)
 			}
 			obj = f.activity(t, a.ID)
@@ -1392,26 +1464,28 @@ func TestImporterFailedActivityResumes(t *testing.T) {
 func TestImporterFailedEditPreservesCompletionThenClearsStaleOptionalAttrs(t *testing.T) {
 	api := newCoreAPI(t)
 	a := coreActivity(101)
+	now := a.StartDate.Add(time.Hour)
 	api.pages[1], api.details[a.ID], api.streams[a.ID] = []activity{a}, coreJSON(t, a), []byte(coreTrackStreams)
 	f := newCoreFixture(t, api)
 	f.configure(t)
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
 	ref := f.activity(t, a.ID).PermanodeRef()
 	old := f.activityState(ref)
+	now = now.Add(time.Hour)
 	a.Name = "Private indoor manual workout"
 	a.SportType, a.Private, a.Manual, a.Trainer = "Workout", true, true, true
 	a.Calories, a.AverageHeartrate, a.MaxHeartrate, a.StartLatlng = nil, nil, nil, nil
 	api.pages[1], api.details[a.ID] = []activity{a}, coreJSON(t, a)
 	api.failures["/activities/101/streams"] = http.StatusBadGateway
-	if err := (imp{}).Run(f.rc); err == nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err == nil {
 		t.Fatal("failed edit succeeded")
 	}
 	f.assertActivityState(t, f.activity(t, a.ID), old, &a)
 	delete(api.failures, "/activities/101/streams")
 	delete(api.streams, a.ID) // manual activity returns HTTP 404 for streams
-	if err := (imp{}).Run(f.rc); err != nil {
+	if err := (imp{}).runAt(f.rc, func() time.Time { return now }); err != nil {
 		t.Fatal(err)
 	}
 	obj := f.activity(t, a.ID)
@@ -2023,7 +2097,7 @@ func TestImporterRefreshOnlyAndPartialTokenWritesRecover(t *testing.T) {
 			if err := (imp{}).Run(f.rc); err != nil {
 				t.Fatal(err)
 			}
-			want := []string{"/oauth/token", "/api/v3/athlete/activities"}
+			want := []string{"/oauth/token", "/api/v3/athlete/activities", "/api/v3/athlete/activities"}
 			if !reflect.DeepEqual(calls, want) {
 				t.Errorf("recovery requests = %v; want %v", calls, want)
 			}

@@ -30,8 +30,8 @@ const (
 	attrImportThroughVersion     = "stravaImportThroughVersion"
 	attrBackfillCompletedVersion = "stravaBackfillCompletedVersion"
 
-	progressCheckpointActivities = 100
-	activityReconciliationWindow = 7 * 24 * time.Hour
+	progressCheckpointActivities = 50
+	progressCheckpointInterval   = 30 * time.Second
 )
 
 // As with the OAuth locks, stripes do not retain state for deleted accounts.
@@ -101,14 +101,6 @@ func readImportProgress(acct *importer.Object) (importProgress, error) {
 		through = through.UTC()
 	}
 	return importProgress{through: through, backfillDone: done == runCompleteVersion}, nil
-}
-
-func (p importProgress) boundary() time.Time {
-	if p.backfillDone && !p.through.IsZero() {
-		// This is a local reconciliation policy, not a source edit guarantee.
-		return p.through.Add(-activityReconciliationWindow)
-	}
-	return p.through
 }
 
 // writeImportProgress publishes the watermark and its schema binding together.
@@ -195,10 +187,22 @@ func (r *run) discoverActivities(boundary time.Time) ([]activity, error) {
 	return summaries, nil
 }
 
-func (r *run) importChronologicalActivities(parent *importer.Object, progress importProgress) (err error) {
-	summaries, err := r.discoverActivities(progress.boundary())
+func (r *run) importChronologicalActivities(parent *importer.Object, progress importProgress) error {
+	_, err := r.importChronologicalActivitiesAt(parent, progress, time.Now, nil)
+	return err
+}
+
+// importChronologicalActivitiesAt keeps the clock and activity publication hook
+// local to one run. Discovery still finishes before any activity is published,
+// and only whole timestamp groups may advance the authoritative progress.
+func (r *run) importChronologicalActivitiesAt(parent *importer.Object, progress importProgress, now func() time.Time, visit func(*activity) error) (latest *activity, err error) {
+	if visit == nil {
+		visit = func(a *activity) error { return r.importActivity(parent, a) }
+	}
+	lastCheckpoint := now()
+	summaries, err := r.discoverActivities(progress.through)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	considered := 0
 	checkpointFailed := false
@@ -208,6 +212,7 @@ func (r *run) importChronologicalActivities(parent *importer.Object, progress im
 			return err
 		}
 		considered = 0
+		lastCheckpoint = now()
 		return nil
 	}
 	defer func() {
@@ -223,28 +228,29 @@ func (r *run) importChronologicalActivities(parent *importer.Object, progress im
 			last++
 		}
 		for i := first; i < last; i++ {
-			if err := r.importActivity(parent, &summaries[i]); err != nil {
-				return fmt.Errorf("strava: activity %d: %w", summaries[i].ID, err)
+			if err := visit(&summaries[i]); err != nil {
+				return latest, fmt.Errorf("strava: activity %d: %w", summaries[i].ID, err)
 			}
 		}
 		if err := r.Context().Err(); err != nil {
-			return err
+			return latest, err
 		}
 		// Only a completed group can extend the contiguous prefix. In the
-		// reconciliation overlap, already-persisted progress never regresses.
+		// inclusive boundary group, already-persisted progress never regresses.
 		if t := summaries[first].StartDate; t.After(progress.through) {
 			progress.through = t
 		}
+		latest = &summaries[last-1]
 		considered += last - first
-		if considered >= progressCheckpointActivities && last < len(summaries) {
+		if last < len(summaries) && (considered >= progressCheckpointActivities || now().Sub(lastCheckpoint) >= progressCheckpointInterval) {
 			if err := checkpoint(false); err != nil {
-				return err
+				return latest, err
 			}
 		}
 		first = last
 	}
 	if err := r.Context().Err(); err != nil {
-		return err
+		return latest, err
 	}
-	return checkpoint(true)
+	return latest, checkpoint(true)
 }
