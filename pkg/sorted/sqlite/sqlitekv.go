@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 
 	_ "modernc.org/sqlite"
 
@@ -60,18 +61,36 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Reads use their own connections, which in WAL mode don't wait
+	// for the writer (or make it wait), so concurrent reads, such as
+	// the corpus loading its prefixes or blobpacked's meta lookups
+	// during a reindex, can overlap each other and writes. query_only
+	// keeps them from writing; the busy timeout covers the brief
+	// times a WAL reader can still be told the database is busy.
+	readDB, err := sql.Open("sqlite", file+"?_pragma=query_only(1)&_pragma=busy_timeout(10000)")
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	// The pool isn't capped: Find holds a connection until its
+	// iterator is closed, so a cap could deadlock callers that read
+	// while iterating. But keep enough idle connections that busy
+	// readers don't keep reopening them.
+	readDB.SetMaxIdleConns(runtime.NumCPU())
 	success := false
 	defer func() {
 		if !success {
 			db.Close()
+			readDB.Close()
 		}
 	}()
 	kv := &keyValue{
 		file: file,
 		db:   db,
 		KeyValue: &sqlkv.KeyValue{
-			DB:   db,
-			Gate: syncutil.NewGate(1),
+			DB:     db,
+			ReadDB: readDB,
+			Gate:   syncutil.NewGate(1),
 		},
 	}
 

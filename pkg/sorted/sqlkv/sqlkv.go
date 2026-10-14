@@ -54,6 +54,13 @@ type KeyValue struct {
 	// It's also used to limit the number of MySQL connections.
 	Gate *syncutil.Gate
 
+	// ReadDB, if non-nil, is used instead of DB, without Gate, for
+	// reads outside of a batch: Get, Find, and BeginReadTx. It's for
+	// databases such as SQLite in WAL mode, where readers on their own
+	// connections neither block nor wait for the writer, so they don't
+	// need to queue behind Gate. Close closes it too.
+	ReadDB *sql.DB
+
 	// TablePrefix optionally provides a prefix for SQL table
 	// names. This is typically "dbname.", ending in a period.
 	TablePrefix string
@@ -117,7 +124,11 @@ func (kv *KeyValue) Prepare() error {
 		if q.dst == &p.set && kv.SetFunc != nil && kv.BatchSetFunc != nil {
 			continue
 		}
-		stmt, err := kv.DB.Prepare(kv.sql(q.sql))
+		db := kv.DB
+		if q.dst == &p.get || q.dst == &p.find || q.dst == &p.findEnd {
+			db = kv.readDB()
+		}
+		stmt, err := db.Prepare(kv.sql(q.sql))
 		if err != nil {
 			p.close()
 			return fmt.Errorf("sqlkv: preparing %q: %w", q.sql, err)
@@ -126,6 +137,22 @@ func (kv *KeyValue) Prepare() error {
 	}
 	kv.prepared = p
 	return nil
+}
+
+// readDB returns the database to use for reads outside of a batch.
+func (kv *KeyValue) readDB() *sql.DB {
+	if kv.ReadDB != nil {
+		return kv.ReadDB
+	}
+	return kv.DB
+}
+
+// readGate returns the gate to hold for reads outside of a batch, or nil.
+func (kv *KeyValue) readGate() *syncutil.Gate {
+	if kv.ReadDB != nil {
+		return nil
+	}
+	return kv.Gate
 }
 
 // sql returns the query, replacing placeholders using PlaceHolderFunc,
@@ -248,12 +275,11 @@ func (b *batchTx) Close() error {
 	return b.tx.Commit()
 }
 
-func (kv *KeyValue) beginTx(txOpts *sql.TxOptions) *batchTx {
-	gate := kv.Gate
+func (kv *KeyValue) beginTx(db *sql.DB, gate *syncutil.Gate, txOpts *sql.TxOptions) *batchTx {
 	if gate != nil {
 		gate.Start()
 	}
-	tx, err := kv.DB.BeginTx(context.TODO(), txOpts)
+	tx, err := db.BeginTx(context.TODO(), txOpts)
 	if err != nil {
 		log.Printf("SQL BEGIN BATCH: %v", err)
 	}
@@ -266,7 +292,7 @@ func (kv *KeyValue) beginTx(txOpts *sql.TxOptions) *batchTx {
 }
 
 func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
-	return kv.beginTx(nil)
+	return kv.beginTx(kv.DB, kv.Gate, nil)
 }
 
 func (kv *KeyValue) CommitBatch(b sorted.BatchMutation) error {
@@ -278,7 +304,7 @@ func (kv *KeyValue) CommitBatch(b sorted.BatchMutation) error {
 }
 
 func (kv *KeyValue) BeginReadTx() sorted.ReadTransaction {
-	return kv.beginTx(&sql.TxOptions{
+	return kv.beginTx(kv.readDB(), kv.readGate(), &sql.TxOptions{
 		ReadOnly: true,
 		// Needed so that repeated reads of the same data are always
 		// consistent:
@@ -288,11 +314,11 @@ func (kv *KeyValue) BeginReadTx() sorted.ReadTransaction {
 }
 
 func (kv *KeyValue) Get(key string) (value string, err error) {
-	if kv.Gate != nil {
-		kv.Gate.Start()
-		defer kv.Gate.Done()
+	if gate := kv.readGate(); gate != nil {
+		gate.Start()
+		defer gate.Done()
 	}
-	return get(kv, kv.DB, key)
+	return get(kv, kv.readDB(), key)
 }
 
 func (kv *KeyValue) Set(key, value string) error {
@@ -345,6 +371,11 @@ func (kv *KeyValue) Close() error {
 		err = kv.prepared.close()
 	}
 	dbErr := kv.DB.Close()
+	if kv.ReadDB != nil {
+		if e := kv.ReadDB.Close(); dbErr == nil {
+			dbErr = e
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -364,7 +395,7 @@ func find(kv *KeyValue, qobj queryObject, start, end string) *iter {
 	// Do not reuse transaction query statements: overlapping iterators on
 	// the same transaction need independent native cursors. DB queries
 	// instead reserve a connection until their Rows are closed.
-	if p := kv.prepared; p != nil && qobj == kv.DB {
+	if p := kv.prepared; p != nil && qobj == kv.readDB() {
 		if end == "" {
 			rows, err = p.find.Query(start)
 		} else {
@@ -389,7 +420,7 @@ func find(kv *KeyValue, qobj queryObject, start, end string) *iter {
 
 // Common logic for KeyValue.Get and batchTx.Get
 func get(kv *KeyValue, qobj queryObject, key string) (value string, err error) {
-	if p := kv.prepared; p != nil && qobj == kv.DB {
+	if p := kv.prepared; p != nil && qobj == kv.readDB() {
 		err = p.get.QueryRow(key).Scan(&value)
 	} else {
 		// Keep independent native statements for overlapping transaction reads.
@@ -403,14 +434,14 @@ func get(kv *KeyValue, qobj queryObject, key string) (value string, err error) {
 
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	var releaseGate func() // nil if unused
-	if kv.Gate != nil {
+	if gate := kv.readGate(); gate != nil {
 		var once sync.Once
-		kv.Gate.Start()
+		gate.Start()
 		releaseGate = func() {
-			once.Do(kv.Gate.Done)
+			once.Do(gate.Done)
 		}
 	}
-	it := find(kv, kv.DB, start, end)
+	it := find(kv, kv.readDB(), start, end)
 	it.releaseGate = releaseGate
 	return it
 }
