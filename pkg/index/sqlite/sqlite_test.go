@@ -275,3 +275,7 @@ func TestFDLeak(t *testing.T) {
 		t.Logf("fd after iteration %d = %d", i, numFDs(t))
 	}
 }
+
+func TestMultiClaim_SQLite(t *testing.T) {
+	tester{}.test(t, indextest.MultiClaim)
+}

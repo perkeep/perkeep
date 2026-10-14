@@ -45,10 +45,13 @@ func (a RecentPermanode) Equal(b RecentPermanode) bool {
 }
 
 type Claim struct {
-	// TODO: document/decide how to represent "multi" claims here. One Claim each? Add Multi in here?
-	// Move/merge this in with the schema package?
+	// Multi-claim children share the enclosing signed blob reference.
 
 	BlobRef, Signer blob.Ref
+
+	// MultiIndex is the zero-based position within a multi-claim envelope.
+	// It is only used internally to order mutations, never as a public identity.
+	MultiIndex int `json:"-"`
 
 	Date time.Time
 	Type string // "set-attribute", "add-attribute", etc
@@ -67,16 +70,28 @@ func (c *Claim) String() string {
 		c.BlobRef, c.Signer, c.Permanode, c.Date, c.Type, c.Attr, c.Value)
 }
 
+// Less reports replay order: date, enclosing blob reference, then child position.
+// Children of one envelope therefore remain contiguous at equal dates.
+func (c *Claim) Less(other *Claim) bool {
+	if !c.Date.Equal(other.Date) {
+		return c.Date.Before(other.Date)
+	}
+	if c.BlobRef != other.BlobRef {
+		return c.BlobRef.Less(other.BlobRef)
+	}
+	return c.MultiIndex < other.MultiIndex
+}
+
 type ClaimPtrsByDate []*Claim
 
 func (cl ClaimPtrsByDate) Len() int           { return len(cl) }
-func (cl ClaimPtrsByDate) Less(i, j int) bool { return cl[i].Date.Before(cl[j].Date) }
+func (cl ClaimPtrsByDate) Less(i, j int) bool { return cl[i].Less(cl[j]) }
 func (cl ClaimPtrsByDate) Swap(i, j int)      { cl[i], cl[j] = cl[j], cl[i] }
 
 type ClaimsByDate []Claim
 
 func (cl ClaimsByDate) Len() int           { return len(cl) }
-func (cl ClaimsByDate) Less(i, j int) bool { return cl[i].Date.Before(cl[j].Date) }
+func (cl ClaimsByDate) Less(i, j int) bool { return cl[i].Less(&cl[j]) }
 func (cl ClaimsByDate) Swap(i, j int)      { cl[i], cl[j] = cl[j], cl[i] }
 
 func (cl ClaimsByDate) String() string {

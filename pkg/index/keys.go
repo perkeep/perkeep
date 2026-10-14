@@ -30,7 +30,9 @@ import (
 // Version 4: EXIF tags + GPS
 // Version 5: wholeRef added to keyFileInfo
 // Version 6: EXIF tags keyed by directory and tag number; no Interoperability tags
-const requiredSchemaVersion = 6
+// Version 7: ordered multi-claim children and collision-free secondary keys.
+// Reindexing is required because earlier versions silently ignored multi claims.
+const requiredSchemaVersion = 7
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
@@ -413,4 +415,52 @@ func containsUnsafeRawStrByte(s string) bool {
 		}
 	}
 	return false
+}
+
+// appendClaimKeyParts appends the n key fields to base, accepting legacy keys
+// and keys with an optional child ordinal. The ordinal is returned separately
+// and is not appended, so callers only need capacity for n additional strings.
+// On failure the original length and contents of base are preserved, but its
+// spare capacity may have been overwritten.
+func appendClaimKeyParts(base []string, k string, n int) (parts []string, index int, ok bool) {
+	original := base
+	if n < 1 {
+		return base, 0, false
+	}
+	count := 0
+	for part := range strings.SplitSeq(k, "|") {
+		switch {
+		case count < n:
+			base = append(base, part)
+		case count == n:
+			var valid bool
+			index, valid = parseClaimIndex(part)
+			if !valid {
+				return original, 0, false
+			}
+		default:
+			return original, 0, false
+		}
+		count++
+	}
+	if count < n {
+		return original, 0, false
+	}
+	return base, index, true
+}
+
+func parseClaimIndex(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	const maxInt = int(^uint(0) >> 1)
+	index := 0
+	for i := range len(s) {
+		digit := int(s[i]) - '0'
+		if digit < 0 || digit > 9 || index > maxInt/10 || index == maxInt/10 && digit > maxInt%10 {
+			return 0, false
+		}
+		index = index*10 + digit
+	}
+	return index, true
 }

@@ -928,10 +928,14 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 	// TODO(bradfitz): handle before efficiently. don't use queryPrefix.
 	it := x.queryPrefix(keyRecentPermanode, keyId)
 	defer closeIterator(it, &err)
+	var keyBuf [4]string
 	for it.Next() {
 		permaStr := it.Value()
-		parts := strings.SplitN(it.Key(), "|", 4)
-		if len(parts) != 4 {
+		parts, _, validKey := appendClaimKeyParts(keyBuf[:0], it.Key(), len(keyBuf))
+		if !validKey {
+			continue
+		}
+		if claimRef, ok := blob.Parse(parts[3]); !ok || x.IsDeleted(claimRef) {
 			continue
 		}
 		mTime, _ := time.Parse(time.RFC3339, unreverseTimeString(parts[2]))
@@ -1026,12 +1030,20 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 	if strings.Count(k, sep) < nKeyPart-1 || strings.Count(v, sep) < nValPart-1 {
 		return
 	}
-	var keya [nKeyPart]string
+	var keya [nKeyPart + 1]string
 	var vala [nValPart]string
 	keyPart := strutil.AppendSplitN(keya[:0], k, sep, -1)
 	valPart := strutil.AppendSplitN(vala[:0], v, sep, -1)
-	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
+	if (len(keyPart) != nKeyPart && len(keyPart) != nKeyPart+1) || len(valPart) < nValPart {
 		return
+	}
+	childIndex := 0
+	if len(keyPart) == nKeyPart+1 {
+		var valid bool
+		childIndex, valid = parseClaimIndex(keyPart[nKeyPart])
+		if !valid {
+			return
+		}
 	}
 	signerRef, ok := blobParse(valPart[3])
 	if !ok {
@@ -1050,13 +1062,14 @@ func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.C
 		return
 	}
 	return camtypes.Claim{
-		BlobRef:   claimRef,
-		Signer:    signerRef,
-		Permanode: permaNode,
-		Date:      date,
-		Type:      urld(valPart[0]),
-		Attr:      urld(valPart[1]),
-		Value:     urld(valPart[2]),
+		BlobRef:    claimRef,
+		MultiIndex: childIndex,
+		Signer:     signerRef,
+		Permanode:  permaNode,
+		Date:       date,
+		Type:       urld(valPart[0]),
+		Attr:       urld(valPart[1]),
+		Value:      urld(valPart[2]),
 	}, true
 }
 
@@ -1066,7 +1079,7 @@ func (c *Corpus) kvClaimBytes(k, v []byte) (cl camtypes.Claim, ok bool) {
 	if bytes.Count(k, sep) < nKeyPart-1 || bytes.Count(v, sep) < nValPart-1 {
 		return
 	}
-	var keya [nKeyPart][]byte
+	var keya [nKeyPart + 1][]byte
 	var vala [nValPart][]byte
 	appendSplitN := func(dst [][]byte, p, sep []byte, n int) [][]byte {
 		for {
@@ -1082,8 +1095,16 @@ func (c *Corpus) kvClaimBytes(k, v []byte) (cl camtypes.Claim, ok bool) {
 	}
 	keyPart := appendSplitN(keya[:0], k, sep, -1)
 	valPart := appendSplitN(vala[:0], v, sep, -1)
-	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
+	if (len(keyPart) != nKeyPart && len(keyPart) != nKeyPart+1) || len(valPart) < nValPart {
 		return
+	}
+	childIndex := 0
+	if len(keyPart) == nKeyPart+1 {
+		var valid bool
+		childIndex, valid = parseClaimIndex(string(keyPart[nKeyPart]))
+		if !valid {
+			return
+		}
 	}
 	signerRef, ok := c.blobParse(valPart[3])
 	if !ok {
@@ -1112,13 +1133,14 @@ func (c *Corpus) kvClaimBytes(k, v []byte) (cl camtypes.Claim, ok bool) {
 		return c.strB(got)
 	}
 	return camtypes.Claim{
-		BlobRef:   claimRef,
-		Signer:    signerRef,
-		Permanode: permaNode,
-		Date:      date,
-		Type:      urldBytes(valPart[0]),
-		Attr:      urldBytes(valPart[1]),
-		Value:     urldBytes(valPart[2]),
+		BlobRef:    claimRef,
+		MultiIndex: childIndex,
+		Signer:     signerRef,
+		Permanode:  permaNode,
+		Date:       date,
+		Type:       urldBytes(valPart[0]),
+		Attr:       urldBytes(valPart[1]),
+		Value:      urldBytes(valPart[2]),
 	}, true
 }
 
@@ -1206,9 +1228,9 @@ func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref,
 	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		permaRef, ok := blob.Parse(it.Value())
-		if ok && !x.IsDeleted(permaRef) {
-			return permaRef, nil
+		cl, ok := kvSignerAttrValue(it.Key(), it.Value())
+		if ok && !x.IsDeleted(cl.BlobRef) && !x.IsDeleted(cl.Permanode) {
+			return cl.Permanode, nil
 		}
 	}
 	return blob.Ref{}, os.ErrNotExist
@@ -1278,10 +1300,11 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 }
 
 func kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
-	// TODO(bradfitz): garbage
-	keyPart := strings.Split(k, "|")
-	valPart := strings.Split(v, "|")
-	if len(keyPart) != 6 || len(valPart) != 1 {
+	var keyBuf [6]string
+	var valBuf [2]string
+	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
+	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
+	if !validKey || len(valPart) != 1 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keySignerAttrValue index entry: %q = %q", k, v)
 		return
@@ -1305,11 +1328,12 @@ func kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
 		return
 	}
 	return camtypes.Claim{
-		BlobRef:   claimRef,
-		Permanode: permaNode,
-		Date:      date,
-		Attr:      urld(keyPart[2]),
-		Value:     urld(keyPart[3]),
+		BlobRef:    claimRef,
+		MultiIndex: childIndex,
+		Permanode:  permaNode,
+		Date:       date,
+		Attr:       urld(keyPart[2]),
+		Value:      urld(keyPart[3]),
 	}, true
 }
 
@@ -1324,12 +1348,12 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	}
 
 	mostRecent := make(map[string]*camtypes.Path)
-	maxClaimDates := make(map[string]time.Time)
+	maxClaims := make(map[string]camtypes.Claim)
 
 	it := x.queryPrefix(keyPathBackward, keyId, target)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		p, ok, active := kvPathBackward(it.Key(), it.Value())
+		p, childIndex, ok, active := kvPathBackward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1341,8 +1365,10 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 		}
 
 		key := p.Base.String() + "/" + p.Suffix
-		if p.ClaimDate.After(maxClaimDates[key]) {
-			maxClaimDates[key] = p.ClaimDate
+		order := camtypes.Claim{Date: p.ClaimDate, BlobRef: p.Claim, MultiIndex: childIndex}
+		previous, seen := maxClaims[key]
+		if !seen || previous.Less(&order) {
+			maxClaims[key] = order
 			if active {
 				mostRecent[key] = &p
 			} else {
@@ -1356,37 +1382,38 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	return paths, nil
 }
 
-func kvPathBackward(k, v string) (p camtypes.Path, ok bool, active bool) {
-	var keyBuf, valBuf [5]string
-	keyPart := strutil.AppendSplitN(keyBuf[:0], k, "|", len(keyBuf))
+func kvPathBackward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
+	var keyBuf [4]string
+	var valBuf [5]string
+	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
-	if len(keyPart) != 4 || len(valPart) != 4 {
+	if !validKey || len(valPart) != 4 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keyPathBackward index entry: %q = %q", k, v)
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	if keyPart[0] != "signertargetpath" {
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	target, ok := blob.Parse(keyPart[2])
 	if !ok {
 		log.Printf("bogus target in keyPathBackward index entry: %q", keyPart[2])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	claim, ok := blob.Parse(keyPart[3])
 	if !ok {
 		log.Printf("bogus claim in keyPathBackward index entry: %q", keyPart[3])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	date, err := time.Parse(time.RFC3339, valPart[0])
 	if err != nil {
 		log.Printf("bogus date in keyPathBackward index entry: %q", valPart[0])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	base, ok := blob.Parse(valPart[1])
 	if !ok {
 		log.Printf("bogus base in keyPathBackward index entry: %q", valPart[1])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	active = valPart[2] == "Y"
 	return camtypes.Path{
@@ -1395,7 +1422,7 @@ func kvPathBackward(k, v string) (p camtypes.Path, ok bool, active bool) {
 		Target:    target,
 		ClaimDate: date,
 		Suffix:    urld(valPart[3]),
-	}, true, active
+	}, childIndex, true, active
 }
 
 func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix string) (paths []*camtypes.Path, err error) {
@@ -1408,10 +1435,15 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 		return
 	}
 
+	type orderedPath struct {
+		path  camtypes.Path
+		order camtypes.Claim
+	}
+	var ordered []orderedPath
 	it := x.queryPrefix(keyPathForward, keyId, base, suffix)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		p, ok, active := kvPathForward(it.Key(), it.Value())
+		p, childIndex, ok, active := kvPathForward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1427,43 +1459,47 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 		// interface too, and tests.
 		_ = active
 
-		paths = append(paths, &p)
+		ordered = append(ordered, orderedPath{p, camtypes.Claim{Date: p.ClaimDate, BlobRef: p.Claim, MultiIndex: childIndex}})
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].order.Less(&ordered[j].order) })
+	for i := range ordered {
+		paths = append(paths, &ordered[i].path)
 	}
 	return
 }
 
-func kvPathForward(k, v string) (p camtypes.Path, ok bool, active bool) {
-	var keyBuf [7]string
+func kvPathForward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
+	var keyBuf [6]string
 	var valBuf [3]string
-	keyPart := strutil.AppendSplitN(keyBuf[:0], k, "|", len(keyBuf))
+	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
-	if len(keyPart) != 6 || len(valPart) != 2 {
+	if !validKey || len(valPart) != 2 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keyPathForward index entry: %q = %q", k, v)
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	if keyPart[0] != "path" {
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	base, ok := blob.Parse(keyPart[2])
 	if !ok {
 		log.Printf("bogus base in keyPathForward index entry: %q", keyPart[2])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
 	if err != nil {
 		log.Printf("bogus date in keyPathForward index entry: %q", keyPart[4])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	claim, ok := blob.Parse(keyPart[5])
 	if !ok {
 		log.Printf("bogus claim in keyPathForward index entry: %q", keyPart[5])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	target, ok := blob.Parse(valPart[1])
 	if !ok {
 		log.Printf("bogus target in keyPathForward index entry: %q", valPart[1])
-		return camtypes.Path{}, false, false
+		return camtypes.Path{}, 0, false, false
 	}
 	active = valPart[0] == "Y"
 	return camtypes.Path{
@@ -1472,7 +1508,7 @@ func kvPathForward(k, v string) (p camtypes.Path, ok bool, active bool) {
 		Target:    target,
 		ClaimDate: date,
 		Suffix:    urld(keyPart[3]),
-	}, true, active
+	}, childIndex, true, active
 }
 
 func (x *Index) PathLookup(ctx context.Context, signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
@@ -1480,29 +1516,13 @@ func (x *Index) PathLookup(ctx context.Context, signer, base blob.Ref, suffix st
 	if err != nil {
 		return nil, err
 	}
-	var (
-		newest    = int64(0)
-		atSeconds = int64(0)
-		best      *camtypes.Path
-	)
-
-	if !at.IsZero() {
-		atSeconds = at.Unix()
-	}
-
+	var best *camtypes.Path
+	// PathsLookup returns replay order, including private child positions.
 	for _, path := range paths {
-		t := path.ClaimDate
-		secs := t.Unix()
-		if atSeconds != 0 && secs > atSeconds {
-			// Too new
+		if !at.IsZero() && path.ClaimDate.After(at) {
 			continue
 		}
-		if newest > secs {
-			// Too old
-			continue
-		}
-		// Just right
-		newest, best = secs, path
+		best = path
 	}
 	if best == nil {
 		return nil, os.ErrNotExist
@@ -1738,10 +1758,11 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camt
 }
 
 func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
-	// TODO(bradfitz): garbage
-	keyPart := strings.Split(k, "|")
-	valPart := strings.Split(v, "|")
-	if len(keyPart) != 4 || len(valPart) != 2 {
+	var keyBuf [4]string
+	var valBuf [3]string
+	keyPart, _, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
+	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
+	if !validKey || len(valPart) != 2 {
 		// TODO(mpl): use glog
 		log.Printf("bogus keyEdgeBackward index entry: %q = %q", k, v)
 		return

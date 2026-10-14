@@ -1185,7 +1185,7 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 		} else {
 			want := []camtypes.Claim{}
 			if len(claims) != len(want) {
-				t.Errorf("id.Index.AppendClaims gives %q, want %q", claims, want)
+				t.Errorf("id.Index.AppendClaims gives %v, want %v", claims, want)
 			}
 		}
 	}

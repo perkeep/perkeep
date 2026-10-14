@@ -22,25 +22,6 @@ claimTypes:
 * "del-attribute" (deletes all values of "attribute", if no "value" given, or
   just the provided "value" if multi-valued)
 
-"multi".. atomically do multiple add/set/del from above on potentially different
-permanodes. looks like:
-
-    {"camliVersion": 1,
-     "camliType": "claim",
-     "claimType": "multi",
-     "claimDate": "2013-02-24T17:20:03.9212Z",
-     "claims": [
-          {"claimType": "set-attribute",
-           "permanode": "dig-xxxxxx",
-           "attribute": "foo",
-           "value": "fooValue"},
-          {"claimType": "add-attribute",
-           "permanode": "dig-yyyyy",
-           "attribute": "tag",
-           "value": "funny"}
-     ],
-     "camliSig": .........}
-
 ## Attribute names
 
 camliContent: a permanode "becoming" something.  value is pointer to what it is

@@ -30,6 +30,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,57 +69,70 @@ func (s *coreStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, src io.Read
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var claim struct {
-		CamliType string   `json:"camliType"`
-		Permanode blob.Ref `json:"permaNode"`
-		Type      string   `json:"claimType"`
-		Attribute string   `json:"attribute"`
-		Value     string   `json:"value"`
-	}
-	validJSON := json.Unmarshal(data, &claim) == nil
-	if claim.CamliType == "claim" && claim.Type == "set-attribute" && claim.Attribute == s.failClaim {
-		s.failClaim = ""
-		return blob.SizedRef{}, errCoreClaimFailure
-	}
 	_, alreadyStored := s.Storage.BlobContents(ref)
+	if alreadyStored {
+		return s.Storage.ReceiveBlob(ctx, ref, bytes.NewReader(data))
+	}
+	b, parseErr := schema.BlobFromReader(ref, bytes.NewReader(data))
+	var operations []schema.AttributeClaim
+	if parseErr == nil && b.Type() == schema.TypeClaim {
+		claim, ok := b.AsClaim()
+		if !ok {
+			return blob.SizedRef{}, errors.New("invalid signed claim")
+		}
+		operations, err = claim.AttributeClaims()
+		if err != nil {
+			return blob.SizedRef{}, err
+		}
+		// Reject the entire envelope before storing or applying any child.
+		for _, operation := range operations {
+			if s.attrs[operation.Permanode] == nil {
+				return blob.SizedRef{}, fmt.Errorf("claim for unknown permanode %v", operation.Permanode)
+			}
+		}
+		for _, operation := range operations {
+			if operation.Type == schema.SetAttributeClaim && operation.Attribute == s.failClaim {
+				s.failClaim = ""
+				return blob.SizedRef{}, errCoreClaimFailure
+			}
+		}
+	}
 	sb, err := s.Storage.ReceiveBlob(ctx, ref, bytes.NewReader(data))
-	if err != nil || alreadyStored {
+	if err != nil {
 		return sb, err
 	}
-	if !validJSON {
+	if parseErr != nil {
 		return sb, nil // raw file content is not necessarily JSON
 	}
 	if s.attrs == nil {
 		s.attrs = make(map[blob.Ref]url.Values)
 	}
-	if claim.CamliType == "permanode" {
+	if b.Type() == schema.TypePermanode {
 		s.attrs[ref] = make(url.Values)
 	}
-	if claim.CamliType != "claim" {
-		return sb, nil
-	}
-	attrs := s.attrs[claim.Permanode]
-	if attrs == nil {
-		return blob.SizedRef{}, fmt.Errorf("claim for unknown permanode %v", claim.Permanode)
-	}
-	switch claim.Type {
-	case "set-attribute":
-		attrs.Set(claim.Attribute, claim.Value)
-	case "del-attribute":
-		if claim.Value == "" {
-			attrs.Del(claim.Attribute)
-		} else {
-			values := attrs[claim.Attribute]
-			kept := make([]string, 0, len(values))
-			for _, value := range values {
-				if value != claim.Value {
-					kept = append(kept, value)
-				}
+	for _, operation := range operations {
+		attrs := s.attrs[operation.Permanode]
+		switch operation.Type {
+		case schema.SetAttributeClaim:
+			attrs.Set(operation.Attribute, operation.Value)
+		case schema.AddAttributeClaim:
+			if !slices.Contains(attrs[operation.Attribute], operation.Value) {
+				attrs.Add(operation.Attribute, operation.Value)
 			}
-			attrs[claim.Attribute] = kept
+		case schema.DelAttributeClaim:
+			if operation.Value == "" {
+				attrs.Del(operation.Attribute)
+			} else {
+				values := attrs[operation.Attribute]
+				kept := make([]string, 0, len(values))
+				for _, value := range values {
+					if value != operation.Value {
+						kept = append(kept, value)
+					}
+				}
+				attrs[operation.Attribute] = kept
+			}
 		}
-	default:
-		return blob.SizedRef{}, fmt.Errorf("unexpected claim type %q", claim.Type)
 	}
 	return sb, nil
 }
@@ -271,6 +285,91 @@ func newCoreFixtureWithConfig(t *testing.T, transport http.RoundTripper, config 
 		clientID:   clientID,
 		hostConfig: hostConfig,
 	}
+}
+
+func TestCoreStorageMultiClaim(t *testing.T) {
+	f := newCoreFixture(t, nil)
+	ctx := context.Background()
+	acct, root := f.rc.AccountNode(), f.rc.RootNode()
+	sign := func(children ...*schema.Builder) (blob.Ref, string) {
+		t.Helper()
+		b, err := schema.NewMultiClaim(children...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := b.SetMultiClaimPermanode(acct.PermanodeRef()).Sign(ctx, f.hostConfig.Signer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return blob.RefFromString(data), data
+	}
+	reload := func(pn blob.Ref) *importer.Object {
+		t.Helper()
+		obj, err := f.rc.Host.ObjectFromRef(pn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return obj
+	}
+	ref, data := sign(
+		schema.NewSetAttributeClaim(blob.Ref{}, importer.AcctAttrAccessToken, "access"),
+		schema.NewSetAttributeClaim(blob.Ref{}, attrRefreshToken, "refresh"),
+		schema.NewSetAttributeClaim(blob.Ref{}, attrTokenExpiry, "123"),
+		schema.NewSetAttributeClaim(blob.Ref{}, "fixture", "first"),
+		schema.NewAddAttributeClaim(blob.Ref{}, "fixture", "second"),
+		schema.NewAddAttributeClaim(blob.Ref{}, "fixture", "second"),
+		schema.NewDelAttributeClaim(blob.Ref{}, "fixture", "first"),
+		schema.NewAddAttributeClaim(blob.Ref{}, "fixture", "third"),
+		schema.NewSetAttributeClaim(root.PermanodeRef(), "fixture", "root"),
+	)
+	f.storage.failNextClaim(attrRefreshToken)
+	before := f.storage.NumBlobs()
+	if _, err := f.storage.ReceiveBlob(ctx, ref, strings.NewReader(data)); !errors.Is(err, errCoreClaimFailure) {
+		t.Fatalf("multi claim error = %v; want injected failure", err)
+	}
+	if _, stored := f.storage.BlobContents(ref); stored || f.storage.NumBlobs() != before {
+		t.Fatal("failed multi claim was stored")
+	}
+	coreAttrs(t, reload(acct.PermanodeRef()), map[string]string{
+		importer.AcctAttrAccessToken: "", attrRefreshToken: "", attrTokenExpiry: "", "fixture": "",
+	})
+	coreAttrs(t, reload(root.PermanodeRef()), map[string]string{"fixture": ""})
+
+	// The injected failure is one-shot. Retrying applies every child in order,
+	// including an explicit target overriding the envelope's default.
+	if _, err := f.storage.ReceiveBlob(ctx, ref, strings.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	loaded := reload(acct.PermanodeRef())
+	coreAttrs(t, loaded, map[string]string{
+		importer.AcctAttrAccessToken: "access", attrRefreshToken: "refresh", attrTokenExpiry: "123",
+	})
+	if got, want := loaded.Attrs("fixture"), []string{"second", "third"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ordered multi values = %v; want %v", got, want)
+	}
+	coreAttrs(t, reload(root.PermanodeRef()), map[string]string{"fixture": "root"})
+
+	// A duplicate receive must not replay old operations over newer claims.
+	if err := loaded.SetAttr("fixture", "newer"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.storage.ReceiveBlob(ctx, ref, strings.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	coreAttrs(t, reload(acct.PermanodeRef()), map[string]string{"fixture": "newer"})
+
+	ref, data = sign(
+		schema.NewSetAttributeClaim(blob.Ref{}, "fixture", "must-not-publish"),
+		schema.NewSetAttributeClaim(blob.RefFromString("unknown permanode"), "fixture", "unknown"),
+	)
+	before = f.storage.NumBlobs()
+	if _, err := f.storage.ReceiveBlob(ctx, ref, strings.NewReader(data)); err == nil {
+		t.Fatal("multi claim with unknown child target succeeded")
+	}
+	if _, stored := f.storage.BlobContents(ref); stored || f.storage.NumBlobs() != before {
+		t.Fatal("multi claim with unknown child target was stored")
+	}
+	coreAttrs(t, reload(acct.PermanodeRef()), map[string]string{"fixture": "newer"})
 }
 
 func (f *coreFixture) configure(t *testing.T) {
