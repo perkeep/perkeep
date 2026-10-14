@@ -80,9 +80,13 @@ func newCorpusBlobMeta(bm camtypes.BlobMeta) *corpusBlobMeta {
 // blobMeta expands the record at the corpus API boundary, preserving callers'
 // string-based CamliType and the public BlobMeta's zero-value behavior.
 func (bm *corpusBlobMeta) blobMeta() camtypes.BlobMeta {
-	meta := camtypes.BlobMeta{Ref: bm.Ref, Size: bm.Size}
-	if bm.camliType != (unique.Handle[schema.CamliType]{}) {
-		meta.CamliType = bm.camliType.Value()
+	return camtypes.BlobMeta{Ref: bm.Ref, Size: bm.Size, CamliType: bm.camliTypeValue()}
+}
+
+// camliTypeValue returns bm's camliType, or "" for a non-schema blob.
+func (bm *corpusBlobMeta) camliTypeValue() schema.CamliType {
+	if bm.camliType == (unique.Handle[schema.CamliType]{}) {
+		return ""
 	}
-	return meta
+	return bm.camliType.Value()
 }

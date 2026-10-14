@@ -120,6 +120,7 @@ var (
 	notAnIndexer = []string{
 		"corpus_bench_test.go",
 		"corpus_blobmeta_test.go",
+		"corpus_meta_test.go",
 		"corpus_parse_test.go",
 		"corpus_test.go",
 		"enumstat_test.go",
