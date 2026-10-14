@@ -56,8 +56,8 @@ RUN apt-get update && \
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
 # Check that perkeepd uses the image's djpeg and libheif. The binaries
-# are built without cgo, which leaves them dynamically linked (needed
-# to load libheif) only because github.com/gen2brain/heic uses purego.
+# are built without cgo. The 64-bit builds still link dynamically for
+# the purego image decoders; 32-bit builds use WASM instead.
 RUN perkeepd -build-config > /tmp/build-config.json && \
     cat /tmp/build-config.json && \
     grep -q '"djpeg": "/' /tmp/build-config.json && \

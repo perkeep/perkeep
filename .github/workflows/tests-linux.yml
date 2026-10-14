@@ -23,6 +23,7 @@ jobs:
 
     - name: Build and test
       run: |
+        go test make.go make_test.go
         go run make.go -v=true
         devcam test
 
