@@ -39,16 +39,25 @@ ENV HOME=/home/keepy
 ENV PATH=/home/keepy/bin:$PATH
 ENV PK_IN_CONTAINER=1
 
-RUN apt-get update && apt-get install -y libjpeg-turbo-progs libheif-dev libheif1 ca-certificates && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH
+
+# github.com/gen2brain/heic loads libheif to decode HEIC images, except
+# on 32-bit arm, where it always uses its slower embedded WebAssembly
+# decoder, so don't install libheif there. It loads the library as
+# "libheif.so", which Debian only ships in libheif-dev, so rather than
+# install that and its dependencies, link it to libheif1's libheif.so.1.
+RUN apt-get update && \
+    apt-get install -y libjpeg-turbo-progs ca-certificates $([ "$TARGETARCH" = arm ] || echo libheif1) && \
+    rm -rf /var/lib/apt/lists/* && \
+    if [ "$TARGETARCH" != arm ]; then \
+        lib=$(ls /usr/lib/*/libheif.so.1) && ln -s libheif.so.1 "${lib%.1}"; \
+    fi
 
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
 # Check that perkeepd uses the image's djpeg and libheif. The binaries
 # are built without cgo, which leaves them dynamically linked (needed
-# to load libheif) only because github.com/perkeep/heic uses purego.
-# That package never loads libheif on 32-bit arm, so arm/v7 decodes
-# HEIC with its slower embedded WebAssembly build of libheif.
-ARG TARGETARCH
+# to load libheif) only because github.com/gen2brain/heic uses purego.
 RUN perkeepd -build-config > /tmp/build-config.json && \
     cat /tmp/build-config.json && \
     grep -q '"djpeg": "/' /tmp/build-config.json && \
