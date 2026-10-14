@@ -64,6 +64,8 @@ var matchTable = []matchEntry{
 	{prefix: []byte("\xff\xd8\xff\xdb"), mtype: "image/jpeg"},
 	{prefix: []byte("\x49\x49\x2a\x00\x10\x00\x00\x00\x43\x52\x02"), mtype: "image/cr2"},
 	{prefix: []byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, mtype: "image/png"},
+	{offset: 4, prefix: []byte("ftypavif"), mtype: "image/avif"},
+	{offset: 4, prefix: []byte("ftypavis"), mtype: "image/avif"}, // AVIF image sequence
 	{prefix: []byte{0x49, 0x20, 0x49}, mtype: "image/tiff"},
 	{prefix: []byte{0x49, 0x49, 0x2A, 0}, mtype: "image/tiff"},
 	{prefix: []byte{0x4D, 0x4D, 0, 0x2A}, mtype: "image/tiff"},

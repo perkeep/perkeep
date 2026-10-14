@@ -38,6 +38,8 @@ var tests = []magicTest{
 	{fileName: "smile.tiff", want: "image/tiff"},
 	{fileName: "smile.xcf", want: "image/x-xcf"},
 	{fileName: "smile.gif", want: "image/gif"},
+	{data: "\x00\x00\x00\x18ftypavif\x00\x00\x00\x00avifmif1", want: "image/avif"},
+	{data: "\x00\x00\x00\x18ftypavis\x00\x00\x00\x00avismsf1", want: "image/avif"},
 	{fileName: "foo.tar.gz", want: "application/x-gzip"},
 	{fileName: "foo.tar.xz", want: "application/x-xz"},
 	{fileName: "foo.tbz2", want: "application/x-bzip2"},

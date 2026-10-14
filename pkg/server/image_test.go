@@ -25,6 +25,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -47,6 +48,14 @@ func TestThumbnailContentType(t *testing.T) {
 		{"png", "image/png", func(b *bytes.Buffer) error { return png.Encode(b, im) }},
 		{"gif", "image/jpeg", func(b *bytes.Buffer) error { return gif.Encode(b, im, nil) }},
 		{"tiff", "image/jpeg", func(b *bytes.Buffer) error { return tiff.Encode(b, im, nil) }},
+		{"avif", "image/jpeg", func(b *bytes.Buffer) error {
+			data, err := os.ReadFile("../../internal/images/testdata/sample.avif")
+			if err != nil {
+				return err
+			}
+			_, err = b.Write(data)
+			return err
+		}},
 		{"svg", "image/svg+xml", func(b *bytes.Buffer) error {
 			b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="red"/></svg>`)
 			return nil
