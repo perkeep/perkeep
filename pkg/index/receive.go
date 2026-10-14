@@ -1043,7 +1043,11 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 		log.Print(fmt.Errorf("no valid target for delete claim %v", br))
 		return nil
 	}
+	// Mutation-map population runs before the receive write lock. The ready
+	// worker may concurrently add metadata to the corpus.
+	ix.RLock()
 	meta, err := ix.GetBlobMeta(ctx, target)
+	ix.RUnlock()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			mm.deps = append(mm.deps, target)
@@ -1083,6 +1087,19 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 	mm.signerBlobRef = vr.CamliSigner
 	mm.Set(keySignerKeyID.name+":"+vr.CamliSigner.String(), verifiedKeyId)
 
+	if claim.ClaimType() == schema.MultiClaim {
+		children, err := claim.AttributeClaims()
+		if err != nil {
+			// Validate the entire array before recording any child mutation.
+			log.Printf("index: ignoring invalid multi claim %v: %v", br, err)
+			return nil
+		}
+		for i, child := range children {
+			ix.populateAttributeClaim(mm, vr, br, claim.ClaimDateString(), child.Type, child.Permanode, child.Attribute, child.Value, i)
+		}
+		return nil
+	}
+
 	if claim.ClaimType() == schema.DeleteClaim {
 		if err := ix.populateDeleteClaim(ctx, claim, vr, mm); err != nil {
 			return err
@@ -1097,11 +1114,24 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		return nil
 	}
 
-	attr, value := claim.Attribute(), claim.Value()
-	recentKey := keyRecentPermanode.Key(verifiedKeyId, claim.ClaimDateString(), br)
+	ix.populateAttributeClaim(mm, vr, br, claim.ClaimDateString(), claim.ClaimType(), pnbr, claim.Attribute(), claim.Value(), -1)
+	return nil
+}
+
+// populateAttributeClaim records one ordinary claim or one validated multi child.
+// All children use one mutationMap and are committed under the existing index lock.
+func (ix *Index) populateAttributeClaim(mm *mutationMap, vr *jsonsign.VerifyRequest, br blob.Ref, date string, claimType schema.ClaimType, pnbr blob.Ref, attr, value string, childIndex int) {
+	verifiedKeyId := vr.SignerKeyId
+	childKey := func(key string) string {
+		if childIndex >= 0 {
+			return fmt.Sprintf("%s|%020d", key, childIndex)
+		}
+		return key
+	}
+	recentKey := childKey(keyRecentPermanode.Key(verifiedKeyId, date, br))
 	mm.Set(recentKey, pnbr.String())
-	claimKey := keyPermanodeClaim.Key(pnbr, verifiedKeyId, claim.ClaimDateString(), br)
-	mm.Set(claimKey, keyPermanodeClaim.Val(claim.ClaimType(), attr, value, vr.CamliSigner))
+	claimKey := childKey(keyPermanodeClaim.Key(pnbr, verifiedKeyId, date, br))
+	mm.Set(claimKey, keyPermanodeClaim.Val(claimType, attr, value, vr.CamliSigner))
 
 	if strings.HasPrefix(attr, "camliPath:") {
 		targetRef, ok := blob.Parse(value)
@@ -1113,36 +1143,34 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 			// current value.
 			suffix := attr[len("camliPath:"):]
 			active := "Y"
-			if claim.ClaimType() == "del-attribute" {
+			if claimType == "del-attribute" {
 				active = "N"
 			}
 			baseRef := pnbr
 			claimRef := br
 
-			key := keyPathBackward.Key(verifiedKeyId, targetRef, claimRef)
-			val := keyPathBackward.Val(claim.ClaimDateString(), baseRef, active, suffix)
+			key := childKey(keyPathBackward.Key(verifiedKeyId, targetRef, claimRef))
+			val := keyPathBackward.Val(date, baseRef, active, suffix)
 			mm.Set(key, val)
 
-			key = keyPathForward.Key(verifiedKeyId, baseRef, suffix, claim.ClaimDateString(), claimRef)
+			key = childKey(keyPathForward.Key(verifiedKeyId, baseRef, suffix, date, claimRef))
 			val = keyPathForward.Val(active, targetRef)
 			mm.Set(key, val)
 		}
 	}
 
-	if claim.ClaimType() != schema.DelAttributeClaim && IsIndexedAttribute(attr) {
-		key := keySignerAttrValue.Key(verifiedKeyId, attr, value, claim.ClaimDateString(), br)
+	if claimType != schema.DelAttributeClaim && IsIndexedAttribute(attr) {
+		key := childKey(keySignerAttrValue.Key(verifiedKeyId, attr, value, date, br))
 		mm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
 
 	if IsBlobReferenceAttribute(attr) {
 		targetRef, ok := blob.Parse(value)
 		if ok {
-			key := keyEdgeBackward.Key(targetRef, pnbr, br)
+			key := childKey(keyEdgeBackward.Key(targetRef, pnbr, br))
 			mm.Set(key, keyEdgeBackward.Val("permanode", ""))
 		}
 	}
-
-	return nil
 }
 
 // updateDeletesCache updates the index deletes cache with the cl delete claim.

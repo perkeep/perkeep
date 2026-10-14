@@ -125,9 +125,10 @@ func (c *Corpus) scanRest(s sorted.KeyValue) error {
 				}
 			}
 			// Its claim ranges included all of the claims of each of
-			// its permanodes, so they can be put in order now.
+			// its permanodes, so they can be put in order now. The
+			// parent corpus's deletion map is complete and read-only.
 			for _, pm := range w.permanodes {
-				if err := pm.restoreInvariants(c.keyId); err != nil {
+				if err := pm.restoreInvariants(c.keyId, c.IsDeleted); err != nil {
 					return err
 				}
 			}

@@ -159,8 +159,11 @@ func loadCorpusSerially(t *testing.T, s sorted.KeyValue) *Corpus {
 			t.Fatal(err)
 		}
 	}
+	if err := c.initDeletes(s); err != nil {
+		t.Fatal(err)
+	}
 	for _, pm := range c.permanodes {
-		if err := pm.restoreInvariants(c.keyId); err != nil {
+		if err := pm.restoreInvariants(c.keyId, c.IsDeleted); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -282,5 +285,78 @@ func TestScanFromStorageParallel(t *testing.T) {
 	if len(got.permanodes) != numPermanodes || len(got.claimBack) == 0 || len(got.files) != 400 {
 		t.Errorf("loaded %d permanodes, %d claimBack entries, %d files; test data didn't load as intended",
 			len(got.permanodes), len(got.claimBack), len(got.files))
+	}
+}
+
+func TestScanFromStorageParallelMultiClaimDeletes(t *testing.T) {
+	for _, undeleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("undeleted=%v", undeleted), func(t *testing.T) {
+			kv := sorted.NewMemoryKeyValue()
+			t.Cleanup(func() { kv.Close() })
+			set := func(k, v string) {
+				t.Helper()
+				if err := kv.Set(k, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			meta := func(br blob.Ref, typ schema.CamliType) {
+				set("meta:"+br.String(), "100|application/json; camliType="+string(typ))
+			}
+			// Put the permanodes in distant ranges of different hash types,
+			// so their histories are independent units of parallel work.
+			pns := []blob.Ref{
+				blob.MustParse("sha1-" + strings.Repeat("0", 40)),
+				blob.MustParse("sha224-" + strings.Repeat("f", 56)),
+			}
+			signer := blob.RefFromString("parallel multi signer")
+			const keyID = "2931A67C26F5ABDA"
+			set("meta:"+signer.String(), "100|application/octet-stream")
+			set("signerkeyid:"+signer.String(), keyID)
+			date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+			envelope := blob.RefFromString("parallel multi envelope")
+			meta(envelope, schema.TypeClaim)
+			for i, pn := range pns {
+				meta(pn, schema.TypePermanode)
+				before := blob.RefFromString(fmt.Sprint("parallel original claim ", i))
+				meta(before, schema.TypeClaim)
+				set(keyPermanodeClaim.Key(pn, keyID, date.Format(time.RFC3339), before),
+					keyPermanodeClaim.Val("set-attribute", "title", "before", signer))
+				for j, value := range []string{"first", "last"} {
+					key := keyPermanodeClaim.Key(pn, keyID, date.Add(time.Second).Format(time.RFC3339), envelope)
+					set(fmt.Sprintf("%s|%020d", key, 2*j+i),
+						keyPermanodeClaim.Val("set-attribute", "title", fmt.Sprint(value, i), signer))
+				}
+			}
+			deleter := blob.RefFromString("parallel envelope delete")
+			meta(deleter, schema.TypeClaim)
+			set(keyDeleted.Key(envelope, date.Add(2*time.Second).Format(time.RFC3339), deleter), "")
+			if undeleted {
+				reviver := blob.RefFromString("parallel envelope undelete")
+				meta(reviver, schema.TypeClaim)
+				set(keyDeleted.Key(deleter, date.Add(3*time.Second).Format(time.RFC3339), reviver), "")
+			}
+			want := loadCorpusSerially(t, kv)
+			got := newCorpus()
+			if err := got.scanFromStorage(kv); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got.permanodes, want.permanodes) {
+				t.Error("parallel multi-claim replay differs from serial replay")
+			}
+			if got.IsDeleted(envelope) == undeleted {
+				t.Errorf("envelope deleted = %v; want %v", got.IsDeleted(envelope), !undeleted)
+			}
+			for i, pn := range pns {
+				title := "before"
+				if undeleted {
+					title = fmt.Sprint("last", i)
+				}
+				// Check the eagerly reconstructed caches themselves, not a
+				// historical fallback that could hide incorrect worker replay.
+				if values := got.permanodes[pn].attr["title"]; !slices.Equal(values, []string{title}) {
+					t.Errorf("cached title for %v = %v; want %q", pn, values, title)
+				}
+			}
+		})
 	}
 }

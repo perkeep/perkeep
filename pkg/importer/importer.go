@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,7 +46,6 @@ import (
 
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
-	"go4.org/syncutil"
 )
 
 const (
@@ -1564,9 +1564,22 @@ type ProgressMessage struct {
 }
 
 func (h *Host) upload(ctx context.Context, bb *schema.Builder) (br blob.Ref, err error) {
+	unsigned, err := bb.JSON()
+	if err != nil {
+		return
+	}
+	// Sign adds envelope metadata and a signature. Leave headroom rather than
+	// letting its schema parsing panic on an oversized batch; also check the
+	// actual signed size before storing a blob the index would ignore.
+	if len(unsigned) > schema.MaxSchemaBlobSize-1024 {
+		return blob.Ref{}, fmt.Errorf("importer: schema blob too large to sign (%d bytes)", len(unsigned))
+	}
 	signed, err := bb.Sign(ctx, h.signer)
 	if err != nil {
 		return
+	}
+	if len(signed) > schema.MaxSchemaBlobSize {
+		return blob.Ref{}, fmt.Errorf("importer: signed schema blob too large (%d bytes)", len(signed))
 	}
 	sb, err := blobserver.ReceiveString(ctx, h.target, signed)
 	if err != nil {
@@ -1667,15 +1680,19 @@ func (o *Object) DelAttr(key, value string) error {
 // SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
 	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
-	if o.Attr(key) == value {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	old := ""
+	if values := o.attr[key]; len(values) > 0 {
+		old = values[0]
+	}
+	if old == value {
 		return nil
 	}
 	_, err := o.h.upload(ctx, schema.NewSetAttributeClaim(o.pn, key, value))
 	if err != nil {
 		return err
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
 	if o.attr == nil {
 		o.attr = make(map[string][]string)
 	}
@@ -1690,58 +1707,109 @@ func (o *Object) SetAttrs(keyval ...string) error {
 	return err
 }
 
-// SetAttrs2 sets multiple attributes and returns whether there were
-// any changes. The provided keyval should be an even number of
-// alternating key/value pairs to set.
+// SetAttrs2 sets multiple attributes in one signed claim and returns whether
+// any changes were attempted. Multiple changes use an atomic multi claim.
+// The provided keyval should be an even number of alternating key/value pairs
+// to set; repeated keys are processed in argument order.
 func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
 	if len(keyval)%2 == 1 {
 		panic("importer.SetAttrs: odd argument count")
 	}
 
-	g := syncutil.Group{}
-	for i := 0; i < len(keyval); i += 2 {
-		key, val := keyval[i], keyval[i+1]
-		if val != o.Attr(key) {
-			changes = true
-			g.Go(func() error {
-				return o.SetAttr(key, val)
-			})
-		}
-	}
-	return changes, g.Err()
-}
-
-// SetAttrValues sets multi-valued attribute.
-func (o *Object) SetAttrValues(key string, attrs []string) error {
-	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
-
-	exists := asSet(o.Attrs(key))
-	actual := asSet(attrs)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	// add new values
-	for v := range actual {
-		if exists[v] {
-			delete(exists, v)
+	updates := make(map[string]string)
+	var claims []*schema.Builder
+	for i := 0; i < len(keyval); i += 2 {
+		key, val := keyval[i], keyval[i+1]
+		old, pending := updates[key]
+		if !pending {
+			if values := o.attr[key]; len(values) > 0 {
+				old = values[0]
+			}
+		}
+		if val == old {
 			continue
 		}
-		_, err := o.h.upload(ctx, schema.NewAddAttributeClaim(o.pn, key, v))
-		if err != nil {
-			return err
-		}
+		updates[key] = val
+		claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, key, val))
 	}
-	// delete unneeded values
-	for v := range exists {
-		_, err := o.h.upload(ctx, schema.NewDelAttributeClaim(o.pn, key, v))
-		if err != nil {
-			return err
-		}
+	if len(claims) == 0 {
+		return false, nil
+	}
+	if err := o.uploadAttributeClaims(context.TODO(), claims); err != nil {
+		return true, err
 	}
 	if o.attr == nil {
 		o.attr = make(map[string][]string)
 	}
-	o.attr[key] = attrs
+	for key, val := range updates {
+		o.attr[key] = []string{val}
+	}
+	return true, nil
+}
+
+// SetAttrValues sets a multi-valued attribute. Multiple additions or deletions
+// are uploaded together as an atomic multi claim.
+func (o *Object) SetAttrValues(key string, attrs []string) error {
+	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	exists := asSet(o.attr[key])
+	actual := asSet(attrs)
+	var claims []*schema.Builder
+	if exists[""] && !actual[""] {
+		// An empty deletion value means delete-all, not delete an empty
+		// string. Reset first, then rebuild the requested set in one batch.
+		claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, ""))
+		exists = nil
+	}
+	// Add new values in input order, ignoring duplicates.
+	added := make(map[string]bool)
+	for _, v := range attrs {
+		if !exists[v] && !added[v] {
+			claims = append(claims, schema.NewAddAttributeClaim(blob.Ref{}, key, v))
+			added[v] = true
+		}
+	}
+	// Remove old values in their existing order, ignoring duplicates.
+	for _, v := range o.attr[key] {
+		if exists[v] && !actual[v] {
+			claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, v))
+			delete(exists, v)
+		}
+	}
+	if err := o.uploadAttributeClaims(ctx, claims); err != nil {
+		return err
+	}
+	if o.attr == nil {
+		o.attr = make(map[string][]string)
+	}
+	o.attr[key] = slices.Clone(attrs)
 	return nil
+}
+
+// uploadAttributeClaims uploads one ordinary attribute claim or one compact
+// multi claim. The caller holds o.mu and updates cached attributes only after
+// this succeeds. A zero-length list does not upload a blob.
+func (o *Object) uploadAttributeClaims(ctx context.Context, claims []*schema.Builder) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	claim := claims[0]
+	if len(claims) == 1 {
+		claim.SetRawStringField("permaNode", o.pn.String())
+	} else {
+		var err error
+		claim, err = schema.NewMultiClaim(claims...)
+		if err != nil {
+			return err
+		}
+		claim.SetMultiClaimPermanode(o.pn)
+	}
+	_, err := o.h.upload(ctx, claim)
+	return err
 }
 
 func asSet(elts []string) map[string]bool {

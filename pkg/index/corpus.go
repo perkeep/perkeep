@@ -189,11 +189,19 @@ func (m attrValues) cacheAttrClaim(cl *camtypes.Claim) {
 
 // restoreInvariants sorts claims by date and
 // recalculates latest attributes.
-func (pm *PermanodeMeta) restoreInvariants(signers signerFromBlobrefMap) error {
+func (pm *PermanodeMeta) restoreInvariants(signers signerFromBlobrefMap, deleted ...func(blob.Ref) bool) error {
 	sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
+	return pm.replayAttrs(signers, deleted...)
+}
+
+// replayAttrs rebuilds attribute caches from an already sorted history.
+func (pm *PermanodeMeta) replayAttrs(signers signerFromBlobrefMap, deleted ...func(blob.Ref) bool) error {
 	pm.attr = make(attrValues)
 	pm.signer = make(map[string]attrValues)
 	for _, cl := range pm.Claims {
+		if len(deleted) != 0 && deleted[0](cl.BlobRef) {
+			continue
+		}
 		if err := pm.appendAttrClaim(cl, signers); err != nil {
 			return err
 		}
@@ -204,15 +212,18 @@ func (pm *PermanodeMeta) restoreInvariants(signers signerFromBlobrefMap) error {
 // fixupLastClaim fixes invariants on the assumption
 // that the all but the last element in Claims are sorted by date
 // and the last element is the only one not yet included in Attrs.
-func (pm *PermanodeMeta) fixupLastClaim(signers signerFromBlobrefMap) error {
+func (pm *PermanodeMeta) fixupLastClaim(signers signerFromBlobrefMap, deleted ...func(blob.Ref) bool) error {
 	if pm.attr != nil {
 		n := len(pm.Claims)
 		if n < 2 || camtypes.ClaimPtrsByDate(pm.Claims).Less(n-2, n-1) {
 			// already sorted, update Attrs from new Claim
+			if len(deleted) != 0 && deleted[0](pm.Claims[n-1].BlobRef) {
+				return nil
+			}
 			return pm.appendAttrClaim(pm.Claims[n-1], signers)
 		}
 	}
-	return pm.restoreInvariants(signers)
+	return pm.restoreInvariants(signers, deleted...)
 }
 
 // appendAttrClaim stores permanode attributes
@@ -444,6 +455,12 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		return err
 	}
 
+	// Claim-scan workers reconstruct attribute caches in parallel. Load
+	// deletions first so their replay predicates only read a complete map.
+	if err := c.initDeletes(s); err != nil {
+		return fmt.Errorf("Could not populate the corpus deletes: %w", err)
+	}
+
 	cpu0 := osutil.CPUUsage()
 	if logCorpusStats {
 		c.logf("loading into memory... (3-%d/%d: other prefixes)", len(slurpPrefixes), len(slurpPrefixes))
@@ -454,10 +471,6 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.brOfStr = nil // drop this now.
 	c.building = false
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
-
-	if err := c.initDeletes(s); err != nil {
-		return fmt.Errorf("Could not populate the corpus deletes: %w", err)
-	}
 
 	if logCorpusStats {
 		cpu := osutil.CPUUsage() - cpu0
@@ -565,8 +578,21 @@ func (c *Corpus) addKeyID(mm *mutationMap) error {
 }
 
 func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) error {
-	if _, dup := c.blobs[br]; dup {
-		return nil
+	_, dup := c.blobs[br]
+	if dup {
+		// A delete waiting for its target has already contributed metadata,
+		// but no deletion. Its dependency retry must still apply that deletion.
+		// The immutable deleter reference uniquely identifies the date as well.
+		unappliedDelete := false
+		for _, cl := range mm.deletes {
+			if !slices.ContainsFunc(c.deletes[cl.Target()], func(d deletion) bool { return d.deleter == br }) {
+				unappliedDelete = true
+				break
+			}
+		}
+		if !unappliedDelete {
+			return nil
+		}
 	}
 	c.gen++
 	// make sure keySignerKeyID is done first before the actual mutations, even
@@ -574,8 +600,13 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 	if err := c.addKeyID(mm); err != nil {
 		return err
 	}
+	var replay map[blob.Ref]bool
 	for k, v := range mm.kv {
 		kt := typeOfKey(k)
+		if dup && kt == "meta" {
+			// The partial receive already merged this row.
+			continue
+		}
 		if kt == keySignerKeyID.name {
 			// because we already took care of it in addKeyID
 			continue
@@ -583,13 +614,64 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 		if !slurpedKeyType.Contains(kt) {
 			continue
 		}
+		if kt == keyPermanodeClaim.name && strings.Count(k, "|") == 5 {
+			pn, err := c.mergeClaimRowWithFixup([]byte(k), []byte(v), false)
+			if err != nil {
+				return err
+			}
+			if replay == nil {
+				replay = make(map[blob.Ref]bool)
+			}
+			replay[pn] = true
+			continue
+		}
 		if err := corpusMergeFunc[kt](c, []byte(k), []byte(v)); err != nil {
+			return err
+		}
+	}
+	for pn := range replay {
+		if err := c.permanodes[pn].restoreInvariants(c.keyId, c.IsDeleted); err != nil {
 			return err
 		}
 	}
 	for _, cl := range mm.deletes {
 		if err := c.updateDeletes(cl); err != nil {
 			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
+		}
+	}
+	if len(mm.deletes) != 0 {
+		if err := c.replayDeletedClaims(mm.deletes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// replayDeletedClaims invalidates only attribute caches whose claims may have
+// changed eligibility. A delete of a delete follows the deletion chain to the
+// original envelope. Scanning histories avoids a persistent claimref-to-PN map;
+// only affected histories are replayed, and none need sorting again.
+func (c *Corpus) replayDeletedClaims(deletes []schema.Claim) error {
+	targetOf := make(map[blob.Ref]blob.Ref)
+	for target, deletions := range c.deletes {
+		for _, d := range deletions {
+			targetOf[d.deleter] = target
+		}
+	}
+	affected := make(map[blob.Ref]bool)
+	for _, cl := range deletes {
+		for target := cl.Target(); target.Valid() && !affected[target]; target = targetOf[target] {
+			affected[target] = true
+		}
+	}
+	for _, pm := range c.permanodes {
+		for _, cl := range pm.Claims {
+			if affected[cl.BlobRef] {
+				if err := pm.replayAttrs(c.keyId, c.IsDeleted); err != nil {
+					return err
+				}
+				break
+			}
 		}
 	}
 	return nil
@@ -660,9 +742,16 @@ func (c *Corpus) mergeSignerKeyIdRow(k, v []byte) error {
 }
 
 func (c *Corpus) mergeClaimRow(k, v []byte) error {
+	_, err := c.mergeClaimRowWithFixup(k, v, true)
+	return err
+}
+
+// mergeClaimRowWithFixup can defer replay until all children in an envelope
+// have been merged, avoiding quadratic work for out-of-order child rows.
+func (c *Corpus) mergeClaimRowWithFixup(k, v []byte, fixup bool) (blob.Ref, error) {
 	cl, ok := c.kvClaimBytes(k, v)
 	if !ok || !cl.Permanode.Valid() {
-		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
+		return blob.Ref{}, fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
 
 	pn := cl.Permanode
@@ -672,11 +761,11 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		c.permanodes[pn] = pm
 	}
 	pm.Claims = append(pm.Claims, &cl)
-	if !c.building {
+	if !c.building && fixup {
 		// Unless we're still starting up (at which we sort at
 		// the end instead), keep claims sorted and attrs in sync.
-		if err := pm.fixupLastClaim(c.keyId); err != nil {
-			return err
+		if err := pm.fixupLastClaim(c.keyId, c.IsDeleted); err != nil {
+			return blob.Ref{}, err
 		}
 	}
 
@@ -691,7 +780,7 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		}
 		nodes.Add(pn)
 	}
-	return nil
+	return pn, nil
 }
 
 func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
@@ -1204,6 +1293,9 @@ func (c *Corpus) pnCamliContent(pn blob.Ref) (cc blob.Ref, t time.Time, ok bool)
 		return
 	}
 	for _, cl := range pm.Claims {
+		if c.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if cl.Attr != "camliContent" {
 			continue
 		}
@@ -1276,7 +1368,7 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 		return v[0]
 	}
 
-	return claimPtrsAttrValue(pm.Claims, attr, at, signerRefs)
+	return claimPtrsAttrValue(c.liveClaims(pm.Claims), attr, at, signerRefs)
 }
 
 // permanodeAttrsOrClaims returns the best available source
@@ -1311,7 +1403,7 @@ func (c *Corpus) permanodeAttrsOrClaims(permaNode blob.Ref,
 	if ok {
 		return m, nil
 	}
-	return nil, pm.Claims
+	return nil, c.liveClaims(pm.Claims)
 }
 
 // AppendPermanodeAttrValues appends to dst all the values for the attribute
@@ -1344,6 +1436,9 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 		at = time.Now()
 	}
 	for _, cl := range pm.Claims {
+		if c.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if cl.Attr != attr || cl.Date.After(at) {
 			continue
 		}
@@ -1488,6 +1583,9 @@ func (c *Corpus) ForeachClaim(permaNode blob.Ref, at time.Time, fn func(*camtype
 		return
 	}
 	for _, cl := range pm.Claims {
+		if c.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if !at.IsZero() && cl.Date.After(at) {
 			continue
 		}
@@ -1504,6 +1602,9 @@ func (c *Corpus) ForeachClaim(permaNode blob.Ref, at time.Time, fn func(*camtype
 // Iteration is in an undefined order.
 func (c *Corpus) ForeachClaimBack(value blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
 	for _, cl := range c.claimBack[value] {
+		if c.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if !at.IsZero() && cl.Date.After(at) {
 			continue
 		}
@@ -1529,6 +1630,9 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 	}
 	ret := false
 	for _, cl := range pm.Claims {
+		if c.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if cl.Attr != attr {
 			continue
 		}
@@ -1555,4 +1659,19 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 // but used to disable verbose logging in tests.
 func SetVerboseCorpusLogging(v bool) {
 	logCorpusStats = v
+}
+
+// liveClaims filters deleted envelopes when a historical query cannot use the
+// current attribute cache. Most indexes have no deletions and need no copy.
+func (c *Corpus) liveClaims(claims []*camtypes.Claim) []*camtypes.Claim {
+	if len(c.deletes) == 0 {
+		return claims
+	}
+	var live []*camtypes.Claim
+	for _, cl := range claims {
+		if !c.IsDeleted(cl.BlobRef) {
+			live = append(live, cl)
+		}
+	}
+	return live
 }

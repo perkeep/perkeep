@@ -295,6 +295,29 @@ type superset struct {
 	Expires  types.Time3339 `json:"expires"` // or zero for no expiration
 }
 
+func (ss *superset) UnmarshalJSON(data []byte) error {
+	// Delay decoding permaNode until we know the claim type: multi claims
+	// allow an empty enclosing target when every child supplies its own.
+	// The alias avoids recursively calling this method, and the raw override
+	// leaves the rest of the schema's typed decoding unchanged.
+	type wireSuperset superset
+	wire := struct {
+		*wireSuperset
+		Permanode json.RawMessage `json:"permaNode"`
+	}{wireSuperset: (*wireSuperset)(ss)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	if len(wire.Permanode) == 0 {
+		return nil
+	}
+	if ss.Type == TypeClaim && ss.ClaimType == MultiClaim && bytes.Equal(wire.Permanode, []byte(`""`)) {
+		ss.Permanode = blob.Ref{}
+		return nil
+	}
+	return json.Unmarshal(wire.Permanode, &ss.Permanode)
+}
+
 var errSchemaBlobTooLarge = errors.New("schema blob too large")
 
 func parseSuperset(r io.Reader) (*superset, error) {
@@ -789,6 +812,8 @@ const (
 	AddAttributeClaim ClaimType = "add-attribute"
 	DelAttributeClaim ClaimType = "del-attribute"
 	ShareClaim        ClaimType = "share"
+	// MultiClaim groups ordered attribute operations in a single signed claim.
+	MultiClaim ClaimType = "multi"
 	// DeleteClaim deletes a permanode or another claim.
 	// A delete claim can itself be deleted, and so on.
 	DeleteClaim ClaimType = "delete"
@@ -819,13 +844,13 @@ func newClaim(claims ...*claimParam) *Builder {
 		populateClaimMap(bb.m, cp)
 		return bb
 	}
-	var claimList []any
+	claimList := make([]any, 0, len(claims))
 	for _, cp := range claims {
 		m := map[string]any{}
 		populateClaimMap(m, cp)
 		claimList = append(claimList, m)
 	}
-	bb.m["claimType"] = "multi"
+	bb.m["claimType"] = string(MultiClaim)
 	bb.m["claims"] = claimList
 	return bb
 }
@@ -839,7 +864,11 @@ func populateClaimMap(m map[string]any, cp *claimParam) {
 	case DeleteClaim:
 		m["target"] = cp.target.String()
 	default:
-		m["permaNode"] = cp.permanode.String()
+		// A zero ref can be used when constructing a multi claim whose
+		// enclosing permaNode supplies the target.
+		if cp.permanode.Valid() {
+			m["permaNode"] = cp.permanode.String()
+		}
 		m["attribute"] = cp.attribute
 		if !(cp.claimType == DelAttributeClaim && cp.value == "") {
 			m["value"] = cp.value

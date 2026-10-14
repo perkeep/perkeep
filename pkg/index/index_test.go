@@ -128,6 +128,8 @@ var (
 		"index_test.go",
 		"keys_test.go",
 		"missing_cleanup_test.go",
+		"multiclaim_internal_test.go",
+		"multiclaim_test.go",
 		"queue_set_test.go",
 		"ready_reindex_bench_test.go",
 		"receive_buffers_test.go",
@@ -773,7 +775,7 @@ func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error 
 
 // Older schemas require a full reindex, not the legacy v4-to-v5 wholeRef fix.
 func TestOldSchemaRequiresReindex(t *testing.T) {
-	for _, version := range []int{4, 5} {
+	for _, version := range []int{4, 5, 6} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			s := sorted.NewMemoryKeyValue()
 			defer s.Close()
