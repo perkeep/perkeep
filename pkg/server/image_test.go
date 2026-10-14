@@ -26,6 +26,7 @@ import (
 	"image/png"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -62,6 +63,9 @@ func TestThumbnailContentType(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.format, func(t *testing.T) {
+			if tc.format == "avif" && (runtime.GOOS == "freebsd" || runtime.GOOS == "openbsd") {
+				t.Skip("AVIF isn't supported on FreeBSD or OpenBSD yet; see https://github.com/perkeep/perkeep/issues/1879")
+			}
 			var src bytes.Buffer
 			if err := tc.encode(&src); err != nil {
 				t.Fatal(err)

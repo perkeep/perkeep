@@ -5,6 +5,12 @@ description: >
   only readable by that pull request, and would only use up the repository's
   cache space, evicting master's.
 
+inputs:
+  cache-key-suffix:
+    description: The same cache-key-suffix as given to setup-go.
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -14,7 +20,7 @@ runs:
       run: |
         echo "modcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         echo "buildcache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-        echo "prefix=go-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION | sed 's/^go//')" >> "$GITHUB_OUTPUT"
+        echo "prefix=go-${{ github.workflow }}${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION | sed 's/^go//')" >> "$GITHUB_OUTPUT"
 
     - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: actions/cache/save@v4

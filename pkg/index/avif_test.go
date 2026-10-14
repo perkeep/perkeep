@@ -1,3 +1,5 @@
+//go:build !freebsd && !openbsd
+
 /*
 Copyright 2026 The Perkeep Authors
 
