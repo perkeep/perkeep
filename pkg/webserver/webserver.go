@@ -34,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go4.org/net/throttle"
@@ -80,8 +81,27 @@ type Server struct {
 	// tsnetServer is non-nil when running in Tailscale tsnet mode.
 	tsnetServer *tsnet.Server
 
+	// startup, if non-nil, serves all requests instead of the handlers
+	// registered with Handle. See SetStartupHandler.
+	startup atomic.Pointer[startupHandler]
+
 	mu   sync.Mutex
 	reqs int64
+}
+
+type startupHandler struct{ http.Handler }
+
+// SetStartupHandler sets h to serve all requests, instead of the handlers
+// registered with Handle and HandleFunc, until EndStartup is called. It
+// lets a server answer requests while it's still registering its handlers.
+func (s *Server) SetStartupHandler(h http.Handler) {
+	s.startup.Store(&startupHandler{h})
+}
+
+// EndStartup switches from the handler set by SetStartupHandler to the
+// handlers registered with Handle and HandleFunc, all at once.
+func (s *Server) EndStartup() {
+	s.startup.Store(nil)
 }
 
 func New() *Server {
@@ -166,7 +186,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		s.printf("Request #%d: %s %s (from %s) ...", n, req.Method, req.RequestURI, req.RemoteAddr)
 		rw = &trackResponseWriter{ResponseWriter: rw}
 	}
-	s.mux.ServeHTTP(rw, req)
+	if sh := s.startup.Load(); sh != nil {
+		sh.ServeHTTP(rw, req)
+	} else {
+		s.mux.ServeHTTP(rw, req)
+	}
 	if s.verbose {
 		tw := rw.(*trackResponseWriter)
 		s.printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)

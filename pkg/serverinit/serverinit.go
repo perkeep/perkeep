@@ -40,6 +40,7 @@ import (
 	rpprof "runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
@@ -72,7 +73,7 @@ type handlerConfig struct {
 // handlerLoader implements blobserver.Loader.
 type handlerLoader struct {
 	installer   HandlerInstaller
-	baseURL     string
+	baseURL     func() string             // may block until the base URL is known
 	config      map[string]*handlerConfig // prefix -> config
 	handler     map[string]any            // prefix -> http.Handler / func / blobserver.Storage
 	curPrefix   string
@@ -161,24 +162,28 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 }
 
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
-func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blobserver.FindHandlerByTyper) http.Handler {
+//
+// baseURL is called when the handler first serves a request, rather than
+// now, as it may block until the base URL is known.
+func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.Storage, hf blobserver.FindHandlerByTyper) http.Handler {
 	if !strings.HasSuffix(prefix, "/") {
 		panic("expected prefix to end in slash")
 	}
-	baseURL = strings.TrimRight(baseURL, "/")
-
-	storageConfig := &storageAndConfig{
-		storage,
-		&blobserver.Config{
-			Writable:      true,
-			Readable:      true,
-			Deletable:     false,
-			URLBase:       baseURL + prefix[:len(prefix)-1],
-			CanLongPoll:   true,
-			HandlerFinder: hf,
-		},
-	}
+	getStorageConfig := sync.OnceValue(func() *storageAndConfig {
+		return &storageAndConfig{
+			storage,
+			&blobserver.Config{
+				Writable:      true,
+				Readable:      true,
+				Deletable:     false,
+				URLBase:       strings.TrimRight(baseURL(), "/") + prefix[:len(prefix)-1],
+				CanLongPoll:   true,
+				HandlerFinder: hf,
+			},
+		}
+	})
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		storageConfig := getStorageConfig()
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
 			log.Printf("Invalid request for method %q, path %q",
@@ -222,6 +227,15 @@ func (hl *handlerLoader) AllHandlers() (types map[string]string, handlers map[st
 }
 
 func (hl *handlerLoader) setupAll() {
+	// Set up the search handlers, which load the corpus, before any
+	// others. Loading the corpus is usually the slowest part of
+	// startup, and it doesn't need the base URL, which some other
+	// handlers wait for while they're set up (see BaseURL).
+	for prefix, h := range hl.config {
+		if h.htype == "search" {
+			hl.setupHandler(prefix)
+		}
+	}
 	for prefix := range hl.config {
 		hl.setupHandler(prefix)
 	}
@@ -238,8 +252,10 @@ func (hl *handlerLoader) MyPrefix() string {
 	return hl.curPrefix
 }
 
+// BaseURL returns the server's base URL. It may block until that's known,
+// such as while a Tailscale listener is still starting.
 func (hl *handlerLoader) BaseURL() string {
-	return hl.baseURL
+	return hl.baseURL()
 }
 
 func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, error) {
@@ -345,7 +361,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		// perkeepd.go derives (if needed) a more useful hl.baseURL,
 		// after h.conf was generated, so we provide it as well to
 		// FromJSONConfig so NewHandler can benefit from it.
-		hc, err := app.FromJSONConfig(h.conf, prefix, hl.baseURL)
+		hc, err := app.FromJSONConfig(h.conf, prefix, hl.BaseURL())
 		if err != nil {
 			exitFailure("error setting up app config for prefix %q: %v", h.prefix, err)
 		}
@@ -661,6 +677,15 @@ func (c *Config) SetKeepGoing(v bool) {
 // The returned shutdown value can be used to cleanly shut down the
 // handlers.
 func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown io.Closer, err error) {
+	return c.InstallHandlersLazy(hi, func() string { return baseURL })
+}
+
+// InstallHandlersLazy is like InstallHandlers, but takes a func that
+// returns the base URL, which may block until the URL is known, such as
+// while the server's listener is still starting. Only the handlers that
+// need the base URL while they're set up (apps and importers) wait for
+// it, after the search handlers, which load the corpus, are set up.
+func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string) (shutdown io.Closer, err error) {
 	config := c
 	var hl *handlerLoader
 	defer func() {

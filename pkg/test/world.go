@@ -231,11 +231,15 @@ func (w *World) Start() error {
 		upErr := make(chan error, 1)
 		go func() {
 			for range 600 {
-				res, err := http.Get("http://" + w.addr)
+				// While it's starting, perkeepd answers requests
+				// (other than for its startup page) with a 503.
+				res, err := http.Get("http://" + w.addr + "/?camli.mode=config")
 				if err == nil {
 					res.Body.Close()
-					upc <- true
-					return
+					if res.StatusCode != http.StatusServiceUnavailable {
+						upc <- true
+						return
+					}
 				}
 				time.Sleep(50 * time.Millisecond)
 			}

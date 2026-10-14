@@ -32,6 +32,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -418,6 +419,10 @@ func main() {
 			log.Printf("Error closing logger: %v", err)
 		}
 	}()
+	// Keep the log lines from startup, for the startup page (see below).
+	startLog := new(startupLog)
+	origLogOutput := log.Writer()
+	log.SetOutput(io.MultiWriter(origLogOutput, startLog))
 
 	log.Printf("Starting perkeepd version %s; Go %s (%s/%s)", buildinfo.Summary(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
@@ -430,23 +435,39 @@ func main() {
 		exitf("Error loading config file: %v", err)
 	}
 
+	// Start listening and serving in the background, which with a
+	// Tailscale listener takes a few seconds, while the handlers are
+	// installed. Until they are, the startup handler shows the startup
+	// log to the owner at / and /ui/, and answers everything else with
+	// a 503.
 	ws := webserver.New()
-	baseURL, err := listen(ws, config)
-	if err != nil {
-		exitf("Error starting webserver: %v", err)
-	}
+	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now()})
+	listened := make(chan string, 1) // the base URL, once listening
+	go func() {
+		baseURL, err := listen(ws, config)
+		if err != nil {
+			exitf("Error starting webserver: %v", err)
+		}
+		listened <- baseURL
+		ws.Serve()
+	}()
+	getBaseURL := sync.OnceValue(func() string { return <-listened })
 
 	config.SetReindex(*flagReindex)
 	config.SetKeepGoing(*flagKeepGoing)
 
-	// Finally, install the handlers. This also does the final config validation.
-	shutdownCloser, err := config.InstallHandlers(ws, baseURL)
+	// Finally, install the handlers. This also does the final config
+	// validation. Only handlers that need the base URL while they're
+	// set up wait for the listener; loading the corpus doesn't.
+	shutdownCloser, err := config.InstallHandlersLazy(ws, getBaseURL)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
 	shutdownc <- shutdownCloser
 
-	go ws.Serve()
+	baseURL := getBaseURL()
+	ws.EndStartup()
+	log.SetOutput(origLogOutput)
 
 	if env.OnGCE() {
 		gce.FixUserDataForPerkeepRename()
