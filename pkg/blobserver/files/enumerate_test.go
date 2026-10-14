@@ -158,17 +158,19 @@ func TestEnumerateIsSorted(t *testing.T) {
 		t.Fatalf("error writing fake blob: %v", err)
 	}
 
-	// And the same for a "cache" directory, used by the default configuration.
-	fakeDir = root + "/cache/sha1/1f0/710"
-	if err := os.MkdirAll(fakeDir, 0755); err != nil {
-		t.Fatalf("error creating cachedir: %v", err)
-	}
-	if err := os.WriteFile(
-		fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
-		[]byte("fake file"),
-		0644,
-	); err != nil {
-		t.Fatalf("error writing fake file: %v", err)
+	// Default cache directories are not part of the main blob storage.
+	for _, cacheDir := range []string{"cache", "importer-cache"} {
+		fakeDir = filepath.Join(root, cacheDir, "sha1", "1f0", "710")
+		if err := os.MkdirAll(fakeDir, 0755); err != nil {
+			t.Fatalf("error creating %s: %v", cacheDir, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(fakeDir, "sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat"),
+			[]byte("fake file"),
+			0644,
+		); err != nil {
+			t.Fatalf("error writing fake file: %v", err)
+		}
 	}
 
 	var tests = []struct {
@@ -242,6 +244,7 @@ func newListTestStorage(t *testing.T) (sto blobserver.Storage, want map[blob.Ref
 	// Directories that enumeration skips, and files that aren't blobs.
 	writeFile("partition/queue-indexer/sha1/1f0/710/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat", "fake")
 	writeFile("cache/sha1/1f/07/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat", "fake")
+	writeFile("importer-cache/strava-sha224-account/cache.leveldb/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat", "scratch")
 	writeFile("sha1/1f/07/notablob.dat", "fake")
 	writeFile("sha1/1f/07/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.tmp", "fake")
 

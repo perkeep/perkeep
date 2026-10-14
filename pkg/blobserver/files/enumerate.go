@@ -273,10 +273,10 @@ func (ds *Storage) ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) er
 
 func skipDir(name string) bool {
 	// The partition directory is old. (removed from codebase, but
-	// likely still on disk for some people) the "cache" and
-	// "packed" directories are used by the serverconfig/genconfig
-	// code, as a default location for most users.
-	return name == "partition" || name == "cache" || name == "packed"
+	// likely still on disk for some people). The cache, importer-cache,
+	// and packed directories are default locations from serverinit/genconfig;
+	// importer scratch files are not part of the main blob storage.
+	return name == "partition" || name == "cache" || name == "importer-cache" || name == "packed"
 }
 
 func isShardDir(name string) bool {

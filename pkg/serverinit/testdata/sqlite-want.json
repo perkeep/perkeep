@@ -52,7 +52,10 @@
 		},
 		"/importer/": {
 			"handler": "importer",
-			"handlerArgs": {}
+			"handlerArgs": {
+				"cacheRoot": "/tmp/blobs/importer-cache",
+				"cacheType": "sqlite"
+			}
 		},
 		"/index/": {
 			"handler": "storage-index",
