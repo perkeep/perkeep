@@ -73,8 +73,8 @@ type rateLimitState struct {
 }
 
 type rateLimiter struct {
-	// Serialize snapshot plus persistent claim upload without holding mu over
-	// storage I/O. Otherwise an older snapshot could finish uploading after a
+	// Serialize snapshot plus persistent cache write without holding mu over
+	// storage I/O. Otherwise an older snapshot could finish writing after a
 	// newer one and weaken the application's restart budget.
 	persistMu sync.Mutex
 	// A semaphore rather than a mutex lets requests cancel while waiting for
@@ -339,11 +339,10 @@ func retryAfter(raw string, now time.Time) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// snapshot is suitable for a shared importer configuration attribute. Flush
-// after every run, including failed runs; flushing after every API call reduces crash
-// loss. Abrupt process termination before a flush loses local reservations,
-// and the next response must rediscover server usage, just as for external
-// applications sharing the same ClientID.
+// snapshot is suitable for the shared importer scratch cache. Save after every
+// run, including failed runs. A missing cache or abrupt process termination
+// before a save loses local reservations; the next response must rediscover
+// server usage, just as for external applications sharing the same ClientID.
 func (l *rateLimiter) snapshot() string {
 	<-l.mu
 	defer l.unlock()
@@ -360,7 +359,7 @@ func (l *rateLimiter) restore(raw string) error {
 	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	invalid := errors.New("strava: invalid persisted rate limit state; repair the account rate limit state before importing")
+	invalid := errors.New("strava: invalid cached rate limit state")
 	if len(raw) > 4096 {
 		return invalid
 	}

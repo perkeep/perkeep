@@ -28,8 +28,8 @@ Even when persisted, they are not stored, indexed, or replicated in the main
 blob storage. A cache may be missing, stale, deleted, or unavailable. An
 importer must remain correct without it: cache contents may accelerate work,
 but must not be the only record of progress, credentials, or imported data.
-Reindexing or restoring blobs does not restore these caches. No existing
-importer uses these APIs yet.
+Reindexing or restoring blobs does not restore these caches. Strava uses
+ImporterCache for its application-wide rate-limit snapshots.
 
 With a configured local blobPath, the server defaults to:
 

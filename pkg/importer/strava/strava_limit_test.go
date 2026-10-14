@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,9 +32,43 @@ import (
 
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/sorted"
 )
 
 const coreMaxActivitiesEnv = "PERKEEP_STRAVA_MAX_ACTIVITIES"
+
+func coreCaptureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var logs bytes.Buffer
+	old := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(old) })
+	return &logs
+}
+
+// reopenForAnotherAccount uses the same host configuration and blob storage,
+// but creates a fresh host and sibling account. Close the old host first.
+func (f *coreFixture) reopenForAnotherAccount(t *testing.T) *coreFixture {
+	t.Helper()
+	host, err := importer.NewHost(f.hostConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := host.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	rc, err := importer.CreateAccount(host, "strava")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := &coreFixture{
+		rc: rc, storage: f.storage, clientID: f.clientID, hostConfig: f.hostConfig,
+	}
+	second.configure(t)
+	return second
+}
 
 // Return genuinely newest-first summaries, including details and streams so
 // an accidental request for an older activity is visible in the call counts.
@@ -93,7 +129,7 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	}
 	coreLimitCalls(t, api, want) // 1 listing + 10 details + 10 streams = 21
 	coreLimitPaths(t, f, summaries, 10)
-	f.permanodes(t, 4+10) // account, config, root, collection, not 30 attachment wrappers
+	f.permanodes(t, 3+10) // account, root, collection, not 30 attachment wrappers
 	for _, a := range summaries[:10] {
 		obj := f.activity(t, a.ID)
 		coreAttrs(t, obj, map[string]string{nodeattr.DefaultVisibility: ""})
@@ -115,7 +151,7 @@ func TestImporterActivityLimitNewestTenAndRepeat(t *testing.T) {
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
 	coreLimitPaths(t, f, summaries, 10)
-	f.permanodes(t, 4+10)
+	f.permanodes(t, 3+10)
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
 }
 
@@ -371,23 +407,54 @@ func TestImporterActivityLimitReadBudgetStopsBeforeStreams(t *testing.T) {
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: ""})
 }
 
-func TestImporterInvalidSavedRateStateBeforeNetwork(t *testing.T) {
+func TestImporterInvalidSavedRateStateIsDisposable(t *testing.T) {
 	t.Setenv(coreMaxActivitiesEnv, "10")
-	for _, state := range []string{
-		"not JSON", `{}`, `{"clientID":"other-app"}`,
-	} {
-		t.Run(state, func(t *testing.T) {
-			f := newCoreFixture(t, nil)
+	const private = "private-cache-data-must-not-be-logged"
+	for _, kind := range []string{"invalid-json", "empty-envelope", "missing-state", "invalid-state"} {
+		t.Run(kind, func(t *testing.T) {
+			api := newCoreAPI(t)
+			api.perPage = 10
+			f := newCoreFixture(t, api)
 			f.configure(t)
-			if err := f.rateNode(t).SetAttr(attrRateLimitState, state); err != nil {
+			state := private
+			switch kind {
+			case "empty-envelope":
+				state = `{}`
+			case "missing-state":
+				state = string(coreJSON(t, map[string]string{"clientID": f.clientID, "private": private}))
+			case "invalid-state":
+				state = string(coreJSON(t, persistedRateLimit{
+					ClientID: f.clientID, State: json.RawMessage(`{"version":999,"private":"` + private + `"}`),
+				}))
+			}
+			if err := f.rateCache(t).Set(rateLimitCacheKey(f.clientID), state); err != nil {
 				t.Fatal(err)
 			}
-			err := (imp{}).Run(f.rc)
-			if err == nil || !strings.Contains(err.Error(), "persisted rate-limit state") {
-				t.Fatalf("Run with invalid saved state = %v; want validation error", err)
+			logs := coreCaptureLog(t)
+			if err := (imp{}).Run(f.rc); err != nil {
+				t.Fatalf("Run with invalid saved state failed: %v", err)
 			}
-			coreAttrs(t, f.rateNode(t), map[string]string{attrRateLimitState: state})
-			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: ""})
+			coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
+			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
+			if logs.Len() == 0 {
+				t.Error("invalid cache entry was not logged")
+			}
+			for _, secret := range []string{private, f.clientID, "test-access", "test-refresh", "test-client-secret"} {
+				if strings.Contains(logs.String(), secret) {
+					t.Errorf("cache diagnostic leaked %q: %s", secret, logs)
+				}
+			}
+			raw := f.rateState(t)
+			if raw == state {
+				t.Fatal("successful import did not replace invalid cache entry")
+			}
+			restored := newRateLimiter(time.Now)
+			if err := restoreRateLimit(f.rateCache(t), f.clientID, restored); err != nil {
+				t.Fatalf("replacement snapshot is invalid: %v", err)
+			}
+			if restored.state.Daily.ReadUsage != 1 {
+				t.Errorf("replacement snapshot lost request usage: %+v", restored.state)
+			}
 		})
 	}
 }
@@ -400,7 +467,7 @@ func TestImporterSavedRateStateForAnotherAppIgnored(t *testing.T) {
 	f.configure(t)
 	// Its envelope is valid, but the other app's state cannot be restored by
 	// this limiter. Ignore it before attempting to validate the inner state.
-	if err := f.rateNode(t).SetAttr(attrRateLimitState, `{"clientID":"another-app","state":{"version":999}}`); err != nil {
+	if err := f.rateCache(t).Set(rateLimitCacheKey(f.clientID), `{"clientID":"another-app","state":{"version":999}}`); err != nil {
 		t.Fatal(err)
 	}
 	if err := (imp{}).Run(f.rc); err != nil {
@@ -408,7 +475,7 @@ func TestImporterSavedRateStateForAnotherAppIgnored(t *testing.T) {
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
 	var stored persistedRateLimit
-	if err := json.Unmarshal([]byte(f.rateNode(t).Attr(attrRateLimitState)), &stored); err != nil {
+	if err := json.Unmarshal([]byte(f.rateState(t)), &stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored.ClientID != f.clientID || len(stored.State) == 0 {
@@ -428,7 +495,7 @@ func TestImporterFailedRunPersistsRateState(t *testing.T) {
 	}
 	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
 	var stored persistedRateLimit
-	if err := json.Unmarshal([]byte(f.rateNode(t).Attr(attrRateLimitState)), &stored); err != nil {
+	if err := json.Unmarshal([]byte(f.rateState(t)), &stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored.ClientID != f.clientID {
@@ -444,34 +511,67 @@ func TestImporterFailedRunPersistsRateState(t *testing.T) {
 	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: ""})
 }
 
-func TestImporterRateStateClaimFailureReported(t *testing.T) {
-	t.Setenv(coreMaxActivitiesEnv, "10")
-	api := newCoreAPI(t)
-	api.perPage = 10
-	api.pages[1] = coreLimitActivities(t, api, 1)
-	requests := 0
-	f := newCoreFixture(t, coreTransport(func(req *http.Request) (*http.Response, error) {
-		requests++
-		res, err := api.RoundTrip(req)
-		if err == nil {
-			res.Header.Set("X-ReadRateLimit-Limit", "2,100")
-			res.Header.Set("X-ReadRateLimit-Usage", strconv.Itoa(requests)+","+strconv.Itoa(requests))
-		}
-		return res, err
-	}))
-	f.configure(t)
-	f.storage.failNextClaim(attrRateLimitState)
-	err := (imp{}).Run(f.rc)
-	if !errors.Is(err, errCoreClaimFailure) {
-		t.Errorf("snapshot failure cause lost: %v", err)
+func TestImporterRateCacheWriteFailureDoesNotChangeResult(t *testing.T) {
+	for _, name := range []string{"successful-import", "quota-failure", "import-failure"} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(coreMaxActivitiesEnv, "1")
+			api := newCoreAPI(t)
+			api.perPage = 1
+			api.pages[1] = coreLimitActivities(t, api, 1)
+			if name == "import-failure" {
+				api.failures["/activities/1000"] = http.StatusBadGateway
+			}
+			cacheErr := errors.New("rate cache write failed")
+			cache := &coreRateCache{KeyValue: sorted.NewMemoryKeyValue(), setErr: cacheErr}
+			t.Cleanup(func() { cache.Close() })
+			requests := 0
+			f := newCoreFixture(t, coreTransport(func(req *http.Request) (*http.Response, error) {
+				requests++
+				res, err := api.RoundTrip(req)
+				if name == "quota-failure" && err == nil {
+					res.Header.Set("X-ReadRateLimit-Limit", "2,100")
+					res.Header.Set("X-ReadRateLimit-Usage", strconv.Itoa(requests)+","+strconv.Itoa(requests))
+				}
+				return res, err
+			}), cache)
+			f.configure(t)
+			logs := coreCaptureLog(t)
+			err := (imp{}).Run(f.rc)
+			wantCalls := map[string]int{"/athlete/activities?page=1": 1, "/activities/1000": 1}
+			wantVersion := "2"
+			switch name {
+			case "quota-failure":
+				var quotaErr *rateLimitError
+				if !errors.As(err, &quotaErr) {
+					t.Fatalf("Run = %v; want original quota failure", err)
+				}
+				wantVersion = ""
+			case "import-failure":
+				if err == nil || !strings.Contains(err.Error(), "unexpected HTTP status 502") {
+					t.Fatalf("Run = %v; want original import failure", err)
+				}
+				wantVersion = ""
+			default:
+				if err != nil {
+					t.Fatalf("cache failure failed successful import: %v", err)
+				}
+				wantCalls["/activities/1000/streams"] = 1
+				f.file(t, f.activity(t, 1000), nodeattr.FitnessTrack, "track.gpx")
+			}
+			if err != nil && (errors.Is(err, cacheErr) || strings.Contains(err.Error(), cacheErr.Error())) {
+				t.Errorf("cache failure changed import error: %v", err)
+			}
+			coreLimitCalls(t, api, wantCalls)
+			coreAttrs(t, f.activity(t, 1000), map[string]string{attrImportVersion: wantVersion})
+			coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: wantVersion})
+			if !strings.Contains(logs.String(), cacheErr.Error()) {
+				t.Errorf("cache write failure was not logged: %s", logs)
+			}
+			if _, err := f.rateCache(t).Get(rateLimitCacheKey(f.clientID)); !errors.Is(err, sorted.ErrNotFound) {
+				t.Errorf("failed write left cache entry: %v", err)
+			}
+		})
 	}
-	var quotaErr *rateLimitError
-	if !errors.As(err, &quotaErr) {
-		t.Errorf("quota failure cause lost when saving snapshot: %v", err)
-	}
-	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1, "/activities/1000": 1})
-	coreAttrs(t, f.rateNode(t), map[string]string{attrRateLimitState: ""})
-	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: ""})
 }
 
 func TestImporterSharedRateStateSurvivesRestartForAnotherAccount(t *testing.T) {
@@ -482,8 +582,9 @@ func TestImporterSharedRateStateSurvivesRestartForAnotherAccount(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Setenv(coreMaxActivitiesEnv, "10")
+			root := t.TempDir()
 			requests := 0
-			f := newCoreFixture(t, coreTransport(func(req *http.Request) (*http.Response, error) {
+			f := newCoreFixtureWithConfig(t, coreTransport(func(req *http.Request) (*http.Response, error) {
 				requests++
 				if req.URL.Path != "/api/v3/athlete/activities" {
 					t.Errorf("unexpected request %s", req.URL.Path)
@@ -502,7 +603,7 @@ func TestImporterSharedRateStateSurvivesRestartForAnotherAccount(t *testing.T) {
 					res.Header.Set("X-ReadRateLimit-Usage", "1,1")
 				}
 				return res, nil
-			}))
+			}), importer.HostConfig{CacheRoot: root})
 			f.configure(t)
 			err := (imp{}).Run(f.rc)
 			if cooldown && err == nil {
@@ -511,29 +612,25 @@ func TestImporterSharedRateStateSurvivesRestartForAnotherAccount(t *testing.T) {
 			if !cooldown && err != nil {
 				t.Fatal(err)
 			}
-			rateRef := f.rateNode(t).PermanodeRef()
-			if f.rateNode(t).Attr(attrRateLimitState) == "" {
-				t.Fatal("shared importer configuration has no persisted quota")
+			if f.rateState(t) == "" {
+				t.Fatal("shared importer cache has no persisted quota")
 			}
-			coreAttrs(t, f.rc.AccountNode(), map[string]string{attrRateLimitState: ""})
+			if _, err := os.Stat(filepath.Join(root, "strava", "cache."+sorted.DefaultKVFileType)); err != nil {
+				t.Fatalf("missing readable importer-scoped cache: %v", err)
+			}
 
 			// Simulate a clean process restart: discard the app's in-memory
-			// budget and create a fresh importer host over the same storage.
+			// budget and let Host.Close release its owned file cache before
+			// a fresh host lazily reopens the same importer scope.
+			if err := f.rc.Host.Close(); err != nil {
+				t.Fatal(err)
+			}
 			appRateLimiters.Lock()
 			delete(appRateLimiters.byID, f.clientID)
 			appRateLimiters.Unlock()
-			host, err := importer.NewHost(f.hostConfig)
-			if err != nil {
-				t.Fatal(err)
-			}
-			rc, err := importer.CreateAccount(host, "strava")
-			if err != nil {
-				t.Fatal(err)
-			}
-			second := &coreFixture{rc: rc, storage: f.storage, clientID: f.clientID}
-			second.configure(t)
-			if second.rateNode(t).PermanodeRef() != rateRef {
-				t.Fatal("fresh host failed to find shared importer configuration")
+			second := f.reopenForAnotherAccount(t)
+			if second.rc.AccountNode().PermanodeRef() == f.rc.AccountNode().PermanodeRef() {
+				t.Fatal("restart did not create a sibling account")
 			}
 			err = (imp{}).Run(second.rc)
 			var quotaErr *rateLimitError
@@ -618,7 +715,7 @@ func TestImporterTokenBoundToOldAppMustRefreshBeforeREST(t *testing.T) {
 				t.Errorf("app change requests = %v; want %v", calls, want)
 			}
 			var saved persistedRateLimit
-			if err := json.Unmarshal([]byte(f.rateNode(t).Attr(attrRateLimitState)), &saved); err != nil {
+			if err := json.Unmarshal([]byte(f.rateState(t)), &saved); err != nil {
 				t.Fatal(err)
 			}
 			var state rateLimitState
@@ -633,5 +730,182 @@ func TestImporterTokenBoundToOldAppMustRefreshBeforeREST(t *testing.T) {
 				t.Errorf("app change saved quota = %+v, read usage %d; want current app with usage %d", saved, state.Daily.ReadUsage, wantUsage)
 			}
 		})
+	}
+}
+
+func TestImporterRateCacheOpenFailureDoesNotPreventImport(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "importer-cache")
+	if err := os.WriteFile(root, []byte("obstruct cache directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	requests := 0
+	f := newCoreFixtureWithConfig(t, coreTransport(func(req *http.Request) (*http.Response, error) {
+		requests++
+		res := coreResponse(req, http.StatusOK, []byte("[]"))
+		res.Header.Set("X-ReadRateLimit-Limit", "1,1")
+		res.Header.Set("X-ReadRateLimit-Usage", "1,1")
+		return res, nil
+	}), importer.HostConfig{CacheRoot: root})
+	f.configure(t)
+	logs := coreCaptureLog(t)
+	if err := (imp{}).Run(f.rc); err != nil {
+		t.Fatalf("cache open failure prevented import: %v", err)
+	}
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
+	if cache, err := f.rc.ImporterCache(); cache != nil || err == nil {
+		t.Fatalf("obstructed cache = %v, %v; want opening error", cache, err)
+	}
+	if !strings.Contains(logs.String(), "cache") {
+		t.Errorf("cache open failure was not logged: %s", logs)
+	}
+	// Ignoring unavailable persistence must not reset the live limiter.
+	var quotaErr *rateLimitError
+	if err := (imp{}).Run(f.rc); !errors.As(err, &quotaErr) {
+		t.Fatalf("second Run = %v; want in-process quota block", err)
+	}
+	if requests != 1 {
+		t.Errorf("cache failure reopened quota: %d requests; want 1", requests)
+	}
+}
+
+func TestImporterRateCacheReadFailureDoesNotPreventImport(t *testing.T) {
+	api := newCoreAPI(t)
+	want := errors.New("rate cache unavailable")
+	cache := &coreRateCache{KeyValue: sorted.NewMemoryKeyValue(), getErr: want}
+	t.Cleanup(func() { cache.Close() })
+	f := newCoreFixture(t, api, cache)
+	f.configure(t)
+	logs := coreCaptureLog(t)
+	if err := (imp{}).Run(f.rc); err != nil {
+		t.Fatalf("cache read failure prevented import: %v", err)
+	}
+	coreLimitCalls(t, api, map[string]int{"/athlete/activities?page=1": 1})
+	coreAttrs(t, f.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
+	if !strings.Contains(logs.String(), want.Error()) {
+		t.Errorf("cache read failure was not logged: %s", logs)
+	}
+	// A failed restore must not prevent a later successful snapshot write.
+	cache.getErr = nil
+	if f.rateState(t) == "" {
+		t.Fatal("read failure prevented writing a fresh cache snapshot")
+	}
+}
+
+func TestImporterLostRateCacheRediscoversHeaders(t *testing.T) {
+	for _, disk := range []bool{false, true} {
+		name := "default-memory"
+		var config importer.HostConfig
+		if disk {
+			name = "deleted-file-cache"
+			config.CacheRoot = t.TempDir()
+		}
+		t.Run(name, func(t *testing.T) {
+			requests := 0
+			f := newCoreFixtureWithConfig(t, coreTransport(func(req *http.Request) (*http.Response, error) {
+				requests++
+				res := coreResponse(req, http.StatusOK, []byte("[]"))
+				res.Header.Set("X-ReadRateLimit-Limit", "1,1")
+				res.Header.Set("X-ReadRateLimit-Usage", "1,1")
+				return res, nil
+			}), config)
+			f.configure(t)
+			if err := (imp{}).Run(f.rc); err != nil {
+				t.Fatal(err)
+			}
+			if f.rateState(t) == "" {
+				t.Fatal("initial run did not save quota state")
+			}
+			if err := f.rc.Host.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if disk {
+				if err := os.RemoveAll(filepath.Join(config.CacheRoot, "strava")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			appRateLimiters.Lock()
+			delete(appRateLimiters.byID, f.clientID)
+			appRateLimiters.Unlock()
+			second := f.reopenForAnotherAccount(t)
+			if _, err := second.rateCache(t).Get(rateLimitCacheKey(f.clientID)); !errors.Is(err, sorted.ErrNotFound) {
+				t.Fatalf("cache survived restart/deletion: %v", err)
+			}
+			// Without scratch state, start conservatively and process the
+			// successful response that rediscovers externally consumed quota.
+			if err := (imp{}).Run(second.rc); err != nil {
+				t.Fatalf("missing cache prevented discovery request: %v", err)
+			}
+			coreAttrs(t, second.rc.AccountNode(), map[string]string{importer.AcctAttrCompletedVersion: "2"})
+			var quotaErr *rateLimitError
+			if err := (imp{}).Run(second.rc); !errors.As(err, &quotaErr) {
+				t.Fatalf("Run after rediscovery = %v; want quota block", err)
+			}
+			if requests != 2 {
+				t.Errorf("lost cache bypassed rediscovered quota: %d requests; want 2 total", requests)
+			}
+		})
+	}
+}
+
+func TestRateCacheSeparatesApplications(t *testing.T) {
+	cache := sorted.NewMemoryKeyValue()
+	defer cache.Close()
+	first := newRateLimiter(rateTestTime)
+	first.state.Daily.ReadUsage = 1000
+	second := newRateLimiter(rateTestTime)
+	second.state.Daily.ReadUsage = 7
+	// Long IDs must still produce bounded keys, without exposing the ID.
+	firstID := strings.Repeat("first-app/", 1000)
+	secondID := "second-app"
+	if key := rateLimitCacheKey(firstID); len(key) > sorted.MaxKeySize || strings.Contains(key, "first-app") {
+		t.Fatalf("unbounded or unescaped cache key: %q", key)
+	}
+	for id, limiter := range map[string]*rateLimiter{firstID: first, secondID: second} {
+		if err := persistRateLimit(cache, id, limiter); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id, want := range map[string]int64{firstID: 1000, secondID: 7, "missing-app": 0} {
+		restored := newRateLimiter(rateTestTime)
+		if err := restoreRateLimit(cache, id, restored); err != nil {
+			t.Fatal(err)
+		}
+		if got := restored.state.Daily.ReadUsage; got != want {
+			t.Errorf("restored %q usage = %d; want %d", id, got, want)
+		}
+	}
+}
+
+func TestImporterIgnoresLegacyRateClaim(t *testing.T) {
+	api := newCoreAPI(t)
+	f := newCoreFixture(t, api)
+	f.configure(t)
+	const legacyAttr = "stravaRateLimitState"
+	// Cache upgrades must not read or mutate old, permanently archived state.
+	node, err := f.rc.ImporterNode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, obj := range []*importer.Object{node, f.rc.AccountNode()} {
+		if err := obj.SetAttr(legacyAttr, "obsolete invalid quota state"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := (imp{}).Run(f.rc); err != nil {
+		t.Fatal(err)
+	}
+	before := f.storage.NumBlobs()
+	beforeState := f.rateState(t)
+	if err := (imp{}).Run(f.rc); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.storage.NumBlobs(); got != before {
+		t.Errorf("unchanged poll wrote %d blobs; want none", got-before)
+	}
+	for _, obj := range []*importer.Object{node, f.rc.AccountNode()} {
+		coreAttrs(t, obj, map[string]string{legacyAttr: "obsolete invalid quota state"})
+	}
+	if f.rateState(t) == beforeState {
+		t.Fatal("unchanged poll did not update the local rate cache")
 	}
 }
