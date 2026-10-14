@@ -362,7 +362,16 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery=%d", FastRecovery)
 	}
 
-	if mode, err := sto.checkLargeIntegrity(); err != nil {
+	// Check that large storage and meta agree in the background, so it
+	// doesn't hold up the rest of startup. The server exits if they
+	// don't, as it would have if this ran first, just a little later.
+	// TODO: report the result to a health (and scrub) subsystem instead,
+	// one that can take the server out of service or show the problem.
+	go func() {
+		mode, err := sto.checkLargeIntegrity()
+		if err == nil {
+			return
+		}
 		if mode <= NoRecovery {
 			condFatalf("%v", err)
 		}
@@ -371,7 +380,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 			condFatalf("Error: %v. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", err, mode)
 		}
 		condFatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
-	}
+	}()
 
 	return sto, nil
 }
@@ -418,6 +427,14 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		return FullRecovery, fmt.Errorf("error reading or closing index: %w", err)
 	}
 	missing := slices.Collect(maps.Keys(unindexed)) // blobs in large but not in meta
+	if len(missing) > 0 || len(extra) > 0 {
+		// This runs while the server is serving, so a zip may have been
+		// packed (written to large, then to meta) after large was listed
+		// or meta was read. Look at those blobs again, after giving any
+		// such packing a moment to finish.
+		largeIntegrityRecheckWait()
+		missing, extra = s.stillMismatched(missing, extra)
+	}
 	log.Printf("blobpacked: %d large blobs found in index, %d missing from index", inLarge, len(missing))
 	if len(missing) > 0 {
 		printSample(missing, "missing")
@@ -430,6 +447,35 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		return FastRecovery, fmt.Errorf("%d large blobs missing from index", len(missing))
 	}
 	return NoRecovery, nil
+}
+
+// largeIntegrityRecheckWait is called by checkLargeIntegrity before it
+// looks again at blobs that seemed to be in only one of large and meta.
+var largeIntegrityRecheckWait = func() { time.Sleep(5 * time.Second) }
+
+// stillMismatched returns which of missing (blobs in large but not in
+// meta) are still missing from meta, and which of extra (blobs in meta
+// but not in large) are still not in large.
+func (s *storage) stillMismatched(missing, extra []blob.Ref) (stillMissing, stillExtra []blob.Ref) {
+	for _, br := range missing {
+		if _, err := s.meta.Get(zipMetaPrefix + br.String()); err != nil {
+			stillMissing = append(stillMissing, br)
+		}
+	}
+	if len(extra) == 0 {
+		return stillMissing, nil
+	}
+	inLarge, err := blobserver.StatBlobs(context.Background(), s.large, extra)
+	if err != nil {
+		log.Printf("blobpacked: rechecking large blobs: %v", err)
+		return stillMissing, extra
+	}
+	for _, br := range extra {
+		if _, ok := inLarge[br]; !ok {
+			stillExtra = append(stillExtra, br)
+		}
+	}
+	return stillMissing, stillExtra
 }
 
 func printSample(fromSlice []blob.Ref, sliceName string) {
