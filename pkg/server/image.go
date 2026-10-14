@@ -307,11 +307,9 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	switch format {
 	case "png":
 		err = png.Encode(&buf, i)
-	case "cr2":
-		// Recompress CR2 files as JPEG
-		format = "jpeg"
-		fallthrough
 	default:
+		// Recompress all other formats as JPEG.
+		format = "jpeg"
 		err = jpeg.Encode(&buf, i, &jpeg.Options{
 			Quality: 90,
 		})
@@ -407,11 +405,12 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	var imageData []byte
+	var format string
 
 	cacheHit := false
 	if ih.ThumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
-		format := ih.scaledCached(ctx, &buf, file)
+		format = ih.scaledCached(ctx, &buf, file)
 		if format != "" {
 			cacheHit = true
 			imageData = buf.Bytes()
@@ -429,6 +428,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		}
 		im := imi.(*formatAndImage)
 		imageData = im.image
+		format = im.format
 
 		if ih.ThumbMeta != nil {
 			err := ih.cacheScaled(ctx, imageData, key)
@@ -444,7 +444,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		h.Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		h.Set("Etag", strconv.Quote(etag))
 	}
-	h.Set("Content-Type", db.File.MIMEType)
+	h.Set("Content-Type", "image/"+format)
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))
 	imageBytesServedVar.Add(int64(size))
