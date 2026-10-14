@@ -155,10 +155,28 @@ It learns limits and observed usage from `X-RateLimit-Limit`,
 `X-RateLimit-Usage`, `X-ReadRateLimit-Limit`, and `X-ReadRateLimit-Usage`.
 Usage reported by other clients of the same application is included.
 Accounts and runs sharing a Client ID share one in-process budget. A
-snapshot keyed to that Client ID is persisted as `stravaRateLimitState`
-on the shared importer configuration permanode after each run, including
-failed runs. Restarting with a different account therefore restores the
-latest application-wide budget, not that account's older usage.
+snapshot keyed to that Client ID is overwritten in the importer host's
+automatically scoped `ImporterCache` after each run, including failed runs
+and polls that find no changed activities. This is shared across Strava
+accounts and isolated from other importers and account-private caches.
+No quota bookkeeping blobs or permanode mutation claims are written.
+A valid file-backed snapshot restores the application-wide budget after a
+restart, regardless of which account runs first.
+
+With a local `blobPath`, the shared store is under
+`<blobPath>/importer-cache/strava/`, using the configured file backend, such
+as `cache.sqlite` or `cache.leveldb/`. Without a local cache root, snapshots
+are memory-only. See [importer scratch caches](/doc/server-config.md#importer-scratch-caches)
+for `cacheRoot` and `cacheType` configuration.
+
+This is disposable optimization state, not synced with your blobs and not
+required for correctness. Cache opening, read, validation, and write
+failures are logged but do not fail an import or replace its actual error.
+A missing, deleted, or invalid snapshot leaves the current in-process
+budget intact; after a restart it starts with fresh conservative defaults.
+The next API response rediscovers Strava's observed usage, and Strava still
+enforces its limits. The old `stravaRateLimitState` permanode attribute is
+left untouched and ignored, including on upgrade.
 
 Access tokens are also bound to the Client ID that issued them. Changing
 application credentials requires a validated OAuth refresh or reconnect

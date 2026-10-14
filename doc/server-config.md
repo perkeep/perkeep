@@ -222,7 +222,7 @@ Perkeep has several built-in importers, including:
 
 These can be setup by visiting the "`/importer/`" URL prefix path, e.g. `http://localhost:3179/importer/`
 
-### Importer scratch caches
+### Importer scratch caches {#importer-scratch-caches}
 
 Importers have optional scratch key/value caches, separate from their imported
 blobs and permanode claims. **A cache may be deleted, absent, or stale. It must
@@ -250,9 +250,9 @@ can set the importer handler's `cacheRoot` and `cacheType` explicitly:
 }
 ```
 
-No existing importer uses these cache APIs yet. Stop the server before
-deleting persistent scratch stores. Restoring or reindexing the main blobs
-does not restore these caches.
+Strava uses its shared importer cache for application-wide rate-limit
+snapshots. Stop the server before deleting persistent scratch stores.
+Restoring or reindexing the main blobs does not restore these caches.
 
 ## Windows {#windows}
 
