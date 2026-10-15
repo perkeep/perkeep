@@ -46,8 +46,16 @@ var (
 )
 
 // BeginReindex reserves the store until Finish or Close. The initial wipe and
-// incomplete-reindex marker are committed together before any bulk writes.
-// Neither the journal mode nor the synchronous setting is changed.
+// incomplete-reindex marker are committed together, durably, before any bulk
+// writes. The bulk writes are then committed without syncing them to disk
+// (PRAGMA synchronous=OFF on the session's connection): until Finish
+// removes the marker, the index is incomplete anyway, and an interrupted
+// rebuild must start over, so there's no point waiting for each group of
+// writes to reach the disk. Finish restores the setting and makes the
+// rebuild durable before it removes the marker. (If the operating system
+// crashes or loses power while syncing is off, SQLite may also leave the
+// file corrupt, so a rebuild might then need it deleted rather than wiped.)
+// The journal mode isn't changed.
 func (kv *keyValue) BeginReindex() (sorted.ReindexSession, error) {
 	kv.Gate.Start()
 	conn, err := kv.db.Conn(context.Background())
@@ -71,6 +79,13 @@ func (kv *keyValue) BeginReindex() (sorted.ReindexSession, error) {
 	if err == nil {
 		err = s.commitLocked()
 	}
+	if err == nil {
+		err = s.conn.QueryRowContext(context.Background(), "PRAGMA synchronous").Scan(&s.origSynchronous)
+	}
+	if err == nil {
+		_, err = s.conn.ExecContext(context.Background(), "PRAGMA synchronous=OFF")
+		s.syncOff = err == nil
+	}
 	if err != nil {
 		s.failLocked(err)
 		s.Finish(false)
@@ -91,6 +106,11 @@ type reindexSession struct {
 	getStmt, setStmt, deleteStmt *sql.Stmt // closed by currentTx
 	mutations, bytes             int
 	maxMutations, maxBytes       int
+
+	// origSynchronous is the connection's synchronous setting before
+	// BeginReindex turned syncing off (syncOff), to restore in Finish.
+	origSynchronous int
+	syncOff         bool
 
 	err             error // first SQL error, even if the caller ignores it
 	done            bool
@@ -384,7 +404,31 @@ func (s *reindexSession) Finish(success bool) error {
 		}
 		return s.finishErr
 	}
-	if success && s.err == nil {
+	if success && s.err == nil && s.currentTx != nil {
+		s.commitLocked()
+	}
+	s.rollbackLocked()
+	if success && s.err == nil && s.conn != nil {
+		s.vacuumLocked()
+	}
+	// Restore syncing (also on failure, as the connection goes back to
+	// the pool), and make everything written so far durable before
+	// removing the marker. Checkpoints while syncing was off may have
+	// copied WAL pages into the database file without syncing it, and
+	// then reused the WAL, so a synced commit alone isn't enough: a
+	// full checkpoint syncs the WAL and then the database file.
+	s.restoreSynchronousLocked()
+	if success && s.err == nil && s.conn != nil {
+		var busy, walFrames, checkpointed int
+		err := s.conn.QueryRowContext(context.Background(), "PRAGMA wal_checkpoint(FULL)").Scan(&busy, &walFrames, &checkpointed)
+		if err == nil && busy != 0 {
+			err = errors.New("checkpoint couldn't complete")
+		}
+		if err != nil {
+			s.failLocked(fmt.Errorf("making rebuilt index durable: %w", err))
+		}
+	}
+	if success && s.err == nil && s.conn != nil {
 		// Even an empty reindex needs a final transaction to remove the marker.
 		if s.ensureTxLocked() == nil {
 			_, err := s.currentTx.Exec("DELETE FROM meta WHERE metakey='reindexing'")
@@ -394,10 +438,14 @@ func (s *reindexSession) Finish(success bool) error {
 				s.commitLocked()
 			}
 		}
+		s.rollbackLocked()
 	}
-	s.rollbackLocked()
 	if success && s.err == nil && s.conn != nil {
-		s.vacuumLocked()
+		// VACUUM wrote the whole database to the WAL; don't leave it
+		// that big.
+		if _, err := s.conn.ExecContext(context.Background(), "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+			log.Printf("sqlite: checkpointing %s after reindex: %v", s.owner.file, err)
+		}
 	}
 	if s.conn != nil {
 		s.failLocked(s.conn.Close())
@@ -424,11 +472,22 @@ func (s *reindexSession) vacuumLocked() {
 		log.Printf("sqlite: VACUUM of rebuilt %s failed; the index is complete, but scanning it may be slower: %v", s.owner.file, err)
 		return
 	}
-	// VACUUM writes the whole database to the WAL; don't leave it that big.
-	if _, err := s.conn.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		log.Printf("sqlite: checkpointing %s after VACUUM: %v", s.owner.file, err)
-	}
 	log.Printf("sqlite: compacted rebuilt %s in %v", s.owner.file, time.Since(t0).Round(time.Millisecond))
+}
+
+// restoreSynchronousLocked restores the connection's synchronous setting,
+// if BeginReindex turned it off. If it can't, the connection is discarded,
+// so it isn't reused without syncing.
+func (s *reindexSession) restoreSynchronousLocked() {
+	if !s.syncOff || s.conn == nil {
+		return
+	}
+	s.syncOff = false
+	if _, err := s.conn.ExecContext(context.Background(), fmt.Sprintf("PRAGMA synchronous=%d", s.origSynchronous)); err != nil {
+		s.failLocked(fmt.Errorf("restoring synchronous setting: %w", err))
+		discardSQLiteConn(s.conn)
+		s.conn = nil
+	}
 }
 
 // Close aborts only this session, not the parent database.
