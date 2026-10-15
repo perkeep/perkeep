@@ -21,6 +21,7 @@ package osutil // import "perkeep.org/internal/osutil"
 import (
 	"errors"
 	"os"
+	"runtime"
 )
 
 // ErrNotSupported is returned by functions (like Mkfifo and Mksocket)
@@ -33,4 +34,19 @@ var ErrNotSupported = errors.New("operation not supported")
 func DirExists(dir string) bool {
 	fi, err := os.Stat(dir)
 	return err == nil && fi.IsDir()
+}
+
+// SyncDir makes dir's entries durable, such as the name of a file just
+// created or renamed into it; syncing the file alone doesn't necessarily
+// do that (see Linux fsync(2)). Like goleveldb, it does nothing on
+// Windows, where directories can't be synced this way.
+func SyncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	return errors.Join(d.Sync(), d.Close())
 }

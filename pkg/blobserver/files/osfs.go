@@ -19,8 +19,8 @@ package files
 import (
 	"io/fs"
 	"os"
-	"runtime"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/thirdparty/go/robustio"
 )
 
@@ -63,19 +63,4 @@ func (osFS) ReadDir(dir string) ([]fs.DirEntry, error) {
 	return d.ReadDir(-1)
 }
 
-// SyncDir syncs dir. Like goleveldb, it does nothing on Windows, where
-// directories can't be synced this way.
-func (osFS) SyncDir(dir string) error {
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	err = d.Sync()
-	if cerr := d.Close(); err == nil {
-		err = cerr
-	}
-	return err
-}
+func (osFS) SyncDir(dir string) error { return osutil.SyncDir(dir) }

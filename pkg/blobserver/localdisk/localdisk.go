@@ -109,7 +109,7 @@ func New(root string) (*DiskStorage, error) {
 				return nil, fmt.Errorf("failed to mkdir packed directory: %w", err)
 			}
 			// The files package assumes the root is durable.
-			if err := files.OSFS().(files.DirSyncer).SyncDir(filepath.Dir(root)); err != nil {
+			if err := osutil.SyncDir(filepath.Dir(root)); err != nil {
 				return nil, fmt.Errorf("failed to sync packed directory's parent: %w", err)
 			}
 			fi, err = os.Stat(root)
