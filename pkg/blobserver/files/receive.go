@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path/filepath"
 
 	"perkeep.org/pkg/blob"
 )
@@ -44,8 +45,7 @@ func (ds *Storage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.
 	defer ds.dirLockMu.RUnlock()
 
 	hashedDirectory := ds.blobDirectory(blobRef)
-	err := ds.fs.MkdirAll(hashedDirectory, 0700)
-	if err != nil {
+	if err := ds.mkdirDurable(hashedDirectory); err != nil {
 		return blob.SizedRef{}, err
 	}
 
@@ -89,6 +89,12 @@ func (ds *Storage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.
 	if err := ds.fs.Rename(tempFile.Name(), fileName); err != nil {
 		return blob.SizedRef{}, err
 	}
+	if syncer, ok := ds.fs.(DirSyncer); ok {
+		// Make the new name durable, not just the contents.
+		if err := syncer.SyncDir(hashedDirectory); err != nil {
+			return blob.SizedRef{}, err
+		}
+	}
 
 	stat, err = ds.fs.Lstat(fileName)
 	if err != nil {
@@ -100,4 +106,40 @@ func (ds *Storage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.
 
 	success = true // used in defer above
 	return blob.SizedRef{Ref: blobRef, Size: uint32(stat.Size())}, nil
+}
+
+// mkdirDurable is like MkdirAll for dir, a directory under ds.root, but if
+// ds.fs is a DirSyncer, it also makes the entries of dir and its parents,
+// up to ds.root, durable. ds.root itself must already be durable.
+// ds.dirLockMu must be held for reading.
+func (ds *Storage) mkdirDurable(dir string) error {
+	if _, ok := ds.durableDirs.Load(dir); ok {
+		return nil
+	}
+	if err := ds.fs.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	syncer, ok := ds.fs.(DirSyncer)
+	if !ok {
+		return nil
+	}
+	// Find the directories not yet known to be durable, then sync their
+	// parents from the top down, so a directory is only recorded as
+	// durable once its parents are.
+	root := filepath.Clean(ds.root)
+	var pending []string
+	for d := dir; d != root && filepath.Dir(d) != d; d = filepath.Dir(d) {
+		if _, ok := ds.durableDirs.Load(d); ok {
+			break
+		}
+		pending = append(pending, d)
+	}
+	for i := len(pending) - 1; i >= 0; i-- {
+		d := pending[i]
+		if err := syncer.SyncDir(filepath.Dir(d)); err != nil {
+			return err
+		}
+		ds.durableDirs.Store(d, true)
+	}
+	return nil
 }

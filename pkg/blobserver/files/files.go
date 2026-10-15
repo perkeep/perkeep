@@ -63,6 +63,15 @@ type VFS interface {
 	ReadDir(dir string) ([]fs.DirEntry, error)
 }
 
+// DirSyncer is an optional interface for a VFS that can make a directory's
+// entries durable, like fsync of the directory on POSIX systems. Without
+// it, Storage syncs a received blob's contents, but can't guarantee that
+// the blob's name (or a new directory holding it) survives a machine crash
+// or power loss.
+type DirSyncer interface {
+	SyncDir(dir string) error
+}
+
 // WritableFile is the interface required by files opened for Write
 // from VFS.TempFile.
 type WritableFile interface {
@@ -91,6 +100,13 @@ type Storage struct {
 	// and for read when receiving blobs.
 	dirLockMu *sync.RWMutex
 
+	// durableDirs is the set of directories (strings) under root that
+	// exist and whose entries in their parent directories are durable,
+	// as are their parents', up to root. It's only used if fs is a
+	// DirSyncer. It's cleared when a directory is removed, with
+	// dirLockMu held for writing.
+	durableDirs sync.Map
+
 	// statGate limits how many pending Stat calls we have in flight.
 	statGate *syncutil.Gate
 
@@ -118,6 +134,7 @@ func (ds *Storage) tryRemoveDir(dir string) {
 	ds.dirLockMu.Lock()
 	defer ds.dirLockMu.Unlock()
 	ds.fs.RemoveDir(dir) // ignore error
+	ds.durableDirs.Clear()
 }
 
 func (ds *Storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
