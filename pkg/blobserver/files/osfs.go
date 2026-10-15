@@ -19,6 +19,7 @@ package files
 import (
 	"io/fs"
 	"os"
+	"runtime"
 
 	"perkeep.org/thirdparty/go/robustio"
 )
@@ -31,6 +32,8 @@ func OSFS() VFS {
 // osFS implements the VFS interface using the os package and
 // the host filesystem.
 type osFS struct{}
+
+var _ DirSyncer = osFS{}
 
 func (osFS) Remove(path string) error {
 	return robustio.RemoveAll(path)
@@ -58,4 +61,21 @@ func (osFS) ReadDir(dir string) ([]fs.DirEntry, error) {
 	// Unlike os.ReadDir, File.ReadDir doesn't sort, which the files
 	// package doesn't need.
 	return d.ReadDir(-1)
+}
+
+// SyncDir syncs dir. Like goleveldb, it does nothing on Windows, where
+// directories can't be synced this way.
+func (osFS) SyncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	err = d.Sync()
+	if cerr := d.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
