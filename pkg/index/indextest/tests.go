@@ -1276,6 +1276,30 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 	}
 }
 
+// ReindexManyDeletes is like Reindex, but with many permanodes, each
+// deleted, so a concurrent reindex indexes some of the delete claims
+// before the permanodes they delete and some after.
+func ReindexManyDeletes(t *testing.T, initIdx func() *index.Index) {
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+
+	const n = 200
+	pns := make([]blob.Ref, n)
+	for i := range pns {
+		pns[i] = id.NewDeterministicPermanodeForTest(fmt.Sprintf("many-deletes-%d", i))
+		id.Delete(pns[i])
+	}
+	if err := id.Index.Reindex(); err != nil {
+		t.Fatalf("reindexing failed: %v", err)
+	}
+	for i, pn := range pns {
+		if !idx.IsDeleted(pn) {
+			t.Errorf("permanode %d (%v) isn't deleted after reindexing", i, pn)
+		}
+	}
+}
+
 type enumArgs struct {
 	ctx   context.Context
 	dest  chan blob.SizedRef
