@@ -255,6 +255,100 @@ func TestDoubleReceiveFailingIndex(t *testing.T) {
 	}
 }
 
+// TestFailingIndexAtRollover checks that when indexing a blob that fills
+// its pack file fails, the blob is removed from that pack, and the next
+// pack isn't started (or truncated) on its behalf.
+func TestFailingIndexAtRollover(t *testing.T) {
+	sto := newTempDiskpacked(t)
+	s := sto.(*storage)
+	small := &test.Blob{Contents: "small"}
+	if _, err := blobserver.Receive(ctxbg, sto, small.BlobRef(), small.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(s.filename(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizeAfterSmall := fi.Size()
+
+	s.index = &failingIndex{KeyValue: s.index}
+	big := &test.Blob{Contents: strings.Repeat("b", testMaxFileSize)}
+	if _, err := blobserver.Receive(ctxbg, sto, big.BlobRef(), big.Reader()); !errors.Is(err, errDummy) {
+		t.Fatalf("Receive with failing index = %v; want %v", err, errDummy)
+	}
+	if fi, err := os.Stat(s.filename(0)); err != nil || fi.Size() != sizeAfterSmall {
+		t.Fatalf("pack 0 after failed Receive: %v, %v; want size %d", fi, err, sizeAfterSmall)
+	}
+	if _, err := os.Stat(s.filename(1)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("pack 1 after failed Receive: %v; want it not to exist", err)
+	}
+
+	if _, err := blobserver.Receive(ctxbg, sto, big.BlobRef(), big.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(s.filename(1)); err != nil || fi.Size() != 0 {
+		t.Fatalf("new pack 1: %v, %v; want it empty", fi, err)
+	}
+	for _, b := range []*test.Blob{small, big} {
+		rc, _, err := sto.Fetch(ctxbg, b.BlobRef())
+		if err != nil {
+			t.Fatalf("Fetch %v: %v", b.BlobRef(), err)
+		}
+		got, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil || string(got) != b.Contents {
+			t.Fatalf("Fetch %v = %d bytes, %v", b.BlobRef(), len(got), err)
+		}
+	}
+}
+
+// TestFailingRollover checks that a blob filling its pack file is
+// received even if starting the next pack file fails, and that a later
+// Receive starts it.
+func TestFailingRollover(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping directory permission test on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("skipping directory permission test as root")
+	}
+	sto := newTempDiskpackedMemory(t)
+	s := sto.(*storage)
+	// Make creating the next pack file fail.
+	if err := os.Chmod(s.root, 0500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(s.root, 0700)
+
+	big := &test.Blob{Contents: strings.Repeat("b", testMaxFileSize)}
+	if _, err := blobserver.Receive(ctxbg, sto, big.BlobRef(), big.Reader()); err != nil {
+		t.Fatalf("Receive when rollover fails: %v", err)
+	}
+	if s.writer != nil {
+		t.Fatal("writer still set after failed rollover")
+	}
+	small := &test.Blob{Contents: "small"}
+	if _, err := blobserver.Receive(ctxbg, sto, small.BlobRef(), small.Reader()); err == nil {
+		t.Fatal("Receive succeeded with no pack file to write to")
+	}
+
+	if err := os.Chmod(s.root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := blobserver.Receive(ctxbg, sto, small.BlobRef(), small.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range []*test.Blob{big, small} {
+		m, err := s.meta(b.BlobRef())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := map[*test.Blob]int{big: 0, small: 1}[b]; m.file != want {
+			t.Errorf("%v is in pack %d; want %d", b.BlobRef(), m.file, want)
+		}
+	}
+}
+
 type failingIndex struct {
 	sorted.KeyValue
 	setCount int
