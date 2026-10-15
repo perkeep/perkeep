@@ -21,8 +21,6 @@ package leveldb // import "perkeep.org/pkg/sorted/leveldb"
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"sync"
 
 	"go4.org/jsonconfig"
@@ -30,6 +28,7 @@ import (
 	"perkeep.org/pkg/sorted"
 
 	"github.com/syndtr/goleveldb/leveldb"
+	lverrors "github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -69,18 +68,30 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		Filter: filter.NewBloomFilter(10),
 		Strict: strictness,
 	}
+	incomplete, err := hasIncompleteMarker(file)
+	if err != nil {
+		return nil, err
+	}
 	db, err := leveldb.OpenFile(file, opts)
+	if incomplete && lverrors.IsCorrupted(err) {
+		// An interrupted reindex or Wipe may have left a partly
+		// removed database. Its contents are disposable anyway.
+		if err = clearExceptMarker(file); err == nil {
+			db, err = leveldb.OpenFile(file, opts)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 	is := &kvis{
-		db:       db,
-		path:     file,
-		opts:     opts,
-		readOpts: &opt.ReadOptions{Strict: strictness},
-		// On machine crash we want to reindex anyway, and
-		// fsyncs may impose great performance penalty.
-		writeOpts: &opt.WriteOptions{Sync: false},
+		db:        db,
+		path:      file,
+		opts:      opts,
+		readOpts:  &opt.ReadOptions{Strict: strictness},
+		writeOpts: &opt.WriteOptions{Sync: true},
+	}
+	if incomplete {
+		return is, sorted.NeedWipeError{Msg: "LevelDB database contains an incomplete reindex or wipe; a fresh rebuild is required"}
 	}
 	return is, nil
 }
@@ -114,21 +125,14 @@ func (is *kvis) Find(start, end string) sorted.Iterator {
 	return find(is.db, is.readOpts, start, end)
 }
 
+// Wipe replaces the database with an empty one. The database is marked
+// incomplete until it's done, so an interrupted Wipe isn't mistaken for
+// a valid database.
 func (is *kvis) Wipe() error {
-	// Close the already open DB.
-	if err := is.db.Close(); err != nil {
+	if err := is.resetIncomplete(); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(is.path); err != nil {
-		return err
-	}
-
-	db, err := leveldb.OpenFile(is.path, is.opts)
-	if err != nil {
-		return fmt.Errorf("error creating %s: %w", is.path, err)
-	}
-	is.db = db
-	return nil
+	return removeIncompleteMarker(is.path)
 }
 
 func (is *kvis) BeginReadTx() sorted.ReadTransaction {
@@ -256,6 +260,11 @@ func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 }
 
 func (is *kvis) Close() error {
+	if is.db == nil {
+		// A failed Wipe, BeginReindex, or reindex Finish already
+		// closed it.
+		return nil
+	}
 	return is.db.Close()
 }
 
