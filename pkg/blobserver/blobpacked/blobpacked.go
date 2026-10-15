@@ -652,7 +652,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	bm := meta.BeginBatch()
 	for wholeRef, zipMetas := range zipMetaByWholeRef {
 		select {
-		case <-t.C:
+		case <-tt.C:
 			log.Printf("blobpacked: %d files reindexed", packedFiles)
 		default:
 		}
@@ -661,9 +661,21 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		if hasDup {
 			foundDups = true
 		}
-		offsets := wholeOffsets(zipMetas)
+		offsets, wholeBytesWritten := wholeOffsets(zipMetas)
+		var minOffset uint64 // where the data of the next part can start
 		for _, z := range zipMetas {
-			offset := offsets[z.wholePartIndex]
+			offset, ok := offsets[z.wholePartIndex]
+			if !ok {
+				// A part before this one is missing, so the sizes of
+				// the parts before it don't add up to its offset.
+				var err error
+				offset, err = s.wholeOffsetFromSchema(ctx, z.zipRef, z.zipSize, minOffset)
+				if err != nil {
+					return fmt.Errorf("finding offset of zip %v in wholeRef %v: %w", z.zipRef, wholeRef, err)
+				}
+				offsets[z.wholePartIndex] = offset
+			}
+			minOffset = offset + uint64(z.dataSize)
 			// write the w:row
 			bm.Set(fmt.Sprintf("%s%s:%d", wholeMetaPrefix, wholeRef, z.wholePartIndex),
 				fmt.Sprintf("%s %d %d %d", z.zipRef, z.offsetInZip, offset, z.dataSize))
@@ -677,7 +689,6 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			}
 		}
 
-		wholeBytesWritten := offsets[len(offsets)-1]
 		if zipMetas[0].wholeSize != wholeBytesWritten {
 			// Any corrupted zip should have been found earlier, so this error means we're
 			// missing at least one full zip for the whole file to be complete.
@@ -732,48 +743,175 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 // wholePartIndex.
 // See https://github.com/perkeep/perkeep/issues/1079
 func hasDups(zm []zipMetaInfo) bool {
-	i := 0
-	var dataSize uint32
-	var firstDup blob.Ref
 	dupFound := false
-	for _, z := range zm {
-		if z.wholePartIndex == i {
-			firstDup = z.zipRef
-			dataSize = z.dataSize
-			i++
+	for i := 1; i < len(zm); i++ {
+		prev, z := zm[i-1], zm[i]
+		if z.wholePartIndex != prev.wholePartIndex {
 			continue
 		}
 		// we could return true right now, but we want to go through it all, to make
 		// sure our assumption that "same part index -> duplicate" is true, using at least
 		// the dataSize to confirm. For a better effort, we should use DataBlobsOrigin.
-		if z.dataSize != dataSize {
-			panic(fmt.Sprintf("%v and %v looked like duplicates at first, but don't actually have the same dataSize. TODO: add DataBlobsOrigin checking.", firstDup, z.zipRef))
+		if z.dataSize != prev.dataSize {
+			panic(fmt.Sprintf("%v and %v looked like duplicates at first, but don't actually have the same dataSize. TODO: add DataBlobsOrigin checking.", prev.zipRef, z.zipRef))
 		}
 		dupFound = true
 	}
 	return dupFound
 }
 
-// wholeOffsets returns the offset for each part of a file f, in order, assuming
-// zm are all the (wholePartIndex) ordered zip parts that constitute that file. If
-// zm seems to contain duplicates, they are skipped. The additional last item of
-// the returned slice is the sum of all the parts, i.e. the whole size of f.
-func wholeOffsets(zm []zipMetaInfo) []uint64 {
-	i := 0
-	var offsets []uint64
-	var currentOffset uint64
+// wholeOffsets returns the offset in the whole file of each part in zm that
+// is preceded by all the parts before it, keyed by wholePartIndex, and the
+// sum of the sizes of those parts. zm must be sorted by wholePartIndex.
+// Duplicates are skipped. If a part is missing, the parts after it are not
+// in offsets, and prefixSize is less than the size of the whole file.
+func wholeOffsets(zm []zipMetaInfo) (offsets map[int]uint64, prefixSize uint64) {
+	offsets = make(map[int]uint64)
+	next := 0 // the wholePartIndex of the next part we want
 	for _, z := range zm {
-		if i != z.wholePartIndex {
+		if z.wholePartIndex < next {
+			continue // a duplicate
+		}
+		if z.wholePartIndex > next {
+			break // part next is missing
+		}
+		offsets[next] = prefixSize
+		prefixSize += uint64(z.dataSize)
+		next++
+	}
+	return offsets, prefixSize
+}
+
+// wholeOffsetFromSchema returns the offset in the whole file of the data in
+// the zip zipRef, of size zipSize, at or after minOffset. It is used when the
+// sizes of the parts before that zip don't add up to the offset because one
+// of them is missing.
+//
+// It walks the file's schema blobs stored in the zip, from the file schema
+// blob down to the data chunks, adding up the sizes of the parts before them.
+// The zip only has the schema blobs above its own chunks, so the subtrees
+// without them are skipped by their size. If a file repeats a run of chunks,
+// the zip's run can match in more than one place; those places all hold the
+// same bytes, so the first one at or after minOffset is returned, or else
+// the first one.
+func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zipSize uint32, minOffset uint64) (uint64, error) {
+	zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(zipSize))
+	if err != nil {
+		return 0, zipOpenError{zipRef, err}
+	}
+	var mf Manifest
+	var fileRef blob.Ref
+	schemaBlobs := map[blob.Ref]*schema.Blob{}
+	for _, f := range zr.File {
+		isManifest := f.Name == zipManifestPath
+		if !isManifest && !(strings.HasPrefix(f.Name, "camlistore/") && strings.HasSuffix(f.Name, ".json")) {
 			continue
 		}
-		offsets = append(offsets, currentOffset)
-		currentOffset += uint64(z.dataSize)
-		i++
+		rc, err := f.Open()
+		if err != nil {
+			return 0, err
+		}
+		if isManifest {
+			err = json.NewDecoder(rc).Decode(&mf)
+			rc.Close()
+			if err != nil {
+				return 0, err
+			}
+			continue
+		}
+		br, ok := blob.Parse(strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json"))
+		if !ok {
+			rc.Close()
+			return 0, fmt.Errorf("schema file in zip does not have blobRef as name: %v", f.Name)
+		}
+		sb, err := schema.BlobFromReader(br, rc)
+		rc.Close()
+		if err != nil {
+			return 0, fmt.Errorf("schema blob %v: %w", br, err)
+		}
+		schemaBlobs[br] = sb
+		if sb.Type() == schema.TypeFile {
+			if fileRef.Valid() {
+				return 0, fmt.Errorf("more than one file schema blob: %v and %v", fileRef, br)
+			}
+			fileRef = br
+		}
 	}
-	// add the last computed offset to the slice, as it's useful info too: it's the
-	// size of all the data in the zip.
-	offsets = append(offsets, currentOffset)
-	return offsets
+	if len(mf.DataBlobs) == 0 {
+		return 0, errors.New("manifest has no data blobs")
+	}
+	if !fileRef.Valid() {
+		return 0, errors.New("no file schema blob")
+	}
+
+	// The data chunks in the zip's subtrees, with their offsets in the
+	// whole file.
+	type chunk struct {
+		blob.SizedRef
+		offset uint64
+	}
+	var chunks []chunk
+	var offset uint64
+	walking := map[blob.Ref]bool{} // to stop on cycles
+	var walk func(br blob.Ref) error
+	walk = func(br blob.Ref) error {
+		if walking[br] {
+			return fmt.Errorf("schema blob %v contains itself", br)
+		}
+		walking[br] = true
+		defer delete(walking, br)
+		for _, p := range schemaBlobs[br].ByteParts() {
+			if p.Offset != 0 {
+				return fmt.Errorf("schema blob %v has a part with an offset", br)
+			}
+			switch {
+			case p.BlobRef.Valid():
+				chunks = append(chunks, chunk{blob.SizedRef{Ref: p.BlobRef, Size: uint32(p.Size)}, offset})
+				offset += p.Size
+			case schemaBlobs[p.BytesRef] != nil:
+				if err := walk(p.BytesRef); err != nil {
+					return err
+				}
+			default:
+				offset += p.Size
+			}
+		}
+		return nil
+	}
+	if err := walk(fileRef); err != nil {
+		return 0, err
+	}
+
+	// matchesAt reports whether the zip's data chunks are at chunks[i:],
+	// contiguous in the whole file.
+	matchesAt := func(i int) bool {
+		if len(chunks)-i < len(mf.DataBlobs) {
+			return false
+		}
+		for j, db := range mf.DataBlobs {
+			c := chunks[i+j]
+			if c.SizedRef != db.SizedRef || c.offset != chunks[i].offset+uint64(db.Offset) {
+				return false
+			}
+		}
+		return true
+	}
+	first := -1
+	for i := range chunks {
+		if !matchesAt(i) {
+			continue
+		}
+		if chunks[i].offset >= minOffset {
+			return chunks[i].offset, nil
+		}
+		if first == -1 {
+			first = i
+		}
+	}
+	if first == -1 {
+		return 0, errors.New("data chunks not found in the zip's schema blobs")
+	}
+	return chunks[first].offset, nil
 }
 
 func printDuplicates(zm []zipMetaInfo) {
@@ -1293,21 +1431,21 @@ func (pk *packer) pack(ctx context.Context) error {
 	}
 
 	pk.chunksRemain = pk.dataRefs
-	var trunc blob.Ref
+	maxChunks := 0 // no limit
 MakingZips:
 	for len(pk.chunksRemain) > 0 {
-		if err := pk.writeAZip(ctx, trunc); err != nil {
+		if err := pk.writeAZip(ctx, maxChunks); err != nil {
 			var needTruncErr needsTruncatedAfterError
 			if errors.As(err, &needTruncErr) {
-				trunc = needTruncErr.Ref
+				maxChunks = needTruncErr.n
 				if fn := testHookSawTruncate; fn != nil {
-					fn(trunc)
+					fn(needTruncErr.Ref)
 				}
 				continue MakingZips
 			}
 			return err
 		}
-		trunc = blob.Ref{}
+		maxChunks = 0
 	}
 
 	// Record the final wholeMetaPrefix record:
@@ -1353,8 +1491,12 @@ func (pk *packer) scanChunks(ctx context.Context) error {
 }
 
 // needsTruncatedAfterError is returned by writeAZip if it failed in its estimation and the zip file
-// was over the 16MB (or whatever) max blob size limit. In this case the caller tries again
-type needsTruncatedAfterError struct{ blob.Ref }
+// was over the 16MB (or whatever) max blob size limit. In this case the caller tries again,
+// writing only the first n chunks, the last of which is Ref.
+type needsTruncatedAfterError struct {
+	blob.Ref
+	n int
+}
 
 func (e needsTruncatedAfterError) Error() string { return "needs truncation after " + e.Ref.String() }
 
@@ -1369,11 +1511,11 @@ func check(err error) {
 	}
 }
 
-// trunc is a hint about which blob to truncate after. It may be zero.
+// maxChunks, if non-zero, is the most data chunks to write to the zip.
 // If the returned error is of type 'needsTruncatedAfterError', then
 // the zip should be attempted to be written again, but truncating the
 // data after the listed blob.
-func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
+func (pk *packer) writeAZip(ctx context.Context, maxChunks int) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			if v, ok := e.(error); ok && err == nil {
@@ -1420,13 +1562,6 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 	for len(chunks) > 0 {
 		dr := chunks[0] // the next chunk to maybe write
 
-		if trunc.Valid() && trunc == dr {
-			if approxSize == 0 {
-				return errors.New("first blob is too large to pack, once you add the zip overhead")
-			}
-			break
-		}
-
 		schemaBlobsSave := schemaBlobs
 		for _, parent := range pk.schemaParent[dr] {
 			if !schemaBlobSeen[parent] {
@@ -1468,6 +1603,9 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		dataRefsWritten = append(dataRefsWritten, dr)
 		dataBytesWritten += int64(size)
 		chunks = chunks[1:]
+		if len(dataRefsWritten) == maxChunks {
+			break
+		}
 	}
 	mf.DataBlobsOrigin = blob.RefFromHash(chunkWholeHash)
 
@@ -1521,7 +1659,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		for i := len(dataRefsWritten) - 1; i >= 0; i-- {
 			dr := dataRefsWritten[i]
 			if overage <= 0 {
-				return needsTruncatedAfterError{dr}
+				return needsTruncatedAfterError{dr, i + 1}
 			}
 			overage -= int(pk.dataSize[dr])
 		}
