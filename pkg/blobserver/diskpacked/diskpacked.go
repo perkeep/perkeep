@@ -214,6 +214,12 @@ func newStorage(root string, maxFileSize int64, fdCacheLimit int, indexConf json
 		s.Close()
 		return nil, err
 	}
+	// Make the names of the index and pack files that opening them may
+	// have created durable.
+	if err := osutil.SyncDir(root); err != nil {
+		s.Close()
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, _, err := s.StorageGeneration(); err != nil {
@@ -289,6 +295,8 @@ func (s *storage) closePack() error {
 // nextPack will close the current writer and release its lock if open,
 // open the next pack file in sequence for writing, grab its lock, set it
 // to the currently active writer, and open another copy for read-only use.
+// The new file's name is durable before any blob is written to it. If
+// nextPack fails, s.writer may be nil, and append tries again.
 // This function is not thread safe, s.mu should be locked by the caller.
 func (s *storage) nextPack() error {
 	debug.Println("diskpacked: nextPack")
@@ -298,6 +306,10 @@ func (s *storage) nextPack() error {
 	}
 	n := s.fileCount
 	if err := s.openForWrite(n); err != nil {
+		return err
+	}
+	if err := osutil.SyncDir(s.root); err != nil {
+		s.closePack()
 		return err
 	}
 	s.fileCount = n + 1
@@ -669,16 +681,29 @@ func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 	return
 }
 
-// append writes the provided blob to the current data file.
-func (s *storage) append(br blob.SizedRef, r io.Reader) error {
+// append writes the provided blob to the current data file, syncs it,
+// and then indexes it.
+func (s *storage) append(br blob.SizedRef, r io.Reader) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return errors.New("diskpacked: write to closed storage")
 	}
+	if s.writer == nil {
+		// Starting a new pack file failed after a previous append.
+		if err := s.nextPack(); err != nil {
+			return err
+		}
+	}
 
-	// to be able to undo the append
+	// If anything fails before the blob is indexed, remove whatever
+	// was written of it.
 	origOffset := s.size
+	defer func() {
+		if err != nil {
+			s.truncateLocked(origOffset)
+		}
+	}()
 
 	fn := s.writer.Name()
 	n, err := fmt.Fprintf(s.writer, "[%v %v]", br.Ref.String(), br.Size)
@@ -715,22 +740,30 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	}
 
 	packIdx := s.fileCount - 1
+	if err := s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String()); err != nil {
+		return err
+	}
+
+	// The blob is durable and indexed, so it's received even if
+	// starting the next pack file fails; the next append retries.
 	if s.size > s.maxFileSize {
 		if err := s.nextPack(); err != nil {
-			return err
+			log.Printf("diskpacked: starting a new pack file in %s: %v", s.root, err)
 		}
 	}
-	err = s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String())
-	if err != nil {
-		if _, seekErr := s.writer.Seek(origOffset, io.SeekStart); seekErr != nil {
-			log.Printf("ERROR seeking back to the original offset: %v", seekErr)
-		} else if truncErr := s.writer.Truncate(origOffset); truncErr != nil {
-			log.Printf("ERROR truncating file after index error: %v", truncErr)
-		} else {
-			s.size = origOffset
-		}
+	return nil
+}
+
+// truncateLocked truncates the current pack file to size, after a failed
+// append. s.mu must be held.
+func (s *storage) truncateLocked(size int64) {
+	if _, err := s.writer.Seek(size, io.SeekStart); err != nil {
+		log.Printf("ERROR seeking back to the original offset: %v", err)
+	} else if err := s.writer.Truncate(size); err != nil {
+		log.Printf("ERROR truncating file after failed append: %v", err)
+	} else {
+		s.size = size
 	}
-	return err
 }
 
 // meta fetches the metadata for the specified blob from the index.
