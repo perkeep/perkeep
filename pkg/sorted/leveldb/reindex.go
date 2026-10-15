@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/sorted"
 )
 
@@ -104,14 +104,14 @@ func writeIncompleteMarker(dir string) error {
 	if err != nil {
 		return err
 	}
-	return syncDir(dir)
+	return osutil.SyncDir(dir)
 }
 
 func removeIncompleteMarker(dir string) error {
 	if err := os.Remove(filepath.Join(dir, incompleteMarker)); err != nil {
 		return err
 	}
-	return syncDir(dir)
+	return osutil.SyncDir(dir)
 }
 
 // clearExceptMarker removes everything in dir except the incomplete marker.
@@ -128,21 +128,7 @@ func clearExceptMarker(dir string) error {
 			return err
 		}
 	}
-	return syncDir(dir)
-}
-
-// syncDir makes dir's entries durable. Like goleveldb, it does nothing on
-// Windows, where directories can't be synced this way.
-func syncDir(dir string) error {
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-	f, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return f.Sync()
+	return osutil.SyncDir(dir)
 }
 
 // reindexSession uses its parent's database, writing without syncing.
