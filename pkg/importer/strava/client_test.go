@@ -80,6 +80,57 @@ func TestAPIActivitiesPagination(t *testing.T) {
 	}
 }
 
+func TestAPIActivitiesSinceBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		since time.Time
+		after string
+	}{
+		{name: "unbounded"},
+		{name: "epoch", since: time.Unix(0, 0), after: "-1"},
+		{name: "fractional", since: time.Unix(1000, 900000000), after: "999"},
+		{name: "offset", since: time.Unix(1000, 0).In(time.FixedZone("offset", 3600)), after: "999"},
+		{name: "before-epoch", since: time.Unix(-1000, 0), after: "-1001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &apiClient{accessToken: "bearer-secret", httpClient: &http.Client{
+				Transport: clientTestTransport(func(r *http.Request) (*http.Response, error) {
+					want := url.Values{"page": {"2"}, "per_page": {"3"}}
+					if tc.after != "" {
+						want.Set("after", tc.after)
+					}
+					if got := r.URL.Query(); !reflect.DeepEqual(got, want) {
+						t.Fatalf("query = %v; want %v", got, want)
+					}
+					if r.Header.Get("Authorization") != "Bearer bearer-secret" {
+						t.Fatal("missing authorization")
+					}
+					return clientTestResponse(200, `[]`), nil
+				}),
+			}}
+			if got, err := c.listActivitiesSince(context.Background(), 2, 3, tc.since); err != nil || got == nil || len(got) != 0 {
+				t.Fatalf("listActivitiesSince = %v, %v; want empty list", got, err)
+			}
+		})
+	}
+}
+
+func TestAPIActivitiesSinceRejectsInvalidPagination(t *testing.T) {
+	requests := 0
+	c := &apiClient{httpClient: &http.Client{Transport: clientTestTransport(func(*http.Request) (*http.Response, error) {
+		requests++
+		return clientTestResponse(200, `[]`), nil
+	})}}
+	for _, args := range [][2]int{{0, 100}, {-1, 100}, {1, 0}, {1, 101}} {
+		if _, err := c.listActivitiesSince(context.Background(), args[0], args[1], time.Unix(1000, 0)); err == nil {
+			t.Errorf("page/size %v accepted", args)
+		}
+	}
+	if requests != 0 {
+		t.Errorf("invalid pagination made %d HTTP requests", requests)
+	}
+}
+
 func TestAPIActivityRawAndFields(t *testing.T) {
 	raw := " \n" + `{
   "id": 42, "name": "Trail & run", "description": "notes", "type": "Run", "sport_type": "TrailRun",

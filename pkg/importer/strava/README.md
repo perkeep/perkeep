@@ -42,10 +42,11 @@ for application setup, scopes, and refresh-token behavior.
 
 Set `PERKEEP_STRAVA_MAX_ACTIVITIES=10` in the **server's environment** to
 consider only the first ten activity summaries returned by Strava's
-newest-first listing. The server requests a page size of ten, imports at
+usual newest-first listing. The server requests a page size of ten, imports at
 most those ten activities, and stops successfully without probing another
-page. This sets the normal completion marker; it is not an error or an
-incomplete run.
+page. This sets generic `completedVersion="2"`; it is not an error or an
+incomplete test run. It does **not** advance the chronological watermark or
+set the separate backfill-done marker described below.
 
 The cap counts already imported activities too. Repeated runs check the
 same recent window, rather than importing the next ten older activities.
@@ -54,8 +55,11 @@ exist, reaching the end of the listing also succeeds.
 
 Unset or empty means no cap. Other values must be positive decimal integers;
 invalid, zero, negative, and overflowing values fail before any API request.
-Remove the variable to enable a full backfill. Completion of a capped run
-does not prevent that later backfill.
+Remove the variable to enable chronological backfill. Completion of a capped
+run does not prevent that later backfill. The cap always selects the
+**first N listed summaries** (the existing "newest N" test window), not the
+next N after a chronological checkpoint. The API reference does not guarantee
+timestamp ordering.
 
 ## Stored data
 
@@ -111,20 +115,105 @@ without coordinates, including many manual or indoor activities, have no GPX.
 Malformed or misaligned streams fail the activity rather than creating a
 misleading track.
 
-## Pagination, updates, and resuming
+## Chronological backfill, updates, and resuming
 
-Every invocation enumerates the authenticated athlete's activity summaries
-starting at **page 1**. There is no persisted page cursor: offset pagination
-can shift when activities are added or deleted. An interrupted run restarts
-enumeration and skips completed, unchanged activities.
+Uncapped imports discover the complete selected activity-time range, starting
+at page 1 and continuing until an empty page, then sort the discovered summaries
+and import **oldest first**. The initial run omits the time filter and discovers
+the complete history before importing it. This separates discovery order from
+publication order: progress means a completed contiguous prefix, not the
+newest activity seen.
+
+The account permanode holds the authoritative progress:
+
+| Attribute | Value |
+| --- | --- |
+| `stravaImportThrough` | UTC RFC3339 activity-start timestamp through which the discovered chronological prefix is complete. |
+| `stravaImportThroughVersion` | `"2"`, binding the checkpoint to the current `runCompleteVersion`. |
+| `stravaBackfillCompletedVersion` | `"2"` only after the uncapped historical backfill is complete. |
+
+An interrupted backfill restarts discovery at page 1 using the durable
+watermark as an inclusive lower bound. It enumerates the entire filtered range,
+not just pages that appear to be above the boundary. Activities equal to the
+boundary remain included, including ties across listing pages. Stable activity
+IDs identify individual activities; a whole timestamp group must complete before
+the timestamp-only watermark advances. A failure in a group leaves the
+checkpoint at the preceding completed group.
+
+Checkpoint claims are batched approximately every 100 activities, at the end,
+and on graceful failures when possible. Each checkpoint atomically publishes
+the related account attributes. There is no per-activity cursor write, and an
+unchanged poll does not rewrite progress. A crash can lose the latest
+uncheckpointed progress but not already published activities: their individual
+hash/version markers make replay safe.
+
+The separate backfill-done marker distinguishes interrupted backfill from
+normal polling. An empty history sets completion without inventing a
+watermark; later activities can still be discovered. The generic account
+`completedVersion="2"` can also be set by a capped test run, so it is **not**
+evidence that the historical backfill finished.
+
+Accounts without the new progress state require full discovery, even if generic
+`completedVersion` is already current; this includes legacy accounts.
+After validating the scalar version fields, an incompatible nonempty checkpoint
+or backfill version requires a safe full scan. Its timestamp payload is opaque:
+it is ignored, not parsed using the current RFC3339 format. An unknown backfill
+version triggers this scan even without a checkpoint version binding.
+For current-schema progress, incomplete or malformed
+authoritative state fails the run instead of silently skipping history;
+in particular, a watermark or current-version done marker requires its binding.
+The completed-empty-history case above is valid without a timestamp.
+
+### Discovery limits
+
+Strava's [activity-list API reference](https://developers.strava.com/docs/reference/#api-Activities-getLoggedInAthleteActivities)
+documents an `after` epoch-time filter, but no guaranteed timestamp ordering.
+For a nonzero inclusive boundary, the client sends
+`after=floor(boundary Unix seconds)-1` and locally retains only summaries at
+or after the exact boundary. Including the preceding whole second preserves
+equal timestamps and fractional seconds without importing earlier summaries.
+During partial backfill the boundary is the watermark; after backfill it is
+the watermark minus seven days. With no watermark, no `after` filter is sent.
+
+Discovery collects **all** filtered result pages until an empty page, without
+assuming timestamp order or stopping when a listed activity is below the
+boundary. Out-of-order unique summaries are accepted and sorted locally.
+The selected range is held in memory before any of its activities are imported
+or progress advances. Failed or quota-incomplete discovery is discarded; it
+cannot establish a safe new watermark.
+
+Consequently, a sufficiently large history can exhaust the listing quota
+before discovery finishes and repeat that work on the next run. This design
+fits smaller histories, but does not promise quota-bounded discovery for every
+account. The `after` filter reduces later discovery ranges, but cannot shrink
+an initial full-history scan. Stable API cursors, bounded resumable discovery
+windows, or a durable discovery manifest would be preferable for larger
+histories.
+
+There is no persisted page cursor or transactional source snapshot. Concurrent
+inserts and deletes can shift offset pages and leave activities undiscovered.
+Identical summaries repeated across pages are safely deduplicated by activity
+ID; conflicting summaries for the same ID fail discovery so a later run can
+retry. Neither deduplication nor sorting recovers items never returned.
+A later full reconciliation may be needed for unobserved source changes.
+
+### Recent overlap and activity publication
+
+Only after historical backfill is actually complete do subsequent runs recheck
+an overlap starting **seven days before the durable watermark**, including the
+boundary. This week is a local importer policy, **not** a Strava guarantee about
+how long activities can be edited or backdated. It is not the unrelated API
+cache-policy limit mentioned above.
 
 Detailed activity and streams requests are skipped only when the existing
 activity has `stravaImportVersion="2"` **and** its `stravaSummaryHash` matches
-the newly listed modeled summary. New or changed summaries trigger an import
-into the stable activity permanode. Detail and streams are fetched and validated,
-GPX is generated, and all file content and schemas are uploaded before publishing
-any activity attributes. One atomic signed claim publishes the modeled values,
-attachment refs, removal of absent optional values and legacy filename paths,
+the newly listed modeled summary, including within the overlap. The overlap
+does not force detail refetches for unchanged summaries. New or changed
+summaries trigger an import into the stable activity permanode. Detail and
+streams are fetched and validated, GPX is generated, and all file content and
+schemas are uploaded before publishing any activity attributes. One atomic
+signed claim publishes the modeled values, attachment refs, removal of absent
+optional values and legacy filename paths,
 summary hash, and finally the completion version. A new successful activity needs
 exactly one activity-specific claim blob; an unchanged activity needs none.
 
@@ -136,23 +225,38 @@ permanode, but no activity attributes or attachment refs are published. Files
 uploaded before a later failure can remain unreferenced; retries reuse identical
 content-addressed blobs rather than deleting historical data.
 
-The account's `completedVersion="2"` marks completion of the selected enumeration
-window (capped or complete), not a reason to stop future enumeration.
-
 `SupportsIncremental=true` describes incremental **detail/stream fetching**,
 not a server-side modified-since listing API or a complete synchronization
 guarantee. Unchanged completed nodes are not routinely refreshed. Edits that
 do not alter modeled summary fields, such as a description-only edit, may be
-missed. Source deletions and older track content are not automatically removed;
-Perkeep may retain historical blobs and claims even after an attachment changes.
-Paging during concurrent source changes can also miss an activity until a
-later run.
+missed. Older backdated uploads and edits outside the overlap require explicit
+full reconciliation. Source deletions are not mirrored; Perkeep may retain
+historical blobs and claims even after an attachment changes.
 
-To force one activity to fetch its current detail and streams on the next run:
+To force one activity **inside the next discovery window** to fetch its current
+detail and streams, remove its completion marker:
 
 ```
 pk-put attr --del <activity-permanode-ref> stravaImportVersion
 ```
+
+For a full reconciliation, stop any running import, unset
+`PERKEEP_STRAVA_MAX_ACTIVITIES`, and clear all three new progress attributes
+on the **account** permanode before running again:
+
+```
+pk-put attr --del <account-permanode-ref> stravaImportThrough
+pk-put attr --del <account-permanode-ref> stravaImportThroughVersion
+pk-put attr --del <account-permanode-ref> stravaBackfillCompletedVersion
+```
+
+This relists all summaries, but still skips unchanged, completed activities.
+For a known older description-only or stream-only change, also remove that
+activity's `stravaImportVersion` before the full reconciliation.
+
+Progress and backfill phase live in signed account claims in the main blob
+store, not in the disposable quota cache. The importer's last-run status is
+runtime information, not an authoritative checkpoint.
 
 ### Rate limits
 

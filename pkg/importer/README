@@ -9,6 +9,74 @@ camliNodeType: "importerAccount"
 importerType: "twitter"
 twitterAccount: "bradfitz"
 
+Chronological progress and reconciliation
+----------------------------------------
+
+When an API's ordering or time filters and its edit semantics permit it,
+prefer a stable chronological traversal with a durable, contiguous progress
+watermark over repeatedly scanning all history or persisting an offset page
+number. Discover the required window, then publish items oldest first.
+Advance the watermark only through a prefix whose items have all completed
+successfully; the largest timestamp observed or fetched is not a safe
+checkpoint.
+
+Use stable source IDs to identify and deduplicate items. Include equality at
+the resume boundary: timestamps are not unique, and all items sharing a
+timestamp must complete before a timestamp-only watermark advances past
+them. Alternatively, use a source-supported stable (timestamp, ID) cursor
+with precisely defined boundary semantics. Offset pages can shift when
+items are inserted or deleted; they are not durable cursors.
+
+Keep the watermark, its schema/import version, and a separate backfill-done
+marker in authoritative account permanode claims. A successful bounded test
+or one completed page must not imply that historical backfill is done.
+An empty completed history needs a done marker, not a fabricated timestamp,
+and must still allow discovery of future items. On a version bump, reuse a
+checkpoint only after an explicit compatibility decision; otherwise perform
+a safe full reconciliation. Treat unknown-schema payloads as opaque rather
+than parsing them with the current format. Missing legacy progress must not
+silently skip history, and malformed authoritative progress in the current
+schema should produce an error.
+
+Publish item data and its hash/version completion markers atomically after
+all uploads succeed. These markers make replay after a crash inexpensive.
+Checkpoint the account periodically (for example, every roughly 100 items),
+at the end, and on graceful failure when possible, never beyond a failed
+item or unfinished timestamp group. Publish related checkpoint attributes
+in one atomic account claim. Avoid a cursor claim per item and avoid
+rewriting unchanged progress on idle polls.
+
+The discovery strategy must justify the contiguous-prefix guarantee.
+Prefer stable source cursors or server-side after/before bounds where
+available. Do not infer a global timestamp order from observed pages: without
+an API ordering guarantee, enumerate the entire selected range before sorting
+and publishing it oldest first. An incomplete or quota-blocked discovery
+cannot justify new progress. Keeping that discovery only in memory can prevent
+a very large history from ever fitting within a quota window; consider
+resumable durable discovery manifests instead. Any manifest required for
+correctness belongs in authoritative storage, not a disposable scratch cache.
+
+Offset pagination is not a transactional source snapshot. Deduplicating stable
+IDs handles repeated results, but concurrent inserts, deletes, or edits can
+still leave unseen items; detect conflicting duplicate summaries and retry,
+and document what reconciliation is needed for changes that were not observed.
+
+After backfill, recheck an edit overlap only when the source API's ordering
+or filters and update semantics make that useful. State whether its duration
+is an API guarantee or merely a local policy. Backdated inserts, edits outside
+the window, and changes absent from list summaries may require explicit or
+periodic full reconciliation, a modified-since feed, or other source
+support. A watermark alone is not complete edit or deletion synchronization.
+
+Keep runtime status separate from data correctness. The host's last-run
+start, finish, and error describe the current process's activity; they are
+not durable evidence of imported data or a replacement for account and
+item claims. Likewise, scratch caches may optimize discovery or quota
+tracking but must not become the sole record of import progress.
+
+See strava/README.md for one implementation, including its ordering,
+overlap, quota, and reconciliation limitations.
+
 Scratch caches
 --------------
 

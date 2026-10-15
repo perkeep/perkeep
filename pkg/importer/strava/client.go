@@ -102,10 +102,24 @@ func (c *apiClient) listActivities(ctx context.Context, page int, pageSizes ...i
 	if len(pageSizes) == 1 {
 		pageSize = pageSizes[0]
 	}
+	return c.listActivitiesSince(ctx, page, pageSize, time.Time{})
+}
+
+// listActivitiesSince lists an inclusive activity-time range. Strava's after
+// filter is a whole-second epoch boundary, so include the preceding second to
+// retain exact-boundary activities, timestamp ties, and fractional seconds.
+// Discovery applies the precise time comparison to returned summaries.
+func (c *apiClient) listActivitiesSince(ctx context.Context, page, pageSize int, since time.Time) ([]activity, error) {
+	if page < 1 {
+		return nil, errors.New("strava: page must be at least 1")
+	}
 	if pageSize < 1 || pageSize > 100 {
 		return nil, errors.New("strava: activity page size must be between 1 and 100")
 	}
 	query := url.Values{"page": {strconv.Itoa(page)}, "per_page": {strconv.Itoa(pageSize)}}
+	if !since.IsZero() {
+		query.Set("after", strconv.FormatInt(since.Unix()-1, 10))
+	}
 	raw, _, err := c.get(ctx, "/athlete/activities?"+query.Encode(), false)
 	if err != nil {
 		return nil, err

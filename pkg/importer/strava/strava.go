@@ -354,8 +354,29 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 	if err != nil {
 		return err
 	}
+	// Keep progress monotonic across concurrent invocations for one account.
+	// This is separate from accountMutex, which client takes to refresh OAuth.
+	gate := importRunGate(rc.AccountNode())
+	select {
+	case <-rc.Context().Done():
+		return rc.Context().Err()
+	case <-gate:
+	}
+	defer func() { gate <- struct{}{} }()
+	// Cancellation and the token may become ready together. Return the token
+	// without starting work if select acquired it for an already-cancelled run.
+	if err := rc.Context().Err(); err != nil {
+		return err
+	}
 	if ok, _ := im.IsAccountReady(rc.AccountNode()); !ok {
 		return errors.New("strava: account is not configured; reconnect account")
+	}
+	var progress importProgress
+	if maxActivities == 0 {
+		progress, err = readImportProgress(rc.AccountNode())
+		if err != nil {
+			return err
+		}
 	}
 	id, _, err := rc.Credentials()
 	if err != nil {
@@ -389,10 +410,17 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 	if err := activities.SetAttr(nodeattr.Title, "Activities"); err != nil {
 		return err
 	}
-	// Offset pages can move between runs. Always restart at page one and use
-	// activity IDs plus completion markers to resume without missing old items.
+	if maxActivities > 0 {
+		return r.importCappedActivities(activities, maxActivities)
+	}
+	return r.importChronologicalActivities(activities, progress)
+}
+
+// importCappedActivities preserves the explicit newest-N testing mode. Its
+// legacy completion marker does not establish chronological backfill progress.
+func (r *run) importCappedActivities(activities *importer.Object, maxActivities int) error {
 	pageSize := 100
-	if maxActivities > 0 && maxActivities < pageSize {
+	if maxActivities < pageSize {
 		pageSize = maxActivities
 	}
 	considered := 0
@@ -418,12 +446,18 @@ func (im imp) Run(rc *importer.RunContext) (err error) {
 			// Already imported activities count toward the cap too. Re-running
 			// a test must not advance into the next batch of older workouts.
 			considered++
-			if maxActivities > 0 && considered >= maxActivities {
-				return rc.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion)
+			if considered >= maxActivities {
+				if err := r.Context().Err(); err != nil {
+					return err
+				}
+				return r.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion)
 			}
 		}
 	}
-	return rc.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion)
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	return r.AccountNode().SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion)
 }
 
 func summaryHash(a *activity) string {
