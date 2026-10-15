@@ -51,6 +51,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"golang.org/x/sync/singleflight"
 
 	"perkeep.org/internal/lru"
 	"perkeep.org/pkg/blob"
@@ -65,6 +66,10 @@ type Storage struct {
 	debug              bool
 	populateOnSubFetch bool
 	maxCacheBytes      int64
+
+	// inflight dedups concurrent fetches of the same blob from origin,
+	// keyed by blob ref.
+	inflight singleflight.Group
 
 	mu         sync.Mutex // guards following
 	lru        *lru.Cache
@@ -163,22 +168,44 @@ func (sto *Storage) touch(sb blob.SizedRef) {
 	}
 }
 
-func (sto *Storage) fetchAndPopulate(ctx context.Context, b blob.Ref) (all []byte, size uint32, err error) {
+// fetchAndPopulate fetches b from origin and adds it to the cache,
+// returning its contents.
+//
+// Concurrent calls for the same blob share one origin fetch. That fetch
+// isn't canceled when ctx is done, so a caller that gives up (such as
+// a browser seeking in a video) doesn't throw away a partial download
+// that the next request would need again.
+func (sto *Storage) fetchAndPopulate(ctx context.Context, b blob.Ref) ([]byte, error) {
+	ch := sto.inflight.DoChan(b.String(), func() (any, error) {
+		return sto.fetchAndPopulateOnce(context.WithoutCancel(ctx), b)
+	})
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		return res.Val.([]byte), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (sto *Storage) fetchAndPopulateOnce(ctx context.Context, b blob.Ref) ([]byte, error) {
 	og, size, err := sto.origin.Fetch(ctx, b)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	all, err = io.ReadAll(og)
+	all, err := io.ReadAll(og)
 	og.Close()
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if _, err := blobserver.Receive(ctx, sto.cache, b, bytes.NewReader(all)); err != nil {
 		log.Printf("populating proxycache cache for %v: %v", b, err)
 	} else {
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
 	}
-	return all, size, nil
+	return all, nil
 }
 
 func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
@@ -190,19 +217,22 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	if !errors.Is(err, os.ErrNotExist) {
 		log.Printf("warning: proxycache cache fetch error for %v: %v", b, err)
 	}
-	all, size, err := sto.fetchAndPopulate(ctx, b)
+	all, err := sto.fetchAndPopulate(ctx, b)
 	if err != nil {
 		return nil, 0, err
 	}
-	return io.NopCloser(bytes.NewReader(all)), size, nil
+	return io.NopCloser(bytes.NewReader(all)), uint32(len(all)), nil
 }
 
 func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
+	// cacheCanSubFetch is whether the cache does ranged reads itself.
+	cacheCanSubFetch := false
 	if sf, ok := sto.cache.(blob.SubFetcher); ok {
 		rc, err := sf.SubFetch(ctx, ref, offset, length)
+		cacheCanSubFetch = !errors.Is(err, blob.ErrUnimplemented)
 		if err == nil {
 			// Mark it as recently used. Unlike touch, don't add it if
 			// it's missing, as its size isn't known here.
@@ -216,17 +246,25 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 		}
 	}
 	if sto.populateOnSubFetch {
+		if !cacheCanSubFetch {
+			// The cache may still have the whole blob.
+			rc, err := sto.subFetchFromCache(ctx, ref, offset, length)
+			if err == nil || errors.Is(err, blob.ErrOutOfRangeOffsetSubFetch) {
+				return rc, err
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				log.Printf("warning: proxycache cache fetch error for %v: %v", ref, err)
+			}
+		}
 		if sto.debug {
 			log.Printf("proxycache: populating cache for %v on SubFetch", ref)
 		}
-		// TODO: singleflight this so we don't fetch the same blob
-		// multiple times concurrently?
-		all, size, err := sto.fetchAndPopulate(ctx, ref)
+		all, err := sto.fetchAndPopulate(ctx, ref)
 		if err != nil {
 			return nil, err
 		}
 		if sto.debug {
-			log.Printf("proxycache: populated cache for %v (%d bytes) on SubFetch", ref, size)
+			log.Printf("proxycache: populated cache for %v (%d bytes) on SubFetch", ref, len(all))
 		}
 		if offset > int64(len(all)) {
 			return nil, blob.ErrOutOfRangeOffsetSubFetch
@@ -237,6 +275,28 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 		return sf.SubFetch(ctx, ref, offset, length)
 	}
 	return nil, blob.ErrUnimplemented
+}
+
+// subFetchFromCache serves a SubFetch by fetching the whole blob from
+// the cache, for caches that don't do ranged reads themselves.
+func (sto *Storage) subFetchFromCache(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	rc, size, err := sto.cache.Fetch(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	sto.touch(blob.SizedRef{Ref: ref, Size: size})
+	if offset > int64(size) {
+		rc.Close()
+		return nil, blob.ErrOutOfRangeOffsetSubFetch
+	}
+	if _, err := io.CopyN(io.Discard, rc, offset); err != nil {
+		rc.Close()
+		return nil, err
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{io.LimitReader(rc, length), rc}, nil
 }
 
 func (sto *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
