@@ -62,6 +62,9 @@ escaping.  For example:
   max. Use `height:min-` to specify only an underbound and `height:-max` to specify
   only an upperbound.  Exact matches should use `height:480`
 
+**<a name="bookmark"></a>is:bookmark**
+: matches imported bookmarks, currently from raindrop.io and Pinboard.
+
 **<a name="image"></a>is:image**
 : object is an image
 

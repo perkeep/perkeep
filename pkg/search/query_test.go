@@ -2187,6 +2187,38 @@ func TestIsCheckinQuerySource(t *testing.T) {
 	})
 }
 
+func TestIsBookmarkQuery(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		raindrop := id.NewDeterministicPermanodeForTest("raindrop")
+		id.SetAttribute(raindrop, "camliNodeType", "raindrop.io:bookmark")
+		pinboard := id.NewDeterministicPermanodeForTest("pinboard")
+		id.SetAttribute(pinboard, "camliNodeType", "pinboard.in:post")
+		other := id.NewDeterministicPermanodeForTest("other")
+		id.SetAttribute(other, "camliNodeType", "foursquare.com:checkin")
+		untyped := id.NewDeterministicPermanodeForTest("untyped")
+		id.SetAttribute(untyped, "title", "raindrop.io:bookmark")
+
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark", Limit: -1}, raindrop, pinboard)
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark -is:checkin", Limit: -1}, raindrop, pinboard)
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark or is:checkin", Limit: -1}, raindrop, pinboard, other)
+	})
+}
+
+func TestIsBookmarkQuerySource(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		raindrop := id.NewDeterministicPermanodeForTest("raindrop")
+		id.SetAttribute(raindrop, "camliNodeType", "raindrop.io:bookmark")
+		pinboard := id.NewDeterministicPermanodeForTest("pinboard")
+		id.SetAttribute(pinboard, "camliNodeType", "pinboard.in:post")
+		id.SetAttribute(id.NewDeterministicPermanodeForTest("other"), "camliNodeType", "foursquare.com:checkin")
+
+		qt.candidateSource = "corpus_permanode_types"
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark", Sort: MapSort}, raindrop, pinboard)
+	})
+}
+
 // BenchmarkLocationPredicate aims at measuring the impact of
 // https://camlistore-review.googlesource.com/8049
 // ( + https://camlistore-review.googlesource.com/8649)

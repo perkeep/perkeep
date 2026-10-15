@@ -128,6 +128,7 @@ func init() {
 	registerKeyword(newIsPost())
 	registerKeyword(newIsLike())
 	registerKeyword(newIsCheckin())
+	registerKeyword(newIsBookmark())
 	registerKeyword(newIsUntagged())
 
 	// Fitness predicates
@@ -893,6 +894,37 @@ func (k isCheckin) Predicate(ctx context.Context, args []string) (*Constraint, e
 			Value: "foursquare.com:checkin",
 		},
 	}, nil
+}
+
+// bookmarkNodeTypes are the camliNodeType values of bookmark permanodes.
+var bookmarkNodeTypes = []string{
+	"raindrop.io:bookmark",
+	"pinboard.in:post",
+}
+
+type isBookmark struct {
+	matchEqual
+}
+
+func newIsBookmark() keyword {
+	return isBookmark{"is:bookmark"}
+}
+
+func (k isBookmark) Description() string {
+	return "matches bookmarks (raindrop.io, pinboard, etc)"
+}
+
+func (k isBookmark) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	var c *Constraint
+	for _, typ := range bookmarkNodeTypes {
+		tc := permWithAttr(nodeattr.Type, typ)
+		if c == nil {
+			c = tc
+		} else {
+			c = orConst(c, tc)
+		}
+	}
+	return c, nil
 }
 
 type isUntagged struct {
