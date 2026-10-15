@@ -1404,3 +1404,222 @@ func TestCheckLargeIntegrity(t *testing.T) {
 		}
 	}
 }
+
+// Tests that reindex recovers the zips of a file whose middle zip is lost,
+// finding their offsets in the file from the schema blobs they contain.
+func TestReindexMissingPart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	tests := []struct {
+		name     string
+		contents []byte
+		// exactOffsets is whether the offsets of the zips after the
+		// lost one are unambiguous. Files that repeat their chunks,
+		// like all zeros, can match in more than one place.
+		exactOffsets bool
+	}{
+		{"random", randBytesSrc(7<<20, 45), true},
+		{"zeros", make([]byte, 7<<20), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			large := new(test.Fetcher)
+			s := &storage{
+				small:               new(test.Fetcher),
+				large:               large,
+				meta:                sorted.NewMemoryKeyValue(),
+				log:                 test.NewLogger(t, "blobpacked: ", "Packing file ", "Packed file "),
+				forceMaxZipBlobSize: 2 << 20,
+			}
+			s.init()
+			if _, err := schema.WriteFileFromReader(ctxbg, s, "foo.dat", bytes.NewReader(tt.contents)); err != nil {
+				t.Fatal(err)
+			}
+			if n := large.NumBlobs(); n < 3 {
+				t.Fatalf("packed into %d zips; want at least 3", n)
+			}
+			wholeRef := blob.RefFromBytes(tt.contents)
+			oldMeta := s.meta
+
+			v, err := oldMeta.Get(fmt.Sprintf("%s%v:1", wholeMetaPrefix, wholeRef))
+			if err != nil {
+				t.Fatal(err)
+			}
+			lostRef, ok := blob.Parse(strings.Fields(v)[0])
+			if !ok {
+				t.Fatalf("bogus w: row %q", v)
+			}
+			if err := large.RemoveBlobs(ctxbg, []blob.Ref{lostRef}); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := s.reindex(ctxbg, func() (sorted.KeyValue, error) {
+				return sorted.NewMemoryKeyValue(), nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := s.meta.Get(wholeMetaPrefix + wholeRef.String()); !errors.Is(err, sorted.ErrNotFound) {
+				t.Errorf("incomplete file has a w: row; err = %v", err)
+			}
+			if err := blobserver.EnumerateAll(ctxbg, large, func(sb blob.SizedRef) error {
+				key := zipMetaPrefix + sb.Ref.String()
+				got, err := s.meta.Get(key)
+				if err != nil {
+					return fmt.Errorf("%s: %w", key, err)
+				}
+				want, err := oldMeta.Get(key)
+				if err != nil {
+					return fmt.Errorf("%s: %w", key, err)
+				}
+				if tt.exactOffsets {
+					if got != want {
+						t.Errorf("row %s = %q; want %q", key, got, want)
+					}
+					return nil
+				}
+				// Only the offset in the whole file may differ, and
+				// the data must still be within the file.
+				gotf, wantf := strings.Fields(got), strings.Fields(want)
+				if len(gotf) != 5 || !slices.Equal(gotf[:3], wantf[:3]) || gotf[4] != wantf[4] {
+					t.Errorf("row %s = %q; want like %q", key, got, want)
+					return nil
+				}
+				offset, _ := strconv.ParseInt(gotf[3], 10, 64)
+				dataSize, _ := strconv.ParseInt(gotf[4], 10, 64)
+				if offset+dataSize > int64(len(tt.contents)) {
+					t.Errorf("row %s = %q: data goes past the end of the file", key, got)
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			// Each blob that was in a zip that wasn't lost can still be read.
+			if err := sorted.ForeachInRange(oldMeta, blobMetaPrefix, blobMetaPrefixLimit, func(key, value string) error {
+				m, err := parseMetaRow([]byte(value))
+				if err != nil {
+					return err
+				}
+				if m.largeRef == lostRef {
+					return nil
+				}
+				br, _ := blob.Parse(strings.TrimPrefix(key, blobMetaPrefix))
+				b, err := blob.FromFetcher(ctxbg, s, br)
+				if err != nil {
+					return fmt.Errorf("fetching %v: %w", br, err)
+				}
+				return b.ValidContents(ctxbg)
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			if mode, err := s.checkLargeIntegrity(); err != nil || mode != NoRecovery {
+				t.Errorf("checkLargeIntegrity = %v, %v; want %v, nil", mode, err, NoRecovery)
+			}
+		})
+	}
+}
+
+// Tests that when the packer underestimates the size of a two-chunk zip,
+// it writes the first chunk in one zip and the second in another, even
+// when both chunks are the same blob.
+func TestPackerTruncateTwoChunks(t *testing.T) {
+	// Zero per-entry overhead forces the underestimate. The fixed overhead
+	// is left alone, so the packer's estimate is never zero.
+	defer setIntTemporarily(&zipPerEntryOverhead, 0)()
+
+	const chunkSize = 600 << 10
+	tests := []struct {
+		name   string
+		chunk0 []byte
+		chunk1 []byte // or nil for the same as chunk0
+	}{
+		{"distinct", randBytesSrc(chunkSize, 46), randBytesSrc(chunkSize, 47)},
+		{"same", randBytesSrc(chunkSize, 48), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.chunk1 == nil {
+				tt.chunk1 = tt.chunk0
+			}
+			b0 := &test.Blob{Contents: string(tt.chunk0)}
+			b1 := &test.Blob{Contents: string(tt.chunk1)}
+			whole := append(slices.Clone(tt.chunk0), tt.chunk1...)
+			wholeRef := blob.RefFromBytes(whole)
+
+			var truncs []blob.Ref
+			testHookSawTruncate = func(after blob.Ref) {
+				truncs = append(truncs, after)
+				if len(truncs) > 1 {
+					t.Fatalf("truncated twice packing one file, after %v", truncs)
+				}
+			}
+			defer func() { testHookSawTruncate = nil }()
+
+			// pack packs the file with zips of at most maxZip bytes.
+			pack := func(maxZip int) (s *storage, small, large *test.Fetcher) {
+				truncs = nil
+				small, large = new(test.Fetcher), new(test.Fetcher)
+				s = &storage{
+					small:               small,
+					large:               large,
+					meta:                sorted.NewMemoryKeyValue(),
+					log:                 test.NewLogger(t, "blobpacked: ", "Packing file ", "Packed file "),
+					forceMaxZipBlobSize: maxZip,
+				}
+				s.init()
+				b0.MustUpload(t, s)
+				b1.MustUpload(t, s)
+				m := schema.NewFileMap("foo.dat")
+				m.PopulateParts(int64(len(whole)), []schema.BytesPart{
+					{Size: uint64(len(tt.chunk0)), BlobRef: b0.BlobRef()},
+					{Size: uint64(len(tt.chunk1)), BlobRef: b1.BlobRef()},
+				})
+				fjson, err := m.JSON()
+				if err != nil {
+					t.Fatal(err)
+				}
+				(&test.Blob{Contents: fjson}).MustUpload(t, s)
+				return s, small, large
+			}
+
+			// Find the smallest zip size limit that fits the whole file
+			// in one zip. One byte less, the packer still estimates that
+			// both chunks fit, and has to back up.
+			lo := chunkSize + 4<<10 // room for one chunk and the overhead
+			n := sort.Search(chunkSize+8<<10, func(i int) bool {
+				_, _, large := pack(lo + i)
+				return large.NumBlobs() == 1
+			})
+			oneZipMax := lo + n
+			if _, _, large := pack(oneZipMax); large.NumBlobs() != 1 {
+				t.Fatalf("never packed into one zip")
+			}
+
+			s, small, large := pack(oneZipMax - 1)
+			if !slices.Equal(truncs, []blob.Ref{b0.BlobRef()}) {
+				t.Errorf("truncated after %v; want once, after %v", truncs, b0.BlobRef())
+			}
+			if got := large.NumBlobs(); got != 2 {
+				t.Fatalf("packed into %d zips; want 2", got)
+			}
+			if got := small.NumBlobs(); got != 0 {
+				t.Errorf("%d blobs left in small; want 0", got)
+			}
+			rc, size, err := s.OpenWholeRef(wholeRef, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rc.Close()
+			got, err := io.ReadAll(rc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if size != int64(len(whole)) || !bytes.Equal(got, whole) {
+				t.Errorf("OpenWholeRef read %d bytes (size %d) that don't match the file", len(got), size)
+			}
+		})
+	}
+}
