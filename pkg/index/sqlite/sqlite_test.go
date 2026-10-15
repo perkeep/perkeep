@@ -110,6 +110,10 @@ func TestReindex_SQLite(t *testing.T) {
 	tester{}.test(t, indextest.Reindex)
 }
 
+func TestReindexManyDeletes_SQLite(t *testing.T) {
+	tester{}.test(t, indextest.ReindexManyDeletes)
+}
+
 // Force delete-before-target enumeration with one primary worker, while keeping
 // the rebuild small enough that all logical writes share an uncommitted group.
 // The delete's retry must see its target's provisional meta row, then all rows

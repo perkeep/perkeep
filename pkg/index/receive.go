@@ -343,6 +343,23 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	}
 	// err is checked below
 
+	// In a batched reindex, commit before taking ix.mu, rather than with
+	// it held: the reindex session serializes commits anyway, and
+	// holding ix.mu while waiting for that would also hold up the other
+	// workers' bookkeeping, which needs ix.mu. That's safe because a
+	// batched reindex has no corpus to keep in step with the index's
+	// rows, and because the commit still happens before the bookkeeping
+	// below that wakes blobs waiting on this one, which may read its rows
+	// (see populateDeleteClaim). A blob indexed between this one's reads
+	// and its bookkeeping is caught by op.indexed, as before.
+	committed := false
+	if _, ok := ix.s.(sorted.ReindexSession); ok && err == nil {
+		if cerr := ix.commit(mm); cerr != nil {
+			return blob.SizedRef{}, cerr
+		}
+		committed = true
+	}
+
 	ix.Lock()
 	defer ix.Unlock()
 
@@ -364,8 +381,10 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		return sbr, nil
 	}
 
-	if err := ix.commit(mm); err != nil {
-		return blob.SizedRef{}, err
+	if !committed {
+		if err := ix.commit(mm); err != nil {
+			return blob.SizedRef{}, err
+		}
 	}
 
 	if c := ix.corpus; c != nil {
