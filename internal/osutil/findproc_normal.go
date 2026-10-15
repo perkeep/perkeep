@@ -21,8 +21,11 @@ import "os"
 // DieOnParentDeath starts a goroutine that waits for the current
 // process's parent to exit, and calls os.Exit(0) as soon as it does.
 func DieOnParentDeath() {
+	// Capture the parent before scheduling the watcher. If the parent exits
+	// first, a Unix watcher could otherwise start by observing the reaper.
+	ppid := os.Getppid()
 	go func() {
-		waitParentDeath()
+		waitParentDeath(ppid)
 		os.Exit(0)
 	}()
 }

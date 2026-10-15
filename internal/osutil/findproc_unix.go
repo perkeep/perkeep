@@ -23,9 +23,8 @@ import (
 	"time"
 )
 
-// waitParentDeath returns once the current process has been orphaned.
-func waitParentDeath() {
-	ppid := os.Getppid()
+// waitParentDeath returns once the captured parent has exited.
+func waitParentDeath(ppid int) {
 	if waitParentExit(ppid) {
 		return
 	}

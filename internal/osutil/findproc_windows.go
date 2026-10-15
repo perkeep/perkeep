@@ -22,8 +22,8 @@ import "os"
 //
 // On Windows, a process's ppid doesn't change when its parent exits, so
 // this waits on a handle to the parent process instead.
-func waitParentDeath() {
-	p, err := os.FindProcess(os.Getppid())
+func waitParentDeath(ppid int) {
+	p, err := os.FindProcess(ppid)
 	if err != nil {
 		// The parent has most likely exited already.
 		return
