@@ -23,6 +23,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,14 +95,16 @@ func reindexSQL(t *testing.T, s *reindexSession, query string) {
 	reindexOK(t, err)
 }
 
-func reindexPragmas(t *testing.T, tx *sql.Tx) {
+// reindexPragmas checks that tx's connection is in WAL mode, with the
+// synchronous setting wantSync (0 for OFF, 2 for FULL).
+func reindexPragmas(t *testing.T, tx *sql.Tx, wantSync int) {
 	t.Helper()
 	var mode string
 	var sync int
 	reindexOK(t, tx.QueryRow("PRAGMA journal_mode").Scan(&mode))
 	reindexOK(t, tx.QueryRow("PRAGMA synchronous").Scan(&sync))
-	if mode != "wal" || sync != 2 {
-		t.Fatalf("durability settings = %q/%d, want wal/FULL (2)", mode, sync)
+	if mode != "wal" || sync != wantSync {
+		t.Fatalf("durability settings = %q/%d, want wal/%d", mode, sync, wantSync)
 	}
 }
 
@@ -116,7 +120,7 @@ func TestReindexNormalDurability(t *testing.T) {
 	reindexObserved(t, db, "old", 0)
 	tx, err := k.db.Begin()
 	reindexOK(t, err)
-	reindexPragmas(t, tx)
+	reindexPragmas(t, tx, 2)
 	reindexOK(t, tx.Rollback())
 	s := reindexBegin(t, k)
 	if s.maxMutations != 1024 || s.maxBytes != 4<<20 {
@@ -126,7 +130,9 @@ func TestReindexNormalDurability(t *testing.T) {
 	if _, err := s.Get("old"); !errors.Is(err, sorted.ErrNotFound) {
 		t.Fatalf("wiped Get: %v", err)
 	}
-	reindexPragmas(t, s.currentTx) // Check the reserved transaction, not another connection.
+	// The reserved transaction's connection commits without syncing
+	// until Finish.
+	reindexPragmas(t, s.currentTx, 0)
 	reindexOK(t, s.Set("new", "value"))
 	if v, err := s.Get("new"); err != nil || v != "value" {
 		t.Fatalf("read own Set = %q, %v", v, err)
@@ -147,6 +153,11 @@ func TestReindexNormalDurability(t *testing.T) {
 	reindexOK(t, s.Finish(true))
 	reindexObserved(t, db, "final", 0)
 	reindexWait(t, func() error { _, err := k.Get("final"); return err })
+	// Finish restored syncing on the connection it returned to the pool.
+	tx, err = k.db.Begin()
+	reindexOK(t, err)
+	reindexPragmas(t, tx, 2)
+	reindexOK(t, tx.Rollback())
 	reopened, err := NewStorage(k.file)
 	reindexOK(t, err)
 	reindexOK(t, reopened.Close())
@@ -343,6 +354,10 @@ func TestReindexFailureIsSticky(t *testing.T) {
 			case "marker":
 				reindexSQL(t, s, `CREATE TRIGGER fail_marker BEFORE DELETE ON meta WHEN OLD.metakey='reindexing' BEGIN SELECT RAISE(ABORT, 'marker failure'); END`)
 				reindexOK(t, s.Set("tail", "pending"))
+				// Finish commits the last rows, then makes them
+				// durable, before it removes the marker; they stay,
+				// but the marker still says the index is incomplete.
+				keys = "prior,tail"
 			}
 			err := s.Finish(true)
 			if err == nil {
@@ -357,7 +372,9 @@ func TestReindexFailureIsSticky(t *testing.T) {
 			reindexObserved(t, db, keys, 1)
 			// This uses the parent's gate and pool, detecting leaks and a poisoned native transaction.
 			reindexWait(t, func() error { return k.Set("probe", "ok") })
-			reindexObserved(t, db, keys+",probe", 1)
+			withProbe := strings.Split(keys+",probe", ",")
+			slices.Sort(withProbe)
+			reindexObserved(t, db, strings.Join(withProbe, ","), 1)
 		})
 	}
 }
