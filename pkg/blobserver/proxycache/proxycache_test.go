@@ -24,10 +24,13 @@ import (
 	"log"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"go4.org/jsonconfig"
 
+	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/localdisk"
 	"perkeep.org/pkg/blobserver/memory"
@@ -124,14 +127,135 @@ func TestProxyCache(t *testing.T) {
 	})
 	px.origin = memory.NewCache(0)
 	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
-		return px
-	})
-	px.origin = memory.NewCache(0)
-	px.populateOnSubFetch = true
-	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
 		t.Cleanup(func() { cleanUp(ds) })
 		return px
 	})
+
+	// A maxCacheBytes of 0 evicts each blob as soon as it's cached, so
+	// every SubFetch misses the cache and populates it.
+	evicting := New(0, memory.NewCache(0), memory.NewCache(0))
+	evicting.populateOnSubFetch = true
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return evicting
+	})
+
+	// With a cache that doesn't do ranged reads, SubFetch reads the
+	// whole blob from the cache.
+	noRanges := New(cacheSize, struct{ blobserver.Storage }{memory.NewCache(0)}, memory.NewCache(0))
+	noRanges.populateOnSubFetch = true
+	storagetest.Test(t, func(t *testing.T) blobserver.Storage {
+		return noRanges
+	})
+}
+
+// countingStorage counts calls to Fetch. If release is non-nil, Fetch
+// waits for it to be closed or for its context to be done.
+//
+// Embedding the interface hides any SubFetch method of the wrapped
+// storage.
+type countingStorage struct {
+	blobserver.Storage
+	release chan struct{}
+	fetches atomic.Int32
+}
+
+func (s *countingStorage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	s.fetches.Add(1)
+	if s.release != nil {
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		}
+	}
+	return s.Storage.Fetch(ctx, br)
+}
+
+// subFetchString reads length bytes at offset of br from px.
+func subFetchString(ctx context.Context, px *Storage, br blob.Ref, offset, length int64) (string, error) {
+	rc, err := px.SubFetch(ctx, br, offset, length)
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+	got, err := io.ReadAll(rc)
+	return string(got), err
+}
+
+func TestSubFetchMissesShareOriginFetch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		origin := &countingStorage{Storage: memory.NewCache(0), release: make(chan struct{})}
+		tb := &test.Blob{Contents: "Some big blob"}
+		tb.MustUpload(t, origin)
+		px := New(cacheSize, memory.NewCache(0), origin)
+		px.populateOnSubFetch = true
+
+		var wg sync.WaitGroup
+		for range 3 {
+			wg.Go(func() {
+				got, err := subFetchString(ctxbg, px, tb.BlobRef(), 5, 3)
+				if err != nil || got != "big" {
+					t.Errorf("SubFetch = %q, %v; want %q", got, err, "big")
+				}
+			})
+		}
+		synctest.Wait()
+		close(origin.release)
+		wg.Wait()
+
+		if n := origin.fetches.Load(); n != 1 {
+			t.Errorf("origin fetches = %d; want 1", n)
+		}
+	})
+}
+
+func TestSubFetchCanceledStillPopulates(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		origin := &countingStorage{Storage: memory.NewCache(0), release: make(chan struct{})}
+		tb := &test.Blob{Contents: "Some big blob"}
+		tb.MustUpload(t, origin)
+		px := New(cacheSize, memory.NewCache(0), origin)
+		px.populateOnSubFetch = true
+
+		ctx, cancel := context.WithCancel(ctxbg)
+		errc := make(chan error, 1)
+		go func() {
+			_, err := subFetchString(ctx, px, tb.BlobRef(), 5, 3)
+			errc <- err
+		}()
+		synctest.Wait()
+		cancel()
+		if err := <-errc; !errors.Is(err, context.Canceled) {
+			t.Errorf("SubFetch error = %v; want %v", err, context.Canceled)
+		}
+
+		close(origin.release)
+		synctest.Wait()
+		if _, _, err := px.cache.Fetch(ctxbg, tb.BlobRef()); err != nil {
+			t.Errorf("blob should have been populated into the cache after the caller gave up: %v", err)
+		}
+	})
+}
+
+func TestSubFetchFromNonRangedCache(t *testing.T) {
+	origin := &countingStorage{Storage: memory.NewCache(0)}
+	tb := &test.Blob{Contents: "Some big blob"}
+	tb.MustUpload(t, origin)
+	px := New(cacheSize, struct{ blobserver.Storage }{memory.NewCache(0)}, origin)
+	px.populateOnSubFetch = true
+
+	for range 2 {
+		got, err := subFetchString(ctxbg, px, tb.BlobRef(), 5, 3)
+		if err != nil || got != "big" {
+			t.Errorf("SubFetch = %q, %v; want %q", got, err, "big")
+		}
+	}
+	if _, err := px.SubFetch(ctxbg, tb.BlobRef(), int64(len(tb.Contents))+1, 1); !errors.Is(err, blob.ErrOutOfRangeOffsetSubFetch) {
+		t.Errorf("out of range SubFetch error = %v; want %v", err, blob.ErrOutOfRangeOffsetSubFetch)
+	}
+	if n := origin.fetches.Load(); n != 1 {
+		t.Errorf("origin fetches = %d; want 1, with later reads served from the cache", n)
+	}
 }
 
 func TestProxyCachePopulateOnSubFetch(t *testing.T) {
@@ -152,7 +276,7 @@ func TestProxyCachePopulateOnSubFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err = rc.Close(); err != nil {
+		if err := rc.Close(); err != nil {
 			t.Error(err)
 		}
 	})
@@ -169,7 +293,7 @@ func TestProxyCachePopulateOnSubFetch(t *testing.T) {
 		t.Fatalf("blob should have been populated into the cache: %v", err)
 	}
 	t.Cleanup(func() {
-		if err = cached.Close(); err != nil {
+		if err := cached.Close(); err != nil {
 			t.Error(err)
 		}
 	})
