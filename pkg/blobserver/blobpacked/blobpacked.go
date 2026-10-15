@@ -82,6 +82,7 @@ package blobpacked // import "perkeep.org/pkg/blobserver/blobpacked"
 import (
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -90,6 +91,7 @@ import (
 	"io"
 	"log"
 	"maps"
+	"math"
 	"os"
 	"runtime"
 	"slices"
@@ -140,6 +142,9 @@ const (
 
 	zipMetaPrefix      = "z:"
 	zipMetaPrefixLimit = "z;"
+
+	corruptMetaPrefix      = "c:"
+	corruptMetaPrefixLimit = "c;"
 )
 
 const (
@@ -217,6 +222,10 @@ type storage struct {
 	// For marking that zips that have blobs (possibly all)
 	// deleted from inside them: (deleted zip)
 	//   d:sha1-xxxxxx -> <unix-time-of-delete>
+	//
+	// For zips that reindex skipped because their contents aren't
+	// what the packer writes: (corruptMetaPrefix)
+	//   c:<zip-blobref> -> <why>
 	meta sorted.KeyValue
 
 	// If non-zero, the maximum size of a zip blob.
@@ -426,6 +435,25 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 	if err := t.Close(); err != nil {
 		return FullRecovery, fmt.Errorf("error reading or closing index: %w", err)
 	}
+	// Corrupt zips that reindex skipped are known, if not usable.
+	var corrupt []blob.Ref
+	if err := sorted.ForeachInRange(s.meta, corruptMetaPrefix, corruptMetaPrefixLimit, func(key, _ string) error {
+		zipRef, ok := blob.Parse(strings.TrimPrefix(key, corruptMetaPrefix))
+		if !ok {
+			return fmt.Errorf("bogus key in c: row: %q", key)
+		}
+		if unindexed[zipRef] {
+			delete(unindexed, zipRef)
+			corrupt = append(corrupt, zipRef)
+		}
+		return nil
+	}); err != nil {
+		return FullRecovery, err
+	}
+	if len(corrupt) > 0 {
+		log.Printf("blobpacked: %d large blobs are corrupt zip packs, skipped by reindexing", len(corrupt))
+		printSample(corrupt, "corrupt")
+	}
 	missing := slices.Collect(maps.Keys(unindexed)) // blobs in large but not in meta
 	if len(missing) > 0 || len(extra) > 0 {
 		// This runs while the server is serving, so a zip may have been
@@ -542,6 +570,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	}
 
 	zipMetaByWholeRef := make(map[blob.Ref][]zipMetaInfo)
+	var corruptZips []blob.Ref // skipped zips
 
 	// first a fast full enumerate, so we can report progress afterwards
 	packedTotal := 0
@@ -559,85 +588,27 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			log.Printf("blobpacked: %d / %d zip packs seen", packedSeen, packedTotal)
 		default:
 		}
-		zipRef := sb.Ref
-		zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(sb.Size))
-		if err != nil {
-			return zipOpenError{zipRef, err}
+		zm, blobRows, err := s.readZip(ctx, sb)
+		if czErr, ok := errors.AsType[corruptZipError](err); ok {
+			log.Printf("blobpacked: skipping %v", err)
+			corruptZips = append(corruptZips, sb.Ref)
+			return meta.Set(corruptMetaPrefix+sb.Ref.String(), czErr.err.Error())
 		}
-		var maniFile *zip.File
-		var firstOff int64 // offset of first file (the packed data chunks)
-		for i, f := range zr.File {
-			if i == 0 {
-				firstOff, err = f.DataOffset()
-				if err != nil {
-					return err
-				}
-			}
-			if f.Name == zipManifestPath {
-				maniFile = f
-				break
-			}
-		}
-		if maniFile == nil {
-			return fmt.Errorf("no perkeep manifest file found in zip %v", zipRef)
-		}
-		maniRC, err := maniFile.Open()
 		if err != nil {
 			return err
-		}
-		defer maniRC.Close()
-		var mf Manifest
-		if err := json.NewDecoder(maniRC).Decode(&mf); err != nil {
-			return err
-		}
-		if !mf.WholeRef.Valid() || mf.WholeSize == 0 || !mf.DataBlobsOrigin.Valid() {
-			return fmt.Errorf("incomplete blobpack manifest JSON in %v", zipRef)
 		}
 
 		bm := meta.BeginBatch()
-		// In this loop, we write all the blobMetaPrefix entries for the
-		// data blobs in this zip, and we also compute the dataBytesWritten, for later.
-		var dataBytesWritten int64
-		for _, bp := range mf.DataBlobs {
-			bm.Set(blobMetaPrefix+bp.SizedRef.Ref.String(), fmt.Sprintf("%d %v %d", bp.SizedRef.Size, zipRef, firstOff+bp.Offset))
-			dataBytesWritten += int64(bp.SizedRef.Size)
+		for k, v := range blobRows {
+			bm.Set(k, v)
 		}
-		if dataBytesWritten > (1<<32 - 1) {
-			return fmt.Errorf("total data blobs size in zip %v overflows uint32", zipRef)
-		}
-		dataSize := uint32(dataBytesWritten)
-
-		// In this loop, we write all the blobMetaPrefix entries for the schema blobs in this zip
-		for _, f := range zr.File {
-			if !(strings.HasPrefix(f.Name, "camlistore/") && strings.HasSuffix(f.Name, ".json")) ||
-				f.Name == zipManifestPath {
-				continue
-			}
-			br, ok := blob.Parse(strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json"))
-			if !ok {
-				return fmt.Errorf("schema file in zip %v does not have blobRef as name: %v", zipRef, f.Name)
-			}
-			offset, err := f.DataOffset()
-			if err != nil {
-				return err
-			}
-			bm.Set(blobMetaPrefix+br.String(), fmt.Sprintf("%d %v %d", f.UncompressedSize64, zipRef, offset))
-		}
-
+		bm.Delete(corruptMetaPrefix + sb.Ref.String())
 		if err := meta.CommitBatch(bm); err != nil {
 			return err
 		}
 
 		// record that info for later, when we got them all, so we can write the wholeMetaPrefix entries.
-		zipMetaByWholeRef[mf.WholeRef] = append(zipMetaByWholeRef[mf.WholeRef], zipMetaInfo{
-			wholePartIndex: mf.WholePartIndex,
-			zipRef:         zipRef,
-			zipSize:        sb.Size,
-			offsetInZip:    uint32(firstOff),
-			dataSize:       dataSize,
-			wholeSize:      uint64(mf.WholeSize),
-			wholeRef:       mf.WholeRef, // redundant with zipMetaByWholeRef key for now.
-		})
+		zipMetaByWholeRef[zm.wholeRef] = append(zipMetaByWholeRef[zm.wholeRef], zm)
 		packedSeen++
 		return nil
 	}); err != nil {
@@ -670,6 +641,14 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 				// the parts before it don't add up to its offset.
 				var err error
 				offset, err = s.wholeOffsetFromSchema(ctx, z.zipRef, z.zipSize, minOffset)
+				if czErr, ok := errors.AsType[corruptZipError](err); ok {
+					// Its blobs are indexed already; only
+					// its place in the file is unknown.
+					log.Printf("blobpacked: not indexing the place in wholeRef %v of %v", wholeRef, err)
+					corruptZips = append(corruptZips, z.zipRef)
+					bm.Set(corruptMetaPrefix+z.zipRef.String(), czErr.err.Error())
+					continue
+				}
 				if err != nil {
 					return fmt.Errorf("finding offset of zip %v in wholeRef %v: %w", z.zipRef, wholeRef, err)
 				}
@@ -722,6 +701,9 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	} else {
 		log.Printf("blobpacked: %d files reindexed.", packedFiles)
 	}
+	if len(corruptZips) > 0 {
+		log.Printf("blobpacked: %d corrupt zip pack(s) skipped; see above, or the %q rows of the index.", len(corruptZips), corruptMetaPrefix)
+	}
 	if foundDups {
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); !debug {
 			log.Print("blobpacked: zip blobs with duplicate contents were found. Re-run with CAMLI_DEBUG=true for more detail.")
@@ -734,6 +716,129 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 
 	s.meta = meta
 	return nil
+}
+
+// corruptZipError is the error for a zip pack whose contents aren't what
+// the packer writes, as opposed to one that couldn't be read from large.
+type corruptZipError struct {
+	zipRef blob.Ref
+	err    error
+}
+
+func (e corruptZipError) Error() string {
+	return fmt.Sprintf("corrupt zip pack %v: %v", e.zipRef, e.err)
+}
+
+func (e corruptZipError) Unwrap() error { return e.err }
+
+// asCorrupt returns err, from reading the zip zipRef, as a corruptZipError
+// if it says the zip's contents are bad, rather than that they couldn't be
+// read. A zip blob shorter than its size counts as bad contents.
+func asCorrupt(zipRef blob.Ref, err error) error {
+	if errors.Is(err, zip.ErrFormat) || errors.Is(err, zip.ErrAlgorithm) ||
+		errors.Is(err, zip.ErrChecksum) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return corruptZipError{zipRef, err}
+	}
+	if _, ok := errors.AsType[flate.CorruptInputError](err); ok {
+		return corruptZipError{zipRef, err}
+	}
+	return err
+}
+
+// readZip reads what reindex needs from the zip pack sb: its zipMetaInfo,
+// and the b: rows of the blobs in it. It returns a corruptZipError if the
+// zip's contents aren't what the packer writes.
+func (s *storage) readZip(ctx context.Context, sb blob.SizedRef) (zm zipMetaInfo, blobRows map[string]string, err error) {
+	zipRef := sb.Ref
+	corrupt := func(format string, args ...any) error {
+		return corruptZipError{zipRef, fmt.Errorf(format, args...)}
+	}
+	zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(sb.Size))
+	if err != nil {
+		return zm, nil, asCorrupt(zipRef, err)
+	}
+	if len(zr.File) == 0 {
+		return zm, nil, corrupt("no files in zip")
+	}
+	// The first file is the packed data chunks.
+	data := zr.File[0]
+	if data.Method != zip.Store {
+		return zm, nil, corrupt("data file %q is compressed", data.Name)
+	}
+	firstOff, err := data.DataOffset()
+	if err != nil {
+		return zm, nil, asCorrupt(zipRef, err)
+	}
+	var maniFile *zip.File
+	for _, f := range zr.File {
+		if f.Name == zipManifestPath {
+			maniFile = f
+			break
+		}
+	}
+	if maniFile == nil {
+		return zm, nil, corrupt("no perkeep manifest file found")
+	}
+	maniRC, err := maniFile.Open()
+	if err != nil {
+		return zm, nil, asCorrupt(zipRef, err)
+	}
+	maniJSON, err := io.ReadAll(maniRC)
+	maniRC.Close()
+	if err != nil {
+		return zm, nil, asCorrupt(zipRef, err)
+	}
+	var mf Manifest
+	if err := json.Unmarshal(maniJSON, &mf); err != nil {
+		return zm, nil, corrupt("manifest: %v", err)
+	}
+	if !mf.WholeRef.Valid() || mf.WholeSize <= 0 || mf.WholePartIndex < 0 || !mf.DataBlobsOrigin.Valid() {
+		return zm, nil, corrupt("incomplete blobpack manifest JSON")
+	}
+
+	blobRows = make(map[string]string)
+	// The b: rows of the data blobs, and the size of the data, for later.
+	var dataSize uint64
+	for _, bp := range mf.DataBlobs {
+		if !bp.Ref.Valid() || bp.Offset < 0 || uint64(bp.Offset)+uint64(bp.Size) > data.UncompressedSize64 {
+			return zm, nil, corrupt("manifest's data blob %v is not within the data", bp.Ref)
+		}
+		blobRows[blobMetaPrefix+bp.Ref.String()] = fmt.Sprintf("%d %v %d", bp.Size, zipRef, firstOff+bp.Offset)
+		dataSize += uint64(bp.Size)
+	}
+	if dataSize > math.MaxUint32 {
+		return zm, nil, corrupt("total data blobs size overflows uint32")
+	}
+
+	// The b: rows of the schema blobs.
+	for _, f := range zr.File {
+		if !(strings.HasPrefix(f.Name, "camlistore/") && strings.HasSuffix(f.Name, ".json")) ||
+			f.Name == zipManifestPath {
+			continue
+		}
+		br, ok := blob.Parse(strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json"))
+		if !ok {
+			return zm, nil, corrupt("schema file does not have blobRef as name: %v", f.Name)
+		}
+		if f.Method != zip.Store || f.UncompressedSize64 > math.MaxUint32 {
+			return zm, nil, corrupt("schema file %v is compressed or too large", f.Name)
+		}
+		offset, err := f.DataOffset()
+		if err != nil {
+			return zm, nil, asCorrupt(zipRef, err)
+		}
+		blobRows[blobMetaPrefix+br.String()] = fmt.Sprintf("%d %v %d", f.UncompressedSize64, zipRef, offset)
+	}
+
+	return zipMetaInfo{
+		wholePartIndex: mf.WholePartIndex,
+		zipRef:         zipRef,
+		zipSize:        sb.Size,
+		offsetInZip:    uint32(firstOff),
+		dataSize:       uint32(dataSize),
+		wholeSize:      uint64(mf.WholeSize),
+		wholeRef:       mf.WholeRef,
+	}, blobRows, nil
 }
 
 // hasDups reports whether zm contains successive zipRefs which have the same
@@ -795,9 +900,12 @@ func wholeOffsets(zm []zipMetaInfo) (offsets map[int]uint64, prefixSize uint64) 
 // same bytes, so the first one at or after minOffset is returned, or else
 // the first one.
 func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zipSize uint32, minOffset uint64) (uint64, error) {
+	corrupt := func(format string, args ...any) error {
+		return corruptZipError{zipRef, fmt.Errorf(format, args...)}
+	}
 	zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(zipSize))
 	if err != nil {
-		return 0, zipOpenError{zipRef, err}
+		return 0, asCorrupt(zipRef, err)
 	}
 	var mf Manifest
 	var fileRef blob.Ref
@@ -809,39 +917,40 @@ func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zi
 		}
 		rc, err := f.Open()
 		if err != nil {
-			return 0, err
+			return 0, asCorrupt(zipRef, err)
+		}
+		contents, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return 0, asCorrupt(zipRef, err)
 		}
 		if isManifest {
-			err = json.NewDecoder(rc).Decode(&mf)
-			rc.Close()
-			if err != nil {
-				return 0, err
+			if err := json.Unmarshal(contents, &mf); err != nil {
+				return 0, corrupt("manifest: %v", err)
 			}
 			continue
 		}
 		br, ok := blob.Parse(strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json"))
 		if !ok {
-			rc.Close()
-			return 0, fmt.Errorf("schema file in zip does not have blobRef as name: %v", f.Name)
+			return 0, corrupt("schema file does not have blobRef as name: %v", f.Name)
 		}
-		sb, err := schema.BlobFromReader(br, rc)
-		rc.Close()
+		sb, err := schema.BlobFromReader(br, bytes.NewReader(contents))
 		if err != nil {
-			return 0, fmt.Errorf("schema blob %v: %w", br, err)
+			return 0, corrupt("schema blob %v: %v", br, err)
 		}
 		schemaBlobs[br] = sb
 		if sb.Type() == schema.TypeFile {
 			if fileRef.Valid() {
-				return 0, fmt.Errorf("more than one file schema blob: %v and %v", fileRef, br)
+				return 0, corrupt("more than one file schema blob: %v and %v", fileRef, br)
 			}
 			fileRef = br
 		}
 	}
 	if len(mf.DataBlobs) == 0 {
-		return 0, errors.New("manifest has no data blobs")
+		return 0, corrupt("manifest has no data blobs")
 	}
 	if !fileRef.Valid() {
-		return 0, errors.New("no file schema blob")
+		return 0, corrupt("no file schema blob")
 	}
 
 	// The data chunks in the zip's subtrees, with their offsets in the
@@ -879,7 +988,7 @@ func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zi
 		return nil
 	}
 	if err := walk(fileRef); err != nil {
-		return 0, err
+		return 0, corruptZipError{zipRef, err}
 	}
 
 	// matchesAt reports whether the zip's data chunks are at chunks[i:],
@@ -909,7 +1018,7 @@ func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zi
 		}
 	}
 	if first == -1 {
-		return 0, errors.New("data chunks not found in the zip's schema blobs")
+		return 0, corrupt("data chunks not found in the zip's schema blobs")
 	}
 	return chunks[first].offset, nil
 }
