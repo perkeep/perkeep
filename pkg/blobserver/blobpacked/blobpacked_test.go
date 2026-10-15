@@ -1522,6 +1522,187 @@ func TestReindexMissingPart(t *testing.T) {
 	}
 }
 
+// rezip returns a copy of the zip zipBytes in which edit has changed the
+// contents of each file, or dropped it if edit returns false.
+func rezip(t *testing.T, zipBytes []byte, edit func(name string, contents []byte) ([]byte, bool)) []byte {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		contents, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		contents, keep := edit(f.Name, contents)
+		if !keep {
+			continue
+		}
+		fw, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: f.Method})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fw.Write(contents); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// failingLarge is large storage whose reads of one blob fail.
+type failingLarge struct {
+	*test.Fetcher
+	bad blob.Ref
+}
+
+var errFailingLarge = errors.New("failingLarge: read failed")
+
+func (s failingLarge) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if br == s.bad {
+		return nil, errFailingLarge
+	}
+	return s.Fetcher.SubFetch(ctx, br, offset, length)
+}
+
+// Tests that reindex skips zips whose contents are corrupt, recording them
+// so that checkLargeIntegrity doesn't count them as missing from the
+// index, but stops on errors reading a zip.
+func TestReindexCorruptZip(t *testing.T) {
+	large := new(test.Fetcher)
+	s := &storage{
+		small:               new(test.Fetcher),
+		large:               large,
+		meta:                sorted.NewMemoryKeyValue(),
+		log:                 test.NewLogger(t, "blobpacked: ", "Packing file ", "Packed file "),
+		forceMaxZipBlobSize: 2 << 20,
+	}
+	s.init()
+
+	// A file in one zip, which stays good.
+	goodContents := randBytesSrc(1<<20, 49)
+	if _, err := schema.WriteFileFromReader(ctxbg, s, "good.dat", bytes.NewReader(goodContents)); err != nil {
+		t.Fatal(err)
+	}
+	// A file in several zips.
+	multiContents := randBytesSrc(5<<20, 50)
+	if _, err := schema.WriteFileFromReader(ctxbg, s, "multi.dat", bytes.NewReader(multiContents)); err != nil {
+		t.Fatal(err)
+	}
+	multiRef := blob.RefFromBytes(multiContents)
+	partZip := func(i int) (blob.Ref, []byte) {
+		v, err := s.meta.Get(fmt.Sprintf("%s%v:%d", wholeMetaPrefix, multiRef, i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		zipRef, _ := blob.Parse(strings.Fields(v)[0])
+		return zipRef, slurpBlob(t, large, zipRef)
+	}
+	part0Ref, part0 := partZip(0)
+	part1Ref, _ := partZip(1)
+	part2Ref, part2 := partZip(2)
+
+	add := func(contents []byte) blob.Ref {
+		b := &test.Blob{Contents: string(contents)}
+		large.AddBlob(b)
+		return b.BlobRef()
+	}
+	wantCorrupt := []blob.Ref{
+		add([]byte("not a zip")),
+		add(part0[:len(part0)/2]),
+		add(rezip(t, part0, func(name string, contents []byte) ([]byte, bool) {
+			return contents, name != zipManifestPath
+		})),
+		add(rezip(t, part0, func(name string, contents []byte) ([]byte, bool) {
+			if name == zipManifestPath {
+				return []byte("{"), true
+			}
+			return contents, true
+		})),
+		add(rezip(t, part0, func(name string, contents []byte) ([]byte, bool) {
+			if name != zipManifestPath {
+				return contents, true
+			}
+			var mf Manifest
+			if err := json.Unmarshal(contents, &mf); err != nil {
+				t.Fatal(err)
+			}
+			mf.DataBlobs[0].Offset = 1 << 30
+			contents, err := json.Marshal(mf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return contents, true
+		})),
+	}
+	// Lose the second zip of the multi-zip file, and the schema blobs of
+	// the third, so its place in the file can't be found.
+	if err := large.RemoveBlobs(ctxbg, []blob.Ref{part1Ref, part2Ref}); err != nil {
+		t.Fatal(err)
+	}
+	wantCorrupt = append(wantCorrupt, add(rezip(t, part2, func(name string, contents []byte) ([]byte, bool) {
+		return contents, name == zipManifestPath || !strings.HasPrefix(name, "camlistore/")
+	})))
+
+	if err := s.reindex(ctxbg, func() (sorted.KeyValue, error) {
+		return sorted.NewMemoryKeyValue(), nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotCorrupt []blob.Ref
+	if err := sorted.ForeachInRange(s.meta, corruptMetaPrefix, corruptMetaPrefixLimit, func(key, _ string) error {
+		zipRef, _ := blob.Parse(strings.TrimPrefix(key, corruptMetaPrefix))
+		gotCorrupt = append(gotCorrupt, zipRef)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sortRefs := func(refs []blob.Ref) {
+		sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
+	}
+	sortRefs(gotCorrupt)
+	sortRefs(wantCorrupt)
+	if !slices.Equal(gotCorrupt, wantCorrupt) {
+		t.Errorf("c: rows for %v; want %v", gotCorrupt, wantCorrupt)
+	}
+
+	rc, _, err := s.OpenWholeRef(blob.RefFromBytes(goodContents), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil || !bytes.Equal(got, goodContents) {
+		t.Errorf("reading good file after reindex: %d bytes, err %v", len(got), err)
+	}
+	if _, err := s.meta.Get(zipMetaPrefix + part0Ref.String()); err != nil {
+		t.Errorf("multi-zip file's first zip: %v", err)
+	}
+
+	if mode, err := s.checkLargeIntegrity(); err != nil || mode != NoRecovery {
+		t.Errorf("checkLargeIntegrity = %v, %v; want %v, nil", mode, err, NoRecovery)
+	}
+
+	// A zip that can't be read, rather than one that's corrupt, stops reindex.
+	s.large = failingLarge{large, part0Ref}
+	if err := s.reindex(ctxbg, func() (sorted.KeyValue, error) {
+		return sorted.NewMemoryKeyValue(), nil
+	}); !errors.Is(err, errFailingLarge) {
+		t.Errorf("reindex with a failing read = %v; want %v", err, errFailingLarge)
+	}
+}
+
 // Tests that when the packer underestimates the size of a two-chunk zip,
 // it writes the first chunk in one zip and the second in another, even
 // when both chunks are the same blob.
