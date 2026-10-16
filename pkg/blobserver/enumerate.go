@@ -18,7 +18,7 @@ package blobserver
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 
 	"perkeep.org/pkg/blob"
 )
@@ -46,20 +46,18 @@ func ListAllRefs(ctx context.Context, src BlobEnumerator, fn func(blob.Ref) erro
 // EnumerateAllFrom is like EnumerateAll, but takes an after parameter.
 func EnumerateAllFrom(ctx context.Context, src BlobEnumerator, after string, fn func(blob.SizedRef) error) error {
 	const batchSize = 1000
-	var mu sync.Mutex // protects returning with an error while fn is still running
 	errc := make(chan error, 1)
 	for {
 		ch := make(chan blob.SizedRef, 16)
 		n := 0
+		var stop atomic.Bool // set if src fails, to not call fn again
 		go func() {
 			var err error
 			for sb := range ch {
-				if err != nil {
+				if err != nil || stop.Load() {
 					continue
 				}
-				mu.Lock()
 				err = fn(sb)
-				mu.Unlock()
 				after = sb.Ref.String()
 				n++
 			}
@@ -67,7 +65,10 @@ func EnumerateAllFrom(ctx context.Context, src BlobEnumerator, after string, fn 
 		}()
 		err := src.EnumerateBlobs(ctx, ch, after, batchSize)
 		if err != nil {
-			mu.Lock() // make sure fn callback finished; no need to unlock
+			// Wait for fn to return, and for the rest of ch, which src
+			// has closed, to drain.
+			stop.Store(true)
+			<-errc
 			return err
 		}
 		if err := <-errc; err != nil {
