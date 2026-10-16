@@ -692,9 +692,7 @@ func initTests() []handlerTest {
 		{
 			name: "recent-file-collec",
 			setup: func(t *testing.T) indexAndOwner {
-				SetTestHookBug121(func() {
-					time.Sleep(2 * time.Second)
-				})
+				SetTestHookBug121(true)
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
@@ -881,7 +879,7 @@ func init() {
 }
 
 func (ht handlerTest) test(t *testing.T) {
-	SetTestHookBug121(func() {})
+	SetTestHookBug121(false)
 
 	ixo := ht.setup(t)
 	idx := ixo.index
@@ -949,7 +947,7 @@ func TestHandler(t *testing.T) {
 		t.Skip("skipping in short mode")
 		return
 	}
-	defer SetTestHookBug121(func() {})
+	defer SetTestHookBug121(false)
 	for _, ht := range handlerTests {
 		ht.test(t)
 	}
