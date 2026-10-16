@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -510,6 +511,16 @@ func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]any) (queue map[
 	return thatQueue
 }
 
+// packRelatedExcludableTypes are the types allowed in the high-level
+// config's packRelatedExcludeTypes.
+var packRelatedExcludableTypes = []string{"s3", "b2", "googlecloudstorage"}
+
+// packRelated reports whether storage of the given cloud type (one of
+// packRelatedExcludableTypes) should use blobpacked.
+func (b *lowBuilder) packRelated(typ string) bool {
+	return b.high.PackRelated && !slices.Contains(b.high.PackRelatedExcludeTypes, typ)
+}
+
 func (b *lowBuilder) addS3Config(s3 string, vendor string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
@@ -539,7 +550,7 @@ func (b *lowBuilder) addS3Config(s3 string, vendor string) error {
 		return a
 	}
 
-	if !b.high.PackRelated {
+	if !b.packRelated(vendor) {
 		b.addPrefix(s3Prefix, "storage-s3", s3Args(bucket))
 	} else {
 		bsLoose := "/bs-loose/"
@@ -678,7 +689,7 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		return a
 	}
 
-	if !b.high.PackRelated {
+	if !b.packRelated("googlecloudstorage") {
 		b.addPrefix(gsPrefix, "storage-googlecloudstorage", gsArgs(bucket))
 	} else {
 		bsLoose := "/bs-loose/"
@@ -978,6 +989,14 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	if conf.PackBlobs && conf.PackRelated {
 		return nil, errors.New("can't use both packBlobs (for 'diskpacked') and packRelated (for 'blobpacked')")
+	}
+	if len(conf.PackRelatedExcludeTypes) > 0 && !conf.PackRelated {
+		return nil, errors.New("packRelatedExcludeTypes requires packRelated")
+	}
+	for _, typ := range conf.PackRelatedExcludeTypes {
+		if !slices.Contains(packRelatedExcludableTypes, typ) {
+			return nil, fmt.Errorf("packRelatedExcludeTypes: unknown type %q; want one of %q", typ, packRelatedExcludableTypes)
+		}
 	}
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth

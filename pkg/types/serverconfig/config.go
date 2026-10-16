@@ -57,6 +57,16 @@ type Config struct {
 	ShareHandler       bool   `json:"shareHandler,omitempty"`       // enable the share handler. If true, and shareHandlerPath is empty then shareHandlerPath will default to "/share/" when generating the low-level config.
 	ShareHandlerPath   string `json:"shareHandlerPath,omitempty"`   // URL prefix for the share handler. If set, overrides shareHandler.
 
+	// PackRelatedExcludeTypes lists the cloud storage types ("s3", "b2",
+	// or "googlecloudstorage") that don't use blobpacked when PackRelated
+	// is set, and instead store loose blobs at their bucket[/dir] root.
+	//
+	// That was the layout of cloud replicas until 2021, when they started
+	// using blobpacked (with loose blobs under "loose/" and packed ones
+	// under "packed/") whenever PackRelated was set, so a replica written
+	// before then and since has blobs in both layouts.
+	PackRelatedExcludeTypes []string `json:"packRelatedExcludeTypes,omitempty"`
+
 	// HTTPS.
 	HTTPS     bool   `json:"https,omitempty"`     // enable HTTPS.
 	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
