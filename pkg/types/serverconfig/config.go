@@ -67,6 +67,12 @@ type Config struct {
 	// before then and since has blobs in both layouts.
 	PackRelatedExcludeTypes []string `json:"packRelatedExcludeTypes,omitempty"`
 
+	// HealthState is the configuration of the sorted.KeyValue in which
+	// the server saves the state of its health checks: their schedules,
+	// if changed on the status page, and when they last ran. If nil, it's
+	// a "jsonfile" in the server's var directory, health.json.
+	HealthState map[string]any `json:"healthState,omitempty"`
+
 	// HTTPS.
 	HTTPS     bool   `json:"https,omitempty"`     // enable HTTPS.
 	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.

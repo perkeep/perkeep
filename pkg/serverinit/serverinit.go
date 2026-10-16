@@ -674,6 +674,14 @@ func (c *Config) SetReindex(v bool) {
 	}
 }
 
+// HealthState returns the configuration of the sorted.KeyValue in which
+// to save the state of the server's health checks (see
+// health.Monitor.UseStore), or nil if it's not configured.
+func (c *Config) HealthState() jsonconfig.Obj {
+	m, _ := c.jconf["healthState"].(map[string]any)
+	return m
+}
+
 // SetHealth sets the health monitor that InstallHandlers gives the
 // handlers it creates, to register their background checks with. While
 // m reports a fatal failure, the server refuses blob uploads and removals.
@@ -827,6 +835,7 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		return nil, fmt.Errorf("error while configuring auth: %w", err)
 	}
 	prefixes := config.jconf.RequiredObject("prefixes")
+	config.jconf.OptionalObject("healthState") // read by HealthState
 	if err := config.jconf.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration error in root object's keys: %w", err)
 	}

@@ -44,6 +44,8 @@ func TestReadOnlyRefusesWrites(t *testing.T) {
 	conf.IdentitySecretRing = filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
 	conf.MemoryStorage = true
 	conf.MemoryIndex = true
+	// Also checks that the low-level config can have healthState.
+	conf.HealthState = map[string]any{"type": "memory"}
 	confData, err := json.Marshal(conf)
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +54,9 @@ func TestReadOnlyRefusesWrites(t *testing.T) {
 	lowConf, err := serverinit.Load(confData)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if got := lowConf.HealthState()["type"]; got != "memory" {
+		t.Errorf("HealthState type = %v; want memory", got)
 	}
 	mon := health.New()
 	lowConf.SetHealth(mon)

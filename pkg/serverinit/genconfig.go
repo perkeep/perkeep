@@ -999,6 +999,9 @@ func (b *lowBuilder) build() (*Config, error) {
 		}
 	}
 	low["https"] = conf.HTTPS
+	if conf.HealthState != nil {
+		low["healthState"] = conf.HealthState
+	}
 	low["auth"] = conf.Auth
 
 	numIndexers := numSet(conf.LevelDB, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile, conf.MemoryIndex)
