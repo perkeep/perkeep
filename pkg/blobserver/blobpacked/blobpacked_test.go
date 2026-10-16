@@ -33,7 +33,6 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -980,10 +979,16 @@ func TestZ_LeakCheck(t *testing.T) {
 	if testing.Short() {
 		return
 	}
-	time.Sleep(50 * time.Millisecond) // let goroutines schedule & die off
 	buf := make([]byte, 1<<20)
-	buf = buf[:runtime.Stack(buf, true)]
-	n := bytes.Count(buf, []byte("[chan receive]:"))
+	var n int
+	// Give goroutines that are finishing up a chance to run and exit.
+	for range 100 {
+		buf = buf[:runtime.Stack(buf[:cap(buf)], true)]
+		if n = bytes.Count(buf, []byte("[chan receive]:")); n <= 1 {
+			break
+		}
+		runtime.Gosched()
+	}
 	if n > 1 {
 		t.Errorf("%d goroutines in chan receive: %s", n, buf)
 	}
