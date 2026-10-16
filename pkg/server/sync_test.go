@@ -38,6 +38,7 @@ func syncQueueRef(n int) blob.Ref {
 }
 
 func TestEnumerateQueuedBlobsSQLiteReentrant(t *testing.T) {
+	test.TLog(t)
 	synctest.Test(t, func(t *testing.T) {
 		kv, err := sqlite.NewStorage(filepath.Join(t.TempDir(), "queue.sqlite"))
 		if err != nil {

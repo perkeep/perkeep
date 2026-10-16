@@ -614,6 +614,7 @@ func (ri *recordingInstaller) has(pattern string) bool {
 // loads the corpus, is set up before anything asks for the base URL,
 // which may not be known yet.
 func TestInstallHandlersLazyBaseURL(t *testing.T) {
+	test.TLog(t)
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
 		t.Fatalf("source root folder not found: %v", err)

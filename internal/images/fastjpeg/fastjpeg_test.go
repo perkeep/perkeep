@@ -29,6 +29,8 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+
+	"perkeep.org/pkg/test"
 )
 
 const (
@@ -76,6 +78,7 @@ func makeTestImages() ([]testImage, error) {
 }
 
 func TestDecodeDownsample(t *testing.T) {
+	test.TLog(t)
 	checkAvailability = sync.Once{}
 	if !Available() {
 		t.Skip("djpeg isn't available.")
@@ -139,6 +142,7 @@ func TestUnavailable(t *testing.T) {
 }
 
 func TestFailed(t *testing.T) {
+	test.TLog(t)
 	switch runtime.GOOS {
 	case "darwin", "freebsd", "linux":
 	default:
@@ -170,6 +174,7 @@ func TestFailed(t *testing.T) {
 }
 
 func TestFactor(t *testing.T) {
+	test.TLog(t)
 	checkAvailability = sync.Once{}
 	if !Available() {
 		t.Skip("djpeg isn't available.")

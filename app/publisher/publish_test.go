@@ -30,6 +30,7 @@ import (
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 type publishURLTest struct {
@@ -39,8 +40,9 @@ type publishURLTest struct {
 
 var publishURLTests []publishURLTest
 
-func setupContent(rootName string) *indextest.IndexDeps {
+func setupContent(t testing.TB, rootName string) *indextest.IndexDeps {
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 
 	// sha224-fbc46cf344988fbb75328e45d2b98936c22d967765a796d4866f07c5
@@ -155,7 +157,7 @@ func (fc *fakeClient) Fetch(context.Context, blob.Ref) (blob io.ReadCloser, size
 
 func TestPublishURLs(t *testing.T) {
 	rootName := "foo"
-	idxd := setupContent(rootName)
+	idxd := setupContent(t, rootName)
 	ownerRef := indextest.PubKey
 	owner := index.NewOwner(indextest.KeyID, ownerRef.BlobRef())
 	sh := search.NewHandler(idxd.Index, owner)
@@ -211,7 +213,7 @@ func TestPublishURLs(t *testing.T) {
 
 func TestPublishMembers(t *testing.T) {
 	rootName := "foo"
-	idxd := setupContent(rootName)
+	idxd := setupContent(t, rootName)
 
 	ownerRef := indextest.PubKey
 	owner := index.NewOwner(indextest.KeyID, ownerRef.BlobRef())

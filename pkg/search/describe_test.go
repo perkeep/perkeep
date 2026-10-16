@@ -60,7 +60,9 @@ var describedBlobs = map[string]blob.Ref{
 }
 
 func searchDescribeSetup(t *testing.T) indexAndOwner {
-	id := indextest.NewIndexDeps(index.NewMemoryIndex())
+	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
+	id := indextest.NewIndexDeps(idx)
 	defer id.DumpIndex(t)
 
 	fi := &fetcherIndex{
@@ -380,6 +382,7 @@ func TestDescribeRace(t *testing.T) {
 		t.Skip("skipping in short mode")
 	}
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
 	corpus, err := idxd.Index.KeepInMemory()
@@ -493,6 +496,7 @@ func TestDescribeLocation(t *testing.T) {
 // should not lead us to call index.claimsIntfAttrValue with a nil claims argument.
 func TestDescribePermNoAttr(t *testing.T) {
 	ix := index.NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
 	ctx := context.Background()
 	h := search.NewHandler(ix, owner)
 	corpus, err := ix.KeepInMemory()
@@ -522,6 +526,7 @@ func TestDescribePermNoAttr(t *testing.T) {
 // To make sure we don't regress into https://github.com/perkeep/perkeep/issues/1152
 func TestDescribeEmptyDir(t *testing.T) {
 	ix := index.NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
 	ctx := context.Background()
 	h := search.NewHandler(ix, owner)
 	corpus, err := ix.KeepInMemory()

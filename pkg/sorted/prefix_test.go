@@ -27,6 +27,7 @@ import (
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/sorted"
 	_ "perkeep.org/pkg/sorted/defaultkv"
+	"perkeep.org/pkg/test"
 )
 
 func testPrefixStores(t *testing.T, fn func(*testing.T, sorted.KeyValue)) {
@@ -305,6 +306,7 @@ func TestWithPrefixBatchOwnership(t *testing.T) {
 }
 
 func TestWithPrefixSizes(t *testing.T) {
+	test.TLog(t)
 	testPrefixStores(t, func(t *testing.T, raw sorted.KeyValue) {
 		const prefix = "namespace/"
 		observed := &prefixObservedKV{KeyValue: raw}

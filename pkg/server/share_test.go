@@ -75,6 +75,7 @@ func newShareTesterIdx(t *testing.T, withIndex bool) *shareTester {
 	var armorPub string
 	if withIndex {
 		idx = index.NewMemoryIndex()
+		idx.Logger = test.NewLogger(t, "")
 		idx.InitBlobSource(sto)
 		if _, err := idx.KeepInMemory(); err != nil {
 			t.Fatal(err)

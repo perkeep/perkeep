@@ -263,6 +263,7 @@ func TestWebdavLargeFile(t *testing.T) {
 // permanode, talking directly to the World's perkeepd.
 func newTestFS(t *testing.T) *perkeepFS {
 	t.Helper()
+	test.TLog(t)
 	cl, err := client.New(client.OptionServer(w.ServerBaseURL()))
 	if err != nil {
 		t.Fatal(err)

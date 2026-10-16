@@ -288,6 +288,7 @@ func (cacheAutoDescriber) Describe(_ context.Context, req *search.DescribeReques
 }
 
 func TestHostCloseWaitsForManagedCacheUsers(t *testing.T) {
+	test.TLog(t)
 	for _, mode := range []string{"start", "run", "long-poll"} {
 		t.Run(mode, func(t *testing.T) {
 			if mode == "long-poll" && disableImporters {
@@ -408,6 +409,7 @@ func closeCacheHostWithShortTimeout(t *testing.T, h *Host) error {
 }
 
 func TestHostCloseTimeoutLeavesCacheOpenUntilImporterReturns(t *testing.T) {
+	test.TLog(t)
 	impl := &cacheUncancellableImporter{
 		entered: make(chan struct{}), release: make(chan struct{}), finished: make(chan error, 1),
 	}
@@ -664,6 +666,7 @@ func TestHostWithoutCacheRootUsesMemory(t *testing.T) {
 }
 
 func TestHostDiskCacheLayoutPersistenceAndDeletion(t *testing.T) {
+	test.TLog(t)
 	for _, typ := range []string{"", "leveldb", "sqlite", "kv"} {
 		t.Run("type="+typ, func(t *testing.T) {
 			backend := typ
@@ -952,6 +955,7 @@ func TestDiskCacheScopeNamesCannotOverlap(t *testing.T) {
 }
 
 func TestCancelledManagedRunCanOpenDiskCache(t *testing.T) {
+	test.TLog(t)
 	root := filepath.Join(t.TempDir(), "importer-cache")
 	impl := &cacheBlockingImporter{
 		entered: make(chan struct{}), cancelled: make(chan error, 1), release: make(chan struct{}),

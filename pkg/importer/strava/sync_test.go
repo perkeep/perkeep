@@ -35,6 +35,7 @@ import (
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 func syncTestTime() time.Time { return time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC) }
@@ -181,6 +182,7 @@ func TestSyncInitialBackfillOldestFirstAcrossPages(t *testing.T) {
 }
 
 func TestSyncInterruptedPrefixFlushAndColdResume(t *testing.T) {
+	test.TLog(t)
 	t.Setenv(coreMaxActivitiesEnv, "")
 	api := newCoreAPI(t)
 	now := syncTestTime()
@@ -641,6 +643,7 @@ func TestSyncFailedDailyResumesSuccessfulPerActivityRefreshes(t *testing.T) {
 }
 
 func TestSyncCacheLossCorruptionAndErrorsDoNotRewindHistory(t *testing.T) {
+	test.TLog(t)
 	for _, kind := range []string{"missing", "invalid-json", "future-schedule", "read-error", "write-error"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Setenv(coreMaxActivitiesEnv, "")
@@ -831,6 +834,7 @@ func TestSyncCappedRunsNeverAdvanceUnlimitedBackfillCheckpoint(t *testing.T) {
 }
 
 func TestSyncCorruptPerActivityRefreshCacheCannotSuppressWork(t *testing.T) {
+	test.TLog(t)
 	for _, kind := range []string{"missing", "malformed", "future"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Setenv(coreMaxActivitiesEnv, "")
@@ -873,6 +877,7 @@ func TestSyncCorruptPerActivityRefreshCacheCannotSuppressWork(t *testing.T) {
 }
 
 func TestSyncManagedCancellationFlushesDurablePrefix(t *testing.T) {
+	test.TLog(t)
 	t.Setenv(coreMaxActivitiesEnv, "")
 	api := newCoreAPI(t)
 	now := syncTestTime()

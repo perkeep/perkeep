@@ -23,6 +23,7 @@ import (
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 )
 
 func verifyUsername(t *testing.T, apiToken string, expected string) {
@@ -39,6 +40,7 @@ func TestExtractUsername(t *testing.T) {
 
 // Verify that a batch import of 3 posts works
 func TestIntegrationRun(t *testing.T) {
+	test.TLog(t)
 	const authToken = "gina:foo"
 
 	responder := httputil.FileResponder("testdata/batchresponse.json")

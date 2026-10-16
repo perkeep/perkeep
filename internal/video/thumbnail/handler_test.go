@@ -29,6 +29,7 @@ import (
 )
 
 func TestHandlerWrongRef(t *testing.T) {
+	test.TLog(t)
 	storage := new(test.Fetcher)
 	ref := blob.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
 	wrongRefString := "sha1-e242ed3bffccdf271b7fbaf34ed72d089537b42f"

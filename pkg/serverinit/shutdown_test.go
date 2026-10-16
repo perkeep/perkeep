@@ -27,6 +27,7 @@ import (
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/serverinit"
+	"perkeep.org/pkg/test"
 )
 
 type shutdownTestStorage struct {
@@ -50,6 +51,7 @@ func (h shutdownTestHandler) InitHandler(blobserver.FindHandlerByTyper) error {
 var shutdownTestConstructorID atomic.Uint64
 
 func TestHTTPHandlerShutdownBeforeStorage(t *testing.T) {
+	test.TLog(t)
 	for _, failInit := range []bool{false, true} {
 		t.Run(fmt.Sprintf("failInit=%v", failInit), func(t *testing.T) {
 			id := shutdownTestConstructorID.Add(1)

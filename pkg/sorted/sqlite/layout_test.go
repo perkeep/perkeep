@@ -26,6 +26,7 @@ import (
 
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
+	"perkeep.org/pkg/test"
 )
 
 // newRowidDB creates a database at path with an ordinary rowid rows table,
@@ -107,6 +108,7 @@ func TestNewDBIsWithoutRowid(t *testing.T) {
 }
 
 func TestRowidLayoutStillWorks(t *testing.T) {
+	test.TLog(t)
 	path := filepath.Join(t.TempDir(), "old.sqlite")
 	newRowidDB(t, path, nil)
 	kv := openKV(t, path)
@@ -115,6 +117,7 @@ func TestRowidLayoutStillWorks(t *testing.T) {
 }
 
 func TestWipeUpgradesRowidLayout(t *testing.T) {
+	test.TLog(t)
 	path := filepath.Join(t.TempDir(), "old.sqlite")
 	newRowidDB(t, path, oldRows)
 	kv := openKV(t, path)
@@ -139,6 +142,7 @@ func TestWipeUpgradesRowidLayout(t *testing.T) {
 }
 
 func TestBeginReindexUpgradesRowidLayout(t *testing.T) {
+	test.TLog(t)
 	path := filepath.Join(t.TempDir(), "old.sqlite")
 	newRowidDB(t, path, oldRows)
 	kv := openKV(t, path)
@@ -174,6 +178,7 @@ func freelistCount(t *testing.T, kv *keyValue) int {
 // TestReindexCompacts tests that a successful rebuild VACUUMs the database,
 // and an aborted one doesn't.
 func TestReindexCompacts(t *testing.T) {
+	test.TLog(t)
 	for _, success := range []bool{true, false} {
 		t.Run(map[bool]string{true: "success", false: "abort"}[success], func(t *testing.T) {
 			kv := openKV(t, filepath.Join(t.TempDir(), "index.sqlite"))

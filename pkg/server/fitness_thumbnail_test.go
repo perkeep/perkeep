@@ -41,6 +41,7 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 // All routes in these tests are synthetic; no user/importer data is accessed.
@@ -342,7 +343,9 @@ func TestFitnessImageHandlerIntegrationNoNetwork(t *testing.T) {
 	old := http.DefaultTransport
 	http.DefaultTransport = fitnessNoNetwork{&calls}
 	defer func() { http.DefaultTransport = old }()
-	id := indextest.NewIndexDeps(index.NewMemoryIndex())
+	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
+	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.Index.Close()
 	h := search.NewHandler(id.Index, index.NewOwner(indextest.KeyID, id.SignerBlobRef))

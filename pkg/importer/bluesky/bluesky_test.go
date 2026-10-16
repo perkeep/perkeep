@@ -44,6 +44,7 @@ import (
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 )
 
 const (
@@ -249,6 +250,7 @@ func (fn *fakeNet) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestIntegration(t *testing.T) {
+	test.TLog(t)
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      testDID,

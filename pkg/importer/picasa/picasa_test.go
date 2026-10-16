@@ -107,7 +107,7 @@ func (tr *testResponse) GetResponse() *http.Response {
 }
 
 func testImportAlbums(t *testing.T, data testData, caseNum int) {
-	h, err := newHost()
+	h, err := newHost(t)
 	if err != nil {
 		t.Fatalf("%d. %v", caseNum, err)
 	}
@@ -133,6 +133,7 @@ func testImportAlbums(t *testing.T, data testData, caseNum int) {
 var rJPGurl = regexp.MustCompile(`url="([^"]*[.](?:jpg|JPG))"`)
 
 func TestImportAlbums(t *testing.T) {
+	test.TLog(t)
 	fis, err := os.ReadDir("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +217,7 @@ func newSigner(bs blobserver.BlobReceiver) (signer *schema.Signer, owner blob.Re
 	return sig, pubRef, nil
 }
 
-func newHost() (*importer.Host, error) {
+func newHost(t testing.TB) (*importer.Host, error) {
 	bs := new(test.Fetcher)
 	sig, ownerRef, err := newSigner(bs)
 	if err != nil {
@@ -227,6 +228,7 @@ func newHost() (*importer.Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	ix.Logger = test.NewLogger(t, "")
 	ix.InitBlobSource(bs)
 	corpus, err := ix.KeepInMemory()
 	if err != nil {

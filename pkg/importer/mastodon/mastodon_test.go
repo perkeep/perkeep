@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 
 	"perkeep.org/internal/httputil"
 
@@ -44,6 +45,7 @@ var expectedPosts = map[string]testPost{
 }
 
 func TestIntegration(t *testing.T) {
+	test.TLog(t)
 	responder := httputil.FileResponder("testdata/user_statuses.json")
 	transport := httputil.NewFakeTransport(map[string]func() *http.Response{
 		"https://example.com/api/v1/accounts/1/statuses": responder,

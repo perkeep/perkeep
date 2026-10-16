@@ -25,6 +25,7 @@ import (
 
 	"perkeep.org/internal/images/fastjpeg"
 	"perkeep.org/internal/images/resize"
+	"perkeep.org/pkg/test"
 )
 
 // The decode routines being benchmarked in this file will use these bytes for
@@ -116,6 +117,7 @@ func common(b *testing.B, decode decodeFunc) {
 }
 
 func TestStdlib(t *testing.T) {
+	test.TLog(t)
 	testRun(t, decodeDownsample(1))
 }
 

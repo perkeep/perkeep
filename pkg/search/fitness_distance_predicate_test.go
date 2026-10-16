@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"perkeep.org/pkg/test"
 )
 
 func TestFitnessDistancePredicates(t *testing.T) {
@@ -96,6 +98,7 @@ func TestFitnessDistancePredicates(t *testing.T) {
 }
 
 func TestFitnessDistanceInvalid(t *testing.T) {
+	test.TLog(t)
 	for _, expr := range []string{
 		"miles:", "km:-", "km:>", "km:<=", "km:=", "km:=>5", "km:==5",
 		"km:1-0", "km:1.00000000000000001-1", "km:1--2", "km:5:10",
