@@ -362,3 +362,11 @@ func (sto *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 func (sto *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return sto.origin.EnumerateBlobs(ctx, dest, after, limit)
 }
+
+var _ blobserver.Pricer = (*Storage)(nil)
+
+// Pricing returns the pricing of the origin, which the operations that
+// cost money (listing, and fetching blobs not in the cache) go to.
+func (sto *Storage) Pricing() (blobserver.Pricing, bool) {
+	return blobserver.PricingOf(sto.origin)
+}

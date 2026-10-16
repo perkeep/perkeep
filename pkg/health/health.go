@@ -227,11 +227,12 @@ type Check struct {
 	updated   time.Time
 	done      int64
 	total     int64
-	recentErr []Event  // most recent last, at most maxRecentErrors
-	runner    *runner  // or nil, if the check has no runner
-	sharded   *sharded // or nil, if the check isn't sharded; see SetShardedRunner
-	hint      string   // see SetProgressHint
-	details   any      // see SetDetails
+	recentErr []Event       // most recent last, at most maxRecentErrors
+	runner    *runner       // or nil, if the check has no runner
+	sharded   *sharded      // or nil, if the check isn't sharded; see SetShardedRunner
+	hint      string        // see SetProgressHint
+	details   any           // see SetDetails
+	cost      func() string // see SetCostEstimator
 }
 
 // Event is a problem a check reported.
@@ -277,6 +278,19 @@ func (c *Check) SetProgressHint(hint string) {
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 	c.hint = hint
+}
+
+// SetCostEstimator sets a function that estimates what running the check
+// costs, such as in requests to a cloud storage service, for the status
+// page to show. It's called without the Monitor's lock, and may call
+// Monitor.Details, but not Monitor.Status.
+func (c *Check) SetCostEstimator(estimate func() string) {
+	if c == nil {
+		return
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	c.cost = estimate
 }
 
 // Details returns the details of the check with the given ID (see
@@ -379,6 +393,9 @@ type CheckStatus struct {
 	// Details are structured details of the check's latest result, if
 	// any (see Check.SetDetails).
 	Details any `json:"details,omitempty"`
+	// Cost estimates what running the check costs, if known (see
+	// Check.SetCostEstimator).
+	Cost string `json:"cost,omitempty"`
 	// RecentErrors are the check's most recent problems, most recent
 	// first, including ones from earlier runs.
 	RecentErrors []Event `json:"recentErrors,omitempty"`
@@ -412,13 +429,29 @@ type Status struct {
 	Checks []CheckStatus `json:"checks"`
 }
 
-// Status returns a snapshot of the state of m and its checks.
+// Status returns a snapshot of the state of m and its checks, with their
+// cost estimates (see Check.SetCostEstimator), which it computes without
+// m's lock.
 func (m *Monitor) Status() Status {
 	if m == nil {
 		return Status{State: StateOK}
 	}
+	st, costs := m.statusLocked()
+	for i := range st.Checks {
+		if f := costs[st.Checks[i].ID]; f != nil {
+			st.Checks[i].Cost = f()
+		}
+	}
+	return st
+}
+
+// statusLocked returns a snapshot of the state of m and its checks,
+// without their cost estimates, and their cost estimators, by ID. It
+// takes m's lock.
+func (m *Monitor) statusLocked() (Status, map[string]func() string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	costs := make(map[string]func() string)
 	st := Status{State: StateOK, Starting: m.starting}
 	for _, c := range m.checks {
 		cs := CheckStatus{
@@ -450,6 +483,9 @@ func (m *Monitor) Status() Status {
 			}
 		}
 		st.Checks = append(st.Checks, cs)
+		if c.cost != nil {
+			costs[c.id] = c.cost
+		}
 		if c.fatal {
 			st.ReadOnly = true
 		}
@@ -458,7 +494,7 @@ func (m *Monitor) Status() Status {
 		}
 	}
 	slices.SortFunc(st.Checks, func(a, b CheckStatus) int { return compareIDs(a.ID, b.ID) })
-	return st
+	return st, costs
 }
 
 // ReadOnlyError returns an error wrapping ErrReadOnly that says why, if
