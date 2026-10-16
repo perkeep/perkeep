@@ -115,7 +115,9 @@ its optional directory). Before 2021, mirrors in the cloud always used that
 layout, so a mirror written before then and since has blobs in both
 layouts. When an `s3` or `b2` storage finds blobs in the layout it doesn't
 use, the server goes read-only until the bucket is converted to one
-layout.
+layout. With the server stopped, `pk copy-storage` can copy the blobs
+from one layout to the other, using the current config and one with the
+other layout; then delete the old layout's objects from the bucket.
 
 For now, if more than one storage option is set, one of them is the primary
 storage and the other ones are set up as mirrors. The precedence order is the

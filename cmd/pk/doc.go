@@ -30,6 +30,7 @@ Modes:
 	list: List blobs on a server.
 	claims: Ask the search system to list the claims that modify a permanode.
 	dumpconfig: Dump the low-level server config from its simple config.
+	copy-storage: Copy blobs between storage defined by server configs.
 	describe: Ask the search system to describe one or more blobs.
 	discovery: Perform configuration discovery against a server.
 	reindex-diskpacked: Rebuild the index of the diskpacked blob store
