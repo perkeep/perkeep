@@ -349,17 +349,130 @@ func TestFailingRollover(t *testing.T) {
 	}
 }
 
+// countingIndex counts index writes.
+type countingIndex struct {
+	sorted.KeyValue
+	sets, commits int
+}
+
+func (idx *countingIndex) Set(key string, value string) error {
+	idx.sets++
+	return idx.KeyValue.Set(key, value)
+}
+
+func (idx *countingIndex) CommitBatch(b sorted.BatchMutation) error {
+	idx.commits++
+	return idx.KeyValue.CommitBatch(b)
+}
+
+// testBlobs returns n blobs of size bytes each.
+func testBlobs(n, size int) []*test.Blob {
+	var blobs []*test.Blob
+	for i := range n {
+		blobs = append(blobs, &test.Blob{Contents: fmt.Sprintf("%d%s", i, strings.Repeat("x", size-1))})
+	}
+	return blobs
+}
+
+func blobsOf(tbs []*test.Blob) []*blob.Blob {
+	var blobs []*blob.Blob
+	for _, tb := range tbs {
+		blobs = append(blobs, tb.Blob())
+	}
+	return blobs
+}
+
+// TestReceiveBlobsGroups checks that ReceiveBlobs indexes blobs with one
+// commit per pack file, splitting them where they fill one.
+func TestReceiveBlobsGroups(t *testing.T) {
+	sto := newTempDiskpacked(t)
+	s := sto.(*storage)
+	idx := &countingIndex{KeyValue: s.index}
+	s.index = idx
+
+	// Five blobs of 3000 bytes: the third fills pack 0 (testMaxFileSize
+	// is 8192), so the last two go in pack 1.
+	tbs := testBlobs(5, 3000)
+	if err := blobserver.ReceiveBlobs(ctxbg, sto, blobsOf(tbs)); err != nil {
+		t.Fatal(err)
+	}
+	if idx.commits != 2 || idx.sets != 0 {
+		t.Errorf("index commits, sets = %d, %d; want 2, 0", idx.commits, idx.sets)
+	}
+	for i, tb := range tbs {
+		m, err := s.meta(tb.BlobRef())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := i / 3; m.file != want {
+			t.Errorf("blob %d is in pack %d; want %d", i, m.file, want)
+		}
+	}
+
+	// Already stored blobs aren't written again.
+	more := testBlobs(6, 3000)[5]
+	fi, err := os.Stat(s.filename(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := blobserver.ReceiveBlobs(ctxbg, sto, blobsOf(append(tbs, more))); err != nil {
+		t.Fatal(err)
+	}
+	fi2, err := os.Stat(s.filename(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grew, want := fi2.Size()-fi.Size(), int64(len(fmt.Sprintf("[%v %v]", more.BlobRef(), more.Size()))+3000); grew != want {
+		t.Errorf("pack 1 grew by %d bytes; want %d, for only the new blob", grew, want)
+	}
+}
+
+// TestReceiveBlobsIndexFailure checks that when indexing a group of blobs
+// fails, they all fail and are removed from the pack file.
+func TestReceiveBlobsIndexFailure(t *testing.T) {
+	sto := newTempDiskpacked(t)
+	s := sto.(*storage)
+	s.index = &failingIndex{KeyValue: s.index}
+	tbs := testBlobs(2, 100)
+	err := blobserver.ReceiveBlobs(ctxbg, sto, blobsOf(tbs))
+	for _, tb := range tbs {
+		if got := blobserver.BlobErr(err, tb.BlobRef()); !errors.Is(got, errDummy) {
+			t.Errorf("BlobErr(%v) = %v; want %v", tb.BlobRef(), got, errDummy)
+		}
+	}
+	if fi, err := os.Stat(s.filename(0)); err != nil || fi.Size() != 0 {
+		t.Fatalf("pack 0 after failed ReceiveBlobs: %v, %v; want it empty", fi, err)
+	}
+	if err := blobserver.ReceiveBlobs(ctxbg, sto, blobsOf(tbs)); err != nil {
+		t.Fatal(err)
+	}
+	for _, tb := range tbs {
+		if _, err := s.meta(tb.BlobRef()); err != nil {
+			t.Errorf("after retry, %v: %v", tb.BlobRef(), err)
+		}
+	}
+}
+
+// failingIndex fails its first write, by Set or CommitBatch.
 type failingIndex struct {
 	sorted.KeyValue
-	setCount int
+	writes int
 }
 
 func (idx *failingIndex) Set(key string, value string) error {
-	idx.setCount++
-	if idx.setCount == 1 { // fail the first time
+	idx.writes++
+	if idx.writes == 1 {
 		return errDummy
 	}
 	return idx.KeyValue.Set(key, value)
+}
+
+func (idx *failingIndex) CommitBatch(b sorted.BatchMutation) error {
+	idx.writes++
+	if idx.writes == 1 {
+		return errDummy
+	}
+	return idx.KeyValue.CommitBatch(b)
 }
 
 func TestReadHeader(t *testing.T) {
