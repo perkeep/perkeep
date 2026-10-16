@@ -47,6 +47,7 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/server"
@@ -73,7 +74,8 @@ type handlerConfig struct {
 // handlerLoader implements blobserver.Loader.
 type handlerLoader struct {
 	installer   HandlerInstaller
-	baseURL     func() string             // may block until the base URL is known
+	baseURL     func() string // may block until the base URL is known
+	health      *health.Monitor
 	config      map[string]*handlerConfig // prefix -> config
 	handler     map[string]any            // prefix -> http.Handler / func / blobserver.Storage
 	curPrefix   string
@@ -161,11 +163,26 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	return handler, op
 }
 
+// isBlobWrite reports whether a request for the given method and camli
+// action (see camliHandlerUsingStorage) adds or removes blobs.
+func isBlobWrite(method, action string) bool {
+	switch method {
+	case "PUT":
+		return true
+	case "POST":
+		return action == "upload" || action == "remove"
+	}
+	return false
+}
+
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
 //
 // baseURL is called when the handler first serves a request, rather than
 // now, as it may block until the base URL is known.
-func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.Storage, hf blobserver.FindHandlerByTyper) http.Handler {
+//
+// While mon reports the server as read-only, the handler refuses
+// requests that add or remove blobs.
+func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.Storage, hf blobserver.FindHandlerByTyper, mon *health.Monitor) http.Handler {
 	if !strings.HasSuffix(prefix, "/") {
 		panic("expected prefix to end in slash")
 	}
@@ -191,8 +208,16 @@ func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.S
 			unsupportedHandler(rw, req)
 			return
 		}
-		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
-		handler.ServeHTTP(rw, req)
+		handler, op := camliHandlerUsingStorage(req, action, storageConfig)
+		if isBlobWrite(req.Method, action) {
+			// Checked after auth, as the reason can name blobs and paths.
+			if err := mon.ReadOnlyError(); err != nil {
+				handler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					http.Error(rw, err.Error(), http.StatusServiceUnavailable)
+				})
+			}
+		}
+		auth.RequireAuth(handler, op).ServeHTTP(rw, req)
 	})
 }
 
@@ -256,6 +281,10 @@ func (hl *handlerLoader) MyPrefix() string {
 // such as while a Tailscale listener is still starting.
 func (hl *handlerLoader) BaseURL() string {
 	return hl.baseURL()
+}
+
+func (hl *handlerLoader) Health() *health.Monitor {
+	return hl.health
 }
 
 func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, error) {
@@ -347,7 +376,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		if h.internal {
 			hl.installer.Handle(prefix, unauthorizedHandler{})
 		} else {
-			hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
+			hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl, hl.health))
 		}
 		if cl, ok := pstorage.(blobserver.ShutdownStorage); ok {
 			hl.closers = append(hl.closers, cl)
@@ -449,6 +478,8 @@ type Config struct {
 	// It is stored in the Config, so we can call UploadPublicKey on on it as
 	// soon as perkeepd is ready for it.
 	signHandler *signhandler.Handler
+
+	health *health.Monitor // or nil; see SetHealth
 }
 
 // UIPath returns the relative path to the server's user interface
@@ -643,6 +674,14 @@ func (c *Config) SetReindex(v bool) {
 	}
 }
 
+// SetHealth sets the health monitor that InstallHandlers gives the
+// handlers it creates, to register their background checks with. While
+// m reports a fatal failure, the server refuses blob uploads and removals.
+// Without one, InstallHandlers creates its own.
+func (c *Config) SetHealth(m *health.Monitor) {
+	c.health = m
+}
+
 // SetKeepGoing changes each configured prefix to set "keepGoing" to true. This
 // indicates that validation, reindexing, or recovery behavior should not cause
 // the process to end.
@@ -719,9 +758,13 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		defer rpprof.WriteHeapProfile(memf)
 	}
 
+	if config.health == nil {
+		config.health = health.New()
+	}
 	hl = &handlerLoader{
 		installer: hi,
 		baseURL:   baseURL,
+		health:    config.health,
 		config:    make(map[string]*handlerConfig),
 		handler:   make(map[string]any),
 	}

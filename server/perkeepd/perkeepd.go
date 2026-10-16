@@ -43,6 +43,7 @@ import (
 	"perkeep.org/internal/osutil/gce"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/webserver"
 
@@ -441,7 +442,10 @@ func main() {
 	// log to the owner at / and /ui/, and answers everything else with
 	// a 503.
 	ws := webserver.New()
-	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now()})
+	mon := health.New()
+	healthz := http.HandlerFunc(mon.ServeHealthz)
+	ws.Handle("/healthz", healthz)
+	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz})
 	listened := make(chan string, 1) // the base URL, once listening
 	go func() {
 		baseURL, err := listen(ws, config)
@@ -455,6 +459,7 @@ func main() {
 
 	config.SetReindex(*flagReindex)
 	config.SetKeepGoing(*flagKeepGoing)
+	config.SetHealth(mon)
 
 	// Finally, install the handlers. This also does the final config
 	// validation. Only handlers that need the base URL while they're
@@ -467,6 +472,7 @@ func main() {
 
 	baseURL := getBaseURL()
 	ws.EndStartup()
+	mon.EndStartup()
 	log.SetOutput(origLogOutput)
 
 	if env.OnGCE() {

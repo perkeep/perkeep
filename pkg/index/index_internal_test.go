@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
@@ -655,4 +656,43 @@ func TestReadyReindexWorkerRecoversFromFetchError(t *testing.T) {
 			t.Errorf("have:%v = %q, %v; want indexed after retry", ref, value, err)
 		}
 	})
+}
+
+// TestIntegrityCheckHealth checks that the startup integrity check
+// reports to its health check, with a warning for blobs it finds that
+// aren't indexed.
+func TestIntegrityCheckHealth(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		indexed   bool
+		wantState health.State
+		wantMsg   string
+	}{
+		{name: "indexed", indexed: true, wantState: health.StateOK},
+		{name: "not_indexed", wantState: health.StateWarning, wantMsg: "found 1 non-indexed blobs out of 1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				src := new(test.Fetcher)
+				b := &test.Blob{Contents: "foo"}
+				b.MustUpload(t, src)
+				ix := NewMemoryIndex()
+				if tt.indexed {
+					if err := ix.s.Set("meta:"+b.BlobRef().String(), "3|application/octet-stream"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				ix.InitBlobSource(src)
+
+				mon := health.New()
+				ix.startIntegrityCheck(time.Hour, mon.Register(health.ID("index.integrity", "/index/"), "index"))
+				defer ix.Close()
+				synctest.Wait() // for the check in the background
+				c := mon.Status().Checks[0]
+				if c.State != tt.wantState || !strings.Contains(c.Message, tt.wantMsg) {
+					t.Errorf("check = %v %q; want %v containing %q", c.State, c.Message, tt.wantState, tt.wantMsg)
+				}
+			})
+		})
+	}
 }

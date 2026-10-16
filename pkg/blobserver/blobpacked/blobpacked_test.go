@@ -32,6 +32,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -39,10 +40,12 @@ import (
 	"perkeep.org/pkg/blobserver/localdisk"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 
+	"go4.org/jsonconfig"
 	"go4.org/syncutil"
 )
 
@@ -1801,6 +1804,59 @@ func TestPackerTruncateTwoChunks(t *testing.T) {
 			if size != int64(len(whole)) || !bytes.Equal(got, whole) {
 				t.Errorf("OpenWholeRef read %d bytes (size %d) that don't match the file", len(got), size)
 			}
+		})
+	}
+}
+
+// TestNewFromConfigHealth checks that newFromConfig reports the check of
+// large storage against meta to the health monitor: a mismatch makes the
+// server read-only, unless keepGoing is set.
+func TestNewFromConfigHealth(t *testing.T) {
+	tests := []struct {
+		name         string
+		keepGoing    bool
+		largeHasZip  bool // with no meta rows, which is a mismatch
+		wantState    health.State
+		wantReadOnly bool
+	}{
+		{name: "ok", wantState: health.StateOK},
+		{name: "zips_without_meta", largeHasZip: true, wantState: health.StateFailed, wantReadOnly: true},
+		{name: "zips_without_meta_keepgoing", keepGoing: true, largeHasZip: true, wantState: health.StateFailed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				mon := health.New()
+				ld := &test.Loader{HealthMonitor: mon}
+				large := new(test.Fetcher)
+				if tt.largeHasZip {
+					(&test.Blob{Contents: "a zip"}).MustUpload(t, large)
+				}
+				ld.SetStorage("/small/", new(test.Fetcher))
+				ld.SetStorage("/large/", large)
+				sto, err := newFromConfig(ld, jsonconfig.Obj{
+					"smallBlobs": "/small/",
+					"largeBlobs": "/large/",
+					"metaIndex":  map[string]any{"type": "memory"},
+					"keepGoing":  tt.keepGoing,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer sto.(*storage).Close()
+				synctest.Wait() // for the check in the background
+
+				st := mon.Status()
+				if len(st.Checks) != 1 || st.Checks[0].ID != "storage.blobpacked.large-integrity[lies]" {
+					t.Fatalf("checks = %+v; want one, storage.blobpacked.large-integrity[lies]", st.Checks)
+				}
+				if c := st.Checks[0]; c.State != tt.wantState {
+					t.Errorf("state = %v (%q); want %v", c.State, c.Message, tt.wantState)
+				}
+				if st.ReadOnly != tt.wantReadOnly {
+					t.Errorf("read-only = %v; want %v", st.ReadOnly, tt.wantReadOnly)
+				}
+			})
 		})
 	}
 }

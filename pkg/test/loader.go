@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/health"
 )
 
 // NewLoader returns a new Loader.
@@ -35,6 +36,9 @@ func NewLoader() *Loader {
 // Its zero value is ready for use, but callers empirically (historically) have
 // used the NewLoader constructor, despite it being kinda useless.
 type Loader struct {
+	// HealthMonitor, if non-nil, is returned by Health.
+	HealthMonitor *health.Monitor
+
 	mu  sync.Mutex
 	sto map[string]blobserver.Storage
 }
@@ -55,6 +59,10 @@ func (ld *Loader) MyPrefix() string {
 
 func (ld *Loader) BaseURL() string {
 	return "http://localhost:1234"
+}
+
+func (ld *Loader) Health() *health.Monitor {
+	return ld.HealthMonitor
 }
 
 func (ld *Loader) GetHandlerType(prefix string) string {

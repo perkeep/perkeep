@@ -33,6 +33,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
@@ -52,6 +53,7 @@ type shareImporter struct {
 	shareURL string
 	src      *client.Client
 	dest     blobserver.Storage
+	health   *health.Monitor // or nil; no imports start while it's read-only
 
 	mu        sync.RWMutex
 	seen      int      // files seen. for statistics, as web UI feedback.
@@ -253,6 +255,10 @@ func (si *shareImporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != "POST" {
 		http.Error(w, "Not a POST", http.StatusBadRequest)
+		return
+	}
+	if err := si.health.ReadOnlyError(); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	si.mu.Lock()

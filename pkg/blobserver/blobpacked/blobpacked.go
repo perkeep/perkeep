@@ -106,6 +106,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 
@@ -281,6 +282,7 @@ func init() {
 }
 
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storage, error) {
+	prefix := ld.MyPrefix() // before loading other storage changes it
 	var (
 		smallPrefix = conf.RequiredString("smallBlobs")
 		largePrefix = conf.RequiredString("largeBlobs")
@@ -316,10 +318,17 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()
+	// A failed check makes the server read-only, rather than exiting
+	// it, so its owner can see why over HTTP. With keepGoing, the server
+	// stays writable.
+	check := ld.Health().Register(health.ID("storage.blobpacked.large-integrity", prefix), "blobpacked: packed blobs match the meta index")
 	condFatalf := func(pattern string, args ...any) {
-		log.Printf(pattern, args...)
-		if !keepGoing {
-			os.Exit(1)
+		err := fmt.Errorf(pattern, args...)
+		log.Print(err)
+		if keepGoing {
+			check.Fail(err)
+		} else {
+			check.Fatal(err)
 		}
 	}
 
@@ -354,8 +363,11 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		if err := sto.reindex(context.TODO(), newKv); err != nil {
 			return nil, err
 		}
+		check.Start()
 		if _, err := sto.checkLargeIntegrity(); err != nil {
 			condFatalf("blobpacked: reindexed successfully, but error after validation: %v", err)
+		} else {
+			check.OK()
 		}
 		return sto, nil
 	}
@@ -365,30 +377,28 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	// wants to recover.
 	if !sto.anyMeta() && sto.anyZipPacks() {
 		if env.OnGCE() {
-			// TODO(mpl): make web UI page/mode that informs about this error.
 			condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", FastRecovery)
+		} else {
+			condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery=%d", FastRecovery)
 		}
-		condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery=%d", FastRecovery)
+		return sto, nil
 	}
 
 	// Check that large storage and meta agree in the background, so it
-	// doesn't hold up the rest of startup. The server exits if they
-	// don't, as it would have if this ran first, just a little later.
-	// TODO: report the result to a health (and scrub) subsystem instead,
-	// one that can take the server out of service or show the problem.
+	// doesn't hold up the rest of startup.
+	check.Start()
 	go func() {
 		mode, err := sto.checkLargeIntegrity()
-		if err == nil {
-			return
-		}
-		if mode <= NoRecovery {
+		switch {
+		case err == nil:
+			check.OK()
+		case mode <= NoRecovery:
 			condFatalf("%v", err)
-		}
-		if env.OnGCE() {
-			// TODO(mpl): make web UI page/mode that informs about this error.
+		case env.OnGCE():
 			condFatalf("Error: %v. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", err, mode)
+		default:
+			condFatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
 		}
-		condFatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
 	}()
 
 	return sto, nil

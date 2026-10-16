@@ -75,14 +75,20 @@ func (l *startupLog) Lines() []string {
 
 // startupHandler serves all requests while the server starts, before its
 // handlers are installed (see webserver.Server.SetStartupHandler). It
-// shows the startup log at / and /ui/ to the server's owner, and tells
-// all other requests to try again soon.
+// shows the startup log at / and /ui/ to the server's owner, passes
+// /healthz to the health handler, and tells all other requests to try
+// again soon.
 type startupHandler struct {
-	log   *startupLog
-	start time.Time
+	log     *startupLog
+	start   time.Time
+	healthz http.Handler // or nil
 }
 
 func (h *startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/healthz" && h.healthz != nil {
+		h.healthz.ServeHTTP(w, r)
+		return
+	}
 	w.Header().Set("Retry-After", "5")
 	if !isStartupPage(r) {
 		http.Error(w, "Perkeep is starting up; try again soon.", http.StatusServiceUnavailable)
