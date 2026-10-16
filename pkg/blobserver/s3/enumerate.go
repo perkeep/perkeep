@@ -53,6 +53,9 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 		StartAfter: aws.String(sto.dirPrefix + after),
 		MaxKeys:    maxKeys,
 		Prefix:     &sto.dirPrefix,
+		// Don't list objects in subdirectories, such as those of a
+		// blobpacked storage below a storage at the bucket's root.
+		Delimiter: aws.String("/"),
 	})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
