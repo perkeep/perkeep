@@ -45,6 +45,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/blobserver/proxycache"
+	"perkeep.org/pkg/health"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -98,7 +99,12 @@ func newFromConfig(l blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 // transport for all s3 requests.  The transport may be set to 'nil' to use a
 // default transport.
 // This is used for unit tests.
-func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, transport http.RoundTripper) (blobserver.Storage, error) {
+func newFromConfigWithTransport(ld blobserver.Loader, config jsonconfig.Obj, transport http.RoundTripper) (blobserver.Storage, error) {
+	var mon *health.Monitor
+	var prefix string
+	if ld != nil {
+		mon, prefix = ld.Health(), ld.MyPrefix()
+	}
 	hostname := config.OptionalString("hostname", "")
 	region := config.OptionalString("aws_region", "us-east-1")
 
@@ -164,6 +170,9 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
 		hostname:  hostname,
+	}
+	if mon != nil && !skipStartupCheck {
+		sto.startLayoutCheck(mon.Register(health.ID("storage.s3.layout", prefix), "S3: the bucket's blobs are all in this storage's layout"))
 	}
 
 	if cacheSize != 0 {
