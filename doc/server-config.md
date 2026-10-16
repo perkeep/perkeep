@@ -275,6 +275,12 @@ some can also be run, canceled, or scheduled to run on their own.
 `/healthz` reports a one-word summary, without authentication, for
 monitoring.
 
+Each storage has a scrub (`storage.scrub[...]`), which reads every
+blob and checks that it matches its digest, and fails, naming them, if
+any don't. Scrubs only run when started from the status page, or on a
+schedule set there, as reading all of a storage costs time, and, for
+storage in the cloud, money, which the status page estimates.
+
 The server saves the checks' schedules, if changed on the status page,
 and when they last ran, by default in `health.json` in its var
 directory. To keep them elsewhere, set `healthState` to the

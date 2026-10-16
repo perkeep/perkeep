@@ -64,11 +64,11 @@ type census struct {
 }
 
 // startCensus registers the census's checks with hl's health monitor: a
-// row for each storage, and one that runs the census, at startup by
-// default.
-func (hl *handlerLoader) startCensus() {
+// row for each storage, and one that runs the census, daily and at
+// startup. It returns the census, or nil if there's no storage to count.
+func (hl *handlerLoader) startCensus() *census {
 	if hl.health == nil {
-		return
+		return nil
 	}
 	c := &census{hl: hl, checks: make(map[string]*health.Check)}
 	for pfx, h := range hl.config {
@@ -82,7 +82,7 @@ func (hl *handlerLoader) startCensus() {
 	}
 	slices.Sort(c.prefixes)
 	if len(c.prefixes) == 0 {
-		return
+		return nil
 	}
 	for _, pfx := range c.prefixes {
 		c.checks[pfx] = hl.health.Register(blobserver.CensusID(pfx), "census: the blobs in "+pfx+", by hash type")
@@ -107,6 +107,22 @@ func (hl *handlerLoader) startCensus() {
 	if err := hl.health.RunNow(runID); err != nil {
 		log.Printf("census: %v", err)
 	}
+	return c
+}
+
+// estimates returns the census's estimates of the blobs in the storage
+// at pfx, or false if it hasn't counted them.
+func (c *census) estimates(pfx string) ([]blobserver.HashEstimate, bool) {
+	if c == nil {
+		return nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r, ok := c.results[pfx]
+	if !ok || r.err != nil {
+		return nil, false
+	}
+	return r.ests, true
 }
 
 // received notes that the storage at pfx, which the census samples,
