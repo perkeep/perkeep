@@ -36,6 +36,9 @@ type sharded struct {
 	list        func(context.Context) []string // returns the shards, at the start of each run
 	run         ShardFunc
 	concurrency int
+	// problemState is the state of the check while any shard has a
+	// problem: StateWarning, or StateFailed (see FailOnShardProblems).
+	problemState State
 
 	shards     []string             // as of the latest run, or from the saved state
 	last       map[string]time.Time // when each shard was last checked
@@ -124,7 +127,8 @@ func (s *sharded) neediestLocked(now time.Time, iv time.Duration) (string, bool)
 // UseStore), so a check that's stopped by a restart continues where it
 // stopped.
 //
-// The check warns while any shard's last check found a problem.
+// The check warns (or fails; see FailOnShardProblems) while any shard's
+// last check found a problem.
 func (c *Check) SetShardedRunner(shards func(context.Context) []string, run ShardFunc, concurrency int, def Schedule) {
 	if c == nil {
 		return
@@ -133,12 +137,13 @@ func (c *Check) SetShardedRunner(shards func(context.Context) []string, run Shar
 		concurrency = 1
 	}
 	s := &sharded{
-		list:        shards,
-		run:         run,
-		concurrency: concurrency,
-		last:        make(map[string]time.Time),
-		problem:     make(map[string]string),
-		inProgress:  make(map[string]bool),
+		list:         shards,
+		run:          run,
+		concurrency:  concurrency,
+		problemState: StateWarning,
+		last:         make(map[string]time.Time),
+		problem:      make(map[string]string),
+		inProgress:   make(map[string]bool),
 	}
 	m := c.m
 	m.mu.Lock()
@@ -158,6 +163,20 @@ func (c *Check) SetShardedRunner(shards func(context.Context) []string, run Shar
 	c.sharded = s
 	m.mu.Unlock()
 	c.SetRunner(c.runShards, def)
+}
+
+// FailOnShardProblems makes the sharded check fail, rather than warn,
+// while any of its shards has a problem, for problems that mean data is
+// lost or damaged. It must be called after SetShardedRunner.
+func (c *Check) FailOnShardProblems() {
+	if c == nil {
+		return
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	if c.sharded != nil {
+		c.sharded.problemState = StateFailed
+	}
 }
 
 // startFullPassLocked starts a new full pass of a sharded check's shards,
@@ -256,7 +275,7 @@ func (c *Check) runShards(ctx context.Context) error {
 		}
 	}
 	if len(bad) > 0 {
-		c.reportLocked(StateWarning, false, fmt.Errorf("%d of %d shards had problems; %s: %s", len(bad), len(s.shards), bad[0], s.problem[bad[0]]))
+		c.reportLocked(s.problemState, false, fmt.Errorf("%d of %d shards had problems; %s: %s", len(bad), len(s.shards), bad[0], s.problem[bad[0]]))
 		return nil
 	}
 	checked, oldest := 0, time.Time{}
