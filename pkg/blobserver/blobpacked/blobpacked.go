@@ -1270,14 +1270,84 @@ func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		return sb, nil
 	}
 
-	// Pack the blob.
+	s.packFileGated(ctx, br)
+	return sb, nil
+}
+
+// packFileGated packs the file schema blob br, limited by s.packGate.
+func (s *storage) packFileGated(ctx context.Context, br blob.Ref) {
 	s.packGate.Start()
 	defer s.packGate.Done()
 	// We ignore the return value from packFile since we can't
 	// really recover. At least be happy that we have all the
 	// data on 'small' already. packFile will log at least.
 	s.packFile(ctx, br)
-	return sb, nil
+}
+
+// ReceiveBlobs implements blobserver.BlobsReceiver. It receives the blobs
+// not already stored into small storage together, using its ReceiveBlobs
+// if it's a BlobsReceiver, and only then packs any big enough files among
+// them, as their chunks may be among the blobs.
+func (s *storage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "receive"}
+	var toSmall []*blob.Blob
+	var toPack []blob.Ref
+	for _, b := range blobs {
+		br := b.Ref()
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			be.Add(br, err)
+			continue
+		}
+		meta, err := s.getMetaRow(br)
+		if err != nil {
+			be.Add(br, err)
+			continue
+		}
+		if !meta.exists {
+			toSmall = append(toSmall, b)
+		}
+		if meta.isPacked() {
+			continue
+		}
+		if fb, err := schema.BlobFromReader(br, r); err == nil && fb.Type() == schema.TypeFile && fb.PartsSize() >= packThreshold {
+			toPack = append(toPack, br)
+		}
+	}
+	if len(toSmall) > 0 {
+		be.AddResult(refsOf(toSmall), s.receiveSmall(ctx, toSmall))
+	}
+	for _, br := range toPack {
+		if be.Err(br) == nil {
+			s.packFileGated(ctx, br)
+		}
+	}
+	return be.OrNil()
+}
+
+// receiveSmall receives blobs into small storage, all together if it's a
+// BlobsReceiver, returning an error as described by BlobsReceiver.
+func (s *storage) receiveSmall(ctx context.Context, blobs []*blob.Blob) error {
+	if bsr, ok := s.small.(blobserver.BlobsReceiver); ok {
+		return bsr.ReceiveBlobs(ctx, blobs)
+	}
+	be := &blobserver.BlobsError{Op: "receive"}
+	for _, b := range blobs {
+		r, err := b.ReadAll(ctx)
+		if err == nil {
+			_, err = s.small.ReceiveBlob(ctx, b.Ref(), r)
+		}
+		be.Add(b.Ref(), err)
+	}
+	return be.OrNil()
+}
+
+func refsOf(blobs []*blob.Blob) []blob.Ref {
+	refs := make([]blob.Ref, len(blobs))
+	for i, b := range blobs {
+		refs[i] = b.Ref()
+	}
+	return refs
 }
 
 func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
