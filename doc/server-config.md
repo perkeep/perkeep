@@ -113,7 +113,9 @@ use blobpacked, storing loose blobs under `loose/` and packed ones under
 `["s3"]`, which instead store loose blobs at the root of their bucket (or
 its optional directory). Before 2021, mirrors in the cloud always used that
 layout, so a mirror written before then and since has blobs in both
-layouts.
+layouts. When an `s3` or `b2` storage finds blobs in the layout it doesn't
+use, the server goes read-only until the bucket is converted to one
+layout.
 
 For now, if more than one storage option is set, one of them is the primary
 storage and the other ones are set up as mirrors. The precedence order is the
