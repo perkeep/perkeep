@@ -667,37 +667,129 @@ func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 	}
 
 	sbr = blob.SizedRef{Ref: br, Size: uint32(n)}
-
-	// Check if it's a dup. Still accept it if the pack file on disk seems to be corrupt
-	// or truncated.
-	if m, err := s.meta(br); err == nil {
-		fi, err := os.Stat(s.filename(m.file))
-		if err == nil && fi.Size() >= m.offset+int64(m.size) {
-			return sbr, nil
-		}
+	if s.stored(sbr.Ref) {
+		return sbr, nil
 	}
-
-	err = s.append(sbr, &b)
-	return
+	be := &blobserver.BlobsError{Op: "receive"}
+	s.appendBlobs([]pendingBlob{{sbr, bytes.NewReader(b.Bytes())}}, be)
+	return sbr, be.Err(br)
 }
 
-// append writes the provided blob to the current data file, syncs it,
-// and then indexes it.
-func (s *storage) append(br blob.SizedRef, r io.Reader) (err error) {
+// ReceiveBlobs implements blobserver.BlobsReceiver. It appends the blobs
+// to the current pack file, then syncs it and indexes them, so they share
+// one sync and one index commit (per pack file, if they fill one).
+func (s *storage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "receive"}
+	pending := make([]pendingBlob, 0, len(blobs))
+	for _, b := range blobs {
+		if s.stored(b.Ref()) {
+			continue
+		}
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			be.Add(b.Ref(), err)
+			continue
+		}
+		pending = append(pending, pendingBlob{b.SizedRef(), r})
+	}
+	s.appendBlobs(pending, be)
+	return be.OrNil()
+}
+
+// stored reports whether br is already stored. A blob whose pack file
+// on disk seems to be corrupt or truncated isn't, so it's stored again.
+func (s *storage) stored(br blob.Ref) bool {
+	m, err := s.meta(br)
+	if err != nil {
+		return false
+	}
+	fi, err := os.Stat(s.filename(m.file))
+	return err == nil && fi.Size() >= m.offset+int64(m.size)
+}
+
+// A pendingBlob is a blob to append.
+type pendingBlob struct {
+	sb blob.SizedRef
+	r  io.Reader
+}
+
+// appendBlobs appends blobs to the pack files, recording failures in be.
+func (s *storage) appendBlobs(blobs []pendingBlob, be *blobserver.BlobsError) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for len(blobs) > 0 {
+		blobs = blobs[s.appendGroupLocked(blobs, be):]
+	}
+}
+
+// appendGroupLocked appends blobs to the current pack file, stopping after
+// one fills it, syncs the file, and then indexes the written blobs in one
+// commit. If the pack file is full, it starts the next one. It returns how
+// many blobs it handled, recording their failures in be. s.mu must be
+// held.
+func (s *storage) appendGroupLocked(blobs []pendingBlob, be *blobserver.BlobsError) (handled int) {
+	failRest := func(err error) {
+		for _, pb := range blobs[handled:] {
+			be.Add(pb.sb.Ref, err)
+		}
+		handled = len(blobs)
+	}
 	if s.closed {
-		return errors.New("diskpacked: write to closed storage")
+		failRest(errors.New("diskpacked: write to closed storage"))
+		return
 	}
 	if s.writer == nil {
 		// Starting a new pack file failed after a previous append.
 		if err := s.nextPack(); err != nil {
-			return err
+			failRest(err)
+			return
 		}
 	}
 
-	// If anything fails before the blob is indexed, remove whatever
-	// was written of it.
+	groupStart := s.size
+	packIdx := s.fileCount - 1
+	batch := s.index.BeginBatch()
+	var written []blob.Ref
+	for handled < len(blobs) && s.size <= s.maxFileSize {
+		pb := blobs[handled]
+		offset, err := s.writeBlobLocked(pb)
+		if err != nil {
+			// Probably the disk is full or failing; don't try the rest.
+			failRest(err)
+			break
+		}
+		handled++
+		batch.Set(pb.sb.Ref.String(), blobMeta{packIdx, offset, pb.sb.Size}.String())
+		written = append(written, pb.sb.Ref)
+	}
+	if len(written) > 0 {
+		// The blobs aren't visible until they're indexed, after the sync.
+		err := s.writer.Sync()
+		if err == nil {
+			err = s.index.CommitBatch(batch)
+		}
+		if err != nil {
+			s.truncateLocked(groupStart)
+			for _, br := range written {
+				be.Add(br, err)
+			}
+		}
+	}
+
+	// The written blobs are durable and indexed, so they're received even
+	// if starting the next pack file fails; the next append retries.
+	if s.size > s.maxFileSize {
+		if err := s.nextPack(); err != nil {
+			log.Printf("diskpacked: starting a new pack file in %s: %v", s.root, err)
+		}
+	}
+	return handled
+}
+
+// writeBlobLocked writes pb to the current pack file, without syncing it,
+// and returns the offset of its data. If it fails, it removes whatever it
+// wrote. s.mu must be held.
+func (s *storage) writeBlobLocked(pb pendingBlob) (offset int64, err error) {
 	origOffset := s.size
 	defer func() {
 		if err != nil {
@@ -706,52 +798,35 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) (err error) {
 	}()
 
 	fn := s.writer.Name()
-	n, err := fmt.Fprintf(s.writer, "[%v %v]", br.Ref.String(), br.Size)
+	n, err := fmt.Fprintf(s.writer, "[%v %v]", pb.sb.Ref.String(), pb.sb.Size)
 	s.size += int64(n)
 	writeVar.Add(fn, int64(n))
 	writeTotVar.Add(s.root, int64(n))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// TODO(adg): remove this seek and the offset check once confident
-	offset, err := s.writer.Seek(0, io.SeekCurrent)
+	offset, err = s.writer.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if offset != s.size {
-		return fmt.Errorf("diskpacked: seek says offset = %d, we think %d",
+		return 0, fmt.Errorf("diskpacked: seek says offset = %d, we think %d",
 			offset, s.size)
 	}
-	offset = s.size // make this a declaration once the above is removed
 
-	n2, err := io.Copy(s.writer, r)
+	n2, err := io.Copy(s.writer, pb.r)
 	s.size += n2
 	writeVar.Add(fn, n2)
 	writeTotVar.Add(s.root, n2)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if n2 != int64(br.Size) {
-		return fmt.Errorf("diskpacked: written blob size %d didn't match size %d", n2, br.Size)
+	if n2 != int64(pb.sb.Size) {
+		return 0, fmt.Errorf("diskpacked: written blob size %d didn't match size %d", n2, pb.sb.Size)
 	}
-	if err = s.writer.Sync(); err != nil {
-		return err
-	}
-
-	packIdx := s.fileCount - 1
-	if err := s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String()); err != nil {
-		return err
-	}
-
-	// The blob is durable and indexed, so it's received even if
-	// starting the next pack file fails; the next append retries.
-	if s.size > s.maxFileSize {
-		if err := s.nextPack(); err != nil {
-			log.Printf("diskpacked: starting a new pack file in %s: %v", s.root, err)
-		}
-	}
-	return nil
+	return offset, nil
 }
 
 // truncateLocked truncates the current pack file to size, after a failed
