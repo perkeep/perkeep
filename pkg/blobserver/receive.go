@@ -23,6 +23,7 @@ import (
 	"hash"
 	"io"
 	"strings"
+	"sync"
 
 	"perkeep.org/pkg/blob"
 )
@@ -66,6 +67,122 @@ func receive(ctx context.Context, dst BlobReceiver, br blob.Ref, src io.Reader, 
 	}
 	err = GetHub(dst).NotifyBlobReceived(sb)
 	return
+}
+
+// receiveBlobsConcurrency is how many concurrent ReceiveBlob calls
+// ReceiveBlobs makes for a destination that isn't a BlobsReceiver.
+const receiveBlobsConcurrency = 8
+
+// ReceiveBlobs receives blobs into dst, returning an error as described by
+// BlobsReceiver: nil if every blob was received, a *BlobsError listing the
+// blobs that failed, or another error if the whole call failed.
+//
+// It checks each blob's contents against its ref first: a blob that
+// doesn't match gets ErrCorruptBlob, and isn't passed to dst. Blobs with
+// the same ref are received once. It then uses dst.ReceiveBlobs if dst is
+// a BlobsReceiver, or else up to a few concurrent ReceiveBlob calls, and
+// notifies dst's blob hub of each received blob.
+func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) error {
+	be := &BlobsError{Op: "receive"}
+	seen := make(map[blob.Ref]bool, len(blobs))
+	valid := make([]*blob.Blob, 0, len(blobs))
+	for _, b := range blobs {
+		br := b.Ref()
+		if seen[br] {
+			continue
+		}
+		seen[br] = true
+		if err := checkBlob(ctx, b); err != nil {
+			be.Add(br, err)
+			continue
+		}
+		valid = append(valid, b)
+	}
+	if len(valid) == 0 {
+		return be.OrNil()
+	}
+
+	if bsr, ok := dst.(BlobsReceiver); ok {
+		refs := make([]blob.Ref, len(valid))
+		for i, b := range valid {
+			refs[i] = b.Ref()
+		}
+		be.AddResult(refs, bsr.ReceiveBlobs(ctx, valid))
+	} else {
+		receiveEach(ctx, dst, valid, be)
+	}
+
+	hub := GetHub(dst)
+	for _, b := range valid {
+		if be.Err(b.Ref()) == nil {
+			be.Add(b.Ref(), hub.NotifyBlobReceived(b.SizedRef()))
+		}
+	}
+	return be.OrNil()
+}
+
+// checkBlob returns an error if b is too big, can't be read, or doesn't
+// match its ref (ErrCorruptBlob).
+func checkBlob(ctx context.Context, b *blob.Blob) error {
+	if b.Size() > MaxBlobSize {
+		return fmt.Errorf("blob %v is %d bytes, over the maximum of %d", b.Ref(), b.Size(), MaxBlobSize)
+	}
+	h := b.Ref().Hash()
+	if h == nil {
+		return fmt.Errorf("invalid blob type %v; no registered hash function", b.Ref())
+	}
+	r, err := b.ReadAll(ctx)
+	if err != nil {
+		return err
+	}
+	r.WriteTo(h) // a bytes.Reader writing to a hash can't fail
+	if !b.Ref().HashMatches(h) {
+		return ErrCorruptBlob
+	}
+	return nil
+}
+
+// receiveEach receives blobs into dst with up to receiveBlobsConcurrency
+// concurrent ReceiveBlob calls, recording failures in be. Blobs not yet
+// started when ctx is done fail with ctx's error.
+func receiveEach(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob, be *BlobsError) {
+	errs := make([]error, len(blobs))
+	receive := func(i int) {
+		if err := ctx.Err(); err != nil {
+			errs[i] = err
+			return
+		}
+		b := blobs[i]
+		r, err := b.ReadAll(ctx)
+		if err == nil {
+			_, err = dst.ReceiveBlob(ctx, b.Ref(), r)
+		}
+		errs[i] = err
+	}
+	workers := min(len(blobs), receiveBlobsConcurrency)
+	if workers == 1 {
+		for i := range blobs {
+			receive(i)
+		}
+	} else {
+		next := make(chan int)
+		var wg sync.WaitGroup
+		for range workers {
+			wg.Go(func() {
+				for i := range next {
+					receive(i)
+				}
+			})
+		}
+		for i := range blobs {
+			next <- i
+		}
+		close(next)
+		wg.Wait()
+	}
+	for i, err := range errs {
+		be.Add(blobs[i].Ref(), err)
+	}
 }
 
 // checkHashReader is an io.Reader that wraps the src Reader but turns
