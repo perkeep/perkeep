@@ -707,6 +707,89 @@ func (c *Config) SetKeepGoing(v bool) {
 	}
 }
 
+// addPrefixes adds the handler configuration of each enabled prefix in
+// prefixes (the low-level config's "prefixes" object) to hl, and returns
+// the prefix of the "ui" handler, if any. It panics (via exitFailure) on
+// invalid configuration.
+func (hl *handlerLoader) addPrefixes(prefixes map[string]any) (uiPath string) {
+	for prefix, vei := range prefixes {
+		if prefix == "_knownkeys" {
+			continue
+		}
+		if !strings.HasPrefix(prefix, "/") {
+			exitFailure("prefix %q doesn't start with /", prefix)
+		}
+		if !strings.HasSuffix(prefix, "/") {
+			exitFailure("prefix %q doesn't end with /", prefix)
+		}
+		pmap, ok := vei.(map[string]any)
+		if !ok {
+			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
+		}
+		pconf := jsonconfig.Obj(pmap)
+		enabled := pconf.OptionalBool("enabled", true)
+		if !enabled {
+			continue
+		}
+		handlerType := pconf.RequiredString("handler")
+		handlerArgs := pconf.OptionalObject("handlerArgs")
+		internal := pconf.OptionalBool("internal", false)
+		if err := pconf.Validate(); err != nil {
+			exitFailure("configuration error in prefix %s: %v", prefix, err)
+		}
+		h := &handlerConfig{
+			prefix:   prefix,
+			htype:    handlerType,
+			conf:     handlerArgs,
+			internal: internal,
+		}
+		hl.config[prefix] = h
+
+		if handlerType == "ui" {
+			uiPath = prefix
+		}
+	}
+	return uiPath
+}
+
+// OpenStorage sets up only the storage handler at prefix, and the storage
+// it uses, without installing any HTTP handlers or starting the server.
+// It's for tools that work on a server's storage while it isn't running.
+// Closing the returned io.Closer shuts down what it set up.
+func (c *Config) OpenStorage(prefix string) (sto blobserver.Storage, shutdown io.Closer, err error) {
+	var hl *handlerLoader
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("opening storage %s: %v", prefix, e)
+		}
+		if err != nil && hl != nil {
+			if closeErr := multiCloser(hl.closers).Close(); closeErr != nil {
+				log.Printf("Closing storage after failing to open %s: %v", prefix, closeErr)
+			}
+		}
+	}()
+	prefixes, _ := c.jconf["prefixes"].(map[string]any)
+	if c.health == nil {
+		c.health = health.New()
+	}
+	hl = &handlerLoader{
+		installer: http.NewServeMux(), // discarded
+		baseURL:   func() string { return "" },
+		health:    c.health,
+		config:    make(map[string]*handlerConfig),
+		handler:   make(map[string]any),
+	}
+	hl.addPrefixes(prefixes)
+	if typ := hl.configType(prefix); !strings.HasPrefix(typ, "storage-") {
+		return nil, nil, fmt.Errorf("prefix %q is not a storage handler in the config", prefix)
+	}
+	sto, err = hl.GetStorage(prefix)
+	if err != nil {
+		return nil, nil, err
+	}
+	return sto, multiCloser(hl.closers), nil
+}
+
 // InstallHandlers creates and registers all the HTTP Handlers needed
 // by config into the provided HandlerInstaller and validates that the
 // configuration is valid.
@@ -769,43 +852,7 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		handler:   make(map[string]any),
 	}
 
-	for prefix, vei := range prefixes {
-		if prefix == "_knownkeys" {
-			continue
-		}
-		if !strings.HasPrefix(prefix, "/") {
-			exitFailure("prefix %q doesn't start with /", prefix)
-		}
-		if !strings.HasSuffix(prefix, "/") {
-			exitFailure("prefix %q doesn't end with /", prefix)
-		}
-		pmap, ok := vei.(map[string]any)
-		if !ok {
-			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
-		}
-		pconf := jsonconfig.Obj(pmap)
-		enabled := pconf.OptionalBool("enabled", true)
-		if !enabled {
-			continue
-		}
-		handlerType := pconf.RequiredString("handler")
-		handlerArgs := pconf.OptionalObject("handlerArgs")
-		internal := pconf.OptionalBool("internal", false)
-		if err := pconf.Validate(); err != nil {
-			exitFailure("configuration error in prefix %s: %v", prefix, err)
-		}
-		h := &handlerConfig{
-			prefix:   prefix,
-			htype:    handlerType,
-			conf:     handlerArgs,
-			internal: internal,
-		}
-		hl.config[prefix] = h
-
-		if handlerType == "ui" {
-			config.uiPath = prefix
-		}
-	}
+	config.uiPath = hl.addPrefixes(prefixes)
 	hl.setupAll()
 
 	// Now that everything is setup, run any handlers' InitHandler
