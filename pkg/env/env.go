@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"testing"
 
 	"cloud.google.com/go/compute/metadata"
 )
@@ -80,7 +81,9 @@ var (
 )
 
 func detectGCE() {
-	if !metadata.OnGCE() {
+	// Off GCE, probing the metadata server takes seconds to time out,
+	// and tests don't run as a Perkeep GCE instance anyway.
+	if testing.Testing() || !metadata.OnGCE() {
 		return
 	}
 	v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
