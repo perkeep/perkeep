@@ -177,6 +177,12 @@ func wantNumSmallBlobs(want int) func(*packTest) {
 	return func(pt *packTest) { pt.wantSmallBlobs = want }
 }
 
+// withMaxZipBlobSize sets the packer's maximum zip size, so tests can
+// span several zips with less data.
+func withMaxZipBlobSize(n int) func(*packTest) {
+	return func(pt *packTest) { pt.sto.forceMaxZipBlobSize = n }
+}
+
 func okayWithoutMeta(refStr string) func(*packTest) {
 	return func(pt *packTest) {
 		if pt.okayNoMeta == nil {
@@ -558,10 +564,12 @@ func TestReindex(t *testing.T) {
 		name     string
 		contents []byte
 	}
+	// With 2 MB zips, foo.dat takes two zips, and the others one each.
+	const maxZip = 2 << 20
 	files := []file{
-		{17 << 20, "foo.dat", randBytesSrc(17<<20, 42)},
-		{10 << 20, "bar.dat", randBytesSrc(10<<20, 43)},
-		{5 << 20, "baz.dat", randBytesSrc(5<<20, 44)},
+		{17 << 17, "foo.dat", randBytesSrc(17<<17, 42)},
+		{10 << 17, "bar.dat", randBytesSrc(10<<17, 43)},
+		{5 << 17, "baz.dat", randBytesSrc(5<<17, 44)},
 	}
 
 	pt := testPack(t,
@@ -573,6 +581,7 @@ func TestReindex(t *testing.T) {
 			}
 			return nil
 		},
+		withMaxZipBlobSize(maxZip),
 		wantNumLargeBlobs(4),
 		wantNumSmallBlobs(0),
 	)
@@ -664,10 +673,10 @@ func TestReindex(t *testing.T) {
 	// size matches the actual zip blob, and compare the remaining
 	// (whole file) fields against known values.
 	wantWholeParts := []string{
-		"sha224-336161c04a4e2ea1ac15dd2fe81820b8a5254c7030d840b61a5deb85 10485760 0 10485760",
-		"sha224-440ee7ebd58d2adcf48089dfc5ba1ea00d7fb1c887b52874b1fb44a4 5242880 0 5242880",
-		"sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 0 16709479",
-		"sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 16709479 1116313",
+		"sha224-12b707b3f56235cb22cab3422b138e918fe9f8a6dbbf2234c6a9d829 1310720 0 1310720",
+		"sha224-1633c04802e06cee89c1f955c9e3e17cdb3ca9d8d54ffd20994815af 2228224 0 2089447",
+		"sha224-1633c04802e06cee89c1f955c9e3e17cdb3ca9d8d54ffd20994815af 2228224 2089447 138777",
+		"sha224-ed566fbee5425359f759de618fabc072c35071a13c84b99929318cc4 655360 0 655360",
 	}
 	var gotWholeParts []string
 	it := pt.sto.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
@@ -1157,11 +1166,12 @@ func TestPackerBoundarySplits(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping slow test")
 	}
-	// Test a file of three chunk sizes, totalling near the 16 MB
-	// boundary:
-	//    - 1st chunk is 6 MB. ("blobA")
-	//    - 2nd chunk is 6 MB. ("blobB")
-	//    - 3rd chunk ("blobC") is binary-searched (up to 4MB) to find
+	// Test a file of three chunk sizes, totalling near a 2 MB maximum
+	// zip size (scaled down from the default 16 MB, as the binary
+	// search below packs the file ~20 times):
+	//    - 1st chunk is 768 KB. ("blobA")
+	//    - 2nd chunk is 768 KB. ("blobB")
+	//    - 3rd chunk ("blobC") is binary-searched (up to 512 KB) to find
 	//      which size causes the packer to write two zip files.
 
 	// During the test we set zip overhead boundaries to 0, to
@@ -1171,8 +1181,8 @@ func TestPackerBoundarySplits(t *testing.T) {
 	// least one that can be removed to make room.
 	defer setIntTemporarily(&zipPerEntryOverhead, 0)()
 
-	const sizeAB = 12 << 20
-	const maxBlobSize = 16 << 20
+	const sizeAB = 3 << 19
+	const maxBlobSize = 2 << 20
 	bytesAB := randBytes(sizeAB)
 	blobA := &test.Blob{Contents: string(bytesAB[:sizeAB/2])}
 	blobB := &test.Blob{Contents: string(bytesAB[sizeAB/2:])}
@@ -1215,6 +1225,7 @@ func TestPackerBoundarySplits(t *testing.T) {
 				"Packing file ",
 				"Packed file ",
 			),
+			forceMaxZipBlobSize: maxBlobSize,
 		}
 		s.init()
 
@@ -1265,7 +1276,7 @@ func TestPackerBoundarySplits(t *testing.T) {
 	if smallestC == maxC {
 		t.Fatalf("never found a point at which we generated 2 zip files")
 	}
-	t.Logf("After 12 MB of data (in 2 chunks), the smallest blob that generates two zip files is %d bytes (%.03f MB)", smallestC, float64(smallestC)/(1<<20))
+	t.Logf("After 1.5 MB of data (in 2 chunks), the smallest blob that generates two zip files is %d bytes (%.03f MB)", smallestC, float64(smallestC)/(1<<20))
 	t.Logf("Zip overhead (for this two chunk file) = %d bytes", maxBlobSize-1-smallestC-sizeAB)
 
 	mu.Lock()
@@ -1273,7 +1284,7 @@ func TestPackerBoundarySplits(t *testing.T) {
 		t.Errorf("truncate after = %v; want %v", sawTruncate, refB)
 	}
 	if !stoppedBeforeOverflow {
-		t.Error("never hit the code path where it calculates that another data chunk would push it over the 16MB boundary")
+		t.Error("never hit the code path where it calculates that another data chunk would push it over the max zip size")
 	}
 }
 
