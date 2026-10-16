@@ -18,9 +18,20 @@ limitations under the License.
 // on top of a single mutable database file on disk using
 // modernc.org/kv.
 //
-// Deprecated: kv is slower and larger on disk than the "sqlite" and
-// "leveldb" types, and will be removed no earlier than 2027-04-13. Use one of
-// those instead; dev/kvcopy can copy an existing kv file into another type.
+// WARNING: kv can lose data that it reported as written. modernc.org/kv
+// collects updates in memory for up to a second before committing them to
+// its write-ahead log, and offers no way to commit sooner. So Set, Delete,
+// and CommitBatch return before their changes are durable, a machine crash
+// or power loss in that window loses them, and an error committing them is
+// only returned by a later call. That breaks sorted.KeyValue's promise not
+// to lose data after those return. It matters most for stores that can't be
+// rebuilt, such as sync queues and the blobpacked and diskpacked metadata
+// indexes that kvIndexFile also puts in kv files.
+//
+// Deprecated: kv is not crash-safe (see above), and is slower and larger on
+// disk than the "sqlite" and "leveldb" types. It will be removed no earlier
+// than 2027-04-13. Use one of those instead; dev/kvcopy can copy an existing
+// kv file into another type.
 // See https://github.com/perkeep/perkeep/issues/1850.
 package kvfile // import "perkeep.org/pkg/sorted/kvfile"
 
@@ -58,8 +69,9 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	log.Printf("WARNING: sorted type \"kv\" (file %s) is deprecated and will be removed no earlier than 2027-04-13; "+
-		"use \"sqlite\" or \"leveldb\" instead, copying existing data with dev/kvcopy. "+
+	log.Printf("WARNING: sorted type \"kv\" (file %s) is deprecated and will be removed no earlier than 2027-04-13. "+
+		"It is not crash-safe: a machine crash or power loss can lose up to a second of writes it reported as done. "+
+		"Use \"sqlite\" or \"leveldb\" instead, copying existing data with dev/kvcopy. "+
 		"See https://github.com/perkeep/perkeep/issues/1850", file)
 	opts := &kv.Options{}
 	db, err := kvutil.Open(file, opts)

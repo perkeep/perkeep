@@ -84,8 +84,11 @@ type Config struct {
 
 	// KVFile is the path to the kv file, for indexing with modernc.org/kv.
 	//
-	// Deprecated: use SQLite or LevelDB. kvIndexFile will be removed no earlier
-	// than 2027-04-13; see https://github.com/perkeep/perkeep/issues/1850.
+	// Deprecated: use SQLite or LevelDB. kv isn't crash-safe: a machine crash
+	// or power loss can lose its most recent writes, including sync queue
+	// entries and blobpacked's and diskpacked's metadata, which kvIndexFile
+	// also puts in kv files. kvIndexFile will be removed no earlier than
+	// 2027-04-13; see https://github.com/perkeep/perkeep/issues/1850.
 	KVFile string `json:"kvIndexFile,omitempty"`
 
 	ReplicateTo []any `json:"replicateTo,omitempty"` // NOOP for now.
