@@ -226,6 +226,47 @@ func TestPackNormal(t *testing.T) {
 	pt.testOpenWholeRef(t, wholeRef, fileSize)
 }
 
+// TestPackReceiveBlobs checks that a file is packed when its schema blob
+// and all its chunks are received with one ReceiveBlobs call, with the
+// schema blob first.
+func TestPackReceiveBlobs(t *testing.T) {
+	const fileSize = 5 << 20
+	fileContents := randBytes(fileSize)
+	hash := blob.NewHash()
+	hash.Write(fileContents)
+	wholeRef := blob.RefFromHash(hash)
+
+	pt := testPack(t,
+		func(sto blobserver.Storage) error {
+			scratch := new(test.Fetcher)
+			fileRef, err := schema.WriteFileFromReader(ctxbg, scratch, "foo.dat", bytes.NewReader(fileContents))
+			if err != nil {
+				return err
+			}
+			var blobs []*blob.Blob
+			err = blobserver.EnumerateAll(ctxbg, scratch, func(sb blob.SizedRef) error {
+				b, err := blob.FromFetcher(ctxbg, scratch, sb.Ref)
+				if err != nil {
+					return err
+				}
+				if sb.Ref == fileRef {
+					blobs = append([]*blob.Blob{b}, blobs...)
+				} else {
+					blobs = append(blobs, b)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			return blobserver.ReceiveBlobs(ctxbg, sto, blobs)
+		},
+		wantNumLargeBlobs(1),
+		wantNumSmallBlobs(0),
+	)
+	pt.testOpenWholeRef(t, wholeRef, fileSize)
+}
+
 func TestPackNoDelete(t *testing.T) {
 	const fileSize = 1 << 20
 	const fileName = "foo.dat"
