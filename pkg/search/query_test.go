@@ -1174,7 +1174,7 @@ func TestQueryFileCandidateSource(t *testing.T) {
 				},
 			},
 		}
-		qt.candidateSource = "corpus_file_meta"
+		qt.candidateSource = "corpus_candidates"
 		qt.wantRes(sq, fileRef)
 	})
 }
@@ -2143,7 +2143,7 @@ func TestRefQuerySource(t *testing.T) {
 				BlobRefPrefix: fileRef.String(), // exact match
 			},
 		}
-		qt.candidateSource = "one_blob"
+		qt.candidateSource = "corpus_candidates"
 		qt.wantRes(sq, fileRef)
 	})
 }
@@ -2167,7 +2167,7 @@ func TestRefQuerySource_Logical(t *testing.T) {
 				},
 			},
 		}
-		qt.candidateSource = "one_blob"
+		qt.candidateSource = "corpus_candidates"
 		qt.wantRes(sq, fileRef)
 	})
 }

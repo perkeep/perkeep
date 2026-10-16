@@ -44,6 +44,7 @@ import (
 
 	"go4.org/strutil"
 	"go4.org/types"
+	"tailscale.com/util/set"
 )
 
 type SortType int
@@ -371,27 +372,83 @@ func (c *Constraint) matchesPermanodeTypes() []string {
 
 }
 
-// matchesAtMostOneBlob reports whether this constraint matches at most a single blob.
-// If so, it returns that blob. Otherwise it returns a zero, invalid blob.Ref.
-func (c *Constraint) matchesAtMostOneBlob() blob.Ref {
+// blobCandidates reports whether c can only match blobs in a set that
+// corpus can find without enumerating all blobs of some kind. If so, it
+// returns a superset of the blobs c matches, which may include blobs
+// that don't exist.
+func (c *Constraint) blobCandidates(corpus *index.Corpus) (cands set.Set[blob.Ref], ok bool) {
 	if c == nil {
-		return blob.Ref{}
+		return nil, false
 	}
+	// A blob must match all of c's fields, so any one of them that
+	// limits the candidates is enough.
 	if c.BlobRefPrefix != "" {
-		br, ok := blob.Parse(c.BlobRefPrefix)
-		if ok {
-			return br
+		if br, ok := blob.Parse(c.BlobRefPrefix); ok {
+			return set.Of(br), true
 		}
 	}
-	if c.Logical != nil && c.Logical.Op == "and" {
-		if br := c.Logical.A.matchesAtMostOneBlob(); br.Valid() {
-			return br
-		}
-		if br := c.Logical.B.matchesAtMostOneBlob(); br.Valid() {
-			return br
+	if fc := c.File; fc != nil && fc.WholeRef.Valid() {
+		return set.Of(corpus.AppendFilesOfWholeRef(nil, fc.WholeRef)...), true
+	}
+	if pc := c.Permanode; pc != nil {
+		if cands, ok := pc.permanodeCandidates(corpus); ok {
+			return cands, true
 		}
 	}
-	return blob.Ref{}
+	if lc := c.Logical; lc != nil {
+		a, aok := lc.A.blobCandidates(corpus)
+		b, bok := lc.B.blobCandidates(corpus)
+		switch lc.Op {
+		case "and":
+			if aok && (!bok || len(a) <= len(b)) {
+				return a, true
+			}
+			if bok {
+				return b, true
+			}
+		case "or", "xor":
+			if aok && bok {
+				a.AddSet(b)
+				return a, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// permanodeCandidates reports whether c requires a value of c.Attr to be
+// one of a set of blobs that blobCandidates can find. If so, it returns
+// the permanodes with a claim giving c.Attr one of those values, a
+// superset of the permanodes c matches.
+func (c *PermanodeConstraint) permanodeCandidates(corpus *index.Corpus) (set.Set[blob.Ref], bool) {
+	if c.Attr == "" {
+		return nil, false
+	}
+	var vals set.Set[blob.Ref]
+	if c.Value != "" {
+		br, ok := blob.Parse(c.Value)
+		if !ok {
+			return nil, false
+		}
+		vals = set.Of(br)
+	} else if c.ValueInSet != nil {
+		var ok bool
+		if vals, ok = c.ValueInSet.blobCandidates(corpus); !ok {
+			return nil, false
+		}
+	} else {
+		return nil, false
+	}
+	pns := make(set.Set[blob.Ref])
+	for v := range vals {
+		corpus.ForeachClaimBack(v, c.At, func(cl *camtypes.Claim) bool {
+			if cl.Attr == c.Attr {
+				pns.Add(cl.Permanode)
+			}
+			return true
+		})
+	}
+	return pns, true
 }
 
 func (c *Constraint) onlyMatchesPermanode() bool {
@@ -409,18 +466,6 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 	// Logical:{Op:'or', A:PermanodeConstraint{...}, B:PermanodeConstraint{...}
 
 	return false
-}
-
-func (c *Constraint) matchesFileByWholeRef() bool {
-	if c.Logical != nil && c.Logical.Op == "and" {
-		if c.Logical.A.matchesFileByWholeRef() || c.Logical.B.matchesFileByWholeRef() {
-			return true
-		}
-	}
-	if c.File == nil {
-		return false
-	}
-	return c.File.WholeRef.Valid()
 }
 
 type FileConstraint struct {
@@ -1447,6 +1492,38 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
+		if cands, ok := c.blobCandidates(corpus); ok {
+			src.name = "corpus_candidates"
+			brs := cands.Slice()
+			sort.Slice(brs, func(i, j int) bool { return brs[i].Less(brs[j]) })
+			if c.onlyMatchesPermanode() && (q.Sort == LastModifiedDesc || q.Sort == CreatedDesc) {
+				// Sorted the same as the corpus_permanode sources
+				// below, so Limit, Continue and Around work the same.
+				src.sorted = true
+				src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
+					if q.Sort == LastModifiedDesc {
+						corpus.EnumeratePermanodesLastModifiedIn(fn, brs)
+					} else {
+						corpus.EnumeratePermanodesCreatedIn(fn, brs, true)
+					}
+					return nil
+				}
+				return
+			}
+			src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
+				for _, br := range brs {
+					bm, err := corpus.GetBlobMeta(ctx, br)
+					if err != nil {
+						continue // no such blob
+					}
+					if !fn(bm) {
+						break
+					}
+				}
+				return nil
+			}
+			return
+		}
 		if c.onlyMatchesPermanode() {
 			src.sorted = true
 			switch q.Sort {
@@ -1475,23 +1552,6 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 					return
 				}
 			}
-		}
-		if br := c.matchesAtMostOneBlob(); br.Valid() {
-			src.name = "one_blob"
-			src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
-				corpus.EnumerateSingleBlob(fn, br)
-				return nil
-			}
-			return
-		}
-		// fastpath for files
-		if c.matchesFileByWholeRef() {
-			src.name = "corpus_file_meta"
-			src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
-				corpus.EnumerateCamliBlobs(schema.TypeFile, fn)
-				return nil
-			}
-			return
 		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all

@@ -165,6 +165,8 @@ func (c *Corpus) mergeScanWorkers(workers []*Corpus) {
 	mergeDisjoint(&c.permanodes, workers, func(w *Corpus) map[blob.Ref]*PermanodeMeta { return w.permanodes })
 	mergeDisjoint(&c.imageInfo, workers, func(w *Corpus) map[blob.Ref]camtypes.ImageInfo { return w.imageInfo })
 	mergeDisjoint(&c.fileWholeRef, workers, func(w *Corpus) map[blob.Ref]blob.Ref { return w.fileWholeRef })
+	mergeDisjoint(&c.fileOfWholeRef, workers, func(w *Corpus) map[blob.Ref]blob.Ref { return w.fileOfWholeRef })
+	mergeDisjoint(&c.moreFilesOfWholeRef, workers, func(w *Corpus) map[blob.Ref][]blob.Ref { return w.moreFilesOfWholeRef })
 	mergeDisjoint(&c.gps, workers, func(w *Corpus) map[blob.Ref]latLong { return w.gps })
 	mergeDisjoint(&c.camera, workers, func(w *Corpus) map[blob.Ref]cameraInfo { return w.camera })
 	mergeDisjoint(&c.mediaTags, workers, func(w *Corpus) map[blob.Ref]map[string]string { return w.mediaTags })
