@@ -690,8 +690,7 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 	var hl *handlerLoader
 	defer func() {
 		if e := recover(); e != nil {
-			log.Printf("Caught panic installer handlers: %v", e)
-			debug.PrintStack()
+			log.Printf("Caught panic installer handlers: %v\n%s", e, debug.Stack())
 			err = fmt.Errorf("Caught panic: %v", e)
 		}
 		if err != nil && hl != nil {

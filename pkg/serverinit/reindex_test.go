@@ -31,6 +31,7 @@ import (
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/sqlite"
+	"perkeep.org/pkg/test"
 )
 
 type reindexInstaller struct {
@@ -77,6 +78,7 @@ func writeReindexBlob(t *testing.T, root string, br blob.Ref, contents string) s
 }
 
 func TestSQLiteReindexStartupRejectsCorruptBlobAndRecovers(t *testing.T) {
+	test.TLog(t)
 	t.Setenv("CAMLI_REINDEX_START", "")
 	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
 	root := t.TempDir()
@@ -166,6 +168,7 @@ func TestSQLiteReindexStartupRejectsCorruptBlobAndRecovers(t *testing.T) {
 // keepGoing, a blob that fails to index doesn't fail the whole rebuild: the
 // index is committed as complete without it, and startup publishes it.
 func TestSQLiteReindexStartupKeepGoingSkipsCorruptBlob(t *testing.T) {
+	test.TLog(t)
 	t.Setenv("CAMLI_REINDEX_START", "")
 	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
 	root := t.TempDir()
