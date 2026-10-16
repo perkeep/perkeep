@@ -39,7 +39,12 @@ const fakeBucket = "fake-bucket"
 func newFakeStorage(t *testing.T, dirPrefix string, cache bool) (*Storage, *fakeGCS) {
 	t.Helper()
 	fake := newFakeGCS(fakeBucket)
-	hc := httptest.NewTestServer(t, fake).Client()
+	// Create the logger first so it outlives the server's cleanup,
+	// which logs as it closes connections.
+	errorLog := test.NewLogger(t, "")
+	srv := httptest.NewTestServer(t, fake)
+	srv.Config.ErrorLog = errorLog
+	hc := srv.Client()
 	cl, err := storage.NewClient(t.Context(), option.WithHTTPClient(hc))
 	if err != nil {
 		t.Fatal(err)
