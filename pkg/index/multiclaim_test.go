@@ -18,6 +18,7 @@ package index_test
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -65,7 +66,18 @@ func TestMultiClaimDeleteBeforeEnvelope_Memory(t *testing.T) {
 			t.Fatal(err)
 		}
 		multi.SetClaimDate(test.ClockOrigin)
-		envelope := id.Sign(multi)
+		// Pick an envelope in the upper half of the digest space so that
+		// each deletion nonce below has at least even odds of sorting
+		// before it. Otherwise an envelope near the bottom of the space
+		// makes the search below fail about 1% of the time.
+		half := blob.MustParse("sha224-80" + strings.Repeat("0", 54))
+		var envelope *test.Blob
+		for n := 0; ; n++ {
+			envelope = id.Sign(multi.SetRawStringField("nonce", strconv.Itoa(n)))
+			if !envelope.BlobRef().Less(half) {
+				break
+			}
+		}
 		var deleter *test.Blob
 		for n := range 100 {
 			deleter = id.Sign(schema.NewDeleteClaim(envelope.BlobRef()).SetClaimDate(test.ClockOrigin).SetRawStringField("nonce", strconv.Itoa(n)))
