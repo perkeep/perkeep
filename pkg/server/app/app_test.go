@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestRandListen(t *testing.T) {
@@ -137,9 +138,11 @@ func TestBaseURL(t *testing.T) {
 
 // We just want a helper command that ignores SIGINT.
 func ignoreInterrupt() (*os.Process, error) {
+	// Sleep in short steps, so killing the shell doesn't leave behind
+	// a long-lived sleep.
 	script := `trap "echo hello" SIGINT
 echo READY
-sleep 10000`
+while :; do sleep 0.1; done`
 	cmd := exec.Command("bash")
 
 	w, err := cmd.StdinPipe()
@@ -183,6 +186,7 @@ func TestQuit(t *testing.T) {
 	if err != nil {
 		t.Skip("couldn't run test helper command")
 	}
+	t.Cleanup(func() { cmd.Process.Kill() })
 	h := Handler{
 		process: cmd.Process,
 	}
@@ -195,8 +199,10 @@ func TestQuit(t *testing.T) {
 	if err != nil {
 		t.Skipf("couldn't run test helper command: %v", err)
 	}
+	t.Cleanup(func() { pid.Kill() })
 	h = Handler{
-		process: pid,
+		process:     pid,
+		quitTimeout: 100 * time.Millisecond,
 	}
 	err = h.Quit()
 	if !errors.Is(err, errProcessTookTooLong) {
