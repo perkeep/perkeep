@@ -36,6 +36,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
@@ -343,6 +344,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 	if err != nil {
 		return nil, err
 	}
+	host.health = ld.Health()
 	host.didInit.Add(1)
 	return host, nil
 }
@@ -491,7 +493,8 @@ type Host struct {
 	blobSource   blob.Fetcher // e.g. twitter reading zip file
 	search       search.QueryDescriber
 	signer       *schema.Signer
-	uiPrefix     string // or empty if no UI handler
+	uiPrefix     string          // or empty if no UI handler
+	health       *health.Monitor // or nil; no runs start while it's read-only
 
 	cache     sorted.KeyValue // explicitly injected caller-owned backing; otherwise nil
 	cacheRoot string
@@ -1471,6 +1474,12 @@ func (ia *importerAcct) start() {
 		h.work.Done()
 		return
 	}
+	if err := h.health.ReadOnlyError(); err != nil {
+		log.Printf("Not starting %v: %v", ia, err)
+		ia.lastRunErr = err
+		h.work.Done()
+		return
+	}
 	rc := &RunContext{
 		Host: ia.im.host,
 		ia:   ia,
@@ -1510,6 +1519,9 @@ func (ia *importerAcct) run() error {
 	defer ia.mu.Unlock()
 	if ia.current != nil {
 		return errors.New("whatever")
+	}
+	if err := h.health.ReadOnlyError(); err != nil {
+		return err
 	}
 	rc := &RunContext{
 		Host: ia.im.host,

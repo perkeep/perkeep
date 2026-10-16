@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"sync"
 
+	"perkeep.org/pkg/health"
+
 	"go4.org/jsonconfig"
 )
 
@@ -71,6 +73,11 @@ type Loader interface {
 	// GetStorage is like GetHandler but requires that the Handler be
 	// a storage Handler.
 	GetStorage(prefix string) (Storage, error)
+
+	// Health returns the server's health monitor, for handlers to
+	// register their background checks with. It may return nil, such
+	// as in tests; a nil Monitor's methods are no-ops.
+	Health() *health.Monitor
 }
 
 // HandlerIniter is an optional interface which can be implemented

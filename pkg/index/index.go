@@ -38,6 +38,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/escape"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
@@ -365,6 +366,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	prefix := ld.MyPrefix() // before loading other storage changes it
 	blobPrefix := config.RequiredString("blobSource")
 	kvConfig := config.RequiredObject("storage")
 	reindex := config.OptionalBool("reindex", false)
@@ -419,7 +421,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	ix.InitBlobSource(sto)
 
 	if !reindex {
-		ix.startIntegrityCheck(3 * time.Second)
+		ix.startIntegrityCheck(3*time.Second, ld.Health().Register(health.ID("index.integrity", prefix), "index: blobs are indexed"))
 	}
 
 	installed = true
@@ -672,40 +674,55 @@ func (x *Index) needSampleLocked() string {
 }
 
 // startIntegrityCheck runs integrityCheck in the background, so it
-// doesn't hold up the rest of startup. Close stops it. If the check fails
-// (as opposed to finding blobs that aren't indexed, which it logs), the
-// process exits, as startup would have failed if it had run first.
-// TODO: report the result to a health (and scrub) subsystem instead.
-func (x *Index) startIntegrityCheck(timeout time.Duration) {
+// doesn't hold up the rest of startup, and reports the result to check.
+// Close stops it. Finding blobs that aren't indexed is a warning. If the
+// check fails to run, the server goes read-only (unless keepGoing is
+// set), as startup would have failed if it had run first.
+func (x *Index) startIntegrityCheck(timeout time.Duration, check *health.Check) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	x.stopIntegrityCheck = func() {
 		cancel()
 		<-done
 	}
+	check.Start()
 	go func() {
 		defer close(done)
-		if err := x.integrityCheck(ctx, timeout); err != nil && ctx.Err() == nil {
-			log.Fatalf("index: integrity check failed: %v", err)
+		notIndexed, tested, err := x.integrityCheck(ctx, timeout)
+		switch {
+		case ctx.Err() != nil:
+		case err != nil:
+			err = fmt.Errorf("index: integrity check failed: %w", err)
+			log.Print(err)
+			if x.keepGoing {
+				check.Fail(err)
+			} else {
+				check.Fatal(err)
+			}
+		case notIndexed > 0:
+			check.Warn(fmt.Errorf("found %d non-indexed blobs out of %d tested blobs; reindexing is advised", notIndexed, tested))
+		default:
+			check.OK()
 		}
 	}()
 }
 
 // integrityCheck enumerates blobs through x.blobSource during timeout, and
 // verifies for each of them that it has a meta row in the index. It logs a message
-// if any of them is not found. It only returns an error if something went wrong
-// during the enumeration.
+// if any of them is not found, and returns how many of them weren't, of how
+// many it tested. It only returns an error if something went wrong during the
+// enumeration.
 //
 // It reads the meta rows from the index's storage, not its corpus, which
 // may be loading at the same time.
-func (x *Index) integrityCheck(ctx context.Context, timeout time.Duration) error {
+func (x *Index) integrityCheck(ctx context.Context, timeout time.Duration) (notIndexed, tested int, err error) {
 	t0 := time.Now()
 	x.logf("starting integrity check...")
 	defer func() {
 		x.logf("integrity check done (after %v)", time.Since(t0).Round(10*time.Millisecond))
 	}()
 	if x.blobSource == nil {
-		return errors.New("index: can't check sanity of index: no blobSource")
+		return 0, 0, errors.New("index: can't check sanity of index: no blobSource")
 	}
 
 	// we don't actually need seen atm, but I anticipate we'll return it at some
@@ -731,13 +748,12 @@ func (x *Index) integrityCheck(ctx context.Context, timeout time.Duration) error
 		seen = append(seen, sb.Ref)
 		return nil
 	}); err != nil && err != errEOT {
-		return err
+		return 0, 0, err
 	}
 	if len(notFound) > 0 {
-		// TODO(mpl): at least on GCE, display that message and maybe more on a web UI page as well.
 		x.logf("WARNING: sanity checking of the index found %d non-indexed blobs out of %d tested blobs. Reindexing is advised.", len(notFound), len(notFound)+len(seen))
 	}
-	return nil
+	return len(notFound), len(notFound) + len(seen), nil
 }
 
 func queryPrefixString(s sorted.KeyValue, prefix string) sorted.Iterator {

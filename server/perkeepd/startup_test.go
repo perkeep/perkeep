@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/health"
 )
 
 func TestStartupLog(t *testing.T) {
@@ -53,7 +54,8 @@ func TestStartupLog(t *testing.T) {
 func TestStartupHandler(t *testing.T) {
 	l := new(startupLog)
 	fmt.Fprintf(l, "loading <corpus>\n")
-	h := &startupHandler{log: l, start: time.Now()}
+	mon := health.New()
+	h := &startupHandler{log: l, start: time.Now(), healthz: http.HandlerFunc(mon.ServeHealthz)}
 	get := func(path string, header ...string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest("GET", path, nil)
@@ -77,6 +79,11 @@ func TestStartupHandler(t *testing.T) {
 		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
 			t.Errorf("API request: got %d, Retry-After %q; want 503 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
 		}
+	}
+
+	// The health summary is public, and says the server is starting.
+	if rec := get("/healthz"); rec.Code != http.StatusServiceUnavailable || rec.Body.String() != "starting\n" {
+		t.Errorf("/healthz: got %d %q; want 503 %q", rec.Code, rec.Body, "starting\n")
 	}
 
 	// The page needs the owner's credentials.

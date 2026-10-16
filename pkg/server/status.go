@@ -37,6 +37,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server/app"
@@ -50,6 +51,7 @@ import (
 type StatusHandler struct {
 	prefix        string
 	handlerFinder blobserver.FindHandlerByTyper
+	health        *health.Monitor // or nil
 }
 
 func init() {
@@ -65,6 +67,7 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 	return &StatusHandler{
 		prefix:        ld.MyPrefix(),
 		handlerFinder: ld,
+		health:        ld.Health(),
 	}, nil
 }
 
@@ -117,6 +120,7 @@ type status struct {
 	Version      string                   `json:"version"`
 	GoInfo       string                   `json:"goInfo"`
 	Errors       []camtypes.StatusError   `json:"errors,omitempty"`
+	Health       health.Status            `json:"health"`
 	Sync         map[string]syncStatus    `json:"sync"`
 	Storage      map[string]storageStatus `json:"storage"`
 	importerRoot string
@@ -163,6 +167,15 @@ func (sh *StatusHandler) currentStatus() *status {
 	}
 	if v := os.Getenv("CAMLI_FAKE_STATUS_ERROR"); v != "" {
 		res.addError(v, "/status/#fakeerror")
+	}
+	res.Health = sh.health.Status()
+	if res.Health.ReadOnly {
+		res.addError("The server is read-only, because of a failed check.", sh.prefix+"#health")
+	}
+	for _, c := range res.Health.Checks {
+		if c.State >= health.StateWarning {
+			res.addError(fmt.Sprintf("%s: %s: %s", c.Title, c.State, c.Message), sh.prefix+"#health")
+		}
 	}
 	_, hi, err := sh.handlerFinder.FindHandlerByType("root")
 	if err != nil {
@@ -252,6 +265,8 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("<li><b>HEIC decoder</b>: %s", html.EscapeString(buildinfo.HEICStatus()))
 	f("</ul>")
 
+	sh.writeHealthHTML(rw, st.Health)
+
 	f("<h2>Logs</h2><ul>")
 	f("  <li><a href='/debug/config'>/debug/config</a> - server config</li>\n")
 	if env.OnGCE() {
@@ -296,6 +311,59 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 		return in
 	})
 	f("<pre>%s</pre>", jsh)
+}
+
+// stateEmoji are the icons of the check states that need noticing on
+// the status page; the others (such as "ok", on green) don't have one.
+var stateEmoji = map[health.State]string{
+	health.StateRunning: "⏳",
+	health.StateWarning: "⚠️",
+	health.StateFailed:  "❌",
+}
+
+// stateColors are the background colors of check states on the status
+// page.
+var stateColors = map[health.State]string{
+	health.StateOK:      "#cfc",
+	health.StateWarning: "#ffc",
+	health.StateFailed:  "#fcc",
+}
+
+func (sh *StatusHandler) writeHealthHTML(w io.Writer, hs health.Status) {
+	f := func(p string, a ...any) { fmt.Fprintf(w, p, a...) }
+	f("<h2 id='health'>Health</h2>")
+	if hs.ReadOnly {
+		f("<p style='background: %s'><b>The server is read-only</b>: it refuses to add or remove blobs until the failed checks below marked fatal are fixed.</p>", stateColors[health.StateFailed])
+	}
+	if len(hs.Checks) == 0 {
+		f("<p>No checks.</p>")
+		return
+	}
+	f("<table border='1' cellpadding='4' style='border-collapse: collapse'>")
+	f("<tr><th>State</th><th>Check</th><th>Message</th><th>Updated</th></tr>")
+	for _, c := range hs.Checks {
+		var updated string
+		if !c.Updated.IsZero() {
+			updated = c.Updated.UTC().Format(time.RFC3339)
+		}
+		f("<tr><td style='background: %s'>%s</td><td>%s<br><small>%s</small></td><td>%s</td><td>%s</td></tr>",
+			stateColors[c.State], stateHTML(c),
+			html.EscapeString(c.Title), html.EscapeString(c.ID),
+			html.EscapeString(c.Message), updated)
+	}
+	f("</table>")
+}
+
+// stateHTML returns the HTML for the state of check c.
+func stateHTML(c health.CheckStatus) string {
+	s := c.State.String()
+	if e := stateEmoji[c.State]; e != "" {
+		s = e + " " + s
+	}
+	if c.Fatal {
+		s += " (fatal)"
+	}
+	return html.EscapeString(s)
 }
 
 func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request) {

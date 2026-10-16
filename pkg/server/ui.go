@@ -240,7 +240,8 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 	if ui.root.Storage != nil {
 		ui.shareImporter = &shareImporter{
-			dest: ui.root.Storage,
+			dest:   ui.root.Storage,
+			health: ld.Health(),
 		}
 	}
 
