@@ -222,6 +222,8 @@ func nilTestArg(t *testing.T, typ reflect.Type) reflect.Value {
 		return reflect.ValueOf(RunFunc(func(context.Context) error { return nil }))
 	case reflect.TypeFor[Schedule]():
 		return reflect.ValueOf(ScheduleOff)
+	case reflect.TypeFor[func() string]():
+		return reflect.ValueOf(func() string { return "" })
 	case reflect.TypeFor[func(context.Context) []string]():
 		return reflect.ValueOf(func(context.Context) []string { return nil })
 	case reflect.TypeFor[ShardFunc]():

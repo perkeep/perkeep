@@ -527,6 +527,11 @@ func writeHealthControls(w io.Writer, c health.CheckStatus, token string) {
 	default:
 		button("run", "Run now", "Run it now")
 	}
+	if c.Cost != "" {
+		total, _, _ := strings.Cut(c.Cost, ":")
+		f(" <details style='display: inline-block; vertical-align: top'><summary title='%s'>$</summary><small>Estimated cost of running it, at list prices: %s</small></details>",
+			html.EscapeString(total), html.EscapeString(c.Cost))
+	}
 	if !c.LastRun.IsZero() {
 		f("<br><small>Last run %s</small>", c.LastRun.UTC().Format(time.RFC3339))
 	}

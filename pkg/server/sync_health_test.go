@@ -253,6 +253,54 @@ func TestSyncCopyCheck(t *testing.T) {
 	})
 }
 
+// pricedStorage is a memory.Storage with S3-like prices.
+type pricedStorage struct{ *memory.Storage }
+
+func (pricedStorage) Pricing() (blobserver.Pricing, bool) {
+	return blobserver.Pricing{
+		Desc:             "S3",
+		ListPer1000:      0.005,
+		ListPage:         1000,
+		GetPer1000:       0.0004,
+		EgressPerGB:      0.09,
+		ListBytesPerBlob: 200,
+	}, true
+}
+
+func TestSyncCostEstimates(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		src := new(memory.Storage)
+		_, mon := newHealthSyncHandler(t, src, pricedStorage{new(memory.Storage)})
+		if c := checkStatus(t, mon, "sync.validate[sync-test]"); !strings.Contains(c.Cost, "unknown until the storage census has counted the blobs in") {
+			t.Errorf("validate cost before the census = %q; want unknown", c.Cost)
+		}
+
+		// 6.9M sha1 blobs, the source's only type, is 26953 per shard:
+		// 27 listing requests for each of the 256 sha1 shards, or 6912
+		// requests in all ($0.035), and 1.38 GB of listing responses
+		// ($0.124).
+		for _, pfx := range []string{"/src/", "/dst/"} {
+			mon.Register(blobserver.CensusID(pfx), "census").SetDetails([]blobserver.HashEstimate{
+				{Hash: "sha1", Blobs: 6_900_000, Bytes: 330 << 30},
+			})
+		}
+		c := checkStatus(t, mon, "sync.validate[sync-test]")
+		if want := "a full pass: ≈$0.159: 6.91K listing requests to S3"; !strings.HasPrefix(c.Cost, want) {
+			t.Errorf("validate cost = %q; want it to start %q", c.Cost, want)
+		}
+		// The source is free, so the sample is of its most blobs, all
+		// statted at the destination: $0.004.
+		if c := checkStatus(t, mon, "sync.sample[sync-test]"); c.Cost != "≈$0.0040: 10.0K fetch or stat requests to S3 ($0.0040)" {
+			t.Errorf("sample cost = %q", c.Cost)
+		}
+		// 16 MiB of blobs averaging about 51 KB is 326 fetches, and the
+		// 16 MiB out is $0.0015.
+		if c := checkStatus(t, mon, "sync.compare[sync-test]"); !strings.HasPrefix(c.Cost, "a round of 16.0 MiB: ≈$0.0016: 326 fetch or stat requests") {
+			t.Errorf("compare cost = %q", c.Cost)
+		}
+	})
+}
+
 func TestWeightedHash(t *testing.T) {
 	ests := []blobserver.HashEstimate{
 		{Hash: "sha1", Blobs: 3},

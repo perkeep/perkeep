@@ -806,6 +806,20 @@ func (sh *SyncHandler) registerChecks(mon *health.Monitor, prefix string, valida
 
 	sh.copyCheck = mon.Register(health.ID("sync.copy", prefix), "sync "+desc+": the source's new blobs are copying to the destination without errors")
 	sh.copyCheck.OK()
+
+	_, fromPriced := blobserver.PricingOf(sh.from)
+	_, toPriced := blobserver.PricingOf(sh.to)
+	if fromPriced || toPriced {
+		sh.validateCheck.SetCostEstimator(sh.validateCost)
+		sh.sampleCheck.SetCostEstimator(sh.sampleCost)
+		if sh.compareCheck != nil {
+			size := uint64(compareBytesDefault)
+			if hourlyCompare != 0 {
+				size = uint64(hourlyCompare)
+			}
+			sh.compareCheck.SetCostEstimator(func() string { return sh.compareCost(size) })
+		}
+	}
 }
 
 // census returns the storage census's estimates of the blobs in the
@@ -813,6 +827,122 @@ func (sh *SyncHandler) registerChecks(mon *health.Monitor, prefix string, valida
 func (sh *SyncHandler) census(prefix string) ([]blobserver.HashEstimate, bool) {
 	ests, ok := sh.health.Details(blobserver.CensusID(prefix)).([]blobserver.HashEstimate)
 	return ests, ok
+}
+
+// pricedSides returns the source and destination storage, with their
+// prefixes and pricing, if known.
+func (sh *SyncHandler) pricedSides() (sides []pricedSide) {
+	for _, side := range []struct {
+		prefix string
+		sto    any
+	}{{sh.fromName, sh.from}, {sh.toName, sh.to}} {
+		if p, ok := blobserver.PricingOf(side.sto); ok {
+			sides = append(sides, pricedSide{side.prefix, p, side.sto == any(sh.to)})
+		}
+	}
+	return sides
+}
+
+type pricedSide struct {
+	prefix string
+	p      blobserver.Pricing
+	isDest bool
+}
+
+// unknownCost is the cost estimate of an operation on storage the census
+// hasn't counted.
+func unknownCost(prefix string) string {
+	return "unknown until the storage census has counted the blobs in " + prefix
+}
+
+// validateCost estimates what a full pass of sync.validate costs: on
+// each side with a price, listing each shard, in as many requests as its
+// blobs need.
+func (sh *SyncHandler) validateCost() string {
+	srcEsts, ok := sh.census(sh.fromName)
+	if !ok {
+		return unknownCost(sh.fromName)
+	}
+	var e blobserver.CostEstimate
+	for _, side := range sh.pricedSides() {
+		ests, ok := sh.census(side.prefix)
+		if !ok {
+			return unknownCost(side.prefix)
+		}
+		var blobs, requests int64
+		for _, src := range srcEsts {
+			if src.Blobs == 0 {
+				continue
+			}
+			hash := src.Hash
+			var n int64
+			for _, est := range ests {
+				if est.Hash == hash {
+					n = est.Blobs
+				}
+			}
+			const shards = 256 // digest prefixes per hash type; see shardPrefixes
+			perShard := (n/shards + int64(side.p.ListPage) - 1) / int64(side.p.ListPage)
+			requests += shards * max(1, perShard)
+			blobs += n
+		}
+		e.AddListing(side.p, blobs, requests)
+	}
+	return "a full pass: " + e.String()
+}
+
+// sampleCost estimates what sync.sample costs: on the source, if it has
+// a price, listing the sample (and the estimate of its hash types that
+// picks where it starts); on the destination, if it has a price,
+// statting each blob in the sample.
+func (sh *SyncHandler) sampleCost() string {
+	n := int64(sampleMaxBlobs)
+	if ests, ok := sh.census(sh.fromName); ok {
+		var total int64
+		for _, est := range ests {
+			total += est.Blobs
+		}
+		n = min(n, total)
+	}
+	var e blobserver.CostEstimate
+	for _, side := range sh.pricedSides() {
+		if side.isDest {
+			e.AddGets(side.p, n, 0)
+			continue
+		}
+		types := int64(len(blob.HashFuncs()))
+		e.AddListing(side.p, n+100*types, n/int64(side.p.ListPage)+1+types)
+	}
+	return e.String()
+}
+
+// compareCost estimates what a sync.compare round of size bytes costs:
+// on the source, if it has a price, listing the blobs; on the
+// destination, if it has a price, fetching them.
+func (sh *SyncHandler) compareCost(size uint64) string {
+	ests, ok := sh.census(sh.toName)
+	if !ok {
+		return unknownCost(sh.toName)
+	}
+	var blobs, bytes int64
+	for _, est := range ests {
+		blobs += est.Blobs
+		bytes += est.Bytes
+	}
+	n := int64(1)
+	if blobs > 0 && bytes > 0 {
+		n = max(1, int64(size)/(bytes/blobs))
+	}
+	var e blobserver.CostEstimate
+	for _, side := range sh.pricedSides() {
+		if side.isDest {
+			e.AddGets(side.p, n, int64(size))
+			continue
+		}
+		types := int64(len(blob.HashFuncs()))
+		e.AddListing(side.p, n+100*types, n/int64(side.p.ListPage)+1+types)
+	}
+	return "a round of " + blobserver.HashEstimate{Bytes: int64(size)}.BytesString() + ": " + e.String()
 }
 
 // errValidating is returned by validate when a validation is already
