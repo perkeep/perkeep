@@ -44,7 +44,8 @@ func Unmount(point string) error {
 	errc := make(chan error, 1)
 	go func() {
 		if err := exec.Command("umount", point).Run(); err == nil {
-			errc <- err
+			errc <- nil
+			return
 		}
 		// retry to unmount with the fallback cmd
 		errc <- cmd.Run()
