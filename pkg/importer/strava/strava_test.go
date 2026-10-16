@@ -227,6 +227,17 @@ type coreFixture struct {
 	handler    http.Handler
 	clientID   string
 	hostConfig importer.HostConfig
+
+	// parsed caches activityClaims' parsing of each blob, as blobs
+	// never change and tests call it repeatedly.
+	parsed map[blob.Ref]parsedClaim
+}
+
+// parsedClaim is a claim blob, and the permanodes its attribute claims
+// modify. Its zero value is for blobs that aren't claims.
+type parsedClaim struct {
+	claim      schema.Claim
+	permanodes []blob.Ref
 }
 
 var coreFixtureClientCounter uint64
@@ -459,29 +470,21 @@ func coreAttrs(t *testing.T, obj *importer.Object, want map[string]string) {
 // ignores the parent membership and account bookkeeping claims.
 func (f *coreFixture) activityClaims(t *testing.T, ref blob.Ref) []schema.Claim {
 	t.Helper()
+	if f.parsed == nil {
+		f.parsed = make(map[blob.Ref]parsedClaim)
+	}
 	var claims []schema.Claim
 	err := blobserver.EnumerateAll(context.Background(), &f.storage.Storage, func(sb blob.SizedRef) error {
-		data, ok := f.storage.BlobContents(sb.Ref)
+		pc, ok := f.parsed[sb.Ref]
 		if !ok {
-			return fmt.Errorf("enumerated missing blob %v", sb.Ref)
-		}
-		b, err := schema.BlobFromReader(sb.Ref, strings.NewReader(data))
-		if err != nil || b.Type() != schema.TypeClaim {
-			return nil
-		}
-		claim, ok := b.AsClaim()
-		if !ok {
-			return errors.New("invalid signed claim")
-		}
-		operations, err := claim.AttributeClaims()
-		if err != nil {
-			return err
-		}
-		for _, operation := range operations {
-			if operation.Permanode == ref {
-				claims = append(claims, claim)
-				break
+			var err error
+			if pc, err = f.parseClaim(sb.Ref); err != nil {
+				return err
 			}
+			f.parsed[sb.Ref] = pc
+		}
+		if slices.Contains(pc.permanodes, ref) {
+			claims = append(claims, pc.claim)
 		}
 		return nil
 	})
@@ -489,6 +492,30 @@ func (f *coreFixture) activityClaims(t *testing.T, ref blob.Ref) []schema.Claim 
 		t.Fatal(err)
 	}
 	return claims
+}
+
+func (f *coreFixture) parseClaim(br blob.Ref) (parsedClaim, error) {
+	data, ok := f.storage.BlobContents(br)
+	if !ok {
+		return parsedClaim{}, fmt.Errorf("enumerated missing blob %v", br)
+	}
+	b, err := schema.BlobFromReader(br, strings.NewReader(data))
+	if err != nil || b.Type() != schema.TypeClaim {
+		return parsedClaim{}, nil
+	}
+	claim, ok := b.AsClaim()
+	if !ok {
+		return parsedClaim{}, errors.New("invalid signed claim")
+	}
+	operations, err := claim.AttributeClaims()
+	if err != nil {
+		return parsedClaim{}, err
+	}
+	pc := parsedClaim{claim: claim}
+	for _, operation := range operations {
+		pc.permanodes = append(pc.permanodes, operation.Permanode)
+	}
+	return pc, nil
 }
 
 func (f *coreFixture) activityState(ref blob.Ref) url.Values {
