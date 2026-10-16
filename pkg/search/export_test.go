@@ -24,8 +24,15 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
-func SetTestHookBug121(hook func()) {
-	testHookBug121 = hook
+// SetTestHookBug121 sets whether GetRecentPermanodes finishes describing
+// each permanode before starting on the next, to reproduce
+// https://perkeep.org/issue/121.
+func SetTestHookBug121(wait bool) {
+	if wait {
+		testHookBug121 = func(dr *DescribeRequest) { dr.wg.Wait() }
+	} else {
+		testHookBug121 = func(*DescribeRequest) {}
+	}
 }
 
 func ExportSetCandidateSourceHook(fn func(string)) { candSourceHook = fn }

@@ -509,7 +509,7 @@ type EdgeItem struct {
 	FromType schema.CamliType `json:"fromType"`
 }
 
-var testHookBug121 = func() {}
+var testHookBug121 = func(*DescribeRequest) {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
 func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (*RecentResponse, error) {
@@ -538,7 +538,7 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 			Owner:   res.Signer,
 			ModTime: types.Time3339(res.LastModTime),
 		})
-		testHookBug121() // http://perkeep.org/issue/121
+		testHookBug121(dr) // http://perkeep.org/issue/121
 	}
 
 	if err := <-errch; err != nil {
