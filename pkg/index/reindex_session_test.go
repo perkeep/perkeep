@@ -158,6 +158,7 @@ func newRecordingReindex(t *testing.T) (*Index, *recordingReindexKV) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	t.Cleanup(func() {
 		if err := ix.Close(); err != nil {
 			t.Error(err)

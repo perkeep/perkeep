@@ -252,6 +252,7 @@ func TestDeletesSurviveReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	id := indextest.NewIndexDeps(ix)
 	id.Fataler = t
 	pn := id.NewPermanode()
@@ -264,6 +265,7 @@ func TestDeletesSurviveReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix2.Logger = test.NewLogger(t, "")
 	if !ix2.IsDeleted(pn) {
 		t.Errorf("IsDeleted(%v) = false after reopening index; want true", pn)
 	}
@@ -288,6 +290,7 @@ func TestInitNeededMaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	ix.InitBlobSource(bs)
 	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, _ set.Set[blob.Ref]) {
 		needsWant := map[blob.Ref][]blob.Ref{
@@ -406,6 +409,7 @@ func testOutOfOrderIndexing(t *testing.T, sequence []testSequence) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	ix.InitBlobSource(tf)
 
 	add := func(b *test.Blob) {
@@ -505,6 +509,7 @@ func TestOutOfOrderIndexingDepArrivesMidIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	tf := &hookFetcher{Fetcher: new(test.Fetcher), missRef: chunk3ref}
 	ix.InitBlobSource(tf)
 
@@ -555,6 +560,7 @@ func TestOutOfOrderIndexingDepArrivesWhileReading(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	t.Cleanup(func() { ix.Close() })
 	tf := &hookFetcher{Fetcher: new(test.Fetcher), missRef: chunk3ref}
 	ix.InitBlobSource(tf)
@@ -602,6 +608,7 @@ func TestDeleteBeforeTargetSurvivesReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	id := indextest.NewIndexDeps(ix)
 	id.Fataler = t
 
@@ -617,6 +624,7 @@ func TestDeleteBeforeTargetSurvivesReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix2.Logger = test.NewLogger(t, "")
 	ix2.KeyFetcher = ix.KeyFetcher
 	ix2.InitBlobSource(id.BlobSource)
 	id.Index = ix2
@@ -634,6 +642,7 @@ func TestIndexingPermanodeBadSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	idx.Logger = test.NewLogger(t, "")
 
 	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
@@ -670,6 +679,7 @@ func TestIndexingClaimMissingPubkey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	idx.Logger = test.NewLogger(t, "")
 
 	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
@@ -724,6 +734,7 @@ func TestIndexingPermanodeMissingPubkey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	idx.Logger = test.NewLogger(t, "")
 
 	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t

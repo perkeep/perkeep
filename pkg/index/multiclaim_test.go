@@ -50,6 +50,7 @@ func TestMultiClaimDeleteBeforeEnvelope_Memory(t *testing.T) {
 	defer index.SetReindexMaxProcs(oldProcs)
 	synctest.Test(t, func(t *testing.T) {
 		ix := index.NewMemoryIndex()
+		ix.Logger = test.NewLogger(t, "")
 		id := indextest.NewIndexDeps(ix)
 		id.Fataler = t
 		c, err := ix.KeepInMemory()
@@ -108,6 +109,7 @@ func TestMultiClaimDeleteBeforeEnvelope_Memory(t *testing.T) {
 		// A fresh live corpus must also survive reindex enumeration where the
 		// deletion sorts before its envelope (one worker makes that definite).
 		rebuilt := index.NewMemoryIndex()
+		rebuilt.Logger = test.NewLogger(t, "")
 		rebuilt.KeyFetcher = id.PublicKeyFetcher
 		rebuilt.InitBlobSource(id.BlobSource)
 		rebuiltCorpus, err := rebuilt.KeepInMemory()

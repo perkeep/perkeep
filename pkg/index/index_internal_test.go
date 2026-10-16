@@ -72,12 +72,12 @@ func TestKvPathMalformedDates(t *testing.T) {
 	for _, date := range []string{"not-a-date", "2026-13-02T03:04:05Z"} {
 		k := keyPathBackward.Key("KEY", target, claim)
 		v := keyPathBackward.Val(date, base, "Y", "photos")
-		if p, _, ok, active := kvPathBackward(k, v); ok || active || p != (camtypes.Path{}) {
+		if p, _, ok, active := newLoggingIndex(t).kvPathBackward(k, v); ok || active || p != (camtypes.Path{}) {
 			t.Errorf("kvPathBackward with date %q = %+v, %v, %v; want zero path, false, false", date, p, ok, active)
 		}
 		k = strings.Join([]string{"path", "KEY", base.String(), "photos", reverseTimeString(date), claim.String()}, "|")
 		v = keyPathForward.Val("Y", target)
-		if p, _, ok, active := kvPathForward(k, v); ok || active || p != (camtypes.Path{}) {
+		if p, _, ok, active := newLoggingIndex(t).kvPathForward(k, v); ok || active || p != (camtypes.Path{}) {
 			t.Errorf("kvPathForward with date %q = %+v, %v, %v; want zero path, false, false", date, p, ok, active)
 		}
 	}
@@ -112,8 +112,8 @@ func TestKvPathSplit(t *testing.T) {
 			k, v  string
 			parse func(string, string) (p camtypes.Path, childIndex int, ok bool, active bool)
 		}{
-			{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, flag, suffix), kvPathBackward},
-			{"forward", keyPathForward.Key("KEY", base, suffix, date, claim), keyPathForward.Val(flag, target), kvPathForward},
+			{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, flag, suffix), newLoggingIndex(t).kvPathBackward},
+			{"forward", keyPathForward.Key("KEY", base, suffix, date, claim), keyPathForward.Val(flag, target), newLoggingIndex(t).kvPathForward},
 		} {
 			t.Run(tc.name+"/"+flag, func(t *testing.T) {
 				if p, _, ok, active := tc.parse(tc.k, tc.v); !ok || p != want || active != (flag == "Y") {
@@ -146,8 +146,8 @@ func BenchmarkKvPath(b *testing.B) {
 		k, v  string
 		parse func(string, string) (p camtypes.Path, childIndex int, ok bool, active bool)
 	}{
-		{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, "Y", "photos"), kvPathBackward},
-		{"forward", keyPathForward.Key("KEY", base, "photos", date, claim), keyPathForward.Val("Y", target), kvPathForward},
+		{"backward", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, base, "Y", "photos"), newLoggingIndex(b).kvPathBackward},
+		{"forward", keyPathForward.Key("KEY", base, "photos", date, claim), keyPathForward.Val("Y", target), newLoggingIndex(b).kvPathForward},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
@@ -399,6 +399,7 @@ func TestReindexWaitsForWorkersOnEnumerationError(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ix.Logger = test.NewLogger(t, "")
 		t.Cleanup(func() {
 			if err := ix.Close(); err != nil {
 				t.Error(err)
@@ -499,6 +500,7 @@ func TestReadyReindexWorkerRequeuesDuringFetch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ix.Logger = test.NewLogger(t, "")
 		t.Cleanup(func() {
 			if err := ix.Close(); err != nil {
 				t.Error(err)
@@ -595,6 +597,7 @@ func TestReadyReindexWorkerRecoversFromFetchError(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ix.Logger = test.NewLogger(t, "")
 		t.Cleanup(func() {
 			if err := ix.Close(); err != nil {
 				t.Error(err)

@@ -49,6 +49,8 @@ import (
 // A Corpus is not safe for concurrent use. Callers should use Lock or RLock
 // on the parent index instead.
 type Corpus struct {
+	logger *log.Logger // or nil for the log package's standard logger
+
 	// building is true at start while scanning all rows in the
 	// index.  While building, certain invariants (like things
 	// being sorted) can be temporarily violated and fixed at the
@@ -123,8 +125,17 @@ type Corpus struct {
 	ss []string
 }
 
+// printf logs to c's logger without a prefix.
+func (c *Corpus) printf(format string, args ...any) {
+	l := c.logger
+	if l == nil {
+		l = log.Default()
+	}
+	l.Printf(format, args...)
+}
+
 func (c *Corpus) logf(format string, args ...any) {
-	log.Printf("index/corpus: "+format, args...)
+	c.printf("index/corpus: "+format, args...)
 }
 
 // blobMatches reports whether br is in the set.
@@ -355,16 +366,21 @@ func newCorpus() *Corpus {
 }
 
 func NewCorpusFromStorage(s sorted.KeyValue) (*Corpus, error) {
+	return newCorpusFromStorage(s, nil)
+}
+
+func newCorpusFromStorage(s sorted.KeyValue, logger *log.Logger) (*Corpus, error) {
 	if s == nil {
 		return nil, errors.New("storage is nil")
 	}
 	c := newCorpus()
+	c.logger = logger
 	return c, c.scanFromStorage(s)
 }
 
 func (x *Index) KeepInMemory() (*Corpus, error) {
 	var err error
-	x.corpus, err = NewCorpusFromStorage(x.s)
+	x.corpus, err = newCorpusFromStorage(x.s, x.Logger)
 	return x.corpus, err
 }
 
@@ -951,9 +967,9 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 	long, err1 := strconv.ParseFloat(string(v[pipe+1:]), 64)
 	if err != nil || err1 != nil {
 		if err != nil {
-			log.Printf("index: bogus latitude in value of row %q = %q", k, v)
+			c.printf("index: bogus latitude in value of row %q = %q", k, v)
 		} else {
-			log.Printf("index: bogus longitude in value of row %q = %q", k, v)
+			c.printf("index: bogus longitude in value of row %q = %q", k, v)
 		}
 		return nil
 	}
@@ -981,7 +997,7 @@ func (c *Corpus) mergeEXIFTagRow(k, v []byte) error {
 	}
 	value, err := url.QueryUnescape(string(v[len(prefix):]))
 	if err != nil {
-		log.Printf("index: bogus EXIF string in value of row %q = %q", k, v)
+		c.printf("index: bogus EXIF string in value of row %q = %q", k, v)
 		return nil
 	}
 	// Cameras commonly pad ASCII strings with spaces and/or NUL bytes.

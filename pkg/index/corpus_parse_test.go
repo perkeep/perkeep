@@ -52,7 +52,7 @@ func TestCorpusBlobParse(t *testing.T) {
 		"future-abc",
 	} {
 		t.Run(text, func(t *testing.T) {
-			c := newCorpus()
+			c := newLoggingCorpus(t)
 			canonical := blob.MustParse(text)
 			if err := c.mergeBlobMeta(camtypes.BlobMeta{Ref: canonical, Size: 1234}); err != nil {
 				t.Fatal(err)
@@ -76,7 +76,7 @@ func TestCorpusBlobParse(t *testing.T) {
 			}
 		})
 	}
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	for _, s := range []string{"", "not-a-ref", "sha224-123", "foo-zz"} {
 		if br, ok := c.blobParseString(s); ok || br.Valid() {
 			t.Fatalf("accepted invalid %q", s)
@@ -92,7 +92,7 @@ func TestCorpusBlobParse(t *testing.T) {
 
 func TestCorpusBlobParseInputOwnership(t *testing.T) {
 	text := blob.RefFromString("ownership").String()
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	input := []byte(text)
 	first, ok := c.blobParse(input)
 	if !ok {
@@ -105,7 +105,7 @@ func TestCorpusBlobParseInputOwnership(t *testing.T) {
 	}
 	requireCanonicalRef(t, got, first)
 
-	c = newCorpus()
+	c = newLoggingCorpus(t)
 	row := strings.Repeat("prefix", 1000) + text + strings.Repeat("suffix", 1000)
 	substring := row[6000 : 6000+len(text)]
 	first, ok = c.blobParseString(substring)
@@ -125,7 +125,7 @@ func TestCorpusBlobParseInputOwnership(t *testing.T) {
 }
 
 func TestCorpusBlobParseMetadataLate(t *testing.T) {
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	text := blob.RefFromString("late").String()
 	old, ok := c.blobParseString(text)
 	if !ok {

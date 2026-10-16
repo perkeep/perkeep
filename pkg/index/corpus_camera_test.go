@@ -24,6 +24,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 func TestCorpusFileCamera(t *testing.T) {
@@ -112,12 +113,12 @@ func TestCorpusFileCamera(t *testing.T) {
 					}
 				}
 				var err error
-				c, err = NewCorpusFromStorage(kv)
+				c, err = newCorpusFromStorage(kv, test.NewLogger(t, ""))
 				if err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				c = newCorpus()
+				c = newLoggingCorpus(t)
 				if err := c.addBlob(context.Background(), blob.RefFromString("received"), &mutationMap{kv: rows}); err != nil {
 					t.Fatal(err)
 				}
@@ -151,7 +152,7 @@ func TestCorpusFileCamera(t *testing.T) {
 }
 
 func TestCorpusFileCameraIncrementalParts(t *testing.T) {
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	file, whole := blob.RefFromString("file"), blob.RefFromString("whole")
 	add := func(k, v string) {
 		t.Helper()
@@ -194,10 +195,10 @@ func TestCorpusCameraMalformedKeys(t *testing.T) {
 			if err := kv.Set(key, "string|1|Maker"); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := NewCorpusFromStorage(kv); err == nil {
+			if _, err := newCorpusFromStorage(kv, test.NewLogger(t, "")); err == nil {
 				t.Error("startup accepted a malformed key")
 			}
-			c := newCorpus()
+			c := newLoggingCorpus(t)
 			if err := c.addBlob(context.Background(), blob.RefFromString("received"),
 				&mutationMap{kv: map[string]string{key: "string|1|Maker"}}); err == nil {
 				t.Error("incremental merge accepted a malformed key")
@@ -221,7 +222,7 @@ func TestCorpusCameraIgnoredRows(t *testing.T) {
 		{keyEXIFTag.Key(whole, exifIFD0, "0110"), "string|2|A|B"},
 	} {
 		t.Run(row.key+"="+row.value, func(t *testing.T) {
-			c := newCorpus()
+			c := newLoggingCorpus(t)
 			if err := c.mergeEXIFTagRow([]byte(row.key), []byte(row.value)); err != nil {
 				t.Fatal(err)
 			}

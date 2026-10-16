@@ -179,11 +179,11 @@ func (ix *Index) indexReadyBlobs(done chan struct{}) {
 		ix.Unlock()
 
 		if verboseReindex {
-			log.Printf("reindex: reindexing blob %v now that its dependencies are satisfied", br)
+			ix.printf("reindex: reindexing blob %v now that its dependencies are satisfied", br)
 		}
 		err := ix.indexBlob(ctx, br)
 		if err != nil {
-			log.Printf("out-of-order indexBlob(%v) = %v", br, err)
+			ix.printf("out-of-order indexBlob(%v) = %v", br, err)
 		}
 		ix.Lock()
 		if err != nil {
@@ -266,7 +266,7 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 		toDelete = append(toDelete, it.Key())
 	}
 	if err := it.Close(); err != nil {
-		log.Printf("Iterator close error: %v", err)
+		ix.printf("Iterator close error: %v", err)
 		return
 	}
 	if len(toDelete) > 0 {
@@ -275,7 +275,7 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 			bm.Delete(k)
 		}
 		if err := ix.s.CommitBatch(bm); err != nil {
-			log.Printf("Error deleting missing edges for %v: %v", br, err)
+			ix.printf("Error deleting missing edges for %v: %v", br, err)
 			return
 		}
 	}
@@ -319,11 +319,11 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		if strings.HasSuffix(haveVal, "|indexed") {
 			if allowReindex, _ := strconv.ParseBool(os.Getenv("CAMLI_REDO_INDEX_ON_RECEIVE")); allowReindex {
 				if debugEnv {
-					log.Printf("index: reindexing %v", sbr)
+					ix.printf("index: reindexing %v", sbr)
 				}
 			} else {
 				if debugEnv {
-					log.Printf("index: ignoring upload of already-indexed %v", sbr)
+					ix.printf("index: ignoring upload of already-indexed %v", sbr)
 				}
 				return sbr, nil
 			}
@@ -339,7 +339,7 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	// Read subsidiary blobs from source before acquiring ix.Lock (also issue 878).
 	mm, err := ix.populateMutationMap(ctx, fetcher, blobRef, sniffer)
 	if debugEnv {
-		log.Printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
+		ix.printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
 	}
 	// err is checked below
 
@@ -700,7 +700,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		if err := readPrefixOrFile(imageBuf.Bytes, fetcher, b, decodeConfig); err == nil {
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		} else if debugEnv {
-			log.Printf("index: WARNING: image decodeConfig: %v", err)
+			ix.printf("index: WARNING: image decodeConfig: %v", err)
 		}
 
 		if !noEXIF {
@@ -717,20 +717,20 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 			if err = readPrefixOrFile(exifData, fetcher, b, fileTime); err == nil {
 				times = append(times, ft)
 			} else if debugEnv {
-				log.Printf("index: WARNING: image fileTime: %v", err)
+				ix.printf("index: WARNING: image fileTime: %v", err)
 
 			}
 			if exifDebug {
-				log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
+				ix.printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 			}
 
 			// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
 			indexEXIFData := func(r filePrefixReader) error {
-				return indexEXIF(wholeRef, r, mm)
+				return ix.indexEXIF(wholeRef, r, mm)
 			}
 			if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil {
 				if exifDebug {
-					log.Printf("error parsing EXIF: %v", err)
+					ix.printf("error parsing EXIF: %v", err)
 				}
 			}
 		}
@@ -764,7 +764,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
 	if strings.HasPrefix(mimeType, "audio/") {
-		indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
+		ix.indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
 	}
 
 	return nil
@@ -793,6 +793,7 @@ const (
 )
 
 type exifIndexer struct {
+	ix       *Index
 	wholeRef blob.Ref
 	mm       *mutationMap
 	dirs     []*tiff.Dir // retained IFD0/IFD1 directories
@@ -820,7 +821,7 @@ func (x *exifIndexer) Walk(name exif.FieldName, tag *tiff.Tag) error {
 
 var errEXIFPanic = errors.New("EXIF library panicked while walking fields")
 
-func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
+func (ix *Index) indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 	var tiffErr error
 	ex, err := exif.Decode(r)
 	if err != nil {
@@ -831,7 +832,7 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 			}
 			return
 		}
-		log.Printf("Non critical TIFF decoding error: %v", err)
+		ix.printf("Non critical TIFF decoding error: %v", err)
 	}
 	defer func() {
 		// The EXIF library panics if you access a field past
@@ -847,7 +848,7 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 	// repeated fields (e.g. main-image and thumbnail orientation) survive
 	// goexif's flattened field-name map.
 	dirs := ex.Tiff.Dirs[:min(2, len(ex.Tiff.Dirs))]
-	x := &exifIndexer{wholeRef: wholeRef, mm: mm, dirs: dirs}
+	x := &exifIndexer{ix: ix, wholeRef: wholeRef, mm: mm, dirs: dirs}
 	for dirID, dir := range dirs {
 		for _, tag := range dir.Tags {
 			x.indexTag(dirID, tag)
@@ -865,23 +866,23 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 	}
 
 	if exif.IsGPSError(tiffErr) {
-		log.Printf("Invalid EXIF GPS data: %v", tiffErr)
+		ix.printf("Invalid EXIF GPS data: %v", tiffErr)
 		return nil
 	}
 	if lat, long, err := ex.LatLong(); err == nil {
 		if math.Abs(long) > 180.0 || math.Abs(lat) > 90.0 {
-			log.Printf("Long, lat outside allowed range: %v, %v", long, lat)
+			ix.printf("Long, lat outside allowed range: %v, %v", long, lat)
 			return nil
 		}
 		if math.IsNaN(long) || math.IsNaN(lat) {
-			log.Print("Latitude or Longitude is NaN")
+			ix.printf("Latitude or Longitude is NaN")
 			return nil
 		}
 		// index 7 places fixed precision (~10mm worst case at equator)
 		// http://stackoverflow.com/a/1947615/114581
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprintf("%.7f", lat), fmt.Sprintf("%.7f", long)))
 	} else if !exif.IsTagNotPresentError(err) {
-		log.Printf("Invalid EXIF GPS data: %v", err)
+		ix.printf("Invalid EXIF GPS data: %v", err)
 	}
 	return nil
 }
@@ -906,7 +907,7 @@ func (x *exifIndexer) indexTag(dirID int, tag *tiff.Tag) {
 	if tag.Format() == tiff.StringVal {
 		str, err := tag.StringVal()
 		if err != nil {
-			log.Printf("Invalid EXIF string data: %v", err)
+			x.ix.printf("Invalid EXIF string data: %v", err)
 			return
 		}
 		if containsUnsafeRawStrByte(str) {
@@ -923,21 +924,21 @@ func (x *exifIndexer) indexTag(dirID int, tag *tiff.Tag) {
 			case "int":
 				v, err := tag.Int(i)
 				if err != nil {
-					log.Printf("Invalid EXIF int data: %v", err)
+					x.ix.printf("Invalid EXIF int data: %v", err)
 					return
 				}
 				fmt.Fprintf(&val, "%d", v)
 			case "rat":
 				n, d, err := tag.Rat2(i)
 				if err != nil {
-					log.Printf("Invalid EXIF rat data: %v", err)
+					x.ix.printf("Invalid EXIF rat data: %v", err)
 					return
 				}
 				fmt.Fprintf(&val, "%d/%d", n, d)
 			case "float":
 				v, err := tag.Float(i)
 				if err != nil {
-					log.Printf("Invalid EXIF float data: %v", err)
+					x.ix.printf("Invalid EXIF float data: %v", err)
 					return
 				}
 				fmt.Fprintf(&val, "%v", v)
@@ -951,16 +952,16 @@ func (x *exifIndexer) indexTag(dirID int, tag *tiff.Tag) {
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
-func indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
+func (ix *Index) indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 	tag, err := taglib.Decode(r, r.Size())
 	if err != nil {
-		log.Print("index: error parsing tag: ", err)
+		ix.printf("index: error parsing tag: %v", err)
 		return
 	}
 
 	var footerLength int64 = 0
 	if hasTag, err := media.HasID3v1Tag(r); err != nil {
-		log.Print("index: unable to check for ID3v1 tag: ", err)
+		ix.printf("index: unable to check for ID3v1 tag: %v", err)
 		return
 	} else if hasTag {
 		footerLength = media.ID3v1TagLength
@@ -971,14 +972,14 @@ func indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 	audioSize := r.Size() - audioStart - footerLength
 	hash := blob.NewHash()
 	if _, err := io.Copy(hash, io.NewSectionReader(r, audioStart, audioSize)); err != nil {
-		log.Print("index: error generating hash of audio data: ", err)
+		ix.printf("index: error generating hash of audio data: %v", err)
 		return
 	}
 	mediaRef := blob.RefFromHash(hash)
 
 	duration, err := media.GetMPEGAudioDuration(io.NewSectionReader(r, audioStart, audioSize))
 	if err != nil {
-		log.Print("index: unable to calculate audio duration: ", err)
+		ix.printf("index: unable to calculate audio duration: %v", err)
 		duration = 0
 	}
 
@@ -1032,7 +1033,7 @@ func (ix *Index) populateDir(ctx context.Context, fetcher blob.Fetcher, b *schem
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
 		// future if blobs are only temporarily unavailable.
-		log.Printf("index: error indexing directory, creating NewDirReader %s: %v", blobRef, err)
+		ix.printf("index: error indexing directory, creating NewDirReader %s: %v", blobRef, err)
 		return nil
 	}
 	sts, err := dr.StaticSet(ctx)
@@ -1040,7 +1041,7 @@ func (ix *Index) populateDir(ctx context.Context, fetcher blob.Fetcher, b *schem
 		if tf.allErrNotExist() {
 			return errMissingDep
 		}
-		log.Printf("index: error indexing directory: can't get StaticSet: %v\n", err)
+		ix.printf("index: error indexing directory: can't get StaticSet: %v", err)
 		return nil
 	}
 
@@ -1059,7 +1060,7 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	br := cl.Blob().BlobRef()
 	target := cl.Target()
 	if !target.Valid() {
-		log.Print(fmt.Errorf("no valid target for delete claim %v", br))
+		ix.printf("no valid target for delete claim %v", br)
 		return nil
 	}
 	// Mutation-map population runs before the receive write lock. The ready
@@ -1072,12 +1073,12 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 			mm.deps = append(mm.deps, target)
 			return errMissingDep
 		}
-		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %w", target, err))
+		ix.printf("Could not get mime type of target blob %v: %v", target, err)
 		return nil
 	}
 
 	if meta.CamliType != schema.TypePermanode && meta.CamliType != schema.TypeClaim {
-		log.Print(fmt.Errorf("delete claim target in %v is neither a permanode nor a claim: %v", br, meta.CamliType))
+		ix.printf("delete claim target in %v is neither a permanode nor a claim: %v", br, meta.CamliType)
 		return nil
 	}
 	mm.Set(keyDeleted.Key(target, cl.ClaimDateString(), br), "")
@@ -1110,7 +1111,7 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		children, err := claim.AttributeClaims()
 		if err != nil {
 			// Validate the entire array before recording any child mutation.
-			log.Printf("index: ignoring invalid multi claim %v: %v", br, err)
+			ix.printf("index: ignoring invalid multi claim %v: %v", br, err)
 			return nil
 		}
 		for i, child := range children {

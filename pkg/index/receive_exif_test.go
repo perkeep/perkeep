@@ -134,7 +134,7 @@ func TestIndexEXIFDirectories(t *testing.T) {
 			}
 			for range 20 {
 				mm := &mutationMap{}
-				if err := indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
+				if err := newLoggingIndex(t).indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
 					t.Fatal(err)
 				}
 				// Exact equality also checks that no legacy keys,
@@ -151,7 +151,7 @@ func TestIndexEXIFDirectories(t *testing.T) {
 				order.PutUint32(broken[offsets[2]+2+12+8:], uint32(len(broken)+8))
 				brokenRef := blob.RefFromBytes(broken)
 				mm := &mutationMap{}
-				if err := indexEXIF(brokenRef, bytes.NewReader(broken), mm); err != nil {
+				if err := newLoggingIndex(t).indexEXIF(brokenRef, bytes.NewReader(broken), mm); err != nil {
 					t.Fatalf("noncritical Exif subdirectory error: %v", err)
 				}
 				for _, tag := range []string{"0001", "0002", "0003", "0004"} {
@@ -168,7 +168,7 @@ func TestIndexEXIFDirectories(t *testing.T) {
 				order.PutUint32(broken[offsets[3]+2+12+8:], uint32(len(broken)+8))
 				whole := blob.RefFromBytes(broken)
 				mm := &mutationMap{}
-				if err := indexEXIF(whole, bytes.NewReader(broken), mm); err != nil {
+				if err := newLoggingIndex(t).indexEXIF(whole, bytes.NewReader(broken), mm); err != nil {
 					t.Fatalf("noncritical GPS subdirectory error: %v", err)
 				}
 				if got := mm.kv[keyEXIFTag.Key(whole, exifIFD, "9003")]; got != "string|1|2026:01:02 03:04:05" {
@@ -215,14 +215,14 @@ func TestIndexEXIFSubdirectoryShortRead(t *testing.T) {
 			data = append(data, []byte("fixture\x00")...)
 			whole := blob.RefFromBytes(data)
 			partial := &mutationMap{}
-			if err := indexEXIF(whole, bytes.NewReader(data[:payloadOffset]), partial); err != nil {
+			if err := newLoggingIndex(t).indexEXIF(whole, bytes.NewReader(data[:payloadOffset]), partial); err != nil {
 				t.Fatalf("noncritical truncated subdirectory error: %v", err)
 			}
 			if got := partial.kv[keyEXIFTag.Key(whole, tt.dirID, fmt.Sprintf("%04x", tt.tag))]; got != "" {
 				t.Errorf("truncated subdirectory tag = %q; want no row", got)
 			}
 			mm := &mutationMap{}
-			if err := indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
+			if err := newLoggingIndex(t).indexEXIF(whole, bytes.NewReader(data), mm); err != nil {
 				t.Fatal(err)
 			}
 			if got := mm.kv[keyEXIFTag.Key(whole, tt.dirID, fmt.Sprintf("%04x", tt.tag))]; got != "string|1|fixture" {
@@ -246,9 +246,10 @@ func BenchmarkIndexEXIF(b *testing.B) {
 				b.Fatal(err)
 			}
 			whole := blob.RefFromBytes(data)
+			ix := newLoggingIndex(b)
 			b.ReportAllocs()
 			for b.Loop() {
-				if err := indexEXIF(whole, bytes.NewReader(data), &mutationMap{}); err != nil {
+				if err := ix.indexEXIF(whole, bytes.NewReader(data), &mutationMap{}); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -317,7 +318,7 @@ func TestPopulateFileJPEGWithoutEXIF(t *testing.T) {
 	data := largeJPEGWithoutEXIF(t)
 	sto, file := exifTestFile(t, data, "no-exif.jpg")
 	mm := &mutationMap{kv: make(map[string]string)}
-	if err := new(Index).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
+	if err := newLoggingIndex(t).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
 		t.Fatal(err)
 	}
 	whole := blob.RefFromBytes(data)
@@ -382,7 +383,7 @@ func TestPopulateFileJPEGEXIFFallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sto, file := exifTestFile(t, tt.data, "image.jpg")
 			mm := &mutationMap{kv: make(map[string]string)}
-			if err := new(Index).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
+			if err := newLoggingIndex(t).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
 				t.Fatal(err)
 			}
 			whole := blob.RefFromBytes(tt.data)
@@ -415,7 +416,7 @@ func TestPopulateFileJPEGEXIFPastPrefix(t *testing.T) {
 	data = append(data, orig[2:]...)
 	sto, file := exifTestFile(t, data, "oriented.jpg")
 	mm := &mutationMap{kv: make(map[string]string)}
-	if err := new(Index).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
+	if err := newLoggingIndex(t).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
 		t.Fatal(err)
 	}
 	if got := mm.kv[keyImageSize.Key(file.BlobRef())]; got != "40|80" {
@@ -439,7 +440,7 @@ func TestPopulateFileJPEGIncomplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	mm := &mutationMap{kv: make(map[string]string)}
-	err := new(Index).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, bb.Blob(), mm)
+	err := newLoggingIndex(t).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, bb.Blob(), mm)
 	if !errors.Is(err, errMissingDep) {
 		t.Fatalf("populateFile = %v; want missing dependency error", err)
 	}

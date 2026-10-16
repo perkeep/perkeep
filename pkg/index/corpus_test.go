@@ -27,6 +27,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
 )
 
@@ -331,6 +332,7 @@ func testDeletePermanodes(t *testing.T,
 	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error) {
 
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
 	foopn := idxd.NewDeterministicPermanodeForTest("foo")
@@ -426,6 +428,7 @@ func testEnumerateOrder(t *testing.T,
 	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error,
 	order int) {
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
 
@@ -494,6 +497,7 @@ func TestCacheSortedPermanodes_CreateTimeRace(t *testing.T) {
 func testCacheSortedPermanodesRace(t *testing.T,
 	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error) {
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
 
@@ -528,6 +532,7 @@ func testCacheSortedPermanodesRace(t *testing.T,
 
 func TestLazySortedPermanodes(t *testing.T) {
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
 	c, err := idxd.Index.KeepInMemory()

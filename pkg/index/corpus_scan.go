@@ -67,6 +67,7 @@ func restScanUnits() []scanUnit {
 // maps, which are complete by then and only read from.
 func (c *Corpus) newScanWorker() *Corpus {
 	w := newCorpus()
+	w.logger = c.logger
 	w.building = true
 	w.blobs = c.blobs
 	w.keyId = c.keyId

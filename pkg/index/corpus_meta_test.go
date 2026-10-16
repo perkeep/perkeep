@@ -94,7 +94,7 @@ func TestScanMeta(t *testing.T) {
 		}
 	}
 
-	want := newCorpus()
+	want := newLoggingCorpus(t)
 	it := kv.Find("meta:", "meta;")
 	for it.Next() {
 		if err := want.mergeMetaRow(it.KeyBytes(), it.ValueBytes()); err != nil {
@@ -105,7 +105,7 @@ func TestScanMeta(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := newCorpus()
+	got := newLoggingCorpus(t)
 	got.building = true
 	if err := got.scanMeta(kv); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestScanMeta(t *testing.T) {
 // one corpus.
 func loadCorpusSerially(t *testing.T, s sorted.KeyValue) *Corpus {
 	t.Helper()
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	c.building = true
 	for _, prefix := range slurpPrefixes {
 		r := prefixRange(prefix)
@@ -255,7 +255,7 @@ func TestScanFromStorageParallel(t *testing.T) {
 	}
 
 	want := loadCorpusSerially(t, kv)
-	got := newCorpus()
+	got := newLoggingCorpus(t)
 	if err := got.scanFromStorage(kv); err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +339,7 @@ func TestScanFromStorageParallelMultiClaimDeletes(t *testing.T) {
 				set(keyDeleted.Key(deleter, date.Add(3*time.Second).Format(time.RFC3339), reviver), "")
 			}
 			want := loadCorpusSerially(t, kv)
-			got := newCorpus()
+			got := newLoggingCorpus(t)
 			if err := got.scanFromStorage(kv); err != nil {
 				t.Fatal(err)
 			}
