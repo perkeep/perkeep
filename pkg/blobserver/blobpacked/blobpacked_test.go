@@ -1389,7 +1389,7 @@ func TestCheckLargeIntegrity(t *testing.T) {
 						setRow(tt.packed, "")
 					}
 				}
-				s := &storage{large: large, meta: meta}
+				s := &storage{large: large, meta: meta, log: test.NewLogger(t, "blobpacked: ")}
 				mode, err := s.checkLargeIntegrity()
 				if mode != tt.wantMode {
 					t.Errorf("mode = %v; want %v", mode, tt.wantMode)
