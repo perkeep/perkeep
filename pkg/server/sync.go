@@ -710,9 +710,14 @@ func (sh *SyncHandler) addBlobToCopy(sb blob.SizedRef) bool {
 	return true
 }
 
+// enqueue durably adds a blob to the queue, and then to memory.
+// Everything in needCopy has thus been written to the queue, so a blob
+// already there needs no write.
 func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
-	if !sh.addBlobToCopy(sb) {
-		// Dup
+	sh.mu.Lock()
+	_, dup := sh.needCopy[sb.Ref]
+	sh.mu.Unlock()
+	if dup {
 		return nil
 	}
 	// TODO: include current time in encoded value, to attempt to
@@ -722,6 +727,7 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 	if err := sh.queue.Set(sb.Ref.String(), fmt.Sprint(sb.Size)); err != nil {
 		return err
 	}
+	sh.addBlobToCopy(sb)
 	return nil
 }
 
