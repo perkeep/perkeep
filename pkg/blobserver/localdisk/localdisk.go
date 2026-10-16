@@ -64,14 +64,20 @@ type DiskStorage struct {
 
 // Validate we implement expected interfaces.
 var (
-	_ blobserver.Storage   = (*DiskStorage)(nil)
-	_ blob.SubFetcher      = (*DiskStorage)(nil) // for blobpacked; Issue 1136
-	_ blobserver.RefLister = (*DiskStorage)(nil)
+	_ blobserver.Storage       = (*DiskStorage)(nil)
+	_ blob.SubFetcher          = (*DiskStorage)(nil) // for blobpacked; Issue 1136
+	_ blobserver.RefLister     = (*DiskStorage)(nil)
+	_ blobserver.BlobsReceiver = (*DiskStorage)(nil)
 )
 
 // ListBlobRefs implements blobserver.RefLister.
 func (ds *DiskStorage) ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) error {
 	return ds.Storage.(*files.Storage).ListBlobRefs(ctx, fn)
+}
+
+// ReceiveBlobs implements blobserver.BlobsReceiver.
+func (ds *DiskStorage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	return ds.Storage.(*files.Storage).ReceiveBlobs(ctx, blobs)
 }
 
 func (ds *DiskStorage) String() string {

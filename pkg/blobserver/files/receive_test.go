@@ -18,6 +18,7 @@ package files
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -152,6 +153,104 @@ func TestReceiveSyncsDirs(t *testing.T) {
 		"syncdir " + hashDir,
 		"syncdir " + hashDir + "/" + d[0:2],
 	}, afterMkdir...)...)
+}
+
+func newBlob(s string) *blob.Blob {
+	return blob.NewBlob(blob.RefFromString(s), uint32(len(s)), func(context.Context) ([]byte, error) {
+		return []byte(s), nil
+	})
+}
+
+// sameDirBlobs returns n blobs whose refs share a directory.
+func sameDirBlobs(n int) []*blob.Blob {
+	var blobs []*blob.Blob
+	var prefix string
+	for i := 0; len(blobs) < n; i++ {
+		s := fmt.Sprintf("blob %d", i)
+		p := blob.RefFromString(s).Digest()[:4]
+		if prefix == "" {
+			prefix = p
+		}
+		if p == prefix {
+			blobs = append(blobs, newBlob(s))
+		}
+	}
+	return blobs
+}
+
+// TestReceiveBlobsSyncsEachDirOnce checks that ReceiveBlobs syncs each
+// directory holding its blobs once, after renaming its blobs into it.
+func TestReceiveBlobsSyncsEachDirOnce(t *testing.T) {
+	root := t.TempDir()
+	fs := &recordingFS{root: root}
+	ds := NewStorage(fs, root)
+	blobs := append(sameDirBlobs(2), newBlob("other"))
+	dirOf := func(b *blob.Blob) string {
+		rel, err := filepath.Rel(root, ds.blobDirectory(b.Ref()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.ToSlash(rel)
+	}
+	if dirOf(blobs[0]) != dirOf(blobs[1]) || dirOf(blobs[0]) == dirOf(blobs[2]) {
+		t.Fatal("test blobs aren't in the expected directories")
+	}
+
+	if err := ds.ReceiveBlobs(context.Background(), blobs); err != nil {
+		t.Fatal(err)
+	}
+	ops := fs.takeOps()
+	lastRename := map[string]int{} // dir to index in ops
+	dirSyncs := map[string][]int{} // leaf dir to indexes in ops
+	for i, op := range ops {
+		if p, ok := strings.CutPrefix(op, "rename "); ok {
+			lastRename[filepath.ToSlash(filepath.Dir(p))] = i
+		}
+		if d, ok := strings.CutPrefix(op, "syncdir "); ok {
+			dirSyncs[d] = append(dirSyncs[d], i)
+		}
+	}
+	for _, b := range blobs {
+		dir := dirOf(b)
+		syncs := dirSyncs[dir]
+		if len(syncs) != 1 {
+			t.Errorf("dir %s synced %d times; want once. ops:\n\t%s", dir, len(syncs), strings.Join(ops, "\n\t"))
+			continue
+		}
+		if syncs[0] < lastRename[dir] {
+			t.Errorf("dir %s synced before a rename into it. ops:\n\t%s", dir, strings.Join(ops, "\n\t"))
+		}
+	}
+	for _, b := range blobs {
+		got, err := os.ReadFile(ds.blobPath(b.Ref()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if blob.RefFromBytes(got) != b.Ref() {
+			t.Errorf("%v has the wrong contents", b.Ref())
+		}
+	}
+
+	// Receiving them again keeps the stored copies, still syncing
+	// each directory once.
+	if err := ds.ReceiveBlobs(context.Background(), blobs); err != nil {
+		t.Fatal(err)
+	}
+	ops = fs.takeOps()
+	syncs := map[string]int{}
+	for _, op := range ops {
+		if strings.HasPrefix(op, "rename ") || strings.HasPrefix(op, "sync file") {
+			t.Errorf("receiving stored blobs again did %q", op)
+		}
+		if d, ok := strings.CutPrefix(op, "syncdir "); ok {
+			syncs[d]++
+		}
+	}
+	for _, b := range blobs {
+		if n := syncs[dirOf(b)]; n != 1 {
+			t.Errorf("receiving stored blobs again, dir %s synced %d times; want once", dirOf(b), n)
+		}
+	}
 }
 
 // plainFS hides osFS's SyncDir method.
