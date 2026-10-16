@@ -231,6 +231,7 @@ type Check struct {
 	runner    *runner  // or nil, if the check has no runner
 	sharded   *sharded // or nil, if the check isn't sharded; see SetShardedRunner
 	hint      string   // see SetProgressHint
+	details   any      // see SetDetails
 }
 
 // Event is a problem a check reported.
@@ -276,6 +277,32 @@ func (c *Check) SetProgressHint(hint string) {
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 	c.hint = hint
+}
+
+// Details returns the details of the check with the given ID (see
+// Check.SetDetails), or nil.
+func (m *Monitor) Details(id string) any {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if c, ok := m.checks[id]; ok {
+		return c.details
+	}
+	return nil
+}
+
+// SetDetails sets structured details of the check's latest result, for
+// the status page and its JSON. v must not be changed afterward, and
+// should be JSON-encodable.
+func (c *Check) SetDetails(v any) {
+	if c == nil {
+		return
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	c.details = v
 }
 
 // OK records that the check's run finished without finding a problem.
@@ -349,6 +376,9 @@ type CheckStatus struct {
 	Total   int64     `json:"total,omitempty"`
 	// ProgressHint describes what Done and Total count, if set.
 	ProgressHint string `json:"progressHint,omitempty"`
+	// Details are structured details of the check's latest result, if
+	// any (see Check.SetDetails).
+	Details any `json:"details,omitempty"`
 	// RecentErrors are the check's most recent problems, most recent
 	// first, including ones from earlier runs.
 	RecentErrors []Event `json:"recentErrors,omitempty"`
@@ -403,6 +433,7 @@ func (m *Monitor) Status() Status {
 			Total:   c.total,
 
 			ProgressHint: c.hint,
+			Details:      c.details,
 		}
 		for _, ev := range slices.Backward(c.recentErr) {
 			cs.RecentErrors = append(cs.RecentErrors, ev)
