@@ -267,6 +267,27 @@ Strava uses its shared importer cache for application-wide rate-limit
 snapshots. Stop the server before deleting persistent scratch stores.
 Restoring or reindexing the main blobs does not restore these caches.
 
+## Health checks {#health}
+
+The server's background checks, such as of its storage and its syncs,
+are listed with their results on its status page (`/status/`), where
+some can also be run, canceled, or scheduled to run on their own.
+`/healthz` reports a one-word summary, without authentication, for
+monitoring.
+
+The server saves the checks' schedules, if changed on the status page,
+and when they last ran, by default in `health.json` in its var
+directory. To keep them elsewhere, set `healthState` to the
+configuration of any [sorted key-value store](https://perkeep.org/pkg/sorted),
+such as:
+
+```json
+"healthState": {
+    "type": "sqlite",
+    "file": "/path/to/health.sqlite"
+}
+```
+
 ## Windows {#windows}
 
 The default SQLite indexer works on Windows. Its pure-Go driver does not

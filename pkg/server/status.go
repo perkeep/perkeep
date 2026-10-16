@@ -34,6 +34,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
+	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
@@ -45,6 +46,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/xsrftoken"
 )
 
 // StatusHandler publishes server status information.
@@ -100,6 +102,10 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
 	if suffix == "restart" {
 		sh.serveRestart(rw, req)
+		return
+	}
+	if suffix == "health" {
+		sh.serveHealthAction(rw, req)
 		return
 	}
 	if !httputil.IsGet(req) {
@@ -339,23 +345,32 @@ func (sh *StatusHandler) writeHealthHTML(w io.Writer, hs health.Status) {
 		f("<p>No checks.</p>")
 		return
 	}
+	token := xsrftoken.Generate(auth.Token(), "user", healthActionXSRF)
 	f("<table border='1' cellpadding='4' style='border-collapse: collapse'>")
-	f("<tr><th>State</th><th>Check</th><th>Message</th><th>Updated</th></tr>")
+	f("<tr><th>State</th><th>Check</th><th>Message</th><th>Updated</th><th>Schedule</th></tr>")
+	now := time.Now()
 	for _, c := range hs.Checks {
 		var updated string
 		if !c.Updated.IsZero() {
 			updated = c.Updated.UTC().Format(time.RFC3339)
 		}
-		f("<tr><td style='background: %s'>%s</td><td>%s<br><small>%s</small></td><td>%s</td><td>%s</td></tr>",
-			stateColors[c.State], stateHTML(c),
+		f("<tr><td style='background: %s'>%s</td><td>%s<br><small>%s</small></td><td>%s</td><td>%s</td><td>",
+			stateColors[c.State], stateHTML(c, now),
 			html.EscapeString(c.Title), html.EscapeString(c.ID),
 			html.EscapeString(c.Message), updated)
+		if c.Runnable {
+			writeHealthControls(w, c, token)
+		}
+		f("</td></tr>")
 	}
 	f("</table>")
 }
 
-// stateHTML returns the HTML for the state of check c.
-func stateHTML(c health.CheckStatus) string {
+// stateHTML returns the HTML for the state of check c at time now, with,
+// if it's running, how far along it is, as a percentage if its total is
+// known (hovering over it shows what it counts), and an estimate of how
+// much longer it'll take, from its average rate so far.
+func stateHTML(c health.CheckStatus, now time.Time) string {
 	s := c.State.String()
 	if e := stateEmoji[c.State]; e != "" {
 		s = e + " " + s
@@ -363,7 +378,108 @@ func stateHTML(c health.CheckStatus) string {
 	if c.Fatal {
 		s += " (fatal)"
 	}
-	return html.EscapeString(s)
+	s = html.EscapeString(s)
+	title := c.ProgressHint
+	if c.Total > 0 {
+		title = strings.TrimSpace(fmt.Sprintf("%s (%d / %d)", c.ProgressHint, c.Done, c.Total))
+	}
+	pct := ""
+	if c.Total > 0 {
+		pct = fmt.Sprintf("<span title='%s'>%0.1f%%</span>", html.EscapeString(title), 100*float64(c.Done)/float64(c.Total))
+	}
+	switch {
+	case c.State == health.StateRunning && c.Total > 0:
+		s += ", " + pct
+		if c.Done > 0 && c.Done < c.Total && !c.Started.IsZero() {
+			elapsed := now.Sub(c.Started)
+			remain := time.Duration(float64(elapsed) * float64(c.Total-c.Done) / float64(c.Done))
+			s += "<br><span style='color: #666'>" + formatETA(remain) + "</span>"
+		}
+	case c.State == health.StateRunning && c.Done > 0:
+		s += fmt.Sprintf(", <span title='%s'>%d</span>", html.EscapeString(c.ProgressHint), c.Done)
+	}
+	return s
+}
+
+// formatETA formats d, the time a check has left, like "-1h:53m", or
+// like "-12m:05s" if it's under an hour.
+func formatETA(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d >= time.Hour {
+		d = d.Round(time.Minute)
+		return fmt.Sprintf("-%dh:%02dm", int(d/time.Hour), int(d%time.Hour/time.Minute))
+	}
+	return fmt.Sprintf("-%dm:%02ds", int(d/time.Minute), int(d%time.Minute/time.Second))
+}
+
+// healthActionXSRF is the action ID of the XSRF tokens of the health
+// forms on the status page.
+const healthActionXSRF = "healthAction"
+
+// writeHealthControls writes the forms that run, cancel, and schedule
+// the check c, with the XSRF token.
+func writeHealthControls(w io.Writer, c health.CheckStatus, token string) {
+	f := func(p string, a ...any) { fmt.Fprintf(w, p, a...) }
+	id := html.EscapeString(c.ID)
+	hidden := fmt.Sprintf("<input type='hidden' name='id' value='%s'><input type='hidden' name='token' value='%s'>", id, token)
+	f("<form method='post' action='health' style='display: inline'>%s<select name='schedule'>", hidden)
+	for _, sc := range health.Schedules {
+		sel := ""
+		if sc == c.Schedule {
+			sel = " selected"
+		}
+		def := ""
+		if sc == c.DefaultSchedule {
+			def = " (default)"
+		}
+		f("<option value='%s'%s>%s%s</option>", sc, sel, sc, def)
+	}
+	f("</select> <button name='action' value='schedule'>Set</button></form> ")
+	button := func(action, label, title string) {
+		f("<form method='post' action='health' style='display: inline'>%s<button name='action' value='%s' title='%s'>%s</button></form> ", hidden, action, title, label)
+	}
+	switch {
+	case c.State == health.StateRunning:
+		button("cancel", "Cancel", "Stop it")
+	default:
+		button("run", "Run now", "Run it now")
+	}
+	if !c.LastRun.IsZero() {
+		f("<br><small>Last run %s</small>", c.LastRun.UTC().Format(time.RFC3339))
+	}
+	if !c.NextRun.IsZero() {
+		f("<br><small>Next run %s</small>", c.NextRun.UTC().Format(time.RFC3339))
+	}
+}
+
+// serveHealthAction handles the POSTs of the forms from
+// writeHealthControls, to run, cancel, or schedule a check.
+func (sh *StatusHandler) serveHealthAction(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != "POST" {
+		http.Error(rw, "POST to run, cancel, or schedule a check", http.StatusMethodNotAllowed)
+		return
+	}
+	if !xsrftoken.Valid(req.FormValue("token"), auth.Token(), "user", healthActionXSRF) {
+		http.Error(rw, "Invalid or expired form token; reload the status page.", http.StatusForbidden)
+		return
+	}
+	id := req.FormValue("id")
+	var err error
+	switch req.FormValue("action") {
+	case "run":
+		err = sh.health.RunNow(id)
+	case "cancel":
+		err = sh.health.Cancel(id)
+	case "schedule":
+		err = sh.health.SetSchedule(id, health.Schedule(req.FormValue("schedule")))
+	default:
+		err = errors.New("unknown action")
+	}
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(rw, req, sh.prefix+"#health", http.StatusFound)
 }
 
 func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request) {

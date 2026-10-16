@@ -45,6 +45,7 @@ import (
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/serverinit"
+	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/webserver"
 
 	// VM environments:
@@ -69,6 +70,7 @@ import (
 
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
+	_ "perkeep.org/pkg/sorted/jsonfile"
 	_ "perkeep.org/pkg/sorted/kvfile"
 	_ "perkeep.org/pkg/sorted/leveldb"
 	_ "perkeep.org/pkg/sorted/mysql"
@@ -84,6 +86,7 @@ import (
 	// Licence:
 	_ "perkeep.org/pkg/camlegal"
 
+	"go4.org/jsonconfig"
 	"go4.org/legal"
 	"go4.org/wkfs"
 
@@ -264,6 +267,37 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	})
 }
 
+// openHealthState opens the sorted.KeyValue in which mon saves the state
+// of its checks (such as their schedules), as configured by config, or
+// by default a "jsonfile" in the server's var directory, health.json,
+// and loads their state from it.
+func openHealthState(mon *health.Monitor, config *serverinit.Config) (sorted.KeyValue, error) {
+	kvConf := config.HealthState()
+	if kvConf == nil {
+		dir, err := osutil.CamliVarDir()
+		if err != nil {
+			return nil, err
+		}
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, err
+		}
+		kvConf = jsonconfig.Obj{"type": "jsonfile", "file": filepath.Join(dir, "health.json")}
+	}
+	kv, err := sorted.NewKeyValue(kvConf)
+	if err != nil {
+		return nil, err
+	}
+	if err := mon.UseStore(kv); err != nil {
+		kv.Close()
+		return nil, err
+	}
+	return kv, nil
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }
+
 func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
@@ -443,6 +477,10 @@ func main() {
 	// a 503.
 	ws := webserver.New()
 	mon := health.New()
+	healthState, err := openHealthState(mon, config)
+	if err != nil {
+		log.Printf("health: not saving the state of checks: %v", err)
+	}
 	healthz := http.HandlerFunc(mon.ServeHealthz)
 	ws.Handle("/healthz", healthz)
 	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz})
@@ -468,7 +506,16 @@ func main() {
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
-	shutdownc <- shutdownCloser
+	// Stop the checks before the storage they use.
+	shutdownc <- closerFunc(func() error {
+		mon.Close()
+		if healthState != nil {
+			if err := healthState.Close(); err != nil {
+				log.Printf("health: %v", err)
+			}
+		}
+		return shutdownCloser.Close()
+	})
 
 	baseURL := getBaseURL()
 	ws.EndStartup()

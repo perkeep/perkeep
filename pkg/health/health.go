@@ -36,6 +36,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"perkeep.org/pkg/sorted"
 )
 
 // State is the state of a check, or of a Monitor as a whole.
@@ -44,11 +46,17 @@ type State int
 const (
 	// StatePending means the check is registered but hasn't started.
 	StatePending State = iota
+	// StateUnchecked means the check has never run, and won't until
+	// it's asked to: it has a runner, but its schedule is off.
+	StateUnchecked
 	// StateRunning means the check is running and hasn't found a problem
 	// yet in this run.
 	StateRunning
 	// StateOK means the check's last run found no problem.
 	StateOK
+	// StateCanceled means the check's last run was canceled before it
+	// finished.
+	StateCanceled
 	// StateWarning means the check found a problem that needs attention,
 	// but that the server can keep working with.
 	StateWarning
@@ -61,10 +69,14 @@ func (s State) String() string {
 	switch s {
 	case StatePending:
 		return "pending"
+	case StateUnchecked:
+		return "unchecked"
 	case StateRunning:
 		return "running"
 	case StateOK:
 		return "ok"
+	case StateCanceled:
+		return "canceled"
 	case StateWarning:
 		return "warning"
 	case StateFailed:
@@ -87,27 +99,58 @@ var ErrReadOnly = errors.New("server is read-only")
 // report a healthy server with no checks, and Register returns a nil
 // *Check.
 type Monitor struct {
+	startupDone chan struct{} // closed by EndStartup
+	closed      chan struct{} // closed by Close
+	closeOnce   sync.Once
+	runners     sync.WaitGroup // of the checks' scheduling goroutines
+
 	mu       sync.Mutex
 	checks   map[string]*Check
-	starting bool // until EndStartup
+	starting bool                  // until EndStartup
+	store    sorted.KeyValue       // or nil, to not save state; see UseStore
+	saved    map[string]savedCheck // by check ID, as loaded by UseStore
 }
 
 // New returns a Monitor for a server that is starting.
 func New() *Monitor {
 	return &Monitor{
-		checks:   make(map[string]*Check),
-		starting: true,
+		startupDone: make(chan struct{}),
+		closed:      make(chan struct{}),
+		checks:      make(map[string]*Check),
+		starting:    true,
+		saved:       make(map[string]savedCheck),
 	}
 }
 
-// EndStartup records that the server has finished starting.
+// EndStartup records that the server has finished starting. Checks with
+// runners (see Check.SetRunner) don't run until then.
 func (m *Monitor) EndStartup() {
 	if m == nil {
 		return
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.starting = false
+	if m.starting {
+		m.starting = false
+		close(m.startupDone)
+	}
+}
+
+// Close cancels any running checks, and waits for them to stop.
+func (m *Monitor) Close() error {
+	if m == nil {
+		return nil
+	}
+	m.closeOnce.Do(func() { close(m.closed) })
+	m.mu.Lock()
+	for _, c := range m.checks {
+		if r := c.runner; r != nil && r.cancel != nil {
+			r.cancel()
+		}
+	}
+	m.mu.Unlock()
+	m.runners.Wait()
+	return nil
 }
 
 // compareIDs orders check IDs (see ID) by their name's family, the part
@@ -176,6 +219,8 @@ type Check struct {
 	done      int64
 	total     int64
 	recentErr []Event // most recent last, at most maxRecentErrors
+	runner    *runner // or nil, if the check has no runner
+	hint      string  // see SetProgressHint
 }
 
 // Event is a problem a check reported.
@@ -209,6 +254,18 @@ func (c *Check) Progress(done, total int64) {
 	defer c.m.mu.Unlock()
 	c.done, c.total = done, total
 	c.updated = time.Now()
+}
+
+// SetProgressHint sets a description of what the check's progress
+// counts (see Progress), such as "768 shards: 256 digest prefixes ×
+// {sha1, sha224, sha256}".
+func (c *Check) SetProgressHint(hint string) {
+	if c == nil {
+		return
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	c.hint = hint
 }
 
 // OK records that the check's run finished without finding a problem.
@@ -280,9 +337,20 @@ type CheckStatus struct {
 	Updated time.Time `json:"updated,omitzero"`
 	Done    int64     `json:"done,omitempty"`
 	Total   int64     `json:"total,omitempty"`
+	// ProgressHint describes what Done and Total count, if set.
+	ProgressHint string `json:"progressHint,omitempty"`
 	// RecentErrors are the check's most recent problems, most recent
 	// first, including ones from earlier runs.
 	RecentErrors []Event `json:"recentErrors,omitempty"`
+
+	// The rest are only set for a check with a runner.
+	Runnable bool `json:"runnable,omitempty"`
+	// Schedule is how often it runs, and DefaultSchedule how often it
+	// runs unless Schedule was changed (see Monitor.SetSchedule).
+	Schedule        Schedule  `json:"schedule,omitempty"`
+	DefaultSchedule Schedule  `json:"defaultSchedule,omitempty"`
+	LastRun         time.Time `json:"lastRun,omitzero"` // when a run last finished
+	NextRun         time.Time `json:"nextRun,omitzero"` // when it's next scheduled to start
 }
 
 // Status is a snapshot of a Monitor's state.
@@ -317,9 +385,19 @@ func (m *Monitor) Status() Status {
 			Updated: c.updated,
 			Done:    c.done,
 			Total:   c.total,
+
+			ProgressHint: c.hint,
 		}
 		for _, ev := range slices.Backward(c.recentErr) {
 			cs.RecentErrors = append(cs.RecentErrors, ev)
+		}
+		if r := c.runner; r != nil {
+			cs.Runnable = true
+			cs.Schedule, cs.DefaultSchedule = r.scheduleLocked(), r.defaultSchedule
+			cs.LastRun, cs.NextRun = r.lastRun, r.nextRunLocked()
+			if cs.State == StatePending && cs.NextRun.IsZero() && r.cancel == nil {
+				cs.State = StateUnchecked
+			}
 		}
 		st.Checks = append(st.Checks, cs)
 		if c.fatal {

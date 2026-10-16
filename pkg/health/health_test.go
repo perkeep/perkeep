@@ -17,6 +17,7 @@ limitations under the License.
 package health
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"perkeep.org/pkg/sorted"
 )
 
 func TestStates(t *testing.T) {
@@ -215,6 +218,12 @@ func nilTestArg(t *testing.T, typ reflect.Type) reflect.Value {
 		return reflect.ValueOf(httptest.NewRecorder())
 	case reflect.TypeFor[*http.Request]():
 		return reflect.ValueOf(httptest.NewRequest("GET", "/healthz", nil))
+	case reflect.TypeFor[RunFunc]():
+		return reflect.ValueOf(RunFunc(func(context.Context) error { return nil }))
+	case reflect.TypeFor[Schedule]():
+		return reflect.ValueOf(ScheduleOff)
+	case reflect.TypeFor[sorted.KeyValue]():
+		return reflect.ValueOf(sorted.NewMemoryKeyValue())
 	}
 	switch typ.Kind() {
 	case reflect.String, reflect.Int, reflect.Int64:
