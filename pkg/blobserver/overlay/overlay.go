@@ -229,7 +229,6 @@ func (sto *overlayStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.
 		for sbr := range ch {
 			seen++
 			if !sto.isDeleted(sbr.Ref) {
-				log.Println(sent, sbr.Ref)
 				dest <- sbr
 				sent++
 			}
