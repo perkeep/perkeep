@@ -244,6 +244,11 @@ cam.SearchSession.prototype.getContinuation_ = function(changeType, opts) {
 	if (!opts.sort) {
 		opts.sort = this.sort_;
 	}
+	// Center the initial HTTP page too, not just the later WebSocket query.
+	// Otherwise a deep-linked target can be missing until the socket replies.
+	if (this.around_ && !opts.continuationToken) {
+		opts.around = this.around_;
+	}
 	opts.describe = cam.ServerConnection.DESCRIBE_REQUEST;
 
 	return this.connection_.search.bind(this.connection_, this.stripMapZoom(this.query_), opts,

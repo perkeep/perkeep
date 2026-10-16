@@ -126,6 +126,7 @@ var (
 		"corpus_parse_test.go",
 		"corpus_test.go",
 		"enumstat_test.go",
+		"exif_test.go",
 		"export_test.go",
 		"index_test.go",
 		"keys_test.go",

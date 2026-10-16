@@ -1,0 +1,324 @@
+<!--
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>EXIF detail tests</title>
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script src="react/react-with-addons.min.js"></script>
+		<script src="react/react-dom.min.js"></script>
+		<script src="react/classnames.js"></script>
+		<script src="leaflet/leaflet.js"></script>
+		<script src="leaflet/leaflet.awesome-markers.min.js"></script>
+		<script src="leaflet/leaflet.markercluster.js"></script>
+		<script>
+			goog.require('cam.EXIFDetail');
+			goog.require('cam.IndexPage');
+		</script>
+		<link rel="stylesheet" href="exif_detail.css">
+		<style>
+			body {font: 14px sans-serif; padding: 20px;}
+			#status {padding: 12px; background: #eee;}
+			#errors {white-space: pre-wrap; color: #a00;}
+		</style>
+	</head>
+	<body>
+		<h1>EXIF detail tests</h1>
+		<div id="status">Running…</div>
+		<pre id="errors"></pre>
+		<script>
+			window.__exifTestResults = {passed: 0, failed: 0, errors: []};
+			window.onload = function() {
+				var results = window.__exifTestResults;
+				function assert(condition, message) {
+					if (!condition) { throw new Error(message || 'Assertion failed'); }
+				}
+				function equal(expected, actual) {
+					assert(expected === actual, 'Expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
+				}
+				function test(name, fn) {
+					try { fn(); results.passed++; }
+					catch (error) { results.failed++; results.errors.push(name + ': ' + error.message); }
+				}
+				function meta(ref) {
+					return {blobRef: ref || 'file-one', camliType: 'file', file: {fileName: '<photo>.jpg'}};
+				}
+				function connection() {
+					var sc = new cam.ServerConnection({});
+					sc.requests = [];
+					sc.getEXIF = function(ref, success, fail) { sc.requests.push({ref: ref, success: success, fail: fail}); };
+					return sc;
+				}
+				function searchURL(value) { return '/ui/?q=' + encodeURIComponent(cam.EXIFDetail.getCameraQuery(value)); }
+				function aspect(sc, value) {
+					return cam.EXIFDetail.getAspect(sc, searchURL, 'target', {getResolvedMeta: function(ref) {
+						equal('target', ref);
+						return value;
+					}});
+				}
+				function mount(sc, fn) {
+					var root = document.createElement('div');
+					document.body.appendChild(root);
+					function render(value) {
+						return ReactDOM.render(React.createElement(cam.EXIFDetail, {meta: value, serverConnection: sc, getCameraSearchURL: searchURL}), root);
+					}
+					try { render(meta()); fn(root, render); }
+					finally { ReactDOM.unmountComponentAtNode(root); root.remove(); }
+				}
+				function tag(directory, id, name, type, values) {
+					return {directory: directory, tag: id, name: name, type: type, values: values};
+				}
+				var tags = [
+					tag('IFD0', '010f', 'Make', 'string', ['Samsung']),
+					tag('IFD0', '0110', 'Model', 'string', ['Galaxy Nexus']),
+					tag('IFD0', '010e', 'ImageDescription', 'string', ['<img src=x onerror="alert(1)">']),
+					tag('IFD1', '0110', 'Model', 'string', ['Thumbnail model']),
+					tag('Exif', '829a', 'ExposureTime', 'rat', ['1/200']),
+					tag('GPS', '0002', 'GPSLatitude', 'rat', ['42/1', '27/1', '0/1']),
+					tag('Exif', 'cafe', '', 'int', ['1', '2']),
+				];
+
+				test('aspect is lazy and works with resolved permanode or direct file', function() {
+					var sc = connection();
+					var a = aspect(sc, meta());
+					equal('exif', a.fragment);
+					equal('EXIF', a.title);
+					equal(0, sc.requests.length);
+					equal('file-one', a.createContent().props.meta.blobRef);
+					equal(0, sc.requests.length);
+				});
+				test('aspect not available without resolved file', function() {
+					[null, {camliType: 'directory'}, {camliType: 'permanode'}, {camliType: 'file'}].forEach(function(m) {
+						equal(null, aspect(connection(), m));
+					});
+					equal(null, cam.EXIFDetail.getAspect(connection(), searchURL, null, null));
+				});
+				test('direct file pages fall back to an exact reference when not in the search', function() {
+					var target = 'file-only';
+					var calls = [];
+					var session = {
+						// More permanode results do not help load a file-only ref.
+						isComplete: function() { return false; },
+						getMeta: function() { return null; },
+						getQuery: function() { return ''; },
+					};
+					var fallback = {};
+					var page = {
+						targetSearchSession_: session,
+						getTargetBlobref_: function() { return target; },
+						queryAsBlob_: function(ref) { return {blobRefPrefix: ref}; },
+						getSearchSession_: function(ref, query, sort) {
+							calls.push({ref: ref, query: query, sort: sort});
+							return fallback;
+						},
+					};
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					equal(fallback, page.targetSearchSession_);
+					equal(1, calls.length);
+					equal(target, calls[0].ref);
+					equal(target, calls[0].query.blobRefPrefix);
+					equal('blobref', calls[0].sort);
+					// A late response from an old session cannot replace the target.
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					equal(1, calls.length);
+					page.targetSearchSession_ = session;
+					session.getQuery = function() { return {blobRefPrefix: target}; };
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					equal(1, calls.length);
+				});
+				test('known targets and child searches do not fall back', function() {
+					var session = {
+						getMeta: function() { return meta(); },
+					};
+					var target = 'target';
+					var page = {targetSearchSession_: session, getTargetBlobref_: function() { return target; }, getSearchSession_: function() { throw new Error('Unexpected fallback'); }};
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					session.getMeta = function() { return null; };
+					target = null;
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+				});
+				test('reused search sessions use the current URL target, not their original target', function() {
+					var target = 'A';
+					var session = {getQuery: function() { return ''; }, getMeta: function(ref) { return ref == 'B' ? meta('B') : null; }};
+					var calls = [];
+					var page = {
+						targetSearchSession_: session,
+						getTargetBlobref_: function() { return target; },
+						queryAsBlob_: function(ref) { return {blobRefPrefix: ref}; },
+						getSearchSession_: function(ref) { calls.push(ref); return {}; },
+					};
+					target = 'B';
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					equal(0, calls.length);
+					session.getMeta = function() { return null; };
+					cam.IndexPage.prototype.ensureTargetMeta_.call(page, session);
+					equal('B', calls[0]);
+				});
+				test('initial target search is centered before deciding a fallback is needed', function() {
+					var requests = [];
+					var session = {
+						constructor: cam.SearchSession,
+						around_: 'target',
+						sort_: '-created',
+						query_: 'camera:Canon',
+						stripMapZoom: function(query) { return query; },
+						connection_: {search: function(query, opts) { requests.push(opts); }},
+					};
+					cam.SearchSession.prototype.getContinuation_.call(session, cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW)();
+					equal('target', requests[0].around);
+					cam.SearchSession.prototype.getContinuation_.call(session, cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND, {continuationToken: 'next'})();
+					equal(undefined, requests[1].around);
+					equal('next', requests[1].continuationToken);
+					session.around_ = undefined;
+					cam.SearchSession.prototype.getContinuation_.call(session, cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW)();
+					equal(undefined, requests[2].around);
+				});
+				test('mount fetches once with loading state', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						equal(1, sc.requests.length);
+						equal('file-one', sc.requests[0].ref);
+						assert(root.textContent.indexOf('Loading EXIF') >= 0);
+						assert(root.textContent.indexOf('<photo>.jpg') >= 0);
+					});
+				});
+				test('groups, IDs, names, rationals, and escaped text', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						sc.requests[0].success({tags: tags});
+						equal(4, root.querySelectorAll('section').length);
+						equal(tags.length, root.querySelectorAll('tbody tr').length);
+						['0x010f', '0xcafe', 'Unknown tag', 'Exposure Time', 'GPS Latitude', '1/200', '42/1, 27/1, 0/1', '<img src=x'].forEach(function(text) {
+							assert(root.textContent.indexOf(text) >= 0, 'Missing ' + text);
+						});
+						equal(0, root.querySelectorAll('img').length);
+						equal(0, root.querySelectorAll('input, textarea').length);
+						var links = root.querySelectorAll('.cam-exif-camera a');
+						equal(2, links.length);
+						equal('Samsung', links[0].textContent);
+						equal(searchURL('Galaxy Nexus'), links[1].getAttribute('href'));
+					});
+				});
+				test('long values are expandable without losing data', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						var long = new Array(300).join('x');
+						sc.requests[0].success({tags: [tag('Exif', '927c', 'MakerNote', 'string', [long])]});
+						assert(root.querySelector('details'));
+						equal(long, root.querySelector('details pre').textContent);
+					});
+				});
+				test('empty state', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						sc.requests[0].success({tags: []});
+						assert(root.textContent.indexOf('No indexed EXIF metadata') >= 0);
+						equal(0, root.querySelectorAll('table').length);
+						equal(0, root.querySelectorAll('.cam-exif-camera').length);
+					});
+				});
+				test('camera search treats wildcard model names literally', function() {
+					['PENTAX *ist D', '*model', 'model*', '~model'].forEach(function(value) {
+						var query = cam.EXIFDetail.getCameraQuery(value);
+						assert(query.indexOf('raw:') === 0);
+						var constraint = JSON.parse(query.substring(4));
+						equal('camliContent', constraint.permanode.attr);
+						equal(true, constraint.permanode.skipHidden);
+						equal(value, constraint.permanode.valueInSet.file.camera.equals);
+						equal(true, constraint.permanode.valueInSet.file.camera.caseInsensitive);
+					});
+					equal('camera:"Galaxy Nexus"', cam.EXIFDetail.getCameraQuery('Galaxy Nexus'));
+					equal('camera:' + JSON.stringify('a" or camera:b\\c'), cam.EXIFDetail.getCameraQuery('a" or camera:b\\c'));
+				});
+				test('camera links strip padding but leave original tag values untouched', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						var value = '\u0000 Canon \u0000 ';
+						sc.requests[0].success({tags: [tag('IFD0', '010f', 'Make', 'string', [value])]});
+						equal('Canon', root.querySelector('.cam-exif-camera a').textContent);
+						equal(searchURL('Canon'), root.querySelector('.cam-exif-camera a').getAttribute('href'));
+						equal(value, root.querySelector('.cam-exif-value').textContent);
+					});
+				});
+				test('long camera values fit a narrow viewport', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						root.style.width = '320px';
+						var value = new Array(500).join('x');
+						sc.requests[0].success({tags: [tag('IFD0', '0110', 'Model', 'string', [value])]});
+						equal(value, root.querySelector('.cam-exif-camera a').textContent);
+						assert(root.scrollWidth <= root.clientWidth, 'Long camera model overflowed');
+					});
+				});
+				test('errors are distinct from empty metadata and can be retried', function() {
+					var sc = connection();
+					mount(sc, function(root) {
+						sc.requests[0].fail({error: 'unavailable'});
+						assert(root.querySelector('[role=alert]'));
+						assert(root.textContent.indexOf('No indexed EXIF metadata') < 0);
+						root.querySelector('button').click();
+						equal(2, sc.requests.length);
+						assert(root.textContent.indexOf('Loading EXIF') >= 0);
+						sc.requests[1].success({tags: []});
+						assert(root.querySelector('.cam-exif-empty'));
+					});
+				});
+				test('navigation ignores stale successes and errors', function() {
+					var sc = connection();
+					mount(sc, function(root, render) {
+						render(meta('file-two'));
+						equal(2, sc.requests.length);
+						equal('file-two', sc.requests[1].ref);
+						sc.requests[0].success({tags: tags});
+						sc.requests[0].fail({});
+						assert(root.textContent.indexOf('Loading EXIF') >= 0);
+						sc.requests[1].success({tags: []});
+						assert(root.querySelector('.cam-exif-empty'));
+						render(meta('file-two'));
+						equal(2, sc.requests.length);
+					});
+				});
+				test('unmount ignores in-flight callbacks', function() {
+					var sc = connection();
+					var component;
+					mount(sc, function(root, render) { component = render(meta()); });
+					var calls = 0;
+					component.setState = function() { calls++; };
+					sc.requests[0].success({tags: tags});
+					sc.requests[0].fail({});
+					equal(0, calls);
+				});
+				test('connection uses configured search root and URL encoding', function() {
+					var callback;
+					var url;
+					var sc = new cam.ServerConnection({searchRoot: '/custom-search/'}, function(u, cb) { url = u; callback = cb; });
+					var response;
+					sc.getEXIF('a&b', function(data) { response = data; });
+					assert(url.indexOf('/custom-search/camli/search/exif?') === 0);
+					assert(url.indexOf('blobref=a%26b') >= 0);
+					var data = {tags: tags};
+					callback({target: {isSuccess: function() { return true; }, getResponseJson: function() { return data; }}});
+					equal(data, response);
+				});
+				document.getElementById('status').textContent = results.passed + ' passed, ' + results.failed + ' failed';
+				document.getElementById('errors').textContent = results.errors.join('\n');
+				document.title = results.failed ? 'FAIL: EXIF detail tests' : 'PASS: EXIF detail tests';
+			};
+		</script>
+	</body>
+</html>

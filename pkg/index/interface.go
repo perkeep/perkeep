@@ -26,6 +26,12 @@ type Interface interface {
 	// Should return os.ErrNotExist if not found.
 	GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string]string, error)
 
+	// GetEXIF reads indexed EXIF tags on demand, including when a corpus is
+	// enabled. The caller must hold the index read lock. It returns
+	// os.ErrNotExist for an unknown or non-file reference, and an empty Tags
+	// slice for a file without indexed EXIF. No blobs are fetched.
+	GetEXIF(ctx context.Context, fileRef blob.Ref) (*camtypes.EXIFInfo, error)
+
 	// GetFileLocation returns the location info (currently Exif) of the fileRef.
 	// Should return os.ErrNotExist if fileRef is not found,
 	// is not a file, or it has no location info.

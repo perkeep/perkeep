@@ -1,0 +1,233 @@
+/*
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-exif-detail {
+	box-sizing: border-box;
+	max-width: 1160px;
+	margin: 0 auto;
+	padding: 28px 36px 48px;
+	color: #333;
+	font: 14px/1.5 'Open Sans', sans-serif;
+}
+
+.cam-exif-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.cam-exif-header h1 {
+	margin: 0 0 4px;
+	font-size: 24px;
+	font-weight: 500;
+}
+
+.cam-exif-file {
+	margin: 0;
+	color: #666;
+	overflow-wrap: anywhere;
+}
+
+.cam-exif-readonly {
+	flex-shrink: 0;
+	margin-top: 5px;
+	padding: 3px 10px;
+	border: 1px solid #ddd;
+	border-radius: 12px;
+	color: #666;
+	font-size: 12px;
+}
+
+.cam-exif-camera {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	padding: 20px 24px;
+	border: 1px solid #dce3e6;
+	border-radius: 4px;
+	background: #f7f9fa;
+}
+
+.cam-exif-camera > i {
+	flex-shrink: 0;
+	color: #687780;
+	font-size: 28px;
+}
+
+.cam-exif-camera > div {
+	min-width: 0;
+}
+
+.cam-exif-camera-label {
+	color: #666;
+	font-size: 12px;
+}
+
+.cam-exif-camera-values {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 20px;
+	font-size: 18px;
+	overflow-wrap: anywhere;
+}
+
+.cam-exif-camera-values a {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.cam-exif-detail a,
+.cam-exif-detail summary span {
+	color: #286781;
+	text-decoration: underline;
+}
+
+.cam-exif-camera p {
+	margin: 4px 0 0;
+	color: #666;
+	font-size: 12px;
+}
+
+.cam-exif-note {
+	margin: 18px 0 24px;
+	color: #666;
+	font-size: 12px;
+}
+
+.cam-exif-group {
+	margin: 28px 0;
+}
+
+.cam-exif-group h2 {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	margin: 0 0 10px;
+	font-size: 17px;
+	font-weight: 500;
+}
+
+.cam-exif-group h2 code {
+	color: #777;
+	font-size: 12px;
+}
+
+.cam-exif-group h2 span {
+	margin-left: auto;
+	color: #777;
+	font-size: 12px;
+}
+
+.cam-exif-group table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.cam-exif-group th,
+.cam-exif-group td {
+	padding: 10px 14px;
+	border-bottom: 1px solid #e5e5e5;
+	text-align: left;
+	vertical-align: top;
+	overflow-wrap: anywhere;
+}
+
+.cam-exif-group thead th {
+	background: #f5f5f5;
+	color: #666;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.cam-exif-group th:first-child {width: 34%;}
+.cam-exif-group th:last-child {width: 14%;}
+
+.cam-exif-group tbody th {
+	font-weight: 400;
+}
+
+.cam-exif-group tbody th code {
+	display: block;
+	color: #888;
+	font-size: 11px;
+}
+
+.cam-exif-type {
+	color: #777;
+	font-size: 12px;
+}
+
+.cam-exif-value,
+.cam-exif-group pre {
+	white-space: pre-wrap;
+}
+
+.cam-exif-group pre {
+	margin: 10px 0 0;
+	font: inherit;
+}
+
+.cam-exif-group summary {
+	cursor: pointer;
+}
+
+.cam-exif-empty,
+.cam-exif-status {
+	padding: 48px 24px;
+	border: 1px solid #e5e5e5;
+	border-radius: 4px;
+	text-align: center;
+}
+
+.cam-exif-empty > i {
+	margin-bottom: 12px;
+	color: #999;
+	font-size: 32px;
+}
+
+.cam-exif-detail h2 {
+	font-weight: 500;
+}
+
+.cam-exif-empty h2,
+.cam-exif-status h2 {
+	margin: 0 0 8px;
+	font-size: 19px;
+}
+
+.cam-exif-empty p,
+.cam-exif-status p {
+	margin: 8px 0;
+}
+
+.cam-exif-status button {
+	padding: 7px 16px;
+	border: 1px solid #aaa;
+	border-radius: 3px;
+	background: white;
+	font: inherit;
+	cursor: pointer;
+}
+
+@media (max-width: 600px) {
+	.cam-exif-detail {padding: 20px 14px 32px;}
+	.cam-exif-camera {padding: 16px; gap: 14px;}
+	.cam-exif-group th, .cam-exif-group td {padding: 8px;}
+	.cam-exif-group th:last-child {width: 17%;}
+}
