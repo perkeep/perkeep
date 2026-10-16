@@ -87,6 +87,12 @@ type Corpus struct {
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
 	camera       map[blob.Ref]cameraInfo         // wholeRef -> EXIF camera make and model
+	// fileOfWholeRef and moreFilesOfWholeRef are the inverse of the
+	// wholetofile rows: fileOfWholeRef maps a wholeRef to a file schema
+	// with those contents, and moreFilesOfWholeRef to any others, which
+	// are rare enough that most wholeRefs needn't pay for a slice.
+	fileOfWholeRef      map[blob.Ref]blob.Ref
+	moreFilesOfWholeRef map[blob.Ref][]blob.Ref
 	// dirChildren maps a directory to its (direct) children (static-set entries).
 	dirChildren map[blob.Ref]map[blob.Ref]struct{}
 	// fileParents maps a file or directory to its (direct) parents.
@@ -345,6 +351,8 @@ func newCorpus() *Corpus {
 		signerRefs:              make(map[string]SignerRefSet),
 		brOfStr:                 make(map[string]blob.Ref),
 		fileWholeRef:            make(map[blob.Ref]blob.Ref),
+		fileOfWholeRef:          make(map[blob.Ref]blob.Ref),
+		moreFilesOfWholeRef:     make(map[blob.Ref][]blob.Ref),
 		gps:                     make(map[blob.Ref]latLong),
 		camera:                  make(map[blob.Ref]cameraInfo),
 		mediaTags:               make(map[blob.Ref]map[string]string),
@@ -929,6 +937,11 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
 	c.fileWholeRef[fileRef] = wholeRef
+	if first, ok := c.fileOfWholeRef[wholeRef]; !ok {
+		c.fileOfWholeRef[wholeRef] = fileRef
+	} else if first != fileRef && !slices.Contains(c.moreFilesOfWholeRef[wholeRef], fileRef) {
+		c.moreFilesOfWholeRef[wholeRef] = append(c.moreFilesOfWholeRef[wholeRef], fileRef)
+	}
 	if c.building && !c.hasLegacySHA1 {
 		if bytes.HasPrefix(pair, sha1Prefix) {
 			c.hasLegacySHA1 = true
@@ -1246,6 +1259,40 @@ func (c *Corpus) EnumeratePermanodesLastModified(fn func(camtypes.BlobMeta) bool
 // Iteration ends prematurely if fn returns false.
 func (c *Corpus) EnumeratePermanodesCreated(fn func(camtypes.BlobMeta) bool, newestFirst bool) {
 	c.enumeratePermanodes(fn, c.permanodesByTime.sorted(newestFirst))
+}
+
+// EnumeratePermanodesLastModifiedIn is like EnumeratePermanodesLastModified,
+// but only for the permanodes among pns, which must not contain duplicates.
+// Its cost depends on len(pns), not on the number of permanodes.
+func (c *Corpus) EnumeratePermanodesLastModifiedIn(fn func(camtypes.BlobMeta) bool, pns []blob.Ref) {
+	c.enumeratePermanodesIn(fn, pns, c.permanodesByModtime, true)
+}
+
+// EnumeratePermanodesCreatedIn is like EnumeratePermanodesCreated, but
+// only for the permanodes among pns, which must not contain duplicates.
+// Its cost depends on len(pns), not on the number of permanodes.
+func (c *Corpus) EnumeratePermanodesCreatedIn(fn func(camtypes.BlobMeta) bool, pns []blob.Ref, newestFirst bool) {
+	c.enumeratePermanodesIn(fn, pns, c.permanodesByTime, newestFirst)
+}
+
+// enumeratePermanodesIn calls fn for the permanodes among pns that
+// lsp.sorted(reverse) would include, in the same order.
+func (c *Corpus) enumeratePermanodesIn(fn func(camtypes.BlobMeta) bool, pns []blob.Ref, lsp *lazySortedPermanodes, reverse bool) {
+	sorted := make([]pnAndTime, 0, len(pns))
+	for _, pn := range pns {
+		if _, ok := c.permanodes[pn]; !ok || c.IsDeleted(pn) {
+			continue
+		}
+		if pt, ok := lsp.pnTime(pn); ok {
+			sorted = append(sorted, pnAndTime{pn, pt})
+		}
+	}
+	if reverse {
+		sort.Sort(sort.Reverse(byPermanodeTime(sorted)))
+	} else {
+		sort.Sort(byPermanodeTime(sorted))
+	}
+	c.enumeratePermanodes(fn, sorted)
 }
 
 // EnumerateSingleBlob calls fn with br's BlobMeta if br exists in the corpus.
@@ -1624,6 +1671,20 @@ func (c *Corpus) GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string
 func (c *Corpus) GetWholeRef(ctx context.Context, fileRef blob.Ref) (wholeRef blob.Ref, ok bool) {
 	wholeRef, ok = c.fileWholeRef[fileRef]
 	return
+}
+
+// AppendFilesOfWholeRef appends to dst the file schemas indexed as having
+// the contents wholeRef, in an undefined order. Since a file schema can
+// be indexed under more than one wholeRef (such as both a legacy SHA-1
+// and a SHA-224 digest), GetWholeRef might not return wholeRef for all
+// of them.
+func (c *Corpus) AppendFilesOfWholeRef(dst []blob.Ref, wholeRef blob.Ref) []blob.Ref {
+	first, ok := c.fileOfWholeRef[wholeRef]
+	if !ok {
+		return dst
+	}
+	dst = append(dst, first)
+	return append(dst, c.moreFilesOfWholeRef[wholeRef]...)
 }
 
 func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {
