@@ -22,9 +22,9 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"testing"
 
 	"cloud.google.com/go/compute/metadata"
+	"tailscale.com/util/testenv"
 )
 
 // IsDebug reports whether this is a debug environment.
@@ -83,7 +83,7 @@ var (
 func detectGCE() {
 	// Off GCE, probing the metadata server takes seconds to time out,
 	// and tests don't run as a Perkeep GCE instance anyway.
-	if testing.Testing() || !metadata.OnGCE() {
+	if testenv.InTest() || !metadata.OnGCE() {
 		return
 	}
 	v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
