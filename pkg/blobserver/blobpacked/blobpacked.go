@@ -411,7 +411,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 // problem, as well as the error detailing the problem. It does not perform any
 // check about the contents of the large blobs themselves.
 func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
-	log.Printf("blobpacked: checking integrity of packed blobs against index...")
+	s.Logf("checking integrity of packed blobs against index...")
 	// Collect the large blobs first, rather than walking the z: rows
 	// alongside a sorted enumeration, so that large storage can list
 	// them in whatever order is fastest (see blobserver.RefLister).
@@ -461,8 +461,8 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		return FullRecovery, err
 	}
 	if len(corrupt) > 0 {
-		log.Printf("blobpacked: %d large blobs are corrupt zip packs, skipped by reindexing", len(corrupt))
-		printSample(corrupt, "corrupt")
+		s.Logf("%d large blobs are corrupt zip packs, skipped by reindexing", len(corrupt))
+		s.printSample(corrupt, "corrupt")
 	}
 	missing := slices.Collect(maps.Keys(unindexed)) // blobs in large but not in meta
 	if len(missing) > 0 || len(extra) > 0 {
@@ -473,12 +473,12 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		largeIntegrityRecheckWait()
 		missing, extra = s.stillMismatched(missing, extra)
 	}
-	log.Printf("blobpacked: %d large blobs found in index, %d missing from index", inLarge, len(missing))
+	s.Logf("%d large blobs found in index, %d missing from index", inLarge, len(missing))
 	if len(missing) > 0 {
-		printSample(missing, "missing")
+		s.printSample(missing, "missing")
 	}
 	if len(extra) > 0 {
-		printSample(extra, "extra")
+		s.printSample(extra, "extra")
 		return FullRecovery, fmt.Errorf("%d large blobs in index but not actually in storage", len(extra))
 	}
 	if len(missing) > 0 {
@@ -505,7 +505,7 @@ func (s *storage) stillMismatched(missing, extra []blob.Ref) (stillMissing, stil
 	}
 	inLarge, err := blobserver.StatBlobs(context.Background(), s.large, extra)
 	if err != nil {
-		log.Printf("blobpacked: rechecking large blobs: %v", err)
+		s.Logf("rechecking large blobs: %v", err)
 		return stillMissing, extra
 	}
 	for _, br := range extra {
@@ -516,13 +516,13 @@ func (s *storage) stillMismatched(missing, extra []blob.Ref) (stillMissing, stil
 	return stillMissing, stillExtra
 }
 
-func printSample(fromSlice []blob.Ref, sliceName string) {
+func (s *storage) printSample(fromSlice []blob.Ref, sliceName string) {
 	sort.Slice(fromSlice, func(i, j int) bool { return fromSlice[i].Less(fromSlice[j]) })
 	for i, br := range fromSlice {
 		if i == 10 {
 			break
 		}
-		log.Printf("  sample %v large blob: %v", sliceName, br)
+		s.Logf("  sample %v large blob: %v", sliceName, br)
 	}
 }
 
@@ -595,12 +595,12 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	if err := blobserver.EnumerateAllFrom(ctx, s.large, "", func(sb blob.SizedRef) error {
 		select {
 		case <-t.C:
-			log.Printf("blobpacked: %d / %d zip packs seen", packedSeen, packedTotal)
+			s.Logf("%d / %d zip packs seen", packedSeen, packedTotal)
 		default:
 		}
 		zm, blobRows, err := s.readZip(ctx, sb)
 		if czErr, ok := errors.AsType[corruptZipError](err); ok {
-			log.Printf("blobpacked: skipping %v", err)
+			s.Logf("skipping %v", err)
 			corruptZips = append(corruptZips, sb.Ref)
 			return meta.Set(corruptMetaPrefix+sb.Ref.String(), czErr.err.Error())
 		}
@@ -634,7 +634,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	for wholeRef, zipMetas := range zipMetaByWholeRef {
 		select {
 		case <-tt.C:
-			log.Printf("blobpacked: %d files reindexed", packedFiles)
+			s.Logf("%d files reindexed", packedFiles)
 		default:
 		}
 		sort.Slice(zipMetas, func(i, j int) bool { return zipMetas[i].wholePartIndex < zipMetas[j].wholePartIndex })
@@ -654,7 +654,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 				if czErr, ok := errors.AsType[corruptZipError](err); ok {
 					// Its blobs are indexed already; only
 					// its place in the file is unknown.
-					log.Printf("blobpacked: not indexing the place in wholeRef %v of %v", wholeRef, err)
+					s.Logf("not indexing the place in wholeRef %v of %v", wholeRef, err)
 					corruptZips = append(corruptZips, z.zipRef)
 					bm.Set(corruptMetaPrefix+z.zipRef.String(), czErr.err.Error())
 					continue
@@ -674,7 +674,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		}
 		if hasDup {
 			if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-				printDuplicates(zipMetas)
+				s.printDuplicates(zipMetas)
 			}
 		}
 
@@ -685,14 +685,14 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			if err != nil {
 				return fmt.Errorf("could not get filename of file in zip %v: %w", zipMetas[0].zipRef, err)
 			}
-			log.Printf(
-				"blobpacked: file %q (wholeRef %v) is incomplete: sum of all zips (%d bytes) does not match manifest's WholeSize (%d bytes)",
+			s.Logf(
+				"file %q (wholeRef %v) is incomplete: sum of all zips (%d bytes) does not match manifest's WholeSize (%d bytes)",
 				fileName, wholeRef, wholeBytesWritten, zipMetas[0].wholeSize)
 			var allParts []blob.Ref
 			for _, z := range zipMetas {
 				allParts = append(allParts, z.zipRef)
 			}
-			log.Printf("blobpacked: known parts of %v: %v", wholeRef, allParts)
+			s.Logf("known parts of %v: %v", wholeRef, allParts)
 			// we skip writing the w: row for the full file, and we don't count the file
 			// as complete.
 			continue
@@ -705,14 +705,14 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		return err
 	}
 
-	log.Printf("blobpacked: %d / %d zip packs successfully reindexed", packedDone, packedTotal)
+	s.Logf("%d / %d zip packs successfully reindexed", packedDone, packedTotal)
 	if packedFiles < len(zipMetaByWholeRef) {
-		log.Printf("blobpacked: %d files reindexed, and %d incomplete file(s) found.", packedFiles, len(zipMetaByWholeRef)-packedFiles)
+		s.Logf("%d files reindexed, and %d incomplete file(s) found.", packedFiles, len(zipMetaByWholeRef)-packedFiles)
 	} else {
-		log.Printf("blobpacked: %d files reindexed.", packedFiles)
+		s.Logf("%d files reindexed.", packedFiles)
 	}
 	if len(corruptZips) > 0 {
-		log.Printf("blobpacked: %d corrupt zip pack(s) skipped; see above, or the %q rows of the index.", len(corruptZips), corruptMetaPrefix)
+		s.Logf("%d corrupt zip pack(s) skipped; see above, or the %q rows of the index.", len(corruptZips), corruptMetaPrefix)
 	}
 	if foundDups {
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); !debug {
@@ -1033,7 +1033,7 @@ func (s *storage) wholeOffsetFromSchema(ctx context.Context, zipRef blob.Ref, zi
 	return chunks[first].offset, nil
 }
 
-func printDuplicates(zm []zipMetaInfo) {
+func (s *storage) printDuplicates(zm []zipMetaInfo) {
 	i := 0
 	byPartIndex := make(map[int][]zipMetaInfo)
 	for _, z := range zm {
@@ -1052,7 +1052,7 @@ func printDuplicates(zm []zipMetaInfo) {
 		for _, z := range zm {
 			br = append(br, z.zipRef)
 		}
-		log.Printf("zip blobs with same data contents: %v", br)
+		s.Logf("zip blobs with same data contents: %v", br)
 	}
 }
 
