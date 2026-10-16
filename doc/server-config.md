@@ -106,6 +106,15 @@ Additionally, there are two mutually exclusive options:
   filestorage. This gives better write throughput, at the cost of slower
   read access.
 
+With `packRelated`, the `s3`, `b2`, and `googlecloudstorage` storage also
+use blobpacked, storing loose blobs under `loose/` and packed ones under
+`packed/` in their bucket, with the index of packed blobs on local disk.
+`packRelatedExcludeTypes` lists the ones that shouldn't, such as
+`["s3"]`, which instead store loose blobs at the root of their bucket (or
+its optional directory). Before 2021, mirrors in the cloud always used that
+layout, so a mirror written before then and since has blobs in both
+layouts.
+
 For now, if more than one storage option is set, one of them is the primary
 storage and the other ones are set up as mirrors. The precedence order is the
 same as the order they are listed above.
