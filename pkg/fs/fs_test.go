@@ -486,9 +486,7 @@ func TestMoveAt(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		time.Sleep(time.Second)
 		beforeTime = time.Now()
-		time.Sleep(time.Second)
 
 		if err := os.Rename(name1, name2); err != nil {
 			t.Fatal(err)
@@ -496,16 +494,14 @@ func TestMoveAt(t *testing.T) {
 		if _, err := os.Stat(name2); err != nil {
 			t.Fatal(err)
 		}
-
-		time.Sleep(time.Second)
 		afterTime = time.Now()
 	})
 	pkmountTest(t, func(env *mountEnv) {
 		atPrefix := filepath.Join(env.mountPoint, "at")
-		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), rootName, oldName)
-		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), rootName, newName)
-		afterName := filepath.Join(afterTime.Format(time.RFC3339), rootName, newName)
-		goneName := filepath.Join(afterTime.Format(time.RFC3339), rootName, oldName)
+		beforeName := filepath.Join(beforeTime.Format(time.RFC3339Nano), rootName, oldName)
+		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339Nano), rootName, newName)
+		afterName := filepath.Join(afterTime.Format(time.RFC3339Nano), rootName, newName)
+		goneName := filepath.Join(afterTime.Format(time.RFC3339Nano), rootName, oldName)
 
 		if _, err := os.Stat(filepath.Join(atPrefix, beforeName)); err != nil {
 			t.Errorf("%v before; want found, got not found; err: %v", beforeName, err)

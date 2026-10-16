@@ -39,6 +39,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -547,6 +548,10 @@ func TestFitnessTileCooldownNoRetry(t *testing.T) {
 }
 
 func TestFitnessTileConcurrentCoalescingAndCancellation(t *testing.T) {
+	synctest.Test(t, testFitnessTileConcurrentCoalescingAndCancellation)
+}
+
+func testFitnessTileConcurrentCoalescingAndCancellation(t *testing.T) {
 	data := fitnessTileTestPNG(t, 256, 256)
 	started, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
@@ -576,22 +581,16 @@ func TestFitnessTileConcurrentCoalescingAndCancellation(t *testing.T) {
 			results <- err
 		}()
 	}
-	// Wait for all to join the same flight, using channels rather than sleeps.
-	joined := time.Now().Add(2 * time.Second)
-	for {
-		s.mu.Lock()
-		n := 0
-		for _, f := range s.flights {
-			n += f.waiters
-		}
-		s.mu.Unlock()
-		if n == waiters+1 {
-			break
-		}
-		if time.Now().After(joined) {
-			t.Fatalf("waiters never joined: %d", n)
-		}
-		time.Sleep(time.Millisecond)
+	// Wait for all to join the same flight.
+	synctest.Wait()
+	s.mu.Lock()
+	n := 0
+	for _, f := range s.flights {
+		n += f.waiters
+	}
+	s.mu.Unlock()
+	if n != waiters+1 {
+		t.Fatalf("waiters joined = %d; want %d", n, waiters+1)
 	}
 	cancel()
 	if err := <-first; !errors.Is(err, context.Canceled) {
