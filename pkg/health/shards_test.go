@@ -244,6 +244,26 @@ func TestShardedNeediestFirst(t *testing.T) {
 	})
 }
 
+func TestShardedFailOnProblems(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := New()
+		defer m.Close()
+		l := &shardLog{problems: map[string]string{"c": "1 blob corrupt"}}
+		c := m.Register("test.sharded[x]", "x")
+		c.SetShardedRunner(abc, l.run, 1, ScheduleOff)
+		c.FailOnShardProblems()
+		m.EndStartup()
+		if err := m.RunNow("test.sharded[x]"); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		cs := m.Status().Checks[0]
+		if cs.State != StateFailed || cs.Fatal || !strings.Contains(cs.Message, "c: 1 blob corrupt") {
+			t.Errorf("check = %v (fatal %v) %q; want failed, not fatal, about c", cs.State, cs.Fatal, cs.Message)
+		}
+	})
+}
+
 func TestShardedProblems(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := New()
