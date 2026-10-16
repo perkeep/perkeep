@@ -26,6 +26,7 @@ import (
 
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/test"
 )
 
 func TestIndexAVIF(t *testing.T) {
@@ -33,7 +34,9 @@ func TestIndexAVIF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := indextest.NewIndexDeps(index.NewMemoryIndex())
+	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
+	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.Index.Close()
 	for _, name := range []string{"sample.avif", "sample.bin"} {

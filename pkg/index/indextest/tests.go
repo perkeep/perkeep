@@ -308,7 +308,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	time.Local = time.UTC
 	defer func() { time.Local = oldLocal }()
 
-	id := NewIndexDeps(initIdx())
+	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
+	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
 	pn := id.NewPermanode()
@@ -763,7 +765,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 	ctx := context.Background()
-	id := NewIndexDeps(initIdx())
+	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
+	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
 	signer := id.SignerBlobRef
@@ -924,7 +928,9 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 
 func Files(t *testing.T, initIdx func() *index.Index) {
 	ctx := context.Background()
-	id := NewIndexDeps(initIdx())
+	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
+	id := NewIndexDeps(idx)
 	id.Fataler = t
 	fileTime := time.Unix(1361250375, 0)
 	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>", fileTime)
@@ -979,6 +985,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 
 func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
@@ -1048,6 +1055,7 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 func Delete(t *testing.T, initIdx func() *index.Index) {
 	ctx := context.Background()
 	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
@@ -1253,6 +1261,7 @@ func (s searchResults) String() string {
 
 func Reindex(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
@@ -1281,6 +1290,7 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 // before the permanodes they delete and some after.
 func ReindexManyDeletes(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 
@@ -1381,6 +1391,7 @@ func checkStat(idx *index.Index, want []blob.SizedRef) error {
 
 func EnumStat(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
+	idx.Logger = test.NewLogger(t, "")
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 
@@ -1482,5 +1493,6 @@ func MustNew(t *testing.T, s sorted.KeyValue) *index.Index {
 	if err != nil {
 		t.Fatalf("Error creating index: %v", err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	return ix
 }

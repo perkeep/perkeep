@@ -66,6 +66,11 @@ type Index struct {
 
 	KeyFetcher blob.Fetcher // for verifying claims
 
+	// Logger, if non-nil, is where the index and its corpus log.
+	// If nil, the log package's standard logger is used.
+	// It must be set before the index is used.
+	Logger *log.Logger
+
 	// TODO(mpl): do not init and use deletes when we have a corpus. Since corpus has its own deletes now, they are redundant.
 
 	// deletes is a cache to keep track of the deletion status (deleted vs undeleted)
@@ -115,8 +120,17 @@ var (
 	_ Interface          = (*Index)(nil)
 )
 
+// printf logs to x.Logger without a prefix.
+func (x *Index) printf(format string, args ...any) {
+	l := x.Logger
+	if l == nil {
+		l = log.Default()
+	}
+	l.Printf(format, args...)
+}
+
 func (x *Index) logf(format string, args ...any) {
-	log.Printf("index: "+format, args...)
+	x.printf("index: "+format, args...)
 }
 
 // SignerRefSet is the set of all blob Refs (of different hashes) that represent
@@ -527,11 +541,11 @@ func (x *Index) Reindex() (retErr error) {
 		if !ok {
 			return fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", x.s)
 		}
-		log.Printf("Wiping index storage type %T ...", x.s)
+		x.printf("Wiping index storage type %T ...", x.s)
 		if err := wiper.Wipe(); err != nil {
 			return fmt.Errorf("error wiping index's sorted key/value type %T: %w", x.s, err)
 		}
-		log.Printf("Index wiped.")
+		x.printf("Index wiped.")
 	}
 	completed := false
 	defer func() {
@@ -553,10 +567,10 @@ func (x *Index) Reindex() (retErr error) {
 		}
 		if completed && retErr == nil {
 			// Includes the final durable commit, not just worker completion.
-			log.Printf("Index rebuild complete.")
+			x.printf("Index rebuild complete.")
 		}
 	}()
-	log.Printf("Rebuilding index...")
+	x.printf("Rebuilding index...")
 
 	reindexStart, _ := blob.Parse(os.Getenv("CAMLI_REINDEX_START"))
 
@@ -578,7 +592,7 @@ func (x *Index) Reindex() (retErr error) {
 		enumErr <- blobserver.EnumerateAll(enumCtx, x.blobSource, func(sb blob.SizedRef) error {
 			now := time.Now()
 			if lastTick.Before(now.Add(-1 * time.Second)) {
-				log.Printf("Reindexing at %v", sb.Ref)
+				x.printf("Reindexing at %v", sb.Ref)
 				lastTick = now
 			}
 			if reindexStart.Valid() && sb.Ref.Less(reindexStart) {
@@ -598,15 +612,15 @@ func (x *Index) Reindex() (retErr error) {
 		wg.Go(func() {
 			for br := range blobc {
 				if verboseReindex {
-					log.Printf("reindexer[%d]: indexing blob %v", cpu, br)
+					x.printf("reindexer[%d]: indexing blob %v", cpu, br)
 				}
 				if err := x.indexBlob(ctx, br); err != nil {
-					log.Printf("Error reindexing %v: %v", br, err)
+					x.printf("Error reindexing %v: %v", br, err)
 					nerr.Add(1)
 					// TODO: flag (or default?) to stop the EnumerateAll above once
 					// there's any error with reindexing?
 				} else if verboseReindex {
-					log.Printf("reindexer[%d]: successfully indexed blob %v", cpu, br)
+					x.printf("reindexer[%d]: successfully indexed blob %v", cpu, br)
 				}
 			}
 		})
@@ -1252,7 +1266,7 @@ func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref,
 	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		cl, ok := kvSignerAttrValue(it.Key(), it.Value())
+		cl, ok := x.kvSignerAttrValue(it.Key(), it.Value())
 		if ok && !x.IsDeleted(cl.BlobRef) && !x.IsDeleted(cl.Permanode) {
 			return cl.Permanode, nil
 		}
@@ -1296,7 +1310,7 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 		before = time.Now()
 	}
 	for it.Next() {
-		cl, ok := kvSignerAttrValue(it.Key(), it.Value())
+		cl, ok := x.kvSignerAttrValue(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1323,14 +1337,14 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 	return nil
 }
 
-func kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
+func (x *Index) kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
 	var keyBuf [6]string
 	var valBuf [2]string
 	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if !validKey || len(valPart) != 1 {
 		// TODO(mpl): use glog
-		log.Printf("bogus keySignerAttrValue index entry: %q = %q", k, v)
+		x.printf("bogus keySignerAttrValue index entry: %q = %q", k, v)
 		return
 	}
 	if keyPart[0] != "signerattrvalue" {
@@ -1338,17 +1352,17 @@ func kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
 	}
 	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
 	if err != nil {
-		log.Printf("bogus time in keySignerAttrValue index entry: %q", keyPart[4])
+		x.printf("bogus time in keySignerAttrValue index entry: %q", keyPart[4])
 		return
 	}
 	claimRef, ok := blob.Parse(keyPart[5])
 	if !ok {
-		log.Printf("bogus claim in keySignerAttrValue index entry: %q", keyPart[5])
+		x.printf("bogus claim in keySignerAttrValue index entry: %q", keyPart[5])
 		return
 	}
 	permaNode, ok := blob.Parse(valPart[0])
 	if !ok {
-		log.Printf("bogus permanode in keySignerAttrValue index entry: %q", valPart[0])
+		x.printf("bogus permanode in keySignerAttrValue index entry: %q", valPart[0])
 		return
 	}
 	return camtypes.Claim{
@@ -1377,7 +1391,7 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	it := x.queryPrefix(keyPathBackward, keyId, target)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		p, childIndex, ok, active := kvPathBackward(it.Key(), it.Value())
+		p, childIndex, ok, active := x.kvPathBackward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1406,14 +1420,14 @@ func (x *Index) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref
 	return paths, nil
 }
 
-func kvPathBackward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
+func (x *Index) kvPathBackward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
 	var keyBuf [4]string
 	var valBuf [5]string
 	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if !validKey || len(valPart) != 4 {
 		// TODO(mpl): use glog
-		log.Printf("bogus keyPathBackward index entry: %q = %q", k, v)
+		x.printf("bogus keyPathBackward index entry: %q = %q", k, v)
 		return camtypes.Path{}, 0, false, false
 	}
 	if keyPart[0] != "signertargetpath" {
@@ -1421,22 +1435,22 @@ func kvPathBackward(k, v string) (p camtypes.Path, childIndex int, ok bool, acti
 	}
 	target, ok := blob.Parse(keyPart[2])
 	if !ok {
-		log.Printf("bogus target in keyPathBackward index entry: %q", keyPart[2])
+		x.printf("bogus target in keyPathBackward index entry: %q", keyPart[2])
 		return camtypes.Path{}, 0, false, false
 	}
 	claim, ok := blob.Parse(keyPart[3])
 	if !ok {
-		log.Printf("bogus claim in keyPathBackward index entry: %q", keyPart[3])
+		x.printf("bogus claim in keyPathBackward index entry: %q", keyPart[3])
 		return camtypes.Path{}, 0, false, false
 	}
 	date, err := time.Parse(time.RFC3339, valPart[0])
 	if err != nil {
-		log.Printf("bogus date in keyPathBackward index entry: %q", valPart[0])
+		x.printf("bogus date in keyPathBackward index entry: %q", valPart[0])
 		return camtypes.Path{}, 0, false, false
 	}
 	base, ok := blob.Parse(valPart[1])
 	if !ok {
-		log.Printf("bogus base in keyPathBackward index entry: %q", valPart[1])
+		x.printf("bogus base in keyPathBackward index entry: %q", valPart[1])
 		return camtypes.Path{}, 0, false, false
 	}
 	active = valPart[2] == "Y"
@@ -1467,7 +1481,7 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 	it := x.queryPrefix(keyPathForward, keyId, base, suffix)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		p, childIndex, ok, active := kvPathForward(it.Key(), it.Value())
+		p, childIndex, ok, active := x.kvPathForward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1492,14 +1506,14 @@ func (x *Index) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix s
 	return
 }
 
-func kvPathForward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
+func (x *Index) kvPathForward(k, v string) (p camtypes.Path, childIndex int, ok bool, active bool) {
 	var keyBuf [6]string
 	var valBuf [3]string
 	keyPart, childIndex, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if !validKey || len(valPart) != 2 {
 		// TODO(mpl): use glog
-		log.Printf("bogus keyPathForward index entry: %q = %q", k, v)
+		x.printf("bogus keyPathForward index entry: %q = %q", k, v)
 		return camtypes.Path{}, 0, false, false
 	}
 	if keyPart[0] != "path" {
@@ -1507,22 +1521,22 @@ func kvPathForward(k, v string) (p camtypes.Path, childIndex int, ok bool, activ
 	}
 	base, ok := blob.Parse(keyPart[2])
 	if !ok {
-		log.Printf("bogus base in keyPathForward index entry: %q", keyPart[2])
+		x.printf("bogus base in keyPathForward index entry: %q", keyPart[2])
 		return camtypes.Path{}, 0, false, false
 	}
 	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
 	if err != nil {
-		log.Printf("bogus date in keyPathForward index entry: %q", keyPart[4])
+		x.printf("bogus date in keyPathForward index entry: %q", keyPart[4])
 		return camtypes.Path{}, 0, false, false
 	}
 	claim, ok := blob.Parse(keyPart[5])
 	if !ok {
-		log.Printf("bogus claim in keyPathForward index entry: %q", keyPart[5])
+		x.printf("bogus claim in keyPathForward index entry: %q", keyPart[5])
 		return camtypes.Path{}, 0, false, false
 	}
 	target, ok := blob.Parse(valPart[1])
 	if !ok {
-		log.Printf("bogus target in keyPathForward index entry: %q", valPart[1])
+		x.printf("bogus target in keyPathForward index entry: %q", valPart[1])
 		return camtypes.Path{}, 0, false, false
 	}
 	active = valPart[0] == "Y"
@@ -1758,7 +1772,7 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camt
 	defer closeIterator(it, &err)
 	permanodeParents := make(map[string]*camtypes.Edge)
 	for it.Next() {
-		edge, ok := kvEdgeBackward(it.Key(), it.Value())
+		edge, ok := x.kvEdgeBackward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
@@ -1781,14 +1795,14 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camt
 	return edges, nil
 }
 
-func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
+func (x *Index) kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
 	var keyBuf [4]string
 	var valBuf [3]string
 	keyPart, _, validKey := appendClaimKeyParts(keyBuf[:0], k, len(keyBuf))
 	valPart := strutil.AppendSplitN(valBuf[:0], v, "|", len(valBuf))
 	if !validKey || len(valPart) != 2 {
 		// TODO(mpl): use glog
-		log.Printf("bogus keyEdgeBackward index entry: %q = %q", k, v)
+		x.printf("bogus keyEdgeBackward index entry: %q = %q", k, v)
 		return
 	}
 	if keyPart[0] != "edgeback" {
@@ -1796,12 +1810,12 @@ func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
 	}
 	parentRef, ok := blob.Parse(keyPart[2])
 	if !ok {
-		log.Printf("bogus parent in keyEdgeBackward index entry: %q", keyPart[2])
+		x.printf("bogus parent in keyEdgeBackward index entry: %q", keyPart[2])
 		return
 	}
 	blobRef, ok := blob.Parse(keyPart[3])
 	if !ok {
-		log.Printf("bogus blobref in keyEdgeBackward index entry: %q", keyPart[3])
+		x.printf("bogus blobref in keyEdgeBackward index entry: %q", keyPart[3])
 		return
 	}
 	return &camtypes.Edge{
@@ -2012,7 +2026,7 @@ func (x *Index) noteNeededMemoryLocked(have, missing blob.Ref) {
 		return
 	}
 	if verboseReindex {
-		log.Printf("reindex: have blob %v but it needs %v", have, missing)
+		x.printf("reindex: have blob %v but it needs %v", have, missing)
 	}
 	x.needs[have] = append(x.needs[have], missing)
 	x.neededBy[missing] = append(x.neededBy[missing], have)

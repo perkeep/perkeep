@@ -21,6 +21,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -49,6 +50,14 @@ func TLog(t testing.TB) {
 type twriter struct {
 	t            testing.TB
 	quietPhrases []string
+	state        *twriterState // or nil to always log to t
+}
+
+// twriterState tracks whether a twriter's test has finished, after which
+// calling t.Log would panic.
+type twriterState struct {
+	mu   sync.Mutex
+	done bool
 }
 
 func (w twriter) Write(p []byte) (n int, err error) {
@@ -60,9 +69,18 @@ func (w twriter) Write(p []byte) (n int, err error) {
 			}
 		}
 	}
-	if w.t != nil {
-		w.t.Log(strings.TrimSuffix(string(p), "\n"))
+	if w.t == nil {
+		return len(p), nil
 	}
+	if w.state != nil {
+		w.state.mu.Lock()
+		defer w.state.mu.Unlock()
+		if w.state.done {
+			// A goroutine outlived its test; don't lose what it says.
+			return os.Stderr.Write(p)
+		}
+	}
+	w.t.Log(strings.TrimSuffix(string(p), "\n"))
 	return len(p), nil
 }
 
@@ -70,6 +88,15 @@ func (w twriter) Write(p []byte) (n int, err error) {
 //
 // The optional quietPhrases are substrings to match in writes to
 // determine whether those log messages are muted.
-func NewLogger(t *testing.T, prefix string, quietPhrases ...string) *log.Logger {
-	return log.New(twriter{t: t, quietPhrases: quietPhrases}, prefix, log.LstdFlags)
+//
+// Writes after t's cleanup has run go to os.Stderr instead, since
+// calling t.Log after a test completes panics.
+func NewLogger(t testing.TB, prefix string, quietPhrases ...string) *log.Logger {
+	state := new(twriterState)
+	t.Cleanup(func() {
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		state.done = true
+	})
+	return log.New(twriter{t: t, quietPhrases: quietPhrases, state: state}, prefix, log.LstdFlags)
 }

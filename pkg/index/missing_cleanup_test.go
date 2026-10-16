@@ -26,6 +26,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 // missingCleanupKV counts cleanup operations and can fail an iterator close,
@@ -142,6 +143,7 @@ func newMissingCleanupIndex(t *testing.T) (*Index, *missingCleanupKV) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	t.Cleanup(func() {
 		if err := ix.Close(); err != nil {
 			t.Error(err)
@@ -247,6 +249,7 @@ func TestMissingCleanupStartupReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(t, "")
 	assertMissingCleanupMarker(t, ix, have, true)
 	assertMissingCleanupMarker(t, ix, other, true)
 	if got := ix.needs[have]; len(got) != 2 || !slices.Contains(got, deps[0]) || !slices.Contains(got, deps[1]) {

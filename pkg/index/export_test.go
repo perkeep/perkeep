@@ -22,6 +22,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
 	"tailscale.com/util/set"
 )
@@ -36,6 +37,18 @@ func ExpUnreverseTimeString(s string) string {
 
 func ExpNewCorpus() *Corpus {
 	return newCorpus()
+}
+
+// newLoggingIndex returns an otherwise empty Index that logs to t.
+func newLoggingIndex(t testing.TB) *Index {
+	return &Index{Logger: test.NewLogger(t, "")}
+}
+
+// newLoggingCorpus returns a new Corpus that logs to t.
+func newLoggingCorpus(t testing.TB) *Corpus {
+	c := newCorpus()
+	c.logger = test.NewLogger(t, "")
+	return c
 }
 
 func (c *Corpus) Exp_mergeFileInfoRow(k, v string) error {

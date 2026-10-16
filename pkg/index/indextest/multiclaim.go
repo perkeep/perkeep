@@ -39,6 +39,7 @@ func MultiClaim(t *testing.T, initIdx func() *index.Index) {
 	for _, withCorpus := range []bool{false, true} {
 		t.Run(fmt.Sprintf("corpus=%v", withCorpus), func(t *testing.T) {
 			ix := initIdx()
+			ix.Logger = test.NewLogger(t, "")
 			id := NewIndexDeps(ix)
 			id.Fataler = t
 			var corpus *index.Corpus
@@ -255,6 +256,7 @@ func MultiClaim(t *testing.T, initIdx func() *index.Index) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			replay.Logger = test.NewLogger(t, "")
 			reloaded, err := replay.KeepInMemory()
 			if err != nil {
 				t.Fatal(err)
@@ -271,6 +273,7 @@ func MultiClaim(t *testing.T, initIdx func() *index.Index) {
 			// Rebuild a fresh index from the original blob source, not existing rows.
 			// This also exercises envelope/deletion arrival in arbitrary blobref order.
 			rebuilt := initIdx()
+			rebuilt.Logger = test.NewLogger(t, "")
 			rebuilt.KeyFetcher = id.PublicKeyFetcher
 			rebuilt.InitBlobSource(id.BlobSource)
 			if err := rebuilt.Reindex(); err != nil {

@@ -31,6 +31,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 func TestKeepFirstNSizeHints(t *testing.T) {
@@ -234,6 +235,7 @@ func newReceiveBufferIndex(tb testing.TB) *Index {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	ix.Logger = test.NewLogger(tb, "")
 	tb.Cleanup(func() {
 		if err := ix.Close(); err != nil {
 			tb.Error(err)

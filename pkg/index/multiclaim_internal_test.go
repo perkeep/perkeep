@@ -48,7 +48,7 @@ func TestMultiClaimKeyCompatibility(t *testing.T) {
 	for _, tc := range suffixes {
 		t.Run(tc.suffix, func(t *testing.T) {
 			got, ok := kvClaim(primary+tc.suffix, value, blob.Parse)
-			c := newCorpus()
+			c := newLoggingCorpus(t)
 			cached, cok := c.kvClaimBytes([]byte(primary+tc.suffix), []byte(value))
 			if ok != tc.valid || cok != tc.valid {
 				t.Fatalf("primary suffix %q accepted: %v/%v; want %v", tc.suffix, ok, cok, tc.valid)
@@ -61,28 +61,28 @@ func TestMultiClaimKeyCompatibility(t *testing.T) {
 				parse            func(string, string) bool
 			}{
 				{"signerattrvalue", keySignerAttrValue.Key("KEY", "title", "hello", date, claim), keySignerAttrValue.Val(pn), func(k, v string) bool {
-					cl, ok := kvSignerAttrValue(k, v)
+					cl, ok := newLoggingIndex(t).kvSignerAttrValue(k, v)
 					if ok && (cl.BlobRef != claim || cl.MultiIndex != tc.index) {
 						t.Errorf("signerattr lost identity: %+v", cl)
 					}
 					return ok
 				}},
 				{"pathback", keyPathBackward.Key("KEY", target, claim), keyPathBackward.Val(date, pn, "Y", "suffix"), func(k, v string) bool {
-					p, childIndex, ok, _ := kvPathBackward(k, v)
+					p, childIndex, ok, _ := newLoggingIndex(t).kvPathBackward(k, v)
 					if ok && (p.Claim != claim || childIndex != tc.index) {
 						t.Errorf("pathback identity = %v, child index %d; want %v, %d", p.Claim, childIndex, claim, tc.index)
 					}
 					return ok
 				}},
 				{"pathforward", keyPathForward.Key("KEY", pn, "suffix", date, claim), keyPathForward.Val("Y", target), func(k, v string) bool {
-					p, childIndex, ok, _ := kvPathForward(k, v)
+					p, childIndex, ok, _ := newLoggingIndex(t).kvPathForward(k, v)
 					if ok && (p.Claim != claim || childIndex != tc.index) {
 						t.Errorf("pathforward identity = %v, child index %d; want %v, %d", p.Claim, childIndex, claim, tc.index)
 					}
 					return ok
 				}},
 				{"edgeback", keyEdgeBackward.Key(target, pn, claim), keyEdgeBackward.Val("permanode", ""), func(k, v string) bool {
-					p, ok := kvEdgeBackward(k, v)
+					p, ok := newLoggingIndex(t).kvEdgeBackward(k, v)
 					if ok && p.BlobRef != claim {
 						t.Errorf("edgeback reference = %v", p.BlobRef)
 					}

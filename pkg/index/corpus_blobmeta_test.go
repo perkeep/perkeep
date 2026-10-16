@@ -70,7 +70,7 @@ func TestCorpusBlobMeta(t *testing.T) {
 }
 
 func TestCorpusBlobMetaAPIs(t *testing.T) {
-	c := newCorpus()
+	c := newLoggingCorpus(t)
 	want := make(map[blob.Ref]camtypes.BlobMeta)
 	for _, typ := range []schema.CamliType{"", schema.TypeFile, schema.TypePermanode, "future-schema-type"} {
 		bm := camtypes.BlobMeta{Ref: blob.RefFromString(string(typ)), Size: 1234, CamliType: typ}
