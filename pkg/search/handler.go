@@ -237,6 +237,7 @@ var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
 	"recent":          (*Handler).serveRecentPermanodes,
 	"permanodeattr":   (*Handler).servePermanodesWithAttr,
 	"describe":        (*Handler).serveDescribe,
+	"exif":            (*Handler).serveEXIF,
 	"claims":          (*Handler).serveClaims,
 	"files":           (*Handler).serveFiles,
 	"signerattrvalue": (*Handler).serveSignerAttrValue,

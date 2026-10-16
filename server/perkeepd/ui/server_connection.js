@@ -136,6 +136,16 @@ cam.ServerConnection.prototype.getBlobContents = function(blobref, success, opt_
 	);
 };
 
+// Fetch indexed EXIF only when requested, rather than in every description.
+// @param {string} fileRef File schema blobref.
+// @param {Function} success Callback receiving the file's EXIF tags.
+// @param {?Function} opt_fail Optional failure callback.
+cam.ServerConnection.prototype.getEXIF = function(fileRef, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/exif');
+	path = goog.uri.utils.appendParams(path, 'blobref', fileRef);
+	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
+};
+
 // @param {goog.events.Event} e Event that triggered this
 cam.ServerConnection.prototype.handleXhrResponseJson_ = function(callbacks, e) {
 	var success = callbacks.success

@@ -185,3 +185,17 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 : use width:min-max to match images having a width of at least min and at most
   max. Use width:min- to specify only an underbound and width:-max to specify
   only an upperbound.  Exact matches should use `width:640`
+
+## Inspecting EXIF metadata
+
+Open a photo permanode or file's detail page and select **EXIF** to inspect its
+indexed metadata. A permanode's EXIF view follows its `camliContent` file.
+Tags are grouped by directory, with readable names, hexadecimal tag numbers,
+types, and values; long values can be expanded. Camera make and model link to
+matching `camera:` searches.
+
+The view is read-only and does not change the original file or permanode
+attributes. Metadata is loaded only when the tab is opened, using the
+[indexed EXIF API](protocol/search-exif.md). An empty view means no EXIF tags
+are recorded in the index for that file, not necessarily that the original
+file contains no metadata.

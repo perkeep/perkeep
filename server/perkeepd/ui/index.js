@@ -33,6 +33,7 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 
 goog.require('cam.BlobDetail');
+goog.require('cam.EXIFDetail');
 goog.require('cam.ImageDetail');
 goog.require('cam.AudioDetail');
 goog.require('cam.BlobItemContainerReact');
@@ -262,6 +263,7 @@ cam.IndexPage = React.createClass({
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer, this.toggleKeyNavigation_),
+
 			cam.MapAspect.getAspect.bind(
 				null,
 				this.props.config,
@@ -273,6 +275,7 @@ cam.IndexPage = React.createClass({
 				this.childSearchSession_,
 			),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
+			cam.EXIFDetail.getAspect.bind(null, this.props.serverConnection, this.getCameraSearchURL_),
 		];
 
 		return specificAspects
@@ -757,6 +760,7 @@ cam.IndexPage = React.createClass({
 		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query,
 			this.handleSearchQueryError_.bind(this), opt_targetBlobref, opt_sort);
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
+			this.ensureTargetMeta_(ss);
 			this.forceUpdate();
 		});
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_STATUS, function(e) {
@@ -770,6 +774,22 @@ cam.IndexPage = React.createClass({
 		ss.loadMoreResults();
 		this.searchSessionCache_.splice(0, 0, ss);
 		return ss;
+	},
+
+	// A direct file URL need not belong to the surrounding permanode query.
+	// Keep swipe navigation when that query describes the target, but fall
+	// back to the exact reference rather than leaving its detail page blank.
+	ensureTargetMeta_: function(session) {
+		// Cached sessions can be reused for another target after navigation.
+		var target = this.getTargetBlobref_();
+		if (!target || this.targetSearchSession_ != session || session.getMeta(target)) {
+			return;
+		}
+		var query = this.queryAsBlob_(target);
+		if (JSON.stringify(session.getQuery()) == JSON.stringify(query)) {
+			return; // An unknown exact reference must not retry indefinitely.
+		}
+		this.targetSearchSession_ = this.getSearchSession_(target, query, 'blobref');
 	},
 
 	// handleSearchQueryError_ removes the last search query from the search session
@@ -1280,6 +1300,10 @@ cam.IndexPage = React.createClass({
 		// TODO(mpl): now that "ref:refprefix" searches are fully supported, maybe we
 		// could replace the mix of path+query URLs, with just query based URLs?
 		return url = this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref).setFragment(opt_fragment || '');
+	},
+
+	getCameraSearchURL_: function(value) {
+		return this.baseURL_.clone().setParameterValue('q', cam.EXIFDetail.getCameraQuery(value)).toString();
 	},
 
 	setSearch_: function(query) {
