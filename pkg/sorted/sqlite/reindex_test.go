@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 func reindexStore(t *testing.T) (*keyValue, *sql.DB) {
@@ -109,6 +110,7 @@ func reindexPragmas(t *testing.T, tx *sql.Tx, wantSync int) {
 }
 
 func TestReindexNormalDurability(t *testing.T) {
+	test.TLog(t)
 	k, db := reindexStore(t)
 	reindexOK(t, k.Set("old", "value"))
 	reindexObserved(t, db, "old", 0)
@@ -197,6 +199,7 @@ func TestReindexGroupBudgets(t *testing.T) {
 }
 
 func TestReindexFindSnapshots(t *testing.T) {
+	test.TLog(t)
 	k, _ := reindexStore(t)
 	s := reindexBegin(t, k)
 	s.maxMutations = 3
@@ -239,6 +242,7 @@ func TestReindexFindSnapshots(t *testing.T) {
 }
 
 func TestReindexConcurrentUse(t *testing.T) {
+	test.TLog(t)
 	k, _ := reindexStore(t)
 	s := reindexBegin(t, k)
 	s.maxMutations = 3
@@ -286,6 +290,7 @@ func TestReindexConcurrentUse(t *testing.T) {
 }
 
 func TestReindexBatchOwnership(t *testing.T) {
+	test.TLog(t)
 	k, _ := reindexStore(t)
 	s := reindexBegin(t, k)
 	other, _ := reindexStore(t)
@@ -309,6 +314,7 @@ func TestReindexBatchOwnership(t *testing.T) {
 }
 
 func TestReindexFailureIsSticky(t *testing.T) {
+	test.TLog(t)
 	for _, failure := range []string{"Get", "Find", "write", "batch", "commit", "marker"} {
 		t.Run(failure, func(t *testing.T) {
 			k, db := reindexStore(t)
@@ -419,6 +425,7 @@ func TestReindexBeginFailureIsAtomic(t *testing.T) {
 }
 
 func TestReindexCrashRecovery(t *testing.T) {
+	test.TLog(t)
 	const childEnv = "PERKEEP_SQLITE_REINDEX_CRASH_FILE"
 	if file := os.Getenv(childEnv); file != "" {
 		kv, err := NewStorage(file)

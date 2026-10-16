@@ -31,6 +31,7 @@ import (
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 )
 
 var ctxbg = context.Background()
@@ -100,6 +101,7 @@ func checkTweets(t *testing.T, rc *importer.RunContext, expectedPostGroups ...ma
 
 // TestIntegrationRun tests both the twitter API and zip file import paths.
 func TestIntegrationRun(t *testing.T) {
+	test.TLog(t)
 	const accessToken = "foo"
 	const accessSecret = "bar"
 	const userID = "camlistore_test"

@@ -32,6 +32,7 @@ import (
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 func TestWebPIssue850(t *testing.T) {
@@ -44,7 +45,9 @@ func TestWebPIssue850(t *testing.T) {
 	if got := magic.MIMEType(data); got != "image/webp" {
 		t.Fatalf("MIMEType = %q; want image/webp", got)
 	}
-	id := indextest.NewIndexDeps(index.NewMemoryIndex())
+	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
+	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.Index.Close()
 	file, _ := id.UploadFile("hithere.webp", string(data), time.Time{})

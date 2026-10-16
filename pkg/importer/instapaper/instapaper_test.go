@@ -27,6 +27,7 @@ import (
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 )
 
 func verify(t *testing.T, root *importer.Object, path string, expected map[string]string) []blob.Ref {
@@ -55,6 +56,10 @@ func TestParseFilename(t *testing.T) {
 }
 
 func TestIntegrationRun(t *testing.T) {
+	test.TLog(t)
+	oldLogger := logger
+	logger = test.NewLogger(t, "instapaper.com: ")
+	t.Cleanup(func() { logger = oldLogger })
 	const authToken = "token"
 	const authSecret = "secret"
 	const userID = "999"

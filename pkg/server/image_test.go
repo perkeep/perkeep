@@ -36,9 +36,11 @@ import (
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 func TestThumbnailContentType(t *testing.T) {
+	test.TLog(t)
 	im := image.NewRGBA(image.Rect(0, 0, 40, 20))
 	draw.Draw(im, im.Bounds(), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
 	for _, tc := range []struct {
@@ -70,7 +72,9 @@ func TestThumbnailContentType(t *testing.T) {
 			if err := tc.encode(&src); err != nil {
 				t.Fatal(err)
 			}
-			id := indextest.NewIndexDeps(index.NewMemoryIndex())
+			idx := index.NewMemoryIndex()
+			idx.Logger = test.NewLogger(t, "")
+			id := indextest.NewIndexDeps(idx)
 			id.Fataler = t
 			defer id.Index.Close()
 			file, _ := id.UploadFile("image."+tc.format, src.String(), time.Time{})

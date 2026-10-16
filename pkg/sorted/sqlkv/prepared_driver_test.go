@@ -30,6 +30,7 @@ import (
 
 	"go4.org/syncutil"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 // No Execer/Queryer interfaces: database/sql must use native statement handles,
@@ -456,6 +457,7 @@ func TestPreparedDriverHooksAndRewriting(t *testing.T) {
 }
 
 func TestPreparedDriverBeginFailure(t *testing.T) {
+	test.TLog(t)
 	for _, readOnly := range []bool{false, true} {
 		t.Run(map[bool]string{false: "batch", true: "read"}[readOnly], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -617,6 +619,7 @@ func TestPreparedDriverForeignBatch(t *testing.T) {
 }
 
 func TestPreparedDriverOperationFailures(t *testing.T) {
+	test.TLog(t)
 	for _, operation := range []string{"get", "set", "delete", "find-query", "find-next", "find-close"} {
 		t.Run(operation, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

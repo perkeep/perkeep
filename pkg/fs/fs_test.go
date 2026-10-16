@@ -94,9 +94,7 @@ func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
 }
 
 func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
-	dupLog := io.MultiWriter(os.Stderr, testLog{t})
-	log.SetOutput(dupLog)
-	defer log.SetOutput(os.Stderr)
+	test.TLog(t)
 
 	w := test.GetWorld(t)
 	mountPoint := t.TempDir()

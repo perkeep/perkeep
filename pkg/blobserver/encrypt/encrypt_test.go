@@ -168,6 +168,7 @@ func TestEncrypt(t *testing.T) {
 }
 
 func TestEncryptStress(t *testing.T) {
+	test.TLog(t)
 	const (
 		workers  = 20
 		numBlobs = 1000
@@ -199,6 +200,7 @@ func TestEncryptStress(t *testing.T) {
 }
 
 func TestLoadMeta(t *testing.T) {
+	test.TLog(t)
 	ts := newTestStorage()
 	const blobData = "foo"
 	tb := &test.Blob{Contents: blobData}
@@ -223,6 +225,7 @@ func TestLoadMeta(t *testing.T) {
 }
 
 func TestNewFromConfig(t *testing.T) {
+	test.TLog(t)
 	ld := test.NewLoader()
 
 	// Using key file

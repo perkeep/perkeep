@@ -309,6 +309,7 @@ func TestMultiClaimMissingSigner(t *testing.T) {
 }
 
 func TestMultiClaimInvalidEnvelope(t *testing.T) {
+	test.TLog(t)
 	testMultiClaimSearch(t, func(t *testing.T, qt *queryTest) {
 		id := qt.id
 		p1, p2 := id.NewPermanode(), id.NewPermanode()

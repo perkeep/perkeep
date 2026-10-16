@@ -196,6 +196,7 @@ func checkErr(t *testing.T, err error) {
 // lastModtime is at test.ClockOrigin + 8s (last claim on perma123) on return.
 func handlerDescribeTestSetup(t *testing.T) indexAndOwner {
 	idx := index.NewMemoryIndex()
+	idx.Logger = test.NewLogger(t, "")
 	tf := new(test.Fetcher)
 	idx.InitBlobSource(tf)
 	idx.KeyFetcher = tf
@@ -329,6 +330,7 @@ func initTests() []handlerTest {
 			name: "describe-jpeg-blob",
 			setup: func(t *testing.T) indexAndOwner {
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				tb, ok := testBlobs["blobcontents1"]
 				if !ok {
 					panic("blobcontents1 not found")
@@ -530,6 +532,7 @@ func initTests() []handlerTest {
 			name: "describe-permanode-follows-camliPath",
 			setup: func(t *testing.T) indexAndOwner {
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				tf := new(test.Fetcher)
 				idx.InitBlobSource(tf)
 				idx.KeyFetcher = tf
@@ -587,6 +590,7 @@ func initTests() []handlerTest {
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				id := indextest.NewIndexDeps(idx)
 
 				pn := id.NewDeterministicPermanodeForTest("pn1")
@@ -621,6 +625,7 @@ func initTests() []handlerTest {
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
@@ -693,6 +698,7 @@ func initTests() []handlerTest {
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
@@ -783,6 +789,7 @@ func initTests() []handlerTest {
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				id := indextest.NewIndexDeps(idx)
 
 				pn := id.NewDeterministicPermanodeForTest("pn1")
@@ -819,6 +826,7 @@ func initTests() []handlerTest {
 				// Ignore the fakeindex and use the real (but in-memory) implementation,
 				// using IndexDeps to populate it.
 				idx := index.NewMemoryIndex()
+				idx.Logger = test.NewLogger(t, "")
 				id := indextest.NewIndexDeps(idx)
 
 				parent1 := id.NewDeterministicPermanodeForTest("pn1") // sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0
@@ -954,6 +962,7 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 	index.SetVerboseCorpusLogging(false)
 
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
+	idx.Logger = test.NewLogger(t, "")
 	idd := indextest.NewIndexDeps(idx)
 	h := NewHandler(idx, owner)
 	corpus, err := idx.KeepInMemory()

@@ -107,10 +107,12 @@ func TestDelete_SQLite(t *testing.T) {
 }
 
 func TestReindex_SQLite(t *testing.T) {
+	test.TLog(t)
 	tester{}.test(t, indextest.Reindex)
 }
 
 func TestReindexManyDeletes_SQLite(t *testing.T) {
+	test.TLog(t)
 	tester{}.test(t, indextest.ReindexManyDeletes)
 }
 
@@ -119,6 +121,7 @@ func TestReindexManyDeletes_SQLite(t *testing.T) {
 // The delete's retry must see its target's provisional meta row, then all rows
 // and the rebuilt deletion cache must survive reopening the real SQLite store.
 func TestReindexSQLiteDeleteBeforeTargetReopen(t *testing.T) {
+	test.TLog(t)
 	t.Setenv("CAMLI_REINDEX_START", "")
 	t.Setenv("CAMLI_REDO_INDEX_ON_RECEIVE", "false")
 	oldProcs := index.ReindexMaxProcs()
@@ -281,5 +284,6 @@ func TestFDLeak(t *testing.T) {
 }
 
 func TestMultiClaim_SQLite(t *testing.T) {
+	test.TLog(t)
 	tester{}.test(t, indextest.MultiClaim)
 }

@@ -118,6 +118,7 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 	index.SetVerboseCorpusLogging(false)
 
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
+	idx.Logger = test.NewLogger(t, "")
 	var err error
 	var corpus *index.Corpus
 	if itype == indexCorpusBuild {

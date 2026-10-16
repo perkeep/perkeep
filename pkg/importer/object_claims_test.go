@@ -35,6 +35,7 @@ import (
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 // objectClaimReceiver records upload attempts, including failed uploads. The
@@ -621,9 +622,11 @@ func TestObjectBatchSerializesSetAttr(t *testing.T) {
 }
 
 func TestObjectClaimsIndexRoundTrip(t *testing.T) {
+	test.TLog(t)
 	f := newObjectClaimFixture(t, nil)
 	ctx := context.Background()
 	ix := index.NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
 	t.Cleanup(func() {
 		if err := ix.Close(); err != nil {
 			t.Error(err)

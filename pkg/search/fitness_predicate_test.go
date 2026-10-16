@@ -26,6 +26,7 @@ import (
 
 	"go4.org/types"
 	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/test"
 )
 
 func TestFitnessPredicates(t *testing.T) {
@@ -95,6 +96,7 @@ func TestFitnessPredicates(t *testing.T) {
 }
 
 func TestFitnessPredicateExactNames(t *testing.T) {
+	test.TLog(t)
 	for _, expr := range []string{
 		"is:fitness:extra", "is:run:extra", "is:hike:extra", "is:ride:extra",
 		"is:bike:extra", "is:ebike:extra", "is:Run", "is:Bike", "is:ebikeride", "is:walk",

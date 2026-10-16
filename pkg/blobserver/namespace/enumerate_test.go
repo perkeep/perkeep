@@ -247,6 +247,7 @@ func TestEnumerateBlobsSQLiteCloseError(t *testing.T) {
 }
 
 func TestEnumerateBlobsSQLiteSkipsBogusEntries(t *testing.T) {
+	test.TLog(t)
 	path := filepath.Join(t.TempDir(), "index.sqlite")
 	synctest.Test(t, func(t *testing.T) {
 		kv := newEnumerationSQLite(t, path)
