@@ -145,10 +145,7 @@ func TestInternalHandler(t *testing.T) {
 }
 
 func TestNoTestingLinking(t *testing.T) {
-	w, err := test.NewWorld()
-	if err != nil {
-		t.Fatal(err)
-	}
+	w := test.GetWorld(t)
 	help, err := w.Help()
 	if err != nil {
 		t.Fatalf("Error running perkeepd -help: %v, %v", string(help), err)

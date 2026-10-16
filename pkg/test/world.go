@@ -153,12 +153,15 @@ func (w *World) Build() error {
 	return nil
 }
 
-// Help outputs the help of perkeepd from the World.
+// Help outputs the help of perkeepd from the World, building it first
+// unless the World has already been built.
 func (w *World) Help() ([]byte, error) {
-	if err := w.Build(); err != nil {
-		return nil, err
+	if w.gobin == "" {
+		if err := w.Build(); err != nil {
+			return nil, err
+		}
+		defer w.removeTempDir()
 	}
-	defer w.removeTempDir()
 	pkdbin := w.lookPathGobin("perkeepd")
 	// Run perkeepd -help.
 	cmd := exec.Command(pkdbin, "-help")
