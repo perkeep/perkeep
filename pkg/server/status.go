@@ -23,11 +23,13 @@ import (
 	"html"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -162,6 +164,10 @@ type storageStatus struct {
 	ApproxBlobs int    `json:"approxBlobs,omitempty"`
 	ApproxBytes int    `json:"approxBytes,omitempty"`
 	ImplStatus  any    `json:"implStatus,omitempty"`
+	// ByHash are the census's estimates of the storage's blobs of each
+	// hash type, which ApproxBlobs and ApproxBytes sum, by hash type (and
+	// without their Hash), if it has run.
+	ByHash map[string]blobserver.HashEstimate `json:"byHash,omitempty"`
 }
 
 func (sh *StatusHandler) currentStatus() *status {
@@ -219,11 +225,30 @@ func (sh *StatusHandler) currentStatus() *status {
 		}
 		h := handlers[pfx]
 		_, isIndex := h.(*index.Index)
-		res.Storage[pfx] = storageStatus{
+		ss := storageStatus{
 			Type:    strings.TrimPrefix(typ, "storage-"),
 			Primary: pfx == rh.BlobRoot,
 			IsIndex: isIndex,
 		}
+		for _, c := range res.Health.Checks {
+			if ests, ok := c.Details.([]blobserver.HashEstimate); ok && c.ID == blobserver.CensusID(pfx) {
+				ss.ByHash = make(map[string]blobserver.HashEstimate)
+				for _, e := range ests {
+					ss.ByHash[e.Hash] = blobserver.HashEstimate{
+						Blobs:    e.Blobs,
+						Bytes:    e.Bytes,
+						Exact:    e.Exact,
+						BlobsErr: e.BlobsErr,
+						BytesErr: e.BytesErr,
+					}
+				}
+				for _, e := range ests {
+					ss.ApproxBlobs += int(e.Blobs)
+					ss.ApproxBytes += int(e.Bytes)
+				}
+			}
+		}
+		res.Storage[pfx] = ss
 	}
 
 	return res
@@ -272,6 +297,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("</ul>")
 
 	sh.writeHealthHTML(rw, st.Health)
+	writeStorageHTML(rw, st.Storage)
 
 	f("<h2>Logs</h2><ul>")
 	f("  <li><a href='/debug/config'>/debug/config</a> - server config</li>\n")
@@ -317,6 +343,55 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 		return in
 	})
 	f("<pre>%s</pre>", jsh)
+}
+
+// writeStorageHTML writes a table of the server's storage, with the
+// census's estimates of their blobs.
+func writeStorageHTML(w io.Writer, storage map[string]storageStatus) {
+	f := func(p string, a ...any) { fmt.Fprintf(w, p, a...) }
+	f("<h2 id='storage'>Storage</h2>")
+	f("<p>Blob counts and sizes are estimated by the storage census check above, from a sample of each storage's blobs (or exact, without &asymp;), with their standard errors: they're within twice that of the truth 95%% of the time.</p>")
+	f("<table border='1' cellpadding='4' style='border-collapse: collapse'>")
+	f("<tr><th rowspan='2'>Prefix</th><th rowspan='2'>Type</th><th colspan='2'>Total</th><th colspan='3'>By hash type</th></tr>")
+	f("<tr><th>Blobs</th><th>Size</th><th>Hash</th><th>Blobs</th><th>Size</th></tr>")
+	for _, pfx := range slices.Sorted(maps.Keys(storage)) {
+		ss := storage[pfx]
+		typ := html.EscapeString(ss.Type)
+		if ss.Primary {
+			typ += " (primary)"
+		}
+		total := blobserver.HashEstimate{Exact: true}
+		for _, e := range ss.ByHash {
+			total.Blobs += e.Blobs
+			total.Bytes += e.Bytes
+			total.Exact = total.Exact && e.Exact
+			total.BlobsErr = blobserver.AddErrs(total.BlobsErr, e.BlobsErr)
+			total.BytesErr = blobserver.AddErrs(total.BytesErr, e.BytesErr)
+		}
+		var blobs, size string
+		if ss.ByHash != nil {
+			blobs = html.EscapeString(total.BlobsWithErr())
+			size = html.EscapeString(total.BytesWithErr())
+		}
+		// The storage's columns span its rows, one for each hash type.
+		rows := max(1, len(ss.ByHash))
+		f("<tr><td rowspan='%d'>%s</td><td rowspan='%d'>%s</td><td rowspan='%d' align='right'>%s</td><td rowspan='%d' align='right'>%s</td>",
+			rows, html.EscapeString(pfx), rows, typ, rows, blobs, rows, size)
+		hashes := slices.Sorted(maps.Keys(ss.ByHash))
+		if len(hashes) == 0 {
+			f("<td></td><td></td><td></td></tr>")
+			continue
+		}
+		for i, hash := range hashes {
+			e := ss.ByHash[hash]
+			if i > 0 {
+				f("<tr>")
+			}
+			f("<td>%s</td><td align='right'>%s</td><td align='right'>%s</td></tr>",
+				html.EscapeString(hash), html.EscapeString(e.BlobsWithErr()), html.EscapeString(e.BytesWithErr()))
+		}
+	}
+	f("</table>")
 }
 
 // stateEmoji are the icons of the check states that need noticing on

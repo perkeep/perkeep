@@ -884,6 +884,8 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		}
 	}
 
+	hl.startCensus()
+
 	hi.Handle("/debug/vars", expvarHandler{})
 	hi.Handle("/debug/pprof/", profileHandler{})
 	hi.Handle("/debug/goroutines", auth.RequireAuth(http.HandlerFunc(dumpGoroutines), auth.OpRead))

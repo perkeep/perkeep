@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/health"
 
 	"golang.org/x/net/xsrftoken"
@@ -159,5 +161,41 @@ func TestStateHTML(t *testing.T) {
 	}
 	if got, want := stateHTML(health.CheckStatus{State: health.StateRunning, Done: 42}, now), "⏳ running, <span title=''>42</span>"; got != want {
 		t.Errorf("no total: got %q; want %q", got, want)
+	}
+}
+
+func TestWriteStorageHTML(t *testing.T) {
+	var buf strings.Builder
+	writeStorageHTML(&buf, map[string]storageStatus{
+		"/bs/": {Type: "blobpacked", Primary: true, ByHash: map[string]blobserver.HashEstimate{
+			"sha224": {Blobs: 190_402, Bytes: 2 << 30, Exact: true},
+			"sha1":   {Blobs: 6_730_000, Bytes: 331 << 30, BlobsErr: 210_000, BytesErr: 40 << 30},
+		}},
+		"/cache/": {Type: "filesystem"},
+	})
+	page := buf.String()
+	for _, want := range []string{
+		"<tr><td rowspan='2'>/bs/</td><td rowspan='2'>blobpacked (primary)</td><td rowspan='2' align='right'>≈6.92M ±0.21M</td><td rowspan='2' align='right'>≈333 ±40 GiB</td>" +
+			"<td>sha1</td><td align='right'>≈6.73M ±0.21M</td><td align='right'>≈331 ±40 GiB</td></tr>" +
+			"<tr><td>sha224</td><td align='right'>190402</td><td align='right'>2.00 GiB</td></tr>",
+		"<tr><td rowspan='1'>/cache/</td><td rowspan='1'>filesystem</td><td rowspan='1' align='right'></td><td rowspan='1' align='right'></td><td></td><td></td><td></td></tr>",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("storage HTML doesn't contain %q:\n%s", want, page)
+		}
+	}
+}
+
+func TestStorageStatusJSON(t *testing.T) {
+	js, err := json.Marshal(storageStatus{Type: "s3", ByHash: map[string]blobserver.HashEstimate{
+		"sha224": {Blobs: 3, Bytes: 30, Exact: true},
+		"sha1":   {Blobs: 6_730_000, Bytes: 331 << 30, BlobsErr: 210_000, BytesErr: 40 << 30},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"type":"s3","byHash":{"sha1":{"blobs":6730000,"bytes":355408543744,"blobsErr":210000,"bytesErr":42949672960},"sha224":{"blobs":3,"bytes":30,"exact":true}}}`
+	if string(js) != want {
+		t.Errorf("JSON =\n%s\nwant\n%s", js, want)
 	}
 }
