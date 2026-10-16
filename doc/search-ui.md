@@ -43,6 +43,17 @@ escaping.  For example:
 **<a name="before"></a>before**
 : i.e. `2011-01-01` is Jan 1 of year 2011, and `2011` means the same.
 
+**<a name="camera"></a>camera**
+: search for permanodes of files by EXIF camera make or model, ignoring case.
+  `camera:"Galaxy Nexus"` matches an exact model, and `camera:Samsung` matches
+  an exact make. Use `camera:~nexus` or `camera:*nexus*` for a substring,
+  `camera:Galaxy*` for a prefix, and `camera:*Nexus` for a suffix.
+  Wildcards are supported only at the beginning and/or end, as with `filename:`.
+  `camera:*` matches any file with nonempty camera metadata; files without it
+  do not match. Each make and model is matched separately, not concatenated.
+  Supports normal grouping, negation, and combinations such as
+  `camera:Samsung camera:~nexus`. Requires the in-memory index.
+
 **<a name="childrenof"></a>childrenof**
 : Find child permanodes of a parent permanode (or prefix of a parent permanode):
   `childrenof:sha1-527cf12`

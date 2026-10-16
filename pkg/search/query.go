@@ -450,6 +450,10 @@ type FileConstraint struct {
 	WHRatio  *FloatConstraint    `json:"widthHeightRation,omitempty"`
 	Location *LocationConstraint `json:"location,omitempty"`
 
+	// Camera matches either the EXIF make or model. Files without camera
+	// metadata do not match. Requires an in-memory corpus.
+	Camera *StringConstraint `json:"camera,omitempty"`
+
 	// MediaTag is for ID3 (and similar) embedded metadata in files.
 	MediaTag *MediaTagConstraint `json:"mediaTag,omitempty"`
 }
@@ -1975,6 +1979,15 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 		}
 	}
 	corpus := s.h.corpus
+	if sc := c.Camera; sc != nil {
+		if corpus == nil {
+			return false, nil
+		}
+		make, model, found := corpus.FileCamera(br)
+		if !found || !((make != "" && sc.stringMatches(make)) || (model != "" && sc.stringMatches(model))) {
+			return false, nil
+		}
+	}
 	if c.WholeRef.Valid() {
 		if corpus == nil {
 			return false, nil

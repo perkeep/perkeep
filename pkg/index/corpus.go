@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"runtime"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
@@ -82,6 +84,7 @@ type Corpus struct {
 	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
+	camera       map[blob.Ref]cameraInfo         // wholeRef -> EXIF camera make and model
 	// dirChildren maps a directory to its (direct) children (static-set entries).
 	dirChildren map[blob.Ref]map[blob.Ref]struct{}
 	// fileParents maps a file or directory to its (direct) parents.
@@ -140,6 +143,10 @@ type signerFromBlobrefMap map[blob.Ref]string
 
 type latLong struct {
 	lat, long float64
+}
+
+type cameraInfo struct {
+	make, model string
 }
 
 // IsDeleted reports whether the provided blobref (of a permanode or claim) should be considered deleted.
@@ -328,6 +335,7 @@ func newCorpus() *Corpus {
 		brOfStr:                 make(map[string]blob.Ref),
 		fileWholeRef:            make(map[blob.Ref]blob.Ref),
 		gps:                     make(map[blob.Ref]latLong),
+		camera:                  make(map[blob.Ref]cameraInfo),
 		mediaTags:               make(map[blob.Ref]map[string]string),
 		deletes:                 make(map[blob.Ref][]deletion),
 		claimBack:               make(map[blob.Ref][]*camtypes.Claim),
@@ -391,7 +399,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"imagesize":            (*Corpus).mergeImageSizeRow,
 	"wholetofile":          (*Corpus).mergeWholeToFileRow,
 	"exifgps":              (*Corpus).mergeEXIFGPSRow,
-	"exiftag":              nil, // not using any for now
+	"exiftag":              (*Corpus).mergeEXIFTagRow,
 	"signerattrvalue":      nil, // ignoring for now
 	"mediatag":             (*Corpus).mergeMediaTag,
 	keyStaticDirChild.name: (*Corpus).mergeStaticDirChildRow,
@@ -418,6 +426,7 @@ var slurpPrefixes = []string{
 	"imagesize|",
 	"wholetofile|",
 	"exifgps|",
+	"exiftag|",
 	"mediatag|",
 	keyStaticDirChild.name + "|",
 }
@@ -949,6 +958,47 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 		return nil
 	}
 	c.gps[wholeRef] = latLong{lat, long}
+	return nil
+}
+
+// Only IFD0's Make and Model describe the main image's camera. In particular,
+// don't confuse thumbnail tags or legacy directory byte offsets with IFD0.
+func (c *Corpus) mergeEXIFTagRow(k, v []byte) error {
+	f := strings.Split(string(k), "|")
+	if len(f) != 4 {
+		return fmt.Errorf("unexpected exiftag key %q", k)
+	}
+	if f[2] != strconv.Itoa(exifIFD0) || (f[3] != "010f" && f[3] != "0110") {
+		return nil
+	}
+	const prefix = "string|1|"
+	if !bytes.HasPrefix(v, []byte(prefix)) {
+		return nil
+	}
+	wholeRef, ok := c.blobParseString(f[1])
+	if !ok {
+		return fmt.Errorf("failed to parse wholeref from exiftag key %q", k)
+	}
+	value, err := url.QueryUnescape(string(v[len(prefix):]))
+	if err != nil {
+		log.Printf("index: bogus EXIF string in value of row %q = %q", k, v)
+		return nil
+	}
+	// Cameras commonly pad ASCII strings with spaces and/or NUL bytes.
+	value = c.str(strings.TrimFunc(value, func(r rune) bool {
+		return r == 0 || unicode.IsSpace(r)
+	}))
+	info := c.camera[wholeRef]
+	if f[3] == "010f" {
+		info.make = value
+	} else {
+		info.model = value
+	}
+	if info.make == "" && info.model == "" {
+		delete(c.camera, wholeRef)
+	} else {
+		c.camera[wholeRef] = info
+	}
 	return nil
 }
 
@@ -1570,6 +1620,17 @@ func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {
 		return
 	}
 	return ll.lat, ll.long, true
+}
+
+// FileCamera returns the EXIF camera make and model of fileRef.
+// It reports ok if at least one of make or model is nonempty.
+func (c *Corpus) FileCamera(fileRef blob.Ref) (make, model string, ok bool) {
+	wholeRef, ok := c.fileWholeRef[fileRef]
+	if !ok {
+		return "", "", false
+	}
+	info, ok := c.camera[wholeRef]
+	return info.make, info.model, ok
 }
 
 // ForeachClaim calls fn for each claim of permaNode.

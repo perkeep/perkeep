@@ -114,6 +114,7 @@ func init() {
 	registerKeyword(newRef())
 
 	// Image predicates
+	registerKeyword(newCamera())
 	registerKeyword(newIsImage())
 	registerKeyword(newHeight())
 	registerKeyword(newIsLandscape())
@@ -958,6 +959,46 @@ func (k isUntagged) Predicate(ctx context.Context, args []string) (*Constraint, 
 			},
 		},
 	}, nil
+}
+
+type camera struct {
+	matchPrefix
+}
+
+func newCamera() keyword {
+	return camera{newMatchPrefix("camera")}
+}
+
+func (camera) Description() string {
+	return "Match EXIF camera make or model, case insensitively. Supports '*' at either end, or '~' for substring matching."
+}
+
+func (camera) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	arg := args[0]
+	sc := &StringConstraint{CaseInsensitive: true}
+	switch {
+	case arg == "" || arg == "~":
+		return nil, errors.New("empty camera search predicate")
+	case strings.HasPrefix(arg, "~"):
+		sc.Contains = arg[1:]
+	case !strings.Contains(arg, "*"):
+		sc.Equals = arg
+	default:
+		prefix, suffix := strings.HasPrefix(arg, "*"), strings.HasSuffix(arg, "*")
+		value := strings.TrimSuffix(strings.TrimPrefix(arg, "*"), "*")
+		if strings.Contains(value, "*") {
+			return nil, errors.New("unsupported glob wildcard in camera search predicate")
+		}
+		switch {
+		case prefix && suffix:
+			sc.Contains = value
+		case prefix:
+			sc.HasSuffix = value
+		case suffix:
+			sc.HasPrefix = value
+		}
+	}
+	return permOfFile(&FileConstraint{Camera: sc}), nil
 }
 
 type filename struct {

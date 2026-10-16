@@ -243,6 +243,8 @@ func TestScanFromStorageParallel(t *testing.T) {
 		if i%3 == 0 {
 			set("imagesize|"+file.String(), fmt.Sprintf("%d|%d", 640+i, 480+i))
 			set("exifgps|"+whole.String(), fmt.Sprintf("%v|%v", 37.5+float64(i)/1000, -122.25))
+			set(keyEXIFTag.Key(whole, exifIFD0, "010f"), "string|1|Camera+Maker")
+			set(keyEXIFTag.Key(whole, exifIFD0, "0110"), fmt.Sprintf("string|1|Model+%d", i%7))
 		}
 		set(fmt.Sprintf("wholetofile|%s|%s", whole, file), "1")
 		if i%50 == 0 {
@@ -269,6 +271,7 @@ func TestScanFromStorageParallel(t *testing.T) {
 	check("imageInfo", got.imageInfo, want.imageInfo)
 	check("fileWholeRef", got.fileWholeRef, want.fileWholeRef)
 	check("gps", got.gps, want.gps)
+	check("camera", got.camera, want.camera)
 	check("mediaTags", got.mediaTags, want.mediaTags)
 	check("dirChildren", got.dirChildren, want.dirChildren)
 	check("fileParents", got.fileParents, want.fileParents)
