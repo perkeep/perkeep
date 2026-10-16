@@ -79,9 +79,12 @@ func (e *mountEnv) Stat(s *stat) int64 {
 	return v
 }
 
+// inEmptyMutDir runs fn with a new, empty root directory. Its name is
+// unique so that tests can rerun against the shared test World.
 func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
 	pkmountTest(t, func(env *mountEnv) {
-		dir := filepath.Join(env.mountPoint, "roots", t.Name())
+		root := fmt.Sprintf("%s-%d", t.Name(), time.Now().UnixNano())
+		dir := filepath.Join(env.mountPoint, "roots", root)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
 		}
@@ -151,6 +154,11 @@ func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 
 	if !test.WaitFor(dirToBeFUSE(mountPoint), 5*time.Second, 100*time.Millisecond) {
 		t.Fatalf("error waiting for %s to be mounted", mountPoint)
+	}
+	// The cleanup above relies on isMounted to notice if pk-mount
+	// failed to unmount.
+	if !isMounted(mountPoint)() {
+		t.Fatalf("isMounted(%s) = false after mounting", mountPoint)
 	}
 	fn(&mountEnv{
 		t:          t,
@@ -462,10 +470,12 @@ func TestRename(t *testing.T) {
 func TestMoveAt(t *testing.T) {
 	condSkip(t)
 	var beforeTime, afterTime time.Time
+	var rootName string
 	oldName := filepath.FromSlash("1/1/1")
 	newDir := filepath.FromSlash("2/1")
 	newName := filepath.Join(newDir, "1")
 	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		rootName = filepath.Base(rootDir)
 		name1 := filepath.Join(rootDir, oldName)
 		name2 := filepath.Join(rootDir, newName)
 
@@ -492,12 +502,10 @@ func TestMoveAt(t *testing.T) {
 	})
 	pkmountTest(t, func(env *mountEnv) {
 		atPrefix := filepath.Join(env.mountPoint, "at")
-		testname := t.Name()
-
-		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), testname, oldName)
-		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), testname, newName)
-		afterName := filepath.Join(afterTime.Format(time.RFC3339), testname, newName)
-		goneName := filepath.Join(afterTime.Format(time.RFC3339), testname, oldName)
+		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), rootName, oldName)
+		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), rootName, newName)
+		afterName := filepath.Join(afterTime.Format(time.RFC3339), rootName, newName)
+		goneName := filepath.Join(afterTime.Format(time.RFC3339), rootName, oldName)
 
 		if _, err := os.Stat(filepath.Join(atPrefix, beforeName)); err != nil {
 			t.Errorf("%v before; want found, got not found; err: %v", beforeName, err)
@@ -799,11 +807,10 @@ func isInProcMounts(dir string) (error, bool) {
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	dir = strings.TrimSuffix(dir, "/")
 	for sc.Scan() {
-		l := sc.Text()
-		if !strings.HasPrefix(l, "/dev/fuse") {
-			continue
-		}
-		if strings.Fields(l)[1] == dir {
+		// Lines are "source mountpoint fstype options ...". pk-mount's
+		// source is its FSName ("perkeep"), so match the type instead.
+		f := strings.Fields(sc.Text())
+		if len(f) > 2 && f[1] == dir && (f[2] == "fuse" || strings.HasPrefix(f[2], "fuse.")) {
 			return nil, true
 		}
 	}
