@@ -45,6 +45,39 @@ func TestSearchHelp(t *testing.T) {
 	}
 }
 
+func TestCameraPredicate(t *testing.T) {
+	for _, tt := range []struct {
+		arg  string
+		want *StringConstraint
+	}{
+		{"Galaxy Nexus", &StringConstraint{Equals: "Galaxy Nexus"}},
+		{"~nexus", &StringConstraint{Contains: "nexus"}},
+		{"*nexus*", &StringConstraint{Contains: "nexus"}},
+		{"Galaxy*", &StringConstraint{HasPrefix: "Galaxy"}},
+		{"*Nexus", &StringConstraint{HasSuffix: "Nexus"}},
+		{"*", &StringConstraint{}},
+	} {
+		t.Run(tt.arg, func(t *testing.T) {
+			got, err := newCamera().Predicate(context.Background(), []string{tt.arg})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.want.CaseInsensitive = true
+			want := permOfFile(&FileConstraint{Camera: tt.want})
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("got %#v, want %#v", got, want)
+			}
+		})
+	}
+	for _, expression := range []string{`camera:`, `camera:""`, `camera:~`, `camera:Ga*xy`, `camera:***`, `camera:a:b`} {
+		t.Run(expression, func(t *testing.T) {
+			if _, err := parseExpression(context.Background(), expression); err == nil {
+				t.Error("expected invalid camera predicate to fail")
+			}
+		})
+	}
+}
+
 type keywordTestcase struct {
 	name        string
 	object      keyword
