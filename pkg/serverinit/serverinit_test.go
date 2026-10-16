@@ -84,6 +84,7 @@ func prettyPrint(t *testing.T, w io.Writer, v any) {
 }
 
 func TestConfigs(t *testing.T) {
+	test.TLog(t)
 	dir, err := os.Open("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -279,6 +280,7 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 }
 
 func TestInstallHandlers(t *testing.T) {
+	test.TLog(t)
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
 		t.Fatalf("source root folder not found: %v", err)
