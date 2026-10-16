@@ -92,6 +92,9 @@ func (r *runner) nextRunLocked() time.Time {
 	if r.cancel != nil {
 		return time.Time{}
 	}
+	if s := r.check.sharded; s != nil {
+		return s.nextDueLocked(time.Now(), iv)
+	}
 	if iv == 0 {
 		return time.Time{}
 	}
@@ -111,6 +114,12 @@ type savedCheck struct {
 	State   State
 	Message string
 	Updated time.Time
+
+	// For sharded checks (see SetShardedRunner):
+	ShardLast    map[string]time.Time // when each shard was last checked
+	ShardProblem map[string]string    // each shard's problem, if any
+	PassSince    time.Time            // when the full pass in progress started, if any
+	Paused       bool                 // whether that pass was canceled
 }
 
 // SetRunner gives the check a function that runs it, which the Monitor
@@ -164,6 +173,10 @@ func (c *Check) schedule(r *runner) {
 	}
 	m.mu.Lock()
 	atStartup := r.scheduleLocked() == ScheduleStartup
+	if s := c.sharded; atStartup && s != nil && !s.inPassLocked() {
+		// Unless a pass that a restart interrupted is to continue.
+		c.startFullPassLocked()
+	}
 	m.mu.Unlock()
 	if atStartup {
 		c.runOnce(r)
@@ -259,7 +272,38 @@ func parseState(s string) State {
 	return StatePending
 }
 
+// Resume continues the full pass of the sharded check with the given ID
+// that was canceled (see Cancel), checking the shards it hadn't yet.
+func (m *Monitor) Resume(id string) error {
+	r, err := m.runnerFor(id)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	s := r.check.sharded
+	switch {
+	case s == nil:
+		m.mu.Unlock()
+		return fmt.Errorf("check %q isn't sharded", id)
+	case r.cancel != nil:
+		m.mu.Unlock()
+		return fmt.Errorf("check %q is already running", id)
+	case s.passSince.IsZero():
+		m.mu.Unlock()
+		return fmt.Errorf("check %q has no pass to resume", id)
+	}
+	s.paused = false
+	m.saveShardsLocked(r.check, nil)
+	m.mu.Unlock()
+	select {
+	case r.runNow <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
 // RunNow asks the check with the given ID to run as soon as possible.
+// For a sharded check, it starts a new full pass of all its shards.
 func (m *Monitor) RunNow(id string) error {
 	r, err := m.runnerFor(id)
 	if err != nil {
@@ -267,6 +311,9 @@ func (m *Monitor) RunNow(id string) error {
 	}
 	m.mu.Lock()
 	running := r.cancel != nil
+	if !running {
+		r.check.startFullPassLocked()
+	}
 	m.mu.Unlock()
 	if running {
 		return fmt.Errorf("check %q is already running", id)
@@ -279,7 +326,7 @@ func (m *Monitor) RunNow(id string) error {
 }
 
 // Cancel cancels the run of the check with the given ID, if it's
-// running.
+// running. A sharded check's full pass is paused, until Resume.
 func (m *Monitor) Cancel(id string) error {
 	r, err := m.runnerFor(id)
 	if err != nil {
@@ -289,6 +336,10 @@ func (m *Monitor) Cancel(id string) error {
 	defer m.mu.Unlock()
 	if r.cancel == nil {
 		return fmt.Errorf("check %q isn't running", id)
+	}
+	if s := r.check.sharded; s != nil && !s.passSince.IsZero() {
+		s.paused = true
+		m.saveShardsLocked(r.check, nil)
 	}
 	r.cancel()
 	return nil
@@ -340,8 +391,9 @@ func (m *Monitor) runnerFor(id string) (*runner, error) {
 // runners.
 //
 // The rows' keys are a check's ID, "/", and the name of a field:
-// "schedule"; "lastRun" (in RFC 3339 format); and the state, message,
-// and time ("updated") of the result of its last run.
+// "schedule"; "lastRun" (in RFC 3339 format); the state, message, and
+// time ("updated") of the result of its last run; and, for sharded
+// checks, the state of its shards (see SetShardedRunner).
 func (m *Monitor) UseStore(kv sorted.KeyValue) error {
 	if m == nil {
 		return nil
@@ -350,6 +402,31 @@ func (m *Monitor) UseStore(kv sorted.KeyValue) error {
 	defer m.mu.Unlock()
 	m.store = kv
 	return sorted.Foreach(kv, func(key, value string) error {
+		for _, field := range []string{"/shard/", "/problem/"} {
+			i := strings.LastIndex(key, field)
+			if i < 0 {
+				continue
+			}
+			id, shard := key[:i], key[i+len(field):]
+			sc := m.saved[id]
+			if field == "/problem/" {
+				if sc.ShardProblem == nil {
+					sc.ShardProblem = make(map[string]string)
+				}
+				sc.ShardProblem[shard] = value
+			} else {
+				t, err := time.Parse(time.RFC3339Nano, value)
+				if err != nil {
+					return fmt.Errorf("health: row %q: %w", key, err)
+				}
+				if sc.ShardLast == nil {
+					sc.ShardLast = make(map[string]time.Time)
+				}
+				sc.ShardLast[shard] = t
+			}
+			m.saved[id] = sc
+			return nil
+		}
 		i := strings.LastIndex(key, "/")
 		if i < 0 {
 			return nil
@@ -359,6 +436,8 @@ func (m *Monitor) UseStore(kv sorted.KeyValue) error {
 		switch field {
 		case "schedule":
 			sc.Schedule = Schedule(value)
+		case "paused":
+			sc.Paused = value == "true"
 		case "state":
 			sc.State = parseState(value)
 		case "message":
@@ -369,12 +448,16 @@ func (m *Monitor) UseStore(kv sorted.KeyValue) error {
 				return fmt.Errorf("health: row %q: %w", key, err)
 			}
 			sc.Updated = t
-		case "lastRun":
+		case "lastRun", "passSince":
 			t, err := time.Parse(time.RFC3339Nano, value)
 			if err != nil {
 				return fmt.Errorf("health: row %q: %w", key, err)
 			}
-			sc.LastRun = t
+			if field == "lastRun" {
+				sc.LastRun = t
+			} else {
+				sc.PassSince = t
+			}
 		default:
 			return nil
 		}

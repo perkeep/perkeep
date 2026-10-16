@@ -107,6 +107,7 @@ func TestFormatETA(t *testing.T) {
 }
 
 func TestHealthControls(t *testing.T) {
+	pass := time.Date(2026, 10, 15, 21, 14, 31, 0, time.UTC)
 	for _, tt := range []struct {
 		name    string
 		c       health.CheckStatus
@@ -114,7 +115,9 @@ func TestHealthControls(t *testing.T) {
 		notWant []string
 	}{
 		{"plain", health.CheckStatus{Runnable: true}, []string{"value='run'", ">Run now<"}, []string{">Start<", "value='resume'", ">Cancel<"}},
-		{"running", health.CheckStatus{Runnable: true, State: health.StateRunning}, []string{">Cancel<"}, []string{"Run now"}},
+		{"sharded", health.CheckStatus{Runnable: true, Sharded: true}, []string{">Start<"}, []string{"value='resume'", "Run now"}},
+		{"sharded_unfinished", health.CheckStatus{Runnable: true, Sharded: true, PassSince: pass, Paused: true}, []string{">Start<", "value='resume'", "started at 2026-10-15T21:14:31Z"}, []string{"Run now"}},
+		{"running", health.CheckStatus{Runnable: true, Sharded: true, PassSince: pass, State: health.StateRunning}, []string{">Cancel<"}, []string{">Start<", "value='resume'"}},
 	} {
 		var buf strings.Builder
 		writeHealthControls(&buf, tt.c, "token")
@@ -148,6 +151,11 @@ func TestStateHTML(t *testing.T) {
 	done.State, done.Done = health.StateOK, 768
 	if got, want := stateHTML(done, now), "ok"; got != want {
 		t.Errorf("done: got %q; want %q", got, want)
+	}
+	paused := running
+	paused.State, paused.Sharded, paused.Paused, paused.Done, paused.ProgressHint = health.StateCanceled, true, true, 60, ""
+	if got, want := stateHTML(paused, now), "canceled<br><small>pass paused at <span title='(60 / 768)'>7.8%</span></small>"; got != want {
+		t.Errorf("paused:\n got %q\nwant %q", got, want)
 	}
 	if got, want := stateHTML(health.CheckStatus{State: health.StateRunning, Done: 42}, now), "⏳ running, <span title=''>42</span>"; got != want {
 		t.Errorf("no total: got %q; want %q", got, want)

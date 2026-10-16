@@ -109,6 +109,10 @@ type Monitor struct {
 	starting bool                  // until EndStartup
 	store    sorted.KeyValue       // or nil, to not save state; see UseStore
 	saved    map[string]savedCheck // by check ID, as loaded by UseStore
+	// dirtyShards are the shards, by check, whose state is to be saved
+	// when shardSaveTimer fires; see saveShardsLocked.
+	dirtyShards    map[*Check]map[string]bool
+	shardSaveTimer *time.Timer
 }
 
 // New returns a Monitor for a server that is starting.
@@ -150,6 +154,11 @@ func (m *Monitor) Close() error {
 	}
 	m.mu.Unlock()
 	m.runners.Wait()
+	m.mu.Lock()
+	if m.store != nil {
+		m.flushShardsLocked()
+	}
+	m.mu.Unlock()
 	return nil
 }
 
@@ -218,9 +227,10 @@ type Check struct {
 	updated   time.Time
 	done      int64
 	total     int64
-	recentErr []Event // most recent last, at most maxRecentErrors
-	runner    *runner // or nil, if the check has no runner
-	hint      string  // see SetProgressHint
+	recentErr []Event  // most recent last, at most maxRecentErrors
+	runner    *runner  // or nil, if the check has no runner
+	sharded   *sharded // or nil, if the check isn't sharded; see SetShardedRunner
+	hint      string   // see SetProgressHint
 }
 
 // Event is a problem a check reported.
@@ -350,7 +360,13 @@ type CheckStatus struct {
 	Schedule        Schedule  `json:"schedule,omitempty"`
 	DefaultSchedule Schedule  `json:"defaultSchedule,omitempty"`
 	LastRun         time.Time `json:"lastRun,omitzero"` // when a run last finished
-	NextRun         time.Time `json:"nextRun,omitzero"` // when it's next scheduled to start
+	// For a sharded check, PassSince is when its full pass in progress
+	// started, if any, and Paused whether it was canceled (see
+	// Monitor.Resume).
+	Sharded   bool      `json:"sharded,omitempty"`
+	PassSince time.Time `json:"passSince,omitzero"`
+	Paused    bool      `json:"paused,omitempty"`
+	NextRun   time.Time `json:"nextRun,omitzero"` // when it's next scheduled to start
 }
 
 // Status is a snapshot of a Monitor's state.
@@ -395,6 +411,9 @@ func (m *Monitor) Status() Status {
 			cs.Runnable = true
 			cs.Schedule, cs.DefaultSchedule = r.scheduleLocked(), r.defaultSchedule
 			cs.LastRun, cs.NextRun = r.lastRun, r.nextRunLocked()
+			if s := c.sharded; s != nil {
+				cs.Sharded, cs.PassSince, cs.Paused = true, s.passSince, s.paused
+			}
 			if cs.State == StatePending && cs.NextRun.IsZero() && r.cancel == nil {
 				cs.State = StateUnchecked
 			}

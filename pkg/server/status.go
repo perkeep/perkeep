@@ -369,7 +369,8 @@ func (sh *StatusHandler) writeHealthHTML(w io.Writer, hs health.Status) {
 // stateHTML returns the HTML for the state of check c at time now, with,
 // if it's running, how far along it is, as a percentage if its total is
 // known (hovering over it shows what it counts), and an estimate of how
-// much longer it'll take, from its average rate so far.
+// much longer it'll take, from its average rate so far; or, if its full
+// pass is paused, how far along that is.
 func stateHTML(c health.CheckStatus, now time.Time) string {
 	s := c.State.String()
 	if e := stateEmoji[c.State]; e != "" {
@@ -397,6 +398,8 @@ func stateHTML(c health.CheckStatus, now time.Time) string {
 		}
 	case c.State == health.StateRunning && c.Done > 0:
 		s += fmt.Sprintf(", <span title='%s'>%d</span>", html.EscapeString(c.ProgressHint), c.Done)
+	case c.Sharded && c.Paused && c.Total > 0:
+		s += "<br><small>pass paused at " + pct + "</small>"
 	}
 	return s
 }
@@ -440,7 +443,12 @@ func writeHealthControls(w io.Writer, c health.CheckStatus, token string) {
 	}
 	switch {
 	case c.State == health.StateRunning:
-		button("cancel", "Cancel", "Stop it")
+		button("cancel", "Cancel", "Stop it; a full pass of its shards pauses, until Resume")
+	case c.Sharded:
+		button("run", "Start", "Start a full pass, checking every shard again")
+		if !c.PassSince.IsZero() {
+			button("resume", "Resume", "Continue the full pass that started at "+c.PassSince.UTC().Format(time.RFC3339)+", checking the shards it hasn't")
+		}
 	default:
 		button("run", "Run now", "Run it now")
 	}
@@ -468,6 +476,8 @@ func (sh *StatusHandler) serveHealthAction(rw http.ResponseWriter, req *http.Req
 	switch req.FormValue("action") {
 	case "run":
 		err = sh.health.RunNow(id)
+	case "resume":
+		err = sh.health.Resume(id)
 	case "cancel":
 		err = sh.health.Cancel(id)
 	case "schedule":
