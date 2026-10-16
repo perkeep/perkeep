@@ -118,6 +118,52 @@ func TestEnumerateQueuedBlobsSQLiteInterrupt(t *testing.T) {
 	})
 }
 
+// failingSetKV fails Set while fail is true.
+type failingSetKV struct {
+	sorted.KeyValue
+	fail bool
+}
+
+var errQueueSet = errors.New("queue set failed")
+
+func (kv *failingSetKV) Set(key, value string) error {
+	if kv.fail {
+		return errQueueSet
+	}
+	return kv.KeyValue.Set(key, value)
+}
+
+// TestEnqueueRetryAfterQueueError checks that a blob whose queue write
+// failed is written by a retry, rather than taken as a duplicate.
+func TestEnqueueRetryAfterQueueError(t *testing.T) {
+	kv := &failingSetKV{KeyValue: sorted.NewMemoryKeyValue(), fail: true}
+	defer kv.Close()
+	sh := newSyncHandler("source", "destination", new(test.Fetcher), new(test.Fetcher), kv)
+	br := blob.RefFromString("foo")
+	sb := blob.SizedRef{Ref: br, Size: 3}
+	if err := sh.enqueue(sb); !errors.Is(err, errQueueSet) {
+		t.Fatalf("enqueue with failing queue = %v; want %v", err, errQueueSet)
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != 0 || st.BytesToCopy != 0 {
+		t.Fatalf("after failed enqueue, %d blobs (%d bytes) to copy; want none", st.BlobsToCopy, st.BytesToCopy)
+	}
+	kv.fail = false
+	if err := sh.enqueue(sb); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := kv.Get(br.String()); err != nil || v != "3" {
+		t.Fatalf("queue entry after retry = %q, %v; want \"3\"", v, err)
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != 1 || st.BytesToCopy != 3 {
+		t.Fatalf("after retry, %d blobs (%d bytes) to copy; want 1 (3 bytes)", st.BlobsToCopy, st.BytesToCopy)
+	}
+	// A duplicate doesn't write the queue again.
+	kv.fail = true
+	if err := sh.enqueue(sb); err != nil {
+		t.Fatalf("duplicate enqueue = %v; want nil", err)
+	}
+}
+
 type syncQueueErrorKV struct {
 	sorted.KeyValue
 	closeErr error
