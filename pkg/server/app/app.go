@@ -77,6 +77,8 @@ type Handler struct {
 	masterqueryURLPath string                 // URL path for setting the master query
 
 	process *os.Process // The app's Pid. To send it signals on restart, etc.
+
+	quitTimeout time.Duration // how long Quit waits; zero means 5 seconds
 }
 
 func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -536,14 +538,18 @@ func (a *Handler) Quit() error {
 		return err
 	}
 
-	c := make(chan error)
+	timeout := a.quitTimeout
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+	c := make(chan error, 1)
 	go func() {
 		_, err := a.process.Wait()
 		c <- err
 	}()
 	select {
 	case err = <-c:
-	case <-time.After(5 * time.Second):
+	case <-time.After(timeout):
 		// TODO Do we want to SIGKILL here or just leave the app alone?
 		err = errProcessTookTooLong
 	}
