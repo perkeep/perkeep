@@ -50,7 +50,6 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
-	"golang.org/x/net/http2"
 )
 
 // A Client provides access to a Perkeep server.
@@ -113,6 +112,11 @@ type Client struct {
 	// insecureAnyTLSCert disables all TLS cert checking,
 	// including the trustedCerts field above.
 	insecureAnyTLSCert bool
+
+	// testTLSNetDial, if non-nil, is used for tests instead of a
+	// net.Dialer to make the connections that the client's own TLS
+	// dialing (see dialTLSFunc) does TLS over.
+	testTLSNetDial func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	initIgnoredFilesOnce sync.Once
 	// list of files that pk-put should ignore.
@@ -278,17 +282,16 @@ func (c *Client) transportForConfig(tc *TransportConfig) http.RoundTripper {
 		proxy = tc.Proxy
 	}
 
-	if c.useHTTP2(tc) {
-		transport = &http2.Transport{
-			DialTLS: c.http2DialTLSFunc(),
-		}
-	} else {
-		transport = &http.Transport{
-			DialTLS:             c.DialTLSFunc(),
-			Dial:                c.DialFunc(),
-			Proxy:               proxy,
-			MaxIdleConnsPerHost: maxParallelHTTP_h1,
-		}
+	h2 := c.useHTTP2(tc)
+	var protocols http.Protocols
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(h2)
+	transport = &http.Transport{
+		DialTLS:             c.dialTLSFunc(h2),
+		Dial:                c.DialFunc(),
+		Proxy:               proxy,
+		MaxIdleConnsPerHost: maxParallelHTTP_h1,
+		Protocols:           &protocols,
 	}
 	httpStats := &httputil.StatsTransport{
 		Transport: transport,
@@ -1236,45 +1239,15 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	return nil
 }
 
-func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-	trustedCerts := c.getTrustedCerts()
-	if !c.insecureAnyTLSCert && len(trustedCerts) == 0 {
-		// TLS with normal/full verification.
-		// nil means http2 uses its default dialer.
-		return nil
-	}
-	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-		// we own cfg, so we can mutate it:
-		cfg.InsecureSkipVerify = true
-		conn, err := tls.Dial(network, addr, cfg)
-		if err != nil {
-			return nil, err
-		}
-		if c.insecureAnyTLSCert {
-			return conn, err
-		}
-		state := conn.ConnectionState()
-		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
-			return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
-		}
-		certs := state.PeerCertificates
-		if len(certs) < 1 {
-			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
-		}
-		sig := hashutil.SHA256Prefix(certs[0].Raw)
-		if slices.Contains(trustedCerts, sig) {
-			return conn, nil
-		}
-		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
-	}
-}
-
-// DialTLSFunc returns the adequate dial function, when using SSL, depending on
+// dialTLSFunc returns the adequate dial function, when using SSL, depending on
 // whether we're using insecure TLS (certificate verification is disabled), or we
-// have some trusted certs, or we're on android.
+// have some trusted certs, or we're on android. It returns nil if the
+// standard library's dialing will do.
 // If the client's config has some trusted certs, the server's certificate will
 // be checked against those in the config after the TLS handshake.
-func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
+// If h2 is true, the connection offers HTTP/2 as well as HTTP/1.1 (except on
+// android, which doesn't use HTTP/2), for a transport with HTTP/2 enabled.
+func (c *Client) dialTLSFunc(h2 bool) func(network, addr string) (net.Conn, error) {
 	if !c.useTLS() {
 		return nil
 	}
@@ -1291,7 +1264,6 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 
 	return func(network, addr string) (net.Conn, error) {
 		var conn *tls.Conn
-		var err error
 		if android.IsChild() {
 			ac, err := android.Dial(network, addr)
 			if err != nil {
@@ -1320,8 +1292,24 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 				return conn, nil
 			}
 		} else {
-			conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true})
+			cfg := &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         c.serverNameOfAddr(addr),
+			}
+			if h2 {
+				cfg.NextProtos = []string{"h2", "http/1.1"}
+			}
+			netDial := c.testTLSNetDial
+			if netDial == nil {
+				netDial = new(net.Dialer).DialContext
+			}
+			nc, err := netDial(context.Background(), network, addr)
 			if err != nil {
+				return nil, err
+			}
+			conn = tls.Client(nc, cfg)
+			if err := conn.Handshake(); err != nil {
+				nc.Close()
 				return nil, err
 			}
 		}
@@ -1477,12 +1465,7 @@ func (c *Client) Close() error {
 		return cl.Close()
 	}
 	if c := c.HTTPClient(); c != nil {
-		switch t := c.Transport.(type) {
-		case *http.Transport:
-			t.CloseIdleConnections()
-		case *http2.Transport:
-			t.CloseIdleConnections()
-		}
+		c.CloseIdleConnections()
 	}
 	return nil
 }
@@ -1492,9 +1475,10 @@ func httpGateSize(rt http.RoundTripper) int {
 	case *httputil.StatsTransport:
 		return httpGateSize(v.Transport)
 	case *http.Transport:
+		if v.Protocols != nil && v.Protocols.HTTP2() {
+			return maxParallelHTTP_h2
+		}
 		return maxParallelHTTP_h1
-	case *http2.Transport:
-		return maxParallelHTTP_h2
 	default:
 		return maxParallelHTTP_h1 // conservative default
 	}

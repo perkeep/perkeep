@@ -52,6 +52,18 @@ func (t *StatsTransport) ProtoVersions() (h1, h2 int) {
 	return t.h1, t.h2
 }
 
+// CloseIdleConnections closes the idle connections of the underlying
+// transport, if it has any.
+func (t *StatsTransport) CloseIdleConnections() {
+	rt := t.Transport
+	if rt == nil {
+		rt = http.DefaultTransport
+	}
+	if c, ok := rt.(interface{ CloseIdleConnections() }); ok {
+		c.CloseIdleConnections()
+	}
+}
+
 func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	t.mu.Lock()
 	t.reqs++

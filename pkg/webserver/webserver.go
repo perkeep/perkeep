@@ -39,7 +39,6 @@ import (
 
 	"go4.org/net/throttle"
 	"go4.org/wkfs"
-	"golang.org/x/net/http2"
 	"perkeep.org/pkg/webserver/listen"
 	"tailscale.com/tsnet"
 	"tailscale.com/util/ctxkey"
@@ -67,9 +66,6 @@ type Server struct {
 	verbose   bool   // log HTTP requests and response codes
 
 	Logger *log.Logger // or nil.
-
-	// H2Server is the HTTP/2 server config.
-	H2Server http2.Server
 
 	// enableTLS sets the Server up for listening to HTTPS connections.
 	enableTLS bool
@@ -255,36 +251,38 @@ func (s *Server) Listen(addr string) error {
 				CertManager: lc.GetCertificate,
 			})
 		}
-		doEnableTLS := func() error {
-			config := &tls.Config{
-				Rand:       rand.Reader,
-				Time:       time.Now,
-				NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
-				MinVersion: tls.VersionTLS12,
-			}
-			if s.tlsCertFile == "" && s.certManager != nil {
-				config.GetCertificate = s.certManager
-				// TODO(mpl): see if we can instead use
-				// https://godoc.org/golang.org/x/crypto/acme/autocert#Manager.TLSConfig
-				config.NextProtos = append(config.NextProtos, alpnProto)
-				s.listener = tls.NewListener(s.listener, config)
-				return nil
-			}
-
-			config.Certificates = make([]tls.Certificate, 1)
-			config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
-			if err != nil {
-				return fmt.Errorf("Failed to load TLS cert: %w", err)
-			}
-			s.listener = tls.NewListener(s.listener, config)
-			return nil
-		}
-		if err := doEnableTLS(); err != nil {
+		ln, err := s.tlsListener(s.listener)
+		if err != nil {
 			return err
 		}
+		s.listener = ln
 	}
 
 	return nil
+}
+
+// tlsListener returns ln wrapped to serve TLS with s's certificate,
+// offering HTTP/2 and HTTP/1.1.
+func (s *Server) tlsListener(ln net.Listener) (net.Listener, error) {
+	config := &tls.Config{
+		Rand:       rand.Reader,
+		Time:       time.Now,
+		NextProtos: []string{"h2", "http/1.1"},
+		MinVersion: tls.VersionTLS12,
+	}
+	if s.tlsCertFile == "" && s.certManager != nil {
+		config.GetCertificate = s.certManager
+		// TODO(mpl): see if we can instead use
+		// https://godoc.org/golang.org/x/crypto/acme/autocert#Manager.TLSConfig
+		config.NextProtos = append(config.NextProtos, alpnProto)
+		return tls.NewListener(ln, config), nil
+	}
+	cert, err := loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load TLS cert: %w", err)
+	}
+	config.Certificates = []tls.Certificate{cert}
+	return tls.NewListener(ln, config), nil
 }
 
 func (s *Server) listenTailscale(addr string, withTLS bool) (net.Listener, error) {
@@ -373,8 +371,20 @@ func (s *Server) Serve() {
 	if err := s.Listen(""); err != nil {
 		s.fatalf("Listen error: %v", err)
 	}
+	err := s.httpServer().Serve(s.throttleListener())
+	if err != nil {
+		s.printf("Error in http server: %v\n", err)
+		os.Exit(1)
+	}
+}
 
-	srv := &http.Server{
+// httpServer returns the http.Server to serve s's listener with. It uses
+// HTTP/2 on TLS connections that negotiate it, as the listener's
+// tls.Config offers.
+func (s *Server) httpServer() *http.Server {
+	// TODO: allow configuring src.ErrorLog (and plumb through to
+	// Google Cloud Logging when run on GCE, eventually)
+	return &http.Server{
 		Handler: s,
 		BaseContext: func(ln net.Listener) context.Context {
 			ctx := context.Background()
@@ -384,17 +394,6 @@ func (s *Server) Serve() {
 			}
 			return ctx
 		},
-	}
-	// TODO: allow configuring src.ErrorLog (and plumb through to
-	// Google Cloud Logging when run on GCE, eventually)
-
-	// Setup the NPN NextProto map for HTTP/2 support:
-	http2.ConfigureServer(srv, &s.H2Server)
-
-	err := srv.Serve(s.throttleListener())
-	if err != nil {
-		s.printf("Error in http server: %v\n", err)
-		os.Exit(1)
 	}
 }
 
