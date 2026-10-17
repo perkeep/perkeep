@@ -82,7 +82,9 @@ const receiveBlobsConcurrency = 8
 // doesn't match gets ErrCorruptBlob, and isn't passed to dst. Blobs with
 // the same ref are received once. It then uses dst.ReceiveBlobs if dst is
 // a BlobsReceiver, or else up to a few concurrent ReceiveBlob calls, and
-// notifies dst's blob hub of each received blob.
+// notifies dst's blob hub of each received blob. If dst's call fails as a
+// whole, so does ReceiveBlobs, with the same error, unless some blobs
+// already failed their checks.
 func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) error {
 	be := &BlobsError{Op: "receive"}
 	seen := make(map[blob.Ref]bool, len(blobs))
@@ -107,7 +109,11 @@ func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) err
 	for i, b := range valid {
 		refs[i] = b.Ref()
 	}
-	be.AddResult(refs, ReceiveBlobsUnchecked(ctx, dst, valid))
+	err := ReceiveBlobsUnchecked(ctx, dst, valid)
+	if _, ok := errors.AsType[*BlobsError](err); err != nil && !ok && be.Len() == 0 {
+		return err // the call failed as a whole
+	}
+	be.AddResult(refs, err)
 
 	hub := GetHub(dst)
 	for _, b := range valid {

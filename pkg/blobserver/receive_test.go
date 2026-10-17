@@ -273,10 +273,13 @@ func TestReceiveBlobsBlobsReceiver(t *testing.T) {
 		t.Errorf("hub notified of %v; want %v", notified(), want)
 	}
 
-	// A plain error is every blob's.
+	// A plain error is every blob's, and returned as is.
 	errAll := errors.New("storage closed")
 	sto.result = func([]*blob.Blob) error { return errAll }
 	err = blobserver.ReceiveBlobs(ctxbg, sto, []*blob.Blob{a.Blob(), c.Blob()})
+	if err != errAll {
+		t.Errorf("ReceiveBlobs = %v; want %v itself", err, errAll)
+	}
 	for _, br := range []blob.Ref{a.BlobRef(), c.BlobRef()} {
 		if got := blobserver.BlobErr(err, br); got != errAll {
 			t.Errorf("BlobErr(%v) = %v; want %v", br, got, errAll)
