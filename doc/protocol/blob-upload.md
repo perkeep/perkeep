@@ -83,7 +83,7 @@ Example:
     (binary or text blob data)
     --randomboundaryXYZ--
 
-Response (status may be a 200 or a 303 to this data):
+Response:
 
     HTTP/1.1 200 OK
     Content-Type: text/plain

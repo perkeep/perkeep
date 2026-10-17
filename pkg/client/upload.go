@@ -25,7 +25,6 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -386,26 +385,8 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		return errorf("failed to copy contents into multipart writer: %w", err)
 	}
 
-	// The only valid HTTP responses are 200 and 303.
-	if resp.StatusCode != 200 && resp.StatusCode != http.StatusSeeOther {
+	if resp.StatusCode != http.StatusOK {
 		return errorf("invalid http response %d in upload response", resp.StatusCode)
-	}
-
-	if resp.StatusCode == http.StatusSeeOther {
-		otherLocation := resp.Header.Get("Location")
-		if otherLocation == "" {
-			return errorf("303 without a Location")
-		}
-		baseURL, _ := url.Parse(uploadURL)
-		absURL, err := baseURL.Parse(otherLocation)
-		if err != nil {
-			return errorf("303 Location URL relative resolve error: %w", err)
-		}
-		otherLocation = absURL.String()
-		resp, err = http.Get(otherLocation)
-		if err != nil {
-			return errorf("error following 303 redirect after upload: %w", err)
-		}
 	}
 
 	var ures protocol.UploadResponse
