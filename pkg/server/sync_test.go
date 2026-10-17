@@ -136,6 +136,106 @@ func (kv *failingSetKV) Set(key, value string) error {
 
 // TestEnqueueRetryAfterQueueError checks that a blob whose queue write
 // failed is written by a retry, rather than taken as a duplicate.
+// queueDeletesKV counts queue deletes and batch commits.
+type queueDeletesKV struct {
+	sorted.KeyValue
+	deletes, commits int
+}
+
+func (kv *queueDeletesKV) Delete(key string) error {
+	kv.deletes++
+	return kv.KeyValue.Delete(key)
+}
+
+func (kv *queueDeletesKV) CommitBatch(b sorted.BatchMutation) error {
+	kv.commits++
+	return kv.KeyValue.CommitBatch(b)
+}
+
+// enqueueTestBlobs stores n new blobs in src and enqueues them in sh.
+func enqueueTestBlobs(t *testing.T, sh *SyncHandler, src *test.Fetcher, n int) []blob.SizedRef {
+	t.Helper()
+	var sbs []blob.SizedRef
+	for i := range n {
+		tb := &test.Blob{Contents: fmt.Sprintf("blob %d", i)}
+		src.AddBlob(tb)
+		if err := sh.enqueue(tb.SizedRef()); err != nil {
+			t.Fatal(err)
+		}
+		sbs = append(sbs, tb.SizedRef())
+	}
+	return sbs
+}
+
+// TestFinishCopiesBatchesDeletes checks that the copy loop deletes copied
+// blobs' queue entries in batches, and leaves blobs that failed to copy
+// queued.
+func TestFinishCopiesBatchesDeletes(t *testing.T) {
+	kv := &queueDeletesKV{KeyValue: sorted.NewMemoryKeyValue()}
+	defer kv.Close()
+	src := new(test.Fetcher)
+	sh := newSyncHandler("source", "destination", src, new(test.Fetcher), kv)
+	sbs := enqueueTestBlobs(t, sh, src, finishCopyGroup+44)
+	bad := sbs[3].Ref
+	errCopy := errors.New("copy failed")
+
+	// Copy them all first, so the grouping doesn't depend on timing.
+	copied := make(chan copiedBlob, len(sbs))
+	for _, sb := range sbs {
+		var err error
+		if sb.Ref == bad {
+			err = errCopy
+		}
+		copied <- copiedBlob{sh.newCopyStatus(sb), err}
+	}
+	close(copied)
+	kv.commits = 0
+	res := make(chan copyResult, len(sbs))
+	sh.finishCopies(copied, res)
+
+	if kv.deletes != 0 || kv.commits != 2 {
+		t.Errorf("queue deletes, commits = %d, %d; want 0, 2", kv.deletes, kv.commits)
+	}
+	for range sbs {
+		if r := <-res; (r.sb.Ref == bad) != (r.err == errCopy) {
+			t.Errorf("result for %v: %v", r.sb.Ref, r.err)
+		}
+	}
+	for _, sb := range sbs {
+		_, err := kv.Get(sb.Ref.String())
+		if queued := err == nil; queued != (sb.Ref == bad) {
+			t.Errorf("%v queued = %v", sb.Ref, queued)
+		}
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != 1 {
+		t.Errorf("%d blobs to copy; want 1", st.BlobsToCopy)
+	}
+}
+
+// TestRunSyncCopiesQueued checks that a sync round copies all the queued
+// blobs and empties the queue.
+func TestRunSyncCopiesQueued(t *testing.T) {
+	kv := sorted.NewMemoryKeyValue()
+	defer kv.Close()
+	src, dst := new(test.Fetcher), new(test.Fetcher)
+	sh := newSyncHandler("source", "destination", src, dst, kv)
+	sbs := enqueueTestBlobs(t, sh, src, 600)
+	if n := sh.runSync("queue", sh.enumerateQueuedBlobs); n != len(sbs) {
+		t.Fatalf("runSync copied %d blobs; want %d", n, len(sbs))
+	}
+	if dst.NumBlobs() != len(sbs) {
+		t.Errorf("destination has %d blobs; want %d", dst.NumBlobs(), len(sbs))
+	}
+	it := kv.Find("", "")
+	for it.Next() {
+		t.Errorf("still queued: %s", it.Key())
+	}
+	it.Close()
+	if st := sh.currentStatus(); st.BlobsToCopy != 0 {
+		t.Errorf("%d blobs to copy; want 0", st.BlobsToCopy)
+	}
+}
+
 func TestEnqueueRetryAfterQueueError(t *testing.T) {
 	kv := &failingSetKV{KeyValue: sorted.NewMemoryKeyValue(), fail: true}
 	defer kv.Close()

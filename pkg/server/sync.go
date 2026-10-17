@@ -601,10 +601,16 @@ func (sh *SyncHandler) runSync(syncType string, enumSrc func(chan<- blob.SizedRe
 
 	workch := make(chan blob.SizedRef, 1000)
 	resch := make(chan copyResult, 8)
+	// Copy workers copy blobs in parallel, then hand them to
+	// finishCopies, which deletes the copied blobs' queue entries in
+	// batches.
+	copiedc := make(chan copiedBlob, cap(workch))
+	var workers sync.WaitGroup
+	go sh.finishCopies(copiedc, resch)
 FeedWork:
 	for sb := range enumch {
 		if toCopy < sh.copierPoolSize {
-			go sh.copyWorker(resch, workch)
+			workers.Go(func() { sh.copyWorker(copiedc, workch) })
 		}
 		select {
 		case workch <- sb:
@@ -618,6 +624,10 @@ FeedWork:
 	// result: it may be blocked sending blobs we will no longer receive.
 	close(intr)
 	close(workch)
+	go func() {
+		workers.Wait()
+		close(copiedc)
+	}()
 	for i := 0; i < toCopy; i++ {
 		sh.setStatusf("Copying blobs")
 		res := <-resch
@@ -650,15 +660,67 @@ func (sh *SyncHandler) syncLoop() {
 	}
 }
 
-func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blob.SizedRef) {
+// A copiedBlob is the result of copying a blob, not yet finished.
+type copiedBlob struct {
+	cs  *copyStatus
+	err error
+}
+
+func (sh *SyncHandler) copyWorker(copied chan<- copiedBlob, work <-chan blob.SizedRef) {
 	for sb := range work {
-		res <- copyResult{sb, sh.copyBlob(context.TODO(), sb)}
+		cs := sh.newCopyStatus(sb)
+		copied <- copiedBlob{cs, sh.copyBlob(context.TODO(), cs)}
 	}
 }
 
-func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err error) {
-	cs := sh.newCopyStatus(sb)
-	defer func() { cs.setError(err) }()
+// finishCopyGroup is how many copied blobs finishCopies deletes from the
+// queue at a time, at most.
+const finishCopyGroup = 256
+
+// finishCopies finishes the blobs from copied, sending their results to
+// res. It deletes the queue entries of those copied in batches: as many
+// as have been copied, up to finishCopyGroup, rather than syncing a
+// delete for each, which uploads' enqueues would wait behind.
+func (sh *SyncHandler) finishCopies(copied <-chan copiedBlob, res chan<- copyResult) {
+	for first := range copied {
+		group := []copiedBlob{first}
+	Fill:
+		for len(group) < finishCopyGroup {
+			select {
+			case c, ok := <-copied:
+				if !ok {
+					break Fill
+				}
+				group = append(group, c)
+			default:
+				break Fill
+			}
+		}
+		batch := sh.queue.BeginBatch()
+		n := 0
+		for _, c := range group {
+			if c.err == nil {
+				batch.Delete(c.cs.sb.Ref.String())
+				n++
+			}
+		}
+		// A blob whose delete is lost stays queued, so it's copied again
+		// later; the destination already has it.
+		if n > 0 {
+			if err := sh.queue.CommitBatch(batch); err != nil {
+				sh.logf("queue delete of %d copied blobs error: %v", n, err)
+			}
+		}
+		for _, c := range group {
+			c.cs.finish(c.err)
+			res <- copyResult{c.cs.sb, c.err}
+		}
+	}
+}
+
+// copyBlob copies cs's blob to the destination, without finishing it.
+func (sh *SyncHandler) copyBlob(ctx context.Context, cs *copyStatus) (err error) {
+	sb := cs.sb
 	br := sb.Ref
 
 	sh.mu.Lock()
@@ -1248,17 +1310,25 @@ func (cs *copyStatus) setStatus(s string) {
 	cs.t = now
 }
 
+// setError deletes cs's blob from the queue if err is nil, as it was
+// copied, and then finishes it.
 func (cs *copyStatus) setError(err error) {
+	if err == nil {
+		// This is somewhat slow, so do it before finish acquires the
+		// lock. The queue is thread-safe.
+		if derr := cs.sh.queue.Delete(cs.sb.Ref.String()); derr != nil {
+			cs.sh.logf("queue delete of %v error: %v", cs.sb.Ref, derr)
+		}
+	}
+	cs.finish(err)
+}
+
+// finish records that copying cs's blob is done, with err if it failed.
+// If it was copied, its queue entry must already be deleted.
+func (cs *copyStatus) finish(err error) {
 	now := time.Now()
 	sh := cs.sh
 	br := cs.sb.Ref
-	if err == nil {
-		// This is somewhat slow, so do it before we acquire the lock.
-		// The queue is thread-safe.
-		if derr := sh.queue.Delete(br.String()); derr != nil {
-			sh.logf("queue delete of %v error: %v", cs.sb.Ref, derr)
-		}
-	}
 
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
