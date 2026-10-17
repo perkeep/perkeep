@@ -32,7 +32,6 @@ import (
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/schema"
 
-	"go4.org/readerutil"
 	"go4.org/types"
 )
 
@@ -193,16 +192,11 @@ func (c *Client) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader)
 	if c.sto != nil {
 		return blobserver.Receive(ctx, c.sto, br, source)
 	}
-	size, ok := readerutil.Size(source)
-	if !ok {
-		size = 0
+	h, err := NewUploadHandleFromReader(br, source)
+	if err != nil {
+		return blob.SizedRef{}, err
 	}
-	h := &UploadHandle{
-		BlobRef:  br,
-		Size:     uint32(size), // 0 if we don't know
-		Contents: source,
-		SkipStat: true,
-	}
+	h.SkipStat = true
 	pr, err := c.Upload(ctx, h)
 	if err != nil {
 		return blob.SizedRef{}, err

@@ -19,10 +19,12 @@ package client
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/test"
 )
 
@@ -61,7 +63,8 @@ func TestUploadStorageClientStats(t *testing.T) {
 		t.Helper()
 		pr, err := c.Upload(ctx, &UploadHandle{
 			BlobRef:  tb.BlobRef(),
-			Contents: tb.Reader(),
+			Size:     tb.Size(),
+			Contents: strings.NewReader(tb.Contents),
 			SkipStat: skipStat,
 		})
 		if err != nil {
@@ -94,6 +97,51 @@ func TestUploadStorageClientStats(t *testing.T) {
 	}
 	if sto.stats != stats {
 		t.Errorf("SkipStat upload did %d stats; want 0", sto.stats-stats)
+	}
+}
+
+// readerAtOnly is an io.ReaderAt (and io.Closer) that isn't an io.Reader.
+type readerAtOnly struct {
+	r      *strings.Reader
+	closed bool
+}
+
+func (r *readerAtOnly) ReadAt(p []byte, off int64) (int, error) { return r.r.ReadAt(p, off) }
+func (r *readerAtOnly) Close() error                            { r.closed = true; return nil }
+
+// TestUploadReaderAt checks that Upload reads a handle's Contents as an
+// io.ReaderAt, afresh for each upload, and doesn't close them.
+func TestUploadReaderAt(t *testing.T) {
+	ctx := context.Background()
+	c, sto := newStorageClient(t)
+	tb := &test.Blob{Contents: "foo"}
+	ra := &readerAtOnly{r: strings.NewReader(tb.Contents)}
+	h := &UploadHandle{BlobRef: tb.BlobRef(), Size: tb.Size(), Contents: ra, SkipStat: true}
+	for i := range 2 {
+		if _, err := c.Upload(ctx, h); err != nil {
+			t.Fatalf("upload %d: %v", i, err)
+		}
+	}
+	if sto.receives != 2 {
+		t.Errorf("receives = %d; want 2", sto.receives)
+	}
+	if ra.closed {
+		t.Error("Upload closed the handle's Contents")
+	}
+}
+
+func TestNewUploadHandleFromReader(t *testing.T) {
+	tb := &test.Blob{Contents: "foo"}
+	h, err := NewUploadHandleFromReader(tb.BlobRef(), tb.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, h.Size)
+	if _, err := h.Contents.ReadAt(got, 0); err != nil || h.BlobRef != tb.BlobRef() || string(got) != tb.Contents {
+		t.Errorf("handle = %v, %d bytes %q, %v; want %v, %q", h.BlobRef, h.Size, got, err, tb.BlobRef(), tb.Contents)
+	}
+	if _, err := NewUploadHandleFromReader(tb.BlobRef(), strings.NewReader(strings.Repeat("x", constants.MaxBlobSize+1))); err == nil {
+		t.Error("NewUploadHandleFromReader accepted a blob over the max size")
 	}
 }
 
