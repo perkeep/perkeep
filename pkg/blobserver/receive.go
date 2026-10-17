@@ -70,7 +70,8 @@ func receive(ctx context.Context, dst BlobReceiver, br blob.Ref, src io.Reader, 
 }
 
 // receiveBlobsConcurrency is how many concurrent ReceiveBlob calls
-// ReceiveBlobs makes for a destination that isn't a BlobsReceiver.
+// ReceiveBlobs and ReceiveBlobsUnchecked make for a destination that
+// isn't a BlobsReceiver.
 const receiveBlobsConcurrency = 8
 
 // ReceiveBlobs receives blobs into dst, returning an error as described by
@@ -102,15 +103,11 @@ func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) err
 		return be.OrNil()
 	}
 
-	if bsr, ok := dst.(BlobsReceiver); ok {
-		refs := make([]blob.Ref, len(valid))
-		for i, b := range valid {
-			refs[i] = b.Ref()
-		}
-		be.AddResult(refs, bsr.ReceiveBlobs(ctx, valid))
-	} else {
-		receiveEach(ctx, dst, valid, be)
+	refs := make([]blob.Ref, len(valid))
+	for i, b := range valid {
+		refs[i] = b.Ref()
 	}
+	be.AddResult(refs, ReceiveBlobsUnchecked(ctx, dst, valid))
 
 	hub := GetHub(dst)
 	for _, b := range valid {
@@ -140,6 +137,22 @@ func checkBlob(ctx context.Context, b *blob.Blob) error {
 		return ErrCorruptBlob
 	}
 	return nil
+}
+
+// ReceiveBlobsUnchecked passes blobs to dst, with dst.ReceiveBlobs if dst
+// is a BlobsReceiver, or else up to a few concurrent ReceiveBlob calls,
+// returning an error as described by BlobsReceiver. Unlike ReceiveBlobs,
+// it doesn't check the blobs' contents or merge duplicate refs, and
+// doesn't notify dst's blob hub. It's for a BlobsReceiver passing the
+// blobs it was given on to storage it wraps; others should use
+// ReceiveBlobs.
+func ReceiveBlobsUnchecked(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) error {
+	if bsr, ok := dst.(BlobsReceiver); ok {
+		return bsr.ReceiveBlobs(ctx, blobs)
+	}
+	be := &BlobsError{Op: "receive"}
+	receiveEach(ctx, dst, blobs, be)
+	return be.OrNil()
 }
 
 // receiveEach receives blobs into dst with up to receiveBlobsConcurrency

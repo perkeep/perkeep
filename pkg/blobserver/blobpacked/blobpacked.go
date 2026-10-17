@@ -1315,29 +1315,12 @@ func (s *storage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
 		}
 	}
 	if len(toSmall) > 0 {
-		be.AddResult(refsOf(toSmall), s.receiveSmall(ctx, toSmall))
+		be.AddResult(refsOf(toSmall), blobserver.ReceiveBlobsUnchecked(ctx, s.small, toSmall))
 	}
 	for _, br := range toPack {
 		if be.Err(br) == nil {
 			s.packFileGated(ctx, br)
 		}
-	}
-	return be.OrNil()
-}
-
-// receiveSmall receives blobs into small storage, all together if it's a
-// BlobsReceiver, returning an error as described by BlobsReceiver.
-func (s *storage) receiveSmall(ctx context.Context, blobs []*blob.Blob) error {
-	if bsr, ok := s.small.(blobserver.BlobsReceiver); ok {
-		return bsr.ReceiveBlobs(ctx, blobs)
-	}
-	be := &blobserver.BlobsError{Op: "receive"}
-	for _, b := range blobs {
-		r, err := b.ReadAll(ctx)
-		if err == nil {
-			_, err = s.small.ReceiveBlob(ctx, b.Ref(), r)
-		}
-		be.Add(b.Ref(), err)
 	}
 	return be.OrNil()
 }
