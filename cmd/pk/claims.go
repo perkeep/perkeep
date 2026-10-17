@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/search"
 )
@@ -46,7 +45,7 @@ func (c *claimsCmd) Describe() string {
 }
 
 func (c *claimsCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] claims [--depth=n] [--attr=s] permanodeBlobRef\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] claims [--depth=n] [--attr=s] permanodeBlobRef\n%s\n", blobrefArgHelp)
 }
 
 func (c *claimsCmd) Examples() []string {
@@ -57,11 +56,11 @@ func (c *claimsCmd) RunCommand(args []string) error {
 	if len(args) != 1 {
 		return cmdmain.UsageError("requires 1 blobref")
 	}
-	br, ok := blob.Parse(args[0])
-	if !ok {
-		return cmdmain.UsageError("invalid blobref")
-	}
 	cl := newClient(c.server)
+	br, err := cl.ResolveRef(ctxbg, args[0])
+	if err != nil {
+		return err
+	}
 	res, err := cl.GetClaims(ctxbg, &search.ClaimsRequest{
 		Permanode:  br,
 		AttrFilter: c.attr,

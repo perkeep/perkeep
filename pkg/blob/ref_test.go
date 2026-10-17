@@ -98,6 +98,32 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestIsPrefix(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"sha224-d9b81511e7", true},
+		{"sha224-d", true},
+		{"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a3", true}, // one digit short
+		{"sha256-b5bb9d80", true},
+
+		{"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", false}, // full blobref
+		{"sha224-", false},
+		{"sha224", false},
+		{"sha224-D9B8", false}, // uppercase
+		{"sha224-d9x8", false},
+		{"foo-abcd", false}, // unknown hash
+		{"-abcd", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsPrefix(tt.in); got != tt.want {
+			t.Errorf("IsPrefix(%q) = %v; want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestEquality(t *testing.T) {
 	in := "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
 	in3 := "sha1-ffffffffffffffffffffffffffffffffffffffff"

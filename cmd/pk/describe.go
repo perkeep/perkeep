@@ -30,6 +30,9 @@ import (
 	"perkeep.org/pkg/search"
 )
 
+// blobrefArgHelp describes the forms of blobref that commands accept.
+const blobrefArgHelp = "Blobrefs may be abbreviated to a unique prefix of at least 4 hex digits, like sha224-d9b81511."
+
 type desCmd struct {
 	server string
 	depth  int
@@ -51,7 +54,7 @@ func (c *desCmd) Describe() string {
 }
 
 func (c *desCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] describe [--depth=n] blobref [blobref, blobref...]\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] describe [--depth=n] blobref [blobref, blobref...]\n%s\n", blobrefArgHelp)
 }
 
 func (c *desCmd) Examples() []string {
@@ -62,14 +65,6 @@ func (c *desCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.UsageError("requires blobref")
 	}
-	var blobs []blob.Ref
-	for _, arg := range args {
-		br, ok := blob.Parse(arg)
-		if !ok {
-			return cmdmain.UsageError(fmt.Sprintf("invalid blobref %q", arg))
-		}
-		blobs = append(blobs, br)
-	}
 	var at time.Time // TODO: add "2 days ago" "-2d", "-2h", "2013-02-05", etc
 	if c.at != "" {
 		var err error
@@ -79,8 +74,17 @@ func (c *desCmd) RunCommand(args []string) error {
 		}
 	}
 
+	ctx := context.Background()
 	cl := newClient(c.server)
-	res, err := cl.Describe(context.Background(), &search.DescribeRequest{
+	var blobs []blob.Ref
+	for _, arg := range args {
+		br, err := cl.ResolveRef(ctx, arg)
+		if err != nil {
+			return err
+		}
+		blobs = append(blobs, br)
+	}
+	res, err := cl.Describe(ctx, &search.DescribeRequest{
 		BlobRefs: blobs,
 		Depth:    c.depth,
 		At:       types.Time3339(at),

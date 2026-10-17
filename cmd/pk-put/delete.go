@@ -18,9 +18,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
 )
@@ -60,9 +58,9 @@ func (c *deleteCmd) RunCommand(args []string) error {
 
 func delete(args []string) error {
 	for _, arg := range args {
-		br, ok := blob.Parse(arg)
-		if !ok {
-			return fmt.Errorf("Error parsing blobref %q", arg)
+		br, err := getUploader().ResolveRef(ctxbg, arg)
+		if err != nil {
+			return err
 		}
 		bb := schema.NewDeleteClaim(br)
 		put, err := getUploader().UploadAndSignBlob(ctxbg, bb)

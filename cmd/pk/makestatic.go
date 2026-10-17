@@ -46,7 +46,7 @@ func (c *makeStaticCmd) Describe() string {
 }
 
 func (c *makeStaticCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] makestatic [permanode]\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] makestatic [permanode]\n%s\n", blobrefArgHelp)
 }
 
 func (c *makeStaticCmd) Examples() []string {
@@ -57,12 +57,11 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 	if len(args) != 1 {
 		return cmdmain.UsageError("requires a permanode")
 	}
-	pn, ok := blob.Parse(args[0])
-	if !ok {
-		return cmdmain.UsageError("invalid permanode argument")
-	}
-
 	cl := newClient(c.server)
+	pn, err := cl.ResolveRef(context.Background(), args[0])
+	if err != nil {
+		return err
+	}
 	res, err := cl.Describe(context.Background(), &search.DescribeRequest{
 		BlobRefs: []blob.Ref{pn},
 		Rules: []*search.DescribeRule{

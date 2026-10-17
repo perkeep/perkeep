@@ -115,10 +115,9 @@ func main() {
 		}
 		cl = client.NewOrFail(client.OptionInsecure(*flagInsecureTLS), optTransportConfig)
 		for n := 0; n < flag.NArg(); n++ {
-			arg := flag.Arg(n)
-			br, ok := blob.Parse(arg)
-			if !ok {
-				log.Fatalf("Failed to parse argument %q as a blobref.", arg)
+			br, err := cl.ResolveRef(ctx, flag.Arg(n))
+			if err != nil {
+				log.Fatal(err)
 			}
 			items = append(items, br)
 		}
