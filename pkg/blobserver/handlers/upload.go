@@ -34,8 +34,6 @@ import (
 	"perkeep.org/pkg/blobserver/protocol"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
-
-	"go4.org/readerutil"
 )
 
 // CreateBatchUploadHandler returns the handler that receives multi-part form uploads
@@ -168,6 +166,14 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	return nil
 }
 
+// The multipart upload handler receives blobs in groups of up to
+// uploadGroupBlobs blobs, or of about uploadGroupBytes bytes, whichever is
+// reached first.
+const (
+	uploadGroupBlobs = 256
+	uploadGroupBytes = 32 << 20
+)
+
 func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
 	ctx := req.Context()
 	res := new(protocol.UploadResponse)
@@ -178,7 +184,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		return
 	}
 
-	receivedBlobs := make([]blob.SizedRef, 0, 10)
+	var receivedBlobs []blob.SizedRef
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
@@ -193,6 +199,35 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 			errBuf.WriteByte('\n')
 		}
 		errBuf.WriteString(s)
+	}
+
+	// Read the blobs into memory, and receive them in groups, so storage
+	// can share work (like syncs to disk) among a group's blobs.
+	var group []*blob.Blob
+	var groupBytes int
+	receiveGroup := func() {
+		if len(group) == 0 {
+			return
+		}
+		err := blobserver.ReceiveBlobs(ctx, blobReceiver, group)
+		if _, ok := errors.AsType[*blobserver.BlobsError](err); err != nil && !ok {
+			addError(fmt.Sprintf("Error receiving %d blobs: %v\n", len(group), err))
+		} else {
+			done := make(map[blob.Ref]bool, len(group))
+			for _, b := range group {
+				if done[b.Ref()] {
+					continue
+				}
+				done[b.Ref()] = true
+				if err := blobserver.BlobErr(err, b.Ref()); err != nil {
+					addError(fmt.Sprintf("Error receiving blob %v: %v\n", b.Ref(), err))
+					continue
+				}
+				log.Printf("Received blob %v\n", b.SizedRef())
+				receivedBlobs = append(receivedBlobs, b.SizedRef())
+			}
+		}
+		group, groupBytes = nil, 0
 	}
 
 	for {
@@ -223,22 +258,24 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 			continue
 		}
 
-		var tooBig int64 = blobserver.MaxBlobSize + 1
-		var readBytes int64
-		blobGot, err := blobserver.Receive(ctx, blobReceiver, ref, &readerutil.CountingReader{
-			Reader: io.LimitReader(mimePart, tooBig),
-			N:      &readBytes,
-		})
-		if readBytes == tooBig {
+		const tooBig = blobserver.MaxBlobSize + 1
+		data, err := io.ReadAll(io.LimitReader(mimePart, tooBig))
+		if err == nil && len(data) == tooBig {
 			err = fmt.Errorf("blob over the limit of %d bytes", blobserver.MaxBlobSize)
 		}
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break
 		}
-		log.Printf("Received blob %v\n", blobGot)
-		receivedBlobs = append(receivedBlobs, blobGot)
+		group = append(group, blob.NewBlob(ref, uint32(len(data)), func(context.Context) ([]byte, error) {
+			return data, nil
+		}))
+		groupBytes += len(data)
+		if len(group) >= uploadGroupBlobs || groupBytes >= uploadGroupBytes {
+			receiveGroup()
+		}
 	}
+	receiveGroup()
 
 	res.Received = receivedBlobs
 
