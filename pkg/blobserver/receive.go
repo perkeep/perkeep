@@ -87,6 +87,19 @@ const receiveBlobsConcurrency = 8
 // call fails as a whole, so does ReceiveBlobs, with the same error, unless
 // some blobs already failed their checks.
 func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) error {
+	return receiveBlobs(ctx, dst, blobs, true)
+}
+
+// ReceiveBlobsNoHash is like ReceiveBlobs, but doesn't check the blobs'
+// contents against their refs, for blobs that already were, as when a
+// BlobsReceiver wrapping other storage passes the blobs it was given on
+// to that storage. It's the ReceiveBlobs version of ReceiveNoHash: unlike
+// ReceiveBlobsUnchecked, it notifies dst's blob hub.
+func ReceiveBlobsNoHash(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) error {
+	return receiveBlobs(ctx, dst, blobs, false)
+}
+
+func receiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob, checkHash bool) error {
 	be := &BlobsError{Op: "receive"}
 	seen := make(map[blob.Ref]bool, len(blobs))
 	valid := make([]*blob.Blob, 0, len(blobs))
@@ -96,7 +109,7 @@ func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) err
 			continue
 		}
 		seen[br] = true
-		if err := checkBlob(ctx, b); err != nil {
+		if err := checkBlob(ctx, b, checkHash); err != nil {
 			be.Add(br, err)
 			continue
 		}
@@ -128,11 +141,14 @@ func ReceiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob) err
 	return be.OrNil()
 }
 
-// checkBlob returns an error if b is too big, can't be read, or doesn't
-// match its ref (ErrCorruptBlob).
-func checkBlob(ctx context.Context, b *blob.Blob) error {
+// checkBlob returns an error if b is too big, or, if checkHash, if it
+// can't be read or doesn't match its ref (ErrCorruptBlob).
+func checkBlob(ctx context.Context, b *blob.Blob, checkHash bool) error {
 	if b.Size() > MaxBlobSize {
 		return fmt.Errorf("blob %v is %d bytes, over the maximum of %d", b.Ref(), b.Size(), MaxBlobSize)
+	}
+	if !checkHash {
+		return nil
 	}
 	h := b.Ref().Hash()
 	if h == nil {

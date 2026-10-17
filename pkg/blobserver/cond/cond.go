@@ -43,6 +43,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
+	"sync"
 	"time"
 
 	"go4.org/jsonconfig"
@@ -165,6 +167,66 @@ func (sto *condStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Rea
 		return
 	}
 	return blobserver.Receive(ctx, destSto, br, src)
+}
+
+// ReceiveBlobs implements blobserver.BlobsReceiver. It picks each blob's
+// destination as ReceiveBlob does, then receives each destination's blobs
+// together, with the destinations in parallel.
+func (sto *condStorage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "receive"}
+	type destBlobs struct {
+		dst   blobserver.Storage
+		blobs []*blob.Blob
+	}
+	var groups []*destBlobs
+	groupFor := func(dst blobserver.Storage) *destBlobs {
+		// Storage values are normally pointers, but comparing ones that
+		// aren't comparable would panic, so those get groups of their own.
+		if reflect.ValueOf(dst).Comparable() {
+			for _, g := range groups {
+				if reflect.ValueOf(g.dst).Comparable() && g.dst == dst {
+					return g
+				}
+			}
+		}
+		g := &destBlobs{dst: dst}
+		groups = append(groups, g)
+		return g
+	}
+	for _, b := range blobs {
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			be.Add(b.Ref(), err)
+			continue
+		}
+		dst, _, err := sto.storageForReceive(b.Ref(), r)
+		if err != nil {
+			be.Add(b.Ref(), err)
+			continue
+		}
+		g := groupFor(dst)
+		g.blobs = append(g.blobs, b)
+	}
+
+	errs := make([]error, len(groups))
+	var wg sync.WaitGroup
+	for i, g := range groups {
+		wg.Go(func() {
+			errs[i] = blobserver.ReceiveBlobsNoHash(ctx, g.dst, g.blobs)
+		})
+	}
+	wg.Wait()
+	if len(groups) == 1 && be.Len() == 0 {
+		return errs[0] // as is, so a failure of the whole call stays one
+	}
+	for i, g := range groups {
+		refs := make([]blob.Ref, len(g.blobs))
+		for j, b := range g.blobs {
+			refs[j] = b.Ref()
+		}
+		be.AddResult(refs, errs[i])
+	}
+	return be.OrNil()
 }
 
 func (sto *condStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
