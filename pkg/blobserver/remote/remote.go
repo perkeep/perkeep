@@ -107,10 +107,9 @@ func (sto *remoteStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) err
 }
 
 func (sto *remoteStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
-	// TODO: cache the stat response's uploadUrl to save a future
-	// stat later?  otherwise clients will just Stat + Upload, but
-	// Upload will also Stat.  should be smart and make sure we
-	// avoid ReceiveBlob's Stat whenever it would be redundant.
+	// TODO: clients will just Stat + Upload, but Upload will also
+	// Stat. Should be smart and make sure we avoid ReceiveBlob's Stat
+	// whenever it would be redundant.
 	return sto.client.StatBlobs(ctx, blobs, fn)
 }
 
