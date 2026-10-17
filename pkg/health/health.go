@@ -283,6 +283,22 @@ func (c *Check) progressLocked(done, total int64) {
 	c.updated = now
 }
 
+// RunningMessage sets the message of the check while it's running, to
+// describe how its run is going. It does nothing if the check isn't
+// running.
+func (c *Check) RunningMessage(msg string) {
+	if c == nil {
+		return
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	if c.state != StateRunning {
+		return
+	}
+	c.message = msg
+	c.updated = time.Now()
+}
+
 // SetProgressHint sets a description of what the check's progress
 // counts (see Progress), such as "768 shards: 256 digest prefixes ×
 // {sha1, sha224, sha256}".

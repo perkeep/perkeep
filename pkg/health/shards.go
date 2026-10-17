@@ -316,19 +316,46 @@ func (c *Check) runShards(ctx context.Context) error {
 }
 
 // reportShardProgressLocked reports how many of a sharded check's shards
-// don't need checking, counting a full pass's shards as needing it
-// until they're checked, even if the pass is paused.
+// don't need checking (see freshLocked).
 func (c *Check) reportShardProgressLocked(iv time.Duration) {
 	s := c.sharded
+	c.progressLocked(int64(len(s.freshLocked(iv))), int64(len(s.shards)))
+}
+
+// freshLocked returns the shards that don't need checking, with the
+// schedule's interval iv, and aren't being checked, counting a full
+// pass's shards as needing it until they're checked, even if the pass
+// is paused.
+func (s *sharded) freshLocked(iv time.Duration) []string {
 	now := time.Now()
 	inPass := !s.passSince.IsZero()
-	fresh := 0
+	var fresh []string
 	for _, shard := range s.shards {
 		if !s.dueInPassLocked(shard, now, iv, inPass) && !s.inProgress[shard] {
-			fresh++
+			fresh = append(fresh, shard)
 		}
 	}
-	c.progressLocked(int64(fresh), int64(len(s.shards)))
+	return fresh
+}
+
+// ShardProgress returns, for a sharded check that's running, which of
+// its shards don't need checking, which it's checking, and how many it
+// has.
+func (c *Check) ShardProgress() (done, inProgress []string, total int) {
+	if c == nil {
+		return nil, nil, 0
+	}
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+	s := c.sharded
+	if s == nil || c.state != StateRunning {
+		return nil, nil, 0
+	}
+	for shard := range s.inProgress {
+		inProgress = append(inProgress, shard)
+	}
+	slices.Sort(inProgress)
+	return s.freshLocked(c.runner.scheduleLocked().interval()), inProgress, len(s.shards)
 }
 
 // shardSaveDelay is how long the state of a sharded check's shards may
