@@ -36,6 +36,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"golang.org/x/net/xsrftoken"
+	"golang.org/x/sync/semaphore"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -599,18 +600,20 @@ func (sh *SyncHandler) runSync(syncType string, enumSrc func(chan<- blob.SizedRe
 	nCopied := 0
 	toCopy := 0
 
+	ctx := context.TODO()
 	workch := make(chan blob.SizedRef, 1000)
 	resch := make(chan copyResult, 8)
-	// Copy workers copy blobs in parallel, then hand them to
-	// finishCopies, which deletes the copied blobs' queue entries in
-	// batches.
-	copiedc := make(chan copiedBlob, cap(workch))
+	// Fetch workers fetch blobs from the source in parallel, and hand
+	// them to the writer, which receives them into the destination in
+	// groups. budget limits the bytes fetched but not yet written.
+	fetchedc := make(chan fetchedBlob, 1000)
+	budget := semaphore.NewWeighted(syncWriteGroupBytes)
 	var workers sync.WaitGroup
-	go sh.finishCopies(copiedc, resch)
+	go sh.writeFetched(ctx, fetchedc, budget, resch)
 FeedWork:
 	for sb := range enumch {
 		if toCopy < sh.copierPoolSize {
-			workers.Go(func() { sh.copyWorker(copiedc, workch) })
+			workers.Go(func() { sh.fetchWorker(ctx, workch, fetchedc, budget, resch) })
 		}
 		select {
 		case workch <- sb:
@@ -626,7 +629,7 @@ FeedWork:
 	close(workch)
 	go func() {
 		workers.Wait()
-		close(copiedc)
+		close(fetchedc)
 	}()
 	for i := 0; i < toCopy; i++ {
 		sh.setStatusf("Copying blobs")
@@ -660,85 +663,66 @@ func (sh *SyncHandler) syncLoop() {
 	}
 }
 
-// A copiedBlob is the result of copying a blob, not yet finished.
-type copiedBlob struct {
-	cs  *copyStatus
-	err error
+// The copy loop writes blobs to the destination in groups of up to
+// syncWriteGroupBlobs blobs, or about syncWriteGroupBytes bytes, which is
+// also how many bytes it fetches before writing them.
+const (
+	syncWriteGroupBlobs = 256
+	syncWriteGroupBytes = 32 << 20
+)
+
+// A fetchedBlob is a blob fetched from the source, to write.
+type fetchedBlob struct {
+	cs   *copyStatus
+	blob *blob.Blob
 }
 
-func (sh *SyncHandler) copyWorker(copied chan<- copiedBlob, work <-chan blob.SizedRef) {
+// fetchWorker fetches the blobs from work and sends them to fetched,
+// first acquiring their sizes from budget. Blobs it fails to fetch are
+// finished with that error, and their results sent to res.
+func (sh *SyncHandler) fetchWorker(ctx context.Context, work <-chan blob.SizedRef, fetched chan<- fetchedBlob, budget *semaphore.Weighted, res chan<- copyResult) {
 	for sb := range work {
 		cs := sh.newCopyStatus(sb)
-		copied <- copiedBlob{cs, sh.copyBlob(context.TODO(), cs)}
+		sh.mu.Lock()
+		sh.copying[sb.Ref] = cs
+		sh.mu.Unlock()
+		b, err := sh.fetchBlob(ctx, cs, budget)
+		if err != nil {
+			cs.finish(err)
+			res <- copyResult{sb, err}
+			continue
+		}
+		fetched <- fetchedBlob{cs, b}
 	}
 }
 
-// finishCopyGroup is how many copied blobs finishCopies deletes from the
-// queue at a time, at most.
-const finishCopyGroup = 256
-
-// finishCopies finishes the blobs from copied, sending their results to
-// res. It deletes the queue entries of those copied in batches: as many
-// as have been copied, up to finishCopyGroup, rather than syncing a
-// delete for each, which uploads' enqueues would wait behind.
-func (sh *SyncHandler) finishCopies(copied <-chan copiedBlob, res chan<- copyResult) {
-	for first := range copied {
-		group := []copiedBlob{first}
-	Fill:
-		for len(group) < finishCopyGroup {
-			select {
-			case c, ok := <-copied:
-				if !ok {
-					break Fill
-				}
-				group = append(group, c)
-			default:
-				break Fill
-			}
-		}
-		batch := sh.queue.BeginBatch()
-		n := 0
-		for _, c := range group {
-			if c.err == nil {
-				batch.Delete(c.cs.sb.Ref.String())
-				n++
-			}
-		}
-		// A blob whose delete is lost stays queued, so it's copied again
-		// later; the destination already has it.
-		if n > 0 {
-			if err := sh.queue.CommitBatch(batch); err != nil {
-				sh.logf("queue delete of %d copied blobs error: %v", n, err)
-			}
-		}
-		for _, c := range group {
-			c.cs.finish(c.err)
-			res <- copyResult{c.cs.sb, c.err}
-		}
-	}
-}
-
-// copyBlob copies cs's blob to the destination, without finishing it.
-func (sh *SyncHandler) copyBlob(ctx context.Context, cs *copyStatus) (err error) {
+// fetchBlob fetches and verifies cs's blob, first acquiring its size from
+// budget, which the caller must release once it's written, unless
+// fetchBlob fails.
+func (sh *SyncHandler) fetchBlob(ctx context.Context, cs *copyStatus, budget *semaphore.Weighted) (*blob.Blob, error) {
 	sb := cs.sb
 	br := sb.Ref
-
-	sh.mu.Lock()
-	sh.copying[br] = cs
-	sh.mu.Unlock()
-
 	if sb.Size > constants.MaxBlobSize {
-		return fmt.Errorf("blob size %d too large; max blob size is %d", sb.Size, constants.MaxBlobSize)
+		return nil, fmt.Errorf("blob size %d too large; max blob size is %d", sb.Size, constants.MaxBlobSize)
 	}
+	if err := budget.Acquire(ctx, budgetFor(sb.Size)); err != nil {
+		return nil, err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			budget.Release(budgetFor(sb.Size))
+		}
+	}()
 
 	cs.setStatus(statusFetching)
 	rc, fromSize, err := sh.from.Fetch(ctx, br)
 	if err != nil {
-		return fmt.Errorf("source fetch: %w", err)
+		return nil, fmt.Errorf("source fetch: %w", err)
 	}
 	if fromSize != sb.Size {
 		rc.Close()
-		return fmt.Errorf("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
+		return nil, fmt.Errorf("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
 	}
 
 	buf := make([]byte, fromSize)
@@ -751,21 +735,89 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, cs *copyStatus) (err error)
 		)), buf)
 	rc.Close()
 	if err != nil {
-		return fmt.Errorf("Read error after %d/%d bytes: %w", n, fromSize, err)
+		return nil, fmt.Errorf("Read error after %d/%d bytes: %w", n, fromSize, err)
 	}
 	if !br.HashMatches(hash) {
-		return fmt.Errorf("Read data has unexpected digest %x", hash.Sum(nil))
+		return nil, fmt.Errorf("Read data has unexpected digest %x", hash.Sum(nil))
 	}
+	ok = true
+	return blob.NewBlob(br, sb.Size, func(context.Context) ([]byte, error) { return buf, nil }), nil
+}
 
-	cs.setStatus(statusWriting)
-	newsb, err := sh.to.ReceiveBlob(ctx, br, io.TeeReader(bytes.NewReader(buf), incrWriter{cs, &cs.nwrite}))
-	if err != nil {
-		return fmt.Errorf("dest write: %w", err)
+// budgetFor returns how much of the fetch budget a blob of size bytes
+// takes: its size, but at most the whole budget, so any blob fits.
+func budgetFor(size uint32) int64 {
+	return min(int64(size), syncWriteGroupBytes)
+}
+
+// writeFetched receives the blobs from fetched into the destination,
+// several at a time: as many as have been fetched, up to a group's
+// limits. For each group, it deletes the copied blobs' queue entries in
+// one batch, rather than syncing a delete for each, and then finishes
+// them, sending their results to res.
+func (sh *SyncHandler) writeFetched(ctx context.Context, fetched <-chan fetchedBlob, budget *semaphore.Weighted, res chan<- copyResult) {
+	for first := range fetched {
+		group := []fetchedBlob{first}
+		size := int64(first.cs.sb.Size)
+	Fill:
+		for len(group) < syncWriteGroupBlobs && size < syncWriteGroupBytes {
+			select {
+			case f, ok := <-fetched:
+				if !ok {
+					break Fill
+				}
+				group = append(group, f)
+				size += int64(f.cs.sb.Size)
+			default:
+				break Fill
+			}
+		}
+		sh.writeGroup(ctx, group, res)
+		for _, f := range group {
+			budget.Release(budgetFor(f.cs.sb.Size))
+		}
 	}
-	if newsb.Size != sb.Size {
-		return fmt.Errorf("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
+}
+
+// writeGroup receives group into the destination together, deletes the
+// queue entries of those it received, and finishes them all.
+func (sh *SyncHandler) writeGroup(ctx context.Context, group []fetchedBlob, res chan<- copyResult) {
+	blobs := make([]*blob.Blob, len(group))
+	for i, f := range group {
+		f.cs.setStatus(statusWriting)
+		blobs[i] = f.blob
 	}
-	return nil
+	// The blobs were verified as they were fetched, and the destination's
+	// blob hub isn't notified, as with ReceiveBlob.
+	err := blobserver.ReceiveBlobsUnchecked(ctx, sh.to, blobs)
+
+	batch := sh.queue.BeginBatch()
+	errs := make([]error, len(group))
+	copied := 0
+	for i, f := range group {
+		if errs[i] = blobserver.BlobErr(err, f.blob.Ref()); errs[i] != nil {
+			errs[i] = fmt.Errorf("dest write: %w", errs[i])
+			continue
+		}
+		batch.Delete(f.blob.Ref().String())
+		copied++
+	}
+	// A blob whose delete is lost stays queued, so it's copied again
+	// later; the destination already has it.
+	if copied > 0 {
+		if derr := sh.queue.CommitBatch(batch); derr != nil {
+			sh.logf("queue delete of %d copied blobs error: %v", copied, derr)
+		}
+	}
+	for i, f := range group {
+		if errs[i] == nil {
+			f.cs.mu.Lock()
+			f.cs.nwrite = f.cs.sb.Size
+			f.cs.mu.Unlock()
+		}
+		f.cs.finish(errs[i])
+		res <- copyResult{f.cs.sb, errs[i]}
+	}
 }
 
 func (sh *SyncHandler) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
