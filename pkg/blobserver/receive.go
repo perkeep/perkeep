@@ -141,6 +141,14 @@ func receiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob, che
 	return be.OrNil()
 }
 
+// CheckBlob returns an error if b is too big, can't be read, or doesn't
+// match its ref (ErrCorruptBlob): the checks ReceiveBlobs makes of each
+// blob. It's for callers that check blobs well before receiving them with
+// ReceiveBlobsNoHash.
+func CheckBlob(ctx context.Context, b *blob.Blob) error {
+	return checkBlob(ctx, b, true)
+}
+
 // checkBlob returns an error if b is too big, or, if checkHash, if it
 // can't be read or doesn't match its ref (ErrCorruptBlob).
 func checkBlob(ctx context.Context, b *blob.Blob, checkHash bool) error {
