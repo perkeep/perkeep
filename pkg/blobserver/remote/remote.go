@@ -113,16 +113,14 @@ func (sto *remoteStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn fu
 	return sto.client.StatBlobs(ctx, blobs, fn)
 }
 
-func (sto *remoteStorage) ReceiveBlob(ctx context.Context, blob blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
-	h := &client.UploadHandle{
-		BlobRef:  blob,
-		Size:     0, // size isn't known; 0 is fine, but TODO: ask source if it knows its size
-		Contents: source,
+func (sto *remoteStorage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	h, err := client.NewUploadHandleFromReader(br, source)
+	if err != nil {
+		return blob.SizedRef{}, err
 	}
 	pr, err := sto.client.Upload(ctx, h)
 	if err != nil {
-		outerr = err
-		return
+		return blob.SizedRef{}, err
 	}
 	return pr.SizedBlobRef(), nil
 }

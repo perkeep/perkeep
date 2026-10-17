@@ -45,12 +45,13 @@ type UploadHandle struct {
 	// BlobRef is the required blobref of the blob to upload.
 	BlobRef blob.Ref
 
-	// Contents is the blob data.
-	Contents io.Reader
-
-	// Size optionally specifies the size of Contents.
-	// If <= 0, the Contents are slurped into memory to count the size.
+	// Size is the required size of the blob, in bytes. Zero means
+	// an empty blob.
 	Size uint32
+
+	// Contents holds the blob's contents at offsets [0, Size). Upload
+	// may read them more than once, and never closes them.
+	Contents io.ReaderAt
 
 	// Vivify optionally instructs the server to create a
 	// permanode for this blob. If used, the blob should be a
@@ -132,6 +133,20 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 	bref := blob.RefFromString(data)
 	r := strings.NewReader(data)
 	return &UploadHandle{BlobRef: bref, Size: uint32(len(data)), Contents: r}
+}
+
+// NewUploadHandleFromReader returns an upload handle to upload br, reading
+// its contents from r into memory. It fails if r has more than
+// MaxBlobSize bytes.
+func NewUploadHandleFromReader(br blob.Ref, r io.Reader) (*UploadHandle, error) {
+	data, err := io.ReadAll(io.LimitReader(r, constants.MaxBlobSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > constants.MaxBlobSize {
+		return nil, fmt.Errorf("client: blob %v is bigger than the max blob size of %d bytes", br, constants.MaxBlobSize)
+	}
+	return &UploadHandle{BlobRef: br, Size: uint32(len(data)), Contents: bytes.NewReader(data)}, nil
 }
 
 // TODO(bradfitz): delete most of this. use new perkeep.org/pkg/blobserver/protocol types instead
@@ -233,18 +248,9 @@ func (c *Client) doStat(ctx context.Context, blobs []blob.Ref, wait time.Duratio
 	return nil
 }
 
-// Figure out the size of the contents.
-// If the size was provided, trust it.
-func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
-	if h.Size > 0 {
-		return h.Contents, int64(h.Size), nil
-	}
-	var b bytes.Buffer
-	n, err := io.Copy(&b, h.Contents)
-	if err != nil {
-		return nil, 0, err
-	}
-	return &b, n, nil
+// contents returns a new reader of h's contents.
+func (h *UploadHandle) contents() io.Reader {
+	return io.NewSectionReader(h.Contents, 0, int64(h.Size))
 }
 
 // Upload uploads a blob, as described by the provided UploadHandle parameters.
@@ -255,10 +261,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		return nil, err
 	}
 
-	bodyReader, bodySize, err := h.readerAndSize()
-	if err != nil {
-		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %w", err)
-	}
+	bodySize := int64(h.Size)
 	if bodySize > constants.MaxBlobSize {
 		return nil, errors.New("client: body is bigger then max blob size")
 	}
@@ -281,7 +284,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 				return nil, err
 			}
 		}
-		_, err := blobserver.Receive(ctx, c.sto, h.BlobRef, bodyReader)
+		_, err := blobserver.Receive(ctx, c.sto, h.BlobRef, h.contents())
 		if err != nil {
 			return nil, err
 		}
@@ -332,13 +335,6 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		}
 		if !h.Vivify && serverHasIt {
 			pr.Skipped = true
-			if closer, ok := h.Contents.(io.Closer); ok {
-				// TODO(bradfitz): I did this
-				// Close-if-possible thing early on, before I
-				// knew better.  Fix the callers instead, and
-				// fix the docs.
-				closer.Close()
-			}
 			c.haveCache.NoteBlobExists(h.BlobRef, uint32(bodySize))
 			return pr, nil
 		}
@@ -359,7 +355,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 			copyResult <- err
 			return
 		}
-		_, err = io.Copy(part, bodyReader)
+		_, err = io.Copy(part, h.contents())
 		if err == nil {
 			err = multipartWriter.Close()
 		}

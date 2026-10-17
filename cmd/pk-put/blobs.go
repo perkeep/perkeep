@@ -158,7 +158,7 @@ func (c *blobCmd) stdinBlobHandle() (*client.UploadHandle, error) {
 	return &client.UploadHandle{
 		BlobRef:  blob.RefFromHash(h),
 		Size:     uint32(buf.Len()),
-		Contents: &buf,
+		Contents: bytes.NewReader(buf.Bytes()),
 	}, nil
 }
 
