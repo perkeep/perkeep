@@ -1,0 +1,64 @@
+{
+	"_comment": "The storage, index, and sync-to-index setup that genconfig makes for a high-level config with just blobPath and sqlite, for BenchmarkUpload.",
+	"handlerConfig": true,
+	"auth": "userpass:testuser:passTestWorld:+localhost",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/bs-and-index/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": ["/bs/", "/index/"]
+			}
+		},
+		"/bs-and-maybe-also-index/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"read": "/bs/",
+				"write": {
+					"if": "isSchema",
+					"then": "/bs-and-index/",
+					"else": "/bs/"
+				}
+			}
+		},
+		"/bs/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}"]
+			}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "sqlite",
+					"file": ["_env", "${CAMLI_ROOT}/index.sqlite"]
+				}
+			}
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/index/",
+				"queue": {
+					"type": "sqlite",
+					"file": ["_env", "${CAMLI_ROOT}/sync-to-index-queue.sqlite"]
+				}
+			}
+		}
+	}
+}
