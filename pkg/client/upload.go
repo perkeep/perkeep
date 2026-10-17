@@ -26,10 +26,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"perkeep.org/internal/hashutil"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
@@ -157,6 +159,9 @@ func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[s
 	return jmap, nil
 }
 
+// StatBlobs implements blobserver.BlobStatter. Blobs in the client's
+// HaveCache are reported without asking the server; it asks about the
+// rest many at a time.
 func (c *Client) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	if c.sto != nil {
 		return c.sto.StatBlobs(ctx, blobs, fn)
@@ -177,15 +182,38 @@ func (c *Client) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.S
 	if len(needStat) == 0 {
 		return nil
 	}
-	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, c.httpGate, func(br blob.Ref) (workerSB blob.SizedRef, err error) {
-		err = c.doStat(ctx, []blob.Ref{br}, 0, false, func(sb blob.SizedRef) error {
-			workerSB = sb
-			c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
-			return fn(sb)
+
+	// Ask about up to statBatchSize blobs per request, a few requests at
+	// a time, calling fn serially.
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(statBatchConcurrency)
+	var (
+		mu    sync.Mutex
+		fnErr error // first error from fn, after which it's not called
+	)
+	for batch := range slices.Chunk(needStat, statBatchSize) {
+		g.Go(func() error {
+			return c.doStat(ctx, batch, 0, true, func(sb blob.SizedRef) error {
+				c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
+				mu.Lock()
+				defer mu.Unlock()
+				if fnErr == nil {
+					fnErr = fn(sb)
+				}
+				return fnErr
+			})
 		})
-		return
-	})
+	}
+	return g.Wait()
 }
+
+// StatBlobs asks about up to statBatchSize blobs per request (the most the
+// server's stat handler accepts), with up to statBatchConcurrency requests
+// at once.
+const (
+	statBatchSize        = 1000
+	statBatchConcurrency = 4
+)
 
 // doStat does an HTTP request for the stat. the number of blobs is used verbatim. No extra splitting
 // or batching is done at this layer.
