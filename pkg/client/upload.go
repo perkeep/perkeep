@@ -59,13 +59,6 @@ type UploadHandle struct {
 	// lesser-trusted clients (such a mobile phones) which don't
 	// have rights to do signing directly.
 	Vivify bool
-
-	// SkipStat indicates whether the stat check (checking whether
-	// the server already has the blob) will be skipped and the
-	// blob should be uploaded immediately. This is useful for
-	// small blobs that the server is unlikely to already have
-	// (e.g. new claims).
-	SkipStat bool
 }
 
 type PutResult struct {
@@ -253,7 +246,27 @@ func (h *UploadHandle) contents() io.Reader {
 	return io.NewSectionReader(h.Contents, 0, int64(h.Size))
 }
 
-// Upload uploads a blob, as described by the provided UploadHandle parameters.
+// UploadIfMissing is like Upload, but first asks the server whether it
+// already has the blob, and if so, doesn't upload it (unless h.Vivify is
+// set). The extra round trip is only worth it for big blobs the server may
+// already have; to check many blobs, use one StatBlobs call for all of
+// them, and upload those it doesn't report.
+func (c *Client) UploadIfMissing(ctx context.Context, h *UploadHandle) (*PutResult, error) {
+	if !h.Vivify {
+		sb, err := blobserver.StatBlob(ctx, c, h.BlobRef)
+		if err == nil {
+			return &PutResult{BlobRef: sb.Ref, Size: sb.Size, Skipped: true}, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return c.Upload(ctx, h)
+}
+
+// Upload uploads a blob, as described by the provided UploadHandle
+// parameters. It doesn't check whether the server already has the blob,
+// other than in the client's HaveCache, if any; see UploadIfMissing.
 func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error) {
 	errorf := func(msg string, arg ...any) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
@@ -274,16 +287,6 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	pr := &PutResult{BlobRef: h.BlobRef, Size: uint32(bodySize)}
 
 	if c.sto != nil {
-		if !h.SkipStat {
-			_, err := blobserver.StatBlob(ctx, c.sto, h.BlobRef)
-			if err == nil {
-				pr.Skipped = true
-				return pr, nil
-			}
-			if !errors.Is(err, os.ErrNotExist) {
-				return nil, err
-			}
-		}
 		_, err := blobserver.Receive(ctx, c.sto, h.BlobRef, h.contents())
 		if err != nil {
 			return nil, err
@@ -299,45 +302,9 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	}
 
 	blobrefStr := h.BlobRef.String()
-
-	// Pre-upload. Check whether the blob already exists on the
-	// server and if not, the URL to upload it to.
 	pfx, err := c.prefix()
 	if err != nil {
 		return nil, err
-	}
-
-	if !h.SkipStat {
-		url_ := fmt.Sprintf("%s/camli/stat", pfx)
-		req := c.newRequest(ctx, "POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
-		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-		resp, err := c.doReqGated(req)
-		if err != nil {
-			return errorf("stat http error: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			return errorf("stat response had http status %d", resp.StatusCode)
-		}
-
-		stat, err := parseStatResponse(resp)
-		if err != nil {
-			return nil, err
-		}
-		for _, sbr := range stat.HaveMap {
-			c.haveCache.NoteBlobExists(sbr.Ref, uint32(sbr.Size))
-		}
-		_, serverHasIt := stat.HaveMap[blobrefStr]
-		if env.DebugUploads() {
-			log.Printf("HTTP Stat(%s) = %v", blobrefStr, serverHasIt)
-		}
-		if !h.Vivify && serverHasIt {
-			pr.Skipped = true
-			c.haveCache.NoteBlobExists(h.BlobRef, uint32(bodySize))
-			return pr, nil
-		}
 	}
 
 	if env.DebugUploads() {

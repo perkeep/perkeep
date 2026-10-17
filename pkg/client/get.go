@@ -196,7 +196,6 @@ func (c *Client) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
-	h.SkipStat = true
 	pr, err := c.Upload(ctx, h)
 	if err != nil {
 		return blob.SizedRef{}, err

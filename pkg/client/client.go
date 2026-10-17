@@ -1386,7 +1386,7 @@ func (c *Client) UploadPublicKey(ctx context.Context) error {
 		return nil
 	}
 	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
-		if _, err := c.uploadString(ctx, c.publicKeyArmored, true); err != nil {
+		if _, err := c.UploadIfMissing(ctx, NewUploadHandleFromString(c.publicKeyArmored)); err != nil {
 			return err
 		}
 	}
@@ -1415,19 +1415,17 @@ func (c *Client) UploadAndSignBlob(ctx context.Context, b schema.AnyBlob) (*PutR
 	if err := c.UploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
-	return c.uploadString(ctx, signed, false)
+	return c.uploadString(ctx, signed)
 }
 
 func (c *Client) UploadBlob(ctx context.Context, b schema.AnyBlob) (*PutResult, error) {
 	// TODO(bradfitz): ask the blob for its own blobref, rather
 	// than changing the hash function with uploadString?
-	return c.uploadString(ctx, b.Blob().JSON(), true)
+	return c.uploadString(ctx, b.Blob().JSON())
 }
 
-func (c *Client) uploadString(ctx context.Context, s string, stat bool) (*PutResult, error) {
-	uh := NewUploadHandleFromString(s)
-	uh.SkipStat = !stat
-	return c.Upload(ctx, uh)
+func (c *Client) uploadString(ctx context.Context, s string) (*PutResult, error) {
+	return c.Upload(ctx, NewUploadHandleFromString(s))
 }
 
 func (c *Client) UploadNewPermanode(ctx context.Context) (*PutResult, error) {
@@ -1445,7 +1443,7 @@ func (c *Client) UploadPlannedPermanode(ctx context.Context, key string, sigTime
 	if err := c.UploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
-	return c.uploadString(ctx, signed, true)
+	return c.uploadString(ctx, signed)
 }
 
 // IsIgnoredFile returns whether the file at fullpath should be ignored by pk-put.

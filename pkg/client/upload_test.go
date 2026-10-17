@@ -54,50 +54,36 @@ func newStorageClient(t *testing.T) (*Client, *countingStorage) {
 	return c, sto
 }
 
-func TestUploadStorageClientStats(t *testing.T) {
+// TestUploadStats checks that Upload doesn't ask the server whether it
+// has a blob, and that UploadIfMissing does, uploading only if not.
+func TestUploadStats(t *testing.T) {
 	ctx := context.Background()
 	c, sto := newStorageClient(t)
-	tb := &test.Blob{Contents: "foo"}
-
-	upload := func(skipStat bool) *PutResult {
+	foo, bar := &test.Blob{Contents: "foo"}, &test.Blob{Contents: "bar"}
+	handle := func(tb *test.Blob) *UploadHandle {
+		return &UploadHandle{BlobRef: tb.BlobRef(), Size: tb.Size(), Contents: strings.NewReader(tb.Contents)}
+	}
+	check := func(what string, pr *PutResult, err error, tb *test.Blob, skipped bool, receives, stats int) {
 		t.Helper()
-		pr, err := c.Upload(ctx, &UploadHandle{
-			BlobRef:  tb.BlobRef(),
-			Size:     tb.Size(),
-			Contents: strings.NewReader(tb.Contents),
-			SkipStat: skipStat,
-		})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", what, err)
 		}
-		if pr.BlobRef != tb.BlobRef() || pr.Size != tb.Size() {
-			t.Fatalf("PutResult = %v, %d; want %v, %d", pr.BlobRef, pr.Size, tb.BlobRef(), tb.Size())
+		if pr.BlobRef != tb.BlobRef() || pr.Size != tb.Size() || pr.Skipped != skipped {
+			t.Errorf("%s: PutResult = %v, %d, skipped %v; want %v, %d, skipped %v", what, pr.BlobRef, pr.Size, pr.Skipped, tb.BlobRef(), tb.Size(), skipped)
 		}
-		return pr
+		if sto.receives != receives || sto.stats != stats {
+			t.Errorf("%s: receives, stats = %d, %d; want %d, %d", what, sto.receives, sto.stats, receives, stats)
+		}
 	}
 
-	if pr := upload(false); pr.Skipped {
-		t.Error("first upload was skipped")
-	}
-	if sto.receives != 1 {
-		t.Errorf("after first upload, receives = %d; want 1", sto.receives)
-	}
-
-	if pr := upload(false); !pr.Skipped {
-		t.Error("second upload wasn't skipped")
-	}
-	if sto.receives != 1 {
-		t.Errorf("after second upload, receives = %d; want 1", sto.receives)
-	}
-
-	stats := sto.stats
-	upload(true)
-	if sto.receives != 2 {
-		t.Errorf("after SkipStat upload, receives = %d; want 2", sto.receives)
-	}
-	if sto.stats != stats {
-		t.Errorf("SkipStat upload did %d stats; want 0", sto.stats-stats)
-	}
+	pr, err := c.Upload(ctx, handle(foo))
+	check("first Upload", pr, err, foo, false, 1, 0)
+	pr, err = c.Upload(ctx, handle(foo))
+	check("second Upload", pr, err, foo, false, 2, 0)
+	pr, err = c.UploadIfMissing(ctx, handle(foo))
+	check("UploadIfMissing of a stored blob", pr, err, foo, true, 2, 1)
+	pr, err = c.UploadIfMissing(ctx, handle(bar))
+	check("UploadIfMissing of a new blob", pr, err, bar, false, 3, 2)
 }
 
 // readerAtOnly is an io.ReaderAt (and io.Closer) that isn't an io.Reader.
@@ -116,7 +102,7 @@ func TestUploadReaderAt(t *testing.T) {
 	c, sto := newStorageClient(t)
 	tb := &test.Blob{Contents: "foo"}
 	ra := &readerAtOnly{r: strings.NewReader(tb.Contents)}
-	h := &UploadHandle{BlobRef: tb.BlobRef(), Size: tb.Size(), Contents: ra, SkipStat: true}
+	h := &UploadHandle{BlobRef: tb.BlobRef(), Size: tb.Size(), Contents: ra}
 	for i := range 2 {
 		if _, err := c.Upload(ctx, h); err != nil {
 			t.Fatalf("upload %d: %v", i, err)
