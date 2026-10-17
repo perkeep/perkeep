@@ -63,13 +63,19 @@ func (s *sharded) inPassLocked() bool {
 // schedule's interval iv: if it's never been checked, or not since the
 // full pass in progress started, or not within iv.
 func (s *sharded) dueLocked(shard string, now time.Time, iv time.Duration) bool {
+	return s.dueInPassLocked(shard, now, iv, s.inPassLocked())
+}
+
+// dueInPassLocked is like dueLocked, but with inPass saying whether
+// the full pass since passSince counts, paused or not.
+func (s *sharded) dueInPassLocked(shard string, now time.Time, iv time.Duration, inPass bool) bool {
 	last := s.last[shard]
 	switch {
 	case last.IsZero():
 		// Only due on a schedule, or in a full pass, so that a check
 		// that's off doesn't start on its own.
-		return iv > 0 || s.inPassLocked()
-	case s.inPassLocked() && last.Before(s.passSince):
+		return iv > 0 || inPass
+	case inPass && last.Before(s.passSince):
 		return true
 	case iv > 0 && now.Sub(last) >= iv:
 		return true
@@ -216,6 +222,10 @@ func (c *Check) runShards(ctx context.Context) error {
 	var wg sync.WaitGroup
 	for ctx.Err() == nil {
 		sem <- struct{}{}
+		if ctx.Err() != nil {
+			<-sem
+			break
+		}
 		m.mu.Lock()
 		shard, ok := s.neediestLocked(time.Now(), iv)
 		if ok {
@@ -306,18 +316,19 @@ func (c *Check) runShards(ctx context.Context) error {
 }
 
 // reportShardProgressLocked reports how many of a sharded check's shards
-// don't need checking.
+// don't need checking, counting a full pass's shards as needing it
+// until they're checked, even if the pass is paused.
 func (c *Check) reportShardProgressLocked(iv time.Duration) {
 	s := c.sharded
 	now := time.Now()
+	inPass := !s.passSince.IsZero()
 	fresh := 0
 	for _, shard := range s.shards {
-		if !s.dueLocked(shard, now, iv) && !s.inProgress[shard] {
+		if !s.dueInPassLocked(shard, now, iv, inPass) && !s.inProgress[shard] {
 			fresh++
 		}
 	}
-	c.done, c.total = int64(fresh), int64(len(s.shards))
-	c.updated = now
+	c.progressLocked(int64(fresh), int64(len(s.shards)))
 }
 
 // shardSaveDelay is how long the state of a sharded check's shards may

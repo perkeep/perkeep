@@ -444,7 +444,8 @@ func (sh *StatusHandler) writeHealthHTML(w io.Writer, hs health.Status) {
 // stateHTML returns the HTML for the state of check c at time now, with,
 // if it's running, how far along it is, as a percentage if its total is
 // known (hovering over it shows what it counts), and an estimate of how
-// much longer it'll take, from its average rate so far; or, if its full
+// much longer it'll take, from its average rate since it first reported
+// its progress, once it's made some since; or, if its full
 // pass is paused, how far along that is.
 func stateHTML(c health.CheckStatus, now time.Time) string {
 	s := c.State.String()
@@ -466,9 +467,9 @@ func stateHTML(c health.CheckStatus, now time.Time) string {
 	switch {
 	case c.State == health.StateRunning && c.Total > 0:
 		s += ", " + pct
-		if c.Done > 0 && c.Done < c.Total && !c.Started.IsZero() {
-			elapsed := now.Sub(c.Started)
-			remain := time.Duration(float64(elapsed) * float64(c.Total-c.Done) / float64(c.Done))
+		if c.Done > c.ProgressFrom && c.Done < c.Total && !c.ProgressSince.IsZero() {
+			elapsed := now.Sub(c.ProgressSince)
+			remain := time.Duration(float64(elapsed) * float64(c.Total-c.Done) / float64(c.Done-c.ProgressFrom))
 			s += "<br><span style='color: #666'>" + formatETA(remain) + "</span>"
 		}
 	case c.State == health.StateRunning && c.Done > 0:

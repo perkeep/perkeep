@@ -233,6 +233,11 @@ type Check struct {
 	hint      string        // see SetProgressHint
 	details   any           // see SetDetails
 	cost      func() string // see SetCostEstimator
+
+	// progressFrom and progressSince are the run's first progress, and
+	// when it reported it; see CheckStatus.
+	progressFrom  int64
+	progressSince time.Time
 }
 
 // Event is a problem a check reported.
@@ -254,6 +259,7 @@ func (c *Check) Start() {
 	c.state, c.message = StateRunning, ""
 	c.started, c.updated = now, now
 	c.done, c.total = 0, 0
+	c.progressFrom, c.progressSince = 0, time.Time{}
 }
 
 // Progress records how far along the current run is. The units are up
@@ -264,8 +270,17 @@ func (c *Check) Progress(done, total int64) {
 	}
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
+	c.progressLocked(done, total)
+}
+
+// progressLocked records the current run's progress (see Progress).
+func (c *Check) progressLocked(done, total int64) {
+	now := time.Now()
+	if c.progressSince.IsZero() {
+		c.progressFrom, c.progressSince = done, now
+	}
 	c.done, c.total = done, total
-	c.updated = time.Now()
+	c.updated = now
 }
 
 // SetProgressHint sets a description of what the check's progress
@@ -388,6 +403,12 @@ type CheckStatus struct {
 	Updated time.Time `json:"updated,omitzero"`
 	Done    int64     `json:"done,omitempty"`
 	Total   int64     `json:"total,omitempty"`
+	// ProgressFrom is what Done was when the current or last run first
+	// reported its progress, at ProgressSince, such as a resumed full
+	// pass's shards that were checked before it, so that the run's rate
+	// is (Done - ProgressFrom) over the time since ProgressSince.
+	ProgressFrom  int64     `json:"progressFrom,omitempty"`
+	ProgressSince time.Time `json:"progressSince,omitzero"`
 	// ProgressHint describes what Done and Total count, if set.
 	ProgressHint string `json:"progressHint,omitempty"`
 	// Details are structured details of the check's latest result, if
@@ -464,6 +485,9 @@ func (m *Monitor) statusLocked() (Status, map[string]func() string) {
 			Updated: c.updated,
 			Done:    c.done,
 			Total:   c.total,
+
+			ProgressFrom:  c.progressFrom,
+			ProgressSince: c.progressSince,
 
 			ProgressHint: c.hint,
 			Details:      c.details,

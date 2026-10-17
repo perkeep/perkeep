@@ -175,15 +175,28 @@ func TestHealthControls(t *testing.T) {
 func TestStateHTML(t *testing.T) {
 	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
 	running := health.CheckStatus{
-		State:        health.StateRunning,
-		Started:      now.Add(-10 * time.Minute),
-		Done:         200,
-		Total:        768,
-		ProgressHint: "shards: <all of them>",
+		State:         health.StateRunning,
+		Started:       now.Add(-10 * time.Minute),
+		ProgressSince: now.Add(-10 * time.Minute),
+		Done:          200,
+		Total:         768,
+		ProgressHint:  "shards: <all of them>",
 	}
 	// 200 shards in 10 minutes leaves 568 shards, or 28m24s.
 	if got, want := stateHTML(running, now), "⏳ running, <span title='shards: &lt;all of them&gt; (200 / 768)'>26.0%</span><br><span style='color: #666'>-28m:24s</span>"; got != want {
 		t.Errorf("running:\n got %q\nwant %q", got, want)
+	}
+	// A resumed pass that started at 168 shards has only done 32 in its
+	// 10 minutes, leaving 568 shards, or 2h57m30s.
+	resumed := running
+	resumed.ProgressFrom = 168
+	if got, want := stateHTML(resumed, now), "⏳ running, <span title='shards: &lt;all of them&gt; (200 / 768)'>26.0%</span><br><span style='color: #666'>-2h:58m</span>"; got != want {
+		t.Errorf("resumed:\n got %q\nwant %q", got, want)
+	}
+	// Until it's done more, it has no rate to estimate from.
+	resumed.ProgressFrom = 200
+	if got, want := stateHTML(resumed, now), "⏳ running, <span title='shards: &lt;all of them&gt; (200 / 768)'>26.0%</span>"; got != want {
+		t.Errorf("resumed, no progress yet:\n got %q\nwant %q", got, want)
 	}
 	done := running
 	done.State, done.Done = health.StateOK, 768
