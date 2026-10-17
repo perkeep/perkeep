@@ -233,7 +233,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		}
 	}
 
-	blobserver.GetHub(fromBs).AddReceiveHook(sh.enqueue)
+	blobserver.GetHub(fromBs).AddReceiveBlobsHook(sh.enqueueBlobs)
 	return sh, nil
 }
 
@@ -283,7 +283,7 @@ func NewSyncHandler(srcName, destName string,
 	pendingQueue sorted.KeyValue) *SyncHandler {
 	sh := newSyncHandler(srcName, destName, src, dest, pendingQueue)
 	go sh.syncLoop()
-	blobserver.GetHub(sh.from).AddReceiveHook(sh.enqueue)
+	blobserver.GetHub(sh.from).AddReceiveBlobsHook(sh.enqueueBlobs)
 	return sh
 }
 
@@ -817,6 +817,44 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 		return err
 	}
 	sh.addBlobToCopy(sb)
+	return nil
+}
+
+// enqueueBlobs is like enqueue for several blobs, writing the new ones to
+// the queue with one batch, so they share its sync to disk. It's the
+// receive hook for the source's blob hub, and returns an error as
+// described by blobserver.BlobsReceiver.
+func (sh *SyncHandler) enqueueBlobs(sbs []blob.SizedRef) error {
+	if len(sbs) == 1 {
+		return sh.enqueue(sbs[0])
+	}
+	var todo []blob.SizedRef
+	seen := make(map[blob.Ref]bool, len(sbs))
+	sh.mu.Lock()
+	for _, sb := range sbs {
+		if _, dup := sh.needCopy[sb.Ref]; !dup && !seen[sb.Ref] {
+			seen[sb.Ref] = true
+			todo = append(todo, sb)
+		}
+	}
+	sh.mu.Unlock()
+	if len(todo) == 0 {
+		return nil
+	}
+	batch := sh.queue.BeginBatch()
+	for _, sb := range todo {
+		batch.Set(sb.Ref.String(), fmt.Sprint(sb.Size))
+	}
+	if err := sh.queue.CommitBatch(batch); err != nil {
+		be := &blobserver.BlobsError{Op: "enqueue"}
+		for _, sb := range todo {
+			be.Add(sb.Ref, err)
+		}
+		return be
+	}
+	for _, sb := range todo {
+		sh.addBlobToCopy(sb)
+	}
 	return nil
 }
 
