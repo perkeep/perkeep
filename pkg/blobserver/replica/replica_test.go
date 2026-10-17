@@ -18,6 +18,7 @@ package replica
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -94,6 +95,72 @@ func TestReceiveOneGoodOneFail(t *testing.T) {
 			t.Errorf("Replica %s got %+v; want %+v", sto.replicaPrefixes[i], got, sb)
 		}
 	}
+}
+
+func testBlobsOf(contents ...string) []*blob.Blob {
+	var blobs []*blob.Blob
+	for _, c := range contents {
+		blobs = append(blobs, (&test.Blob{Contents: c}).Blob())
+	}
+	return blobs
+}
+
+// TestReceiveBlobs checks that ReceiveBlobs puts blobs on every replica,
+// notifying each replica's blob hub, and that blobs fail unless enough
+// replicas receive them.
+func TestReceiveBlobs(t *testing.T) {
+	blobs := testBlobsOf("a", "b", "c")
+	t.Run("good", func(t *testing.T) {
+		sto := newReplica(t, map[string]any{"backends": []any{"/good-1/", "/good-2/"}})
+		var mu sync.Mutex // replicas are received into in parallel
+		notified := map[int]int{}
+		for i, rep := range sto.replicas {
+			blobserver.GetHub(rep).AddReceiveHook(func(blob.SizedRef) error {
+				mu.Lock()
+				defer mu.Unlock()
+				notified[i]++
+				return nil
+			})
+		}
+		if err := blobserver.ReceiveBlobs(ctxbg, sto, blobs); err != nil {
+			t.Fatal(err)
+		}
+		for i, rep := range sto.replicas {
+			for _, b := range blobs {
+				if _, err := blobserver.StatBlob(ctxbg, rep, b.Ref()); err != nil {
+					t.Errorf("replica %d: %v: %v", i, b.Ref(), err)
+				}
+			}
+			mu.Lock()
+			if notified[i] != len(blobs) {
+				t.Errorf("replica %d's hub notified of %d blobs; want %d", i, notified[i], len(blobs))
+			}
+			mu.Unlock()
+		}
+	})
+	t.Run("one good enough", func(t *testing.T) {
+		sto := newReplica(t, map[string]any{
+			"backends":            []any{"/good-1/", "/fail-1/"},
+			"minWritesForSuccess": float64(1),
+		})
+		if err := blobserver.ReceiveBlobs(ctxbg, sto, blobs); err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range blobs {
+			if _, err := blobserver.StatBlob(ctxbg, sto.replicas[0], b.Ref()); err != nil {
+				t.Errorf("good replica: %v: %v", b.Ref(), err)
+			}
+		}
+	})
+	t.Run("both needed", func(t *testing.T) {
+		sto := newReplica(t, map[string]any{"backends": []any{"/good-1/", "/fail-1/"}})
+		err := blobserver.ReceiveBlobs(ctxbg, sto, blobs)
+		for _, b := range blobs {
+			if blobserver.BlobErr(err, b.Ref()) == nil {
+				t.Errorf("%v received with only one of two required replicas", b.Ref())
+			}
+		}
+	})
 }
 
 func TestReplica(t *testing.T) {

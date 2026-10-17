@@ -237,6 +237,54 @@ func (sto *replicaStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.
 	return
 }
 
+// ReceiveBlobs implements blobserver.BlobsReceiver. It receives the blobs
+// into all the replicas in parallel, each replica receiving them
+// together, and as with ReceiveBlob, a blob is received once
+// minWritesForSuccess replicas have received it. It returns as soon as
+// that's true of every blob (or can't be), while slower replicas carry on.
+func (sto *replicaStorage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	type result struct {
+		idx int
+		err error
+	}
+	resc := make(chan result, len(sto.replicas))
+	for idx, replica := range sto.replicas {
+		go func() {
+			resc <- result{idx, blobserver.ReceiveBlobsNoHash(ctx, replica, blobs)}
+		}()
+	}
+
+	successes := make([]int, len(blobs))
+	lastErr := make([]error, len(blobs))
+	pending := len(blobs) // blobs not yet received by minWritesForSuccess replicas
+	for range sto.replicas {
+		res := <-resc
+		for i, b := range blobs {
+			if err := blobserver.BlobErr(res.err, b.Ref()); err != nil {
+				lastErr[i] = err
+				continue
+			}
+			successes[i]++
+			if successes[i] == sto.minWritesForSuccess {
+				pending--
+			}
+		}
+		if res.err != nil {
+			log.Printf("replica: receiving %d blobs, backend %s reported: %v", len(blobs), sto.replicaPrefixes[res.idx], res.err)
+		}
+		if pending == 0 {
+			return nil
+		}
+	}
+	be := &blobserver.BlobsError{Op: "receive"}
+	for i, b := range blobs {
+		if successes[i] < sto.minWritesForSuccess {
+			be.Add(b.Ref(), lastErr[i])
+		}
+	}
+	return be.OrNil()
+}
+
 func (sto *replicaStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	errch := make(chan error, buffered)
 	removeFrom := func(s blobserver.Storage) {

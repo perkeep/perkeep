@@ -84,8 +84,9 @@ type BlobsReceiver interface {
 	// As with ReceiveBlob, implementations can trust that each blob's
 	// contents match its ref and are at most MaxBlobSize, and blobs has
 	// no duplicate refs. Implementations may split blobs into smaller
-	// groups, and must not keep blobs after returning. Receiving one blob
-	// must be equivalent to ReceiveBlob.
+	// groups. They may keep reading the blobs after returning (as replica
+	// does, for slower replicas), but never modify them. Receiving one
+	// blob must be equivalent to ReceiveBlob.
 	ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error
 }
 
