@@ -28,6 +28,7 @@ import (
 	"testing/synctest"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/sqlite"
 	"perkeep.org/pkg/test"
@@ -132,6 +133,76 @@ func (kv *failingSetKV) Set(key, value string) error {
 		return errQueueSet
 	}
 	return kv.KeyValue.Set(key, value)
+}
+
+// queueWritesKV counts queue writes, failing CommitBatch while fail is
+// true.
+type queueWritesKV struct {
+	sorted.KeyValue
+	sets, commits int
+	fail          bool
+}
+
+func (kv *queueWritesKV) Set(key, value string) error {
+	kv.sets++
+	return kv.KeyValue.Set(key, value)
+}
+
+func (kv *queueWritesKV) CommitBatch(b sorted.BatchMutation) error {
+	kv.commits++
+	if kv.fail {
+		return errQueueSet
+	}
+	return kv.KeyValue.CommitBatch(b)
+}
+
+// TestEnqueueBlobs checks that blobs received together are written to the
+// queue together, skipping those already pending.
+func TestEnqueueBlobs(t *testing.T) {
+	kv := &queueWritesKV{KeyValue: sorted.NewMemoryKeyValue()}
+	defer kv.Close()
+	src := new(test.Fetcher)
+	sh := newSyncHandler("source", "destination", src, new(test.Fetcher), kv)
+	blobserver.GetHub(src).AddReceiveBlobsHook(sh.enqueueBlobs)
+	var sbs []blob.SizedRef
+	for i := range 4 {
+		sbs = append(sbs, blob.SizedRef{Ref: blob.RefFromString(fmt.Sprint(i)), Size: 1})
+	}
+	if err := sh.enqueue(sbs[0]); err != nil {
+		t.Fatal(err)
+	}
+	kv.sets = 0
+
+	// One fails to be written: none of the new ones are pending.
+	kv.fail = true
+	err := blobserver.GetHub(src).NotifyBlobsReceived(sbs)
+	if got := blobserver.BlobErr(err, sbs[0].Ref); got != nil {
+		t.Errorf("already pending blob's error = %v; want nil", got)
+	}
+	for _, sb := range sbs[1:] {
+		if got := blobserver.BlobErr(err, sb.Ref); !errors.Is(got, errQueueSet) {
+			t.Errorf("BlobErr(%v) = %v; want %v", sb.Ref, got, errQueueSet)
+		}
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != 1 {
+		t.Errorf("after failed enqueue, %d blobs to copy; want 1", st.BlobsToCopy)
+	}
+
+	kv.fail, kv.commits = false, 0
+	if err := blobserver.GetHub(src).NotifyBlobsReceived(sbs); err != nil {
+		t.Fatal(err)
+	}
+	if kv.commits != 1 || kv.sets != 0 {
+		t.Errorf("queue commits, sets = %d, %d; want 1, 0", kv.commits, kv.sets)
+	}
+	for _, sb := range sbs {
+		if _, err := kv.Get(sb.Ref.String()); err != nil {
+			t.Errorf("queue entry for %v: %v", sb.Ref, err)
+		}
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != len(sbs) {
+		t.Errorf("%d blobs to copy; want %d", st.BlobsToCopy, len(sbs))
+	}
 }
 
 // TestEnqueueRetryAfterQueueError checks that a blob whose queue write
