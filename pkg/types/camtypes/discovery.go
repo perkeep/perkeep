@@ -54,6 +54,10 @@ type Discovery struct {
 	// local files to upload to avoid uploading duplicates.
 	HasLegacySHA1Index bool `json:"hasLegacySHA1Index"`
 
+	// UploadSessions reports whether BlobRoot supports upload sessions.
+	// See doc/protocol/blob-upload-session.md.
+	UploadSessions bool `json:"uploadSessions,omitempty"`
+
 	// SyncHandlers lists discovery information about the available sync handlers.
 	SyncHandlers []SyncHandlerDiscovery `json:"syncHandlers,omitempty"`
 	// Signing contains discovery information for signing.

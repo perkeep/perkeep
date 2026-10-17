@@ -31,6 +31,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
+	"perkeep.org/pkg/blobserver/uploadsession"
 	"perkeep.org/pkg/test"
 )
 
@@ -66,6 +67,12 @@ func blobPart(s string) uploadPart {
 // response.
 func upload(t *testing.T, sto blobserver.BlobReceiveConfiger, parts []uploadPart) *protocol.UploadResponse {
 	t.Helper()
+	return uploadURL(t, sto, nil, "/bs/camli/upload", parts)
+}
+
+// uploadRequest returns a multipart upload request of parts to url.
+func uploadRequest(t *testing.T, url string, parts []uploadPart) *http.Request {
+	t.Helper()
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	for _, p := range parts {
@@ -76,10 +83,16 @@ func upload(t *testing.T, sto blobserver.BlobReceiveConfiger, parts []uploadPart
 		w.Write([]byte(p.contents))
 	}
 	mw.Close()
-	req := httptest.NewRequest("POST", "/bs/camli/upload", &body)
+	req := httptest.NewRequest("POST", url, &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	return req
+}
+
+// uploadURL is like upload, with upload sessions, to url.
+func uploadURL(t *testing.T, sto blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager, url string, parts []uploadPart) *protocol.UploadResponse {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	CreateBatchUploadHandler(sto).ServeHTTP(rec, req)
+	CreateBatchUploadHandler(sto, sessions).ServeHTTP(rec, uploadRequest(t, url, parts))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("upload status %d: %s", rec.Code, rec.Body)
 	}

@@ -58,5 +58,6 @@ The response is a JSON document with a [Discovery value](https://perkeep.org/pkg
       "thumbVersion": "2",
       "uiRoot": "/ui/",
       "uploadHelper": "/ui/?camli.mode=uploadhelper",
+      "uploadSessions": true,
       "wsAuthToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
