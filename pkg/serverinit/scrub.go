@@ -22,7 +22,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -75,12 +78,20 @@ type scrub struct {
 	prefix string
 	sto    blobserver.Storage
 	check  *health.Check
+
+	mu  sync.Mutex
+	run scrubRun // the latest run's progress
 }
 
 // shards returns the shards of the scrub: 256 digest prefixes of each of
 // the storage's hash types, according to the census, or else by listing
 // the first blob of each type.
 func (s *scrub) shards(ctx context.Context) []string {
+	// It's called at the start of each run.
+	s.mu.Lock()
+	s.run = scrubRun{byHash: make(map[string]*blobserver.HashSample), pos: make(map[string]float64)}
+	s.mu.Unlock()
+
 	ests, ok := s.c.estimates(s.prefix)
 	if !ok {
 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -126,6 +137,7 @@ func (s *scrub) scrubShard(ctx context.Context, shard string) (problem string, e
 			log.Printf("scrub %s: %s", s.prefix, p)
 			bad = append(bad, p)
 		}
+		s.checked(shard, sb)
 		return nil
 	})
 	if errors.Is(err, errShardDone) {
@@ -134,6 +146,9 @@ func (s *scrub) scrubShard(ctx context.Context, shard string) (problem string, e
 	if err != nil {
 		return "", err
 	}
+	s.mu.Lock()
+	s.run.pos[shard] = 1
+	s.mu.Unlock()
 	if len(bad) == 0 {
 		return "", nil
 	}
@@ -167,6 +182,138 @@ func checkBlob(ctx context.Context, sto blob.Fetcher, sb blob.SizedRef) string {
 		return fmt.Sprintf("%v: doesn't match its digest", sb.Ref)
 	}
 	return ""
+}
+
+// scrubReportInterval is how often a scrub's run reports how it's going,
+// after it reports its first blob.
+const scrubReportInterval = 5 * time.Second
+
+// scrubRun is the progress of a scrub's run.
+type scrubRun struct {
+	reported time.Time                         // when it was last reported, or zero
+	all      blobserver.HashSample             // the blobs checked
+	byHash   map[string]*blobserver.HashSample // the blobs checked, by hash type
+	// pos is how far through each shard started in the run it's
+	// checked, from 0 to 1.
+	pos map[string]float64
+}
+
+// checked notes that the scrub's run checked sb, in shard, and reports
+// how the run is going if it's the run's first blob, or if it hasn't for
+// scrubReportInterval.
+func (s *scrub) checked(shard string, sb blob.SizedRef) {
+	s.mu.Lock()
+	r := &s.run
+	r.all.Add(sb.Size)
+	hash := sb.Ref.HashName()
+	hs := r.byHash[hash]
+	if hs == nil {
+		hs = new(blobserver.HashSample)
+		r.byHash[hash] = hs
+	}
+	hs.Add(sb.Size)
+	r.pos[shard] = shardPos(shard, sb.Ref)
+	now := time.Now()
+	report := r.reported.IsZero() || now.Sub(r.reported) >= scrubReportInterval
+	if report {
+		r.reported = now
+	}
+	s.mu.Unlock()
+	if report {
+		s.check.RunningMessage(s.progress())
+	}
+}
+
+// shardPos returns how far through shard, a hash type and hex digest
+// prefix such as "sha224-3a", ref is, from 0 to 1.
+func shardPos(shard string, ref blob.Ref) float64 {
+	hash, hex, _ := strings.Cut(shard, "-")
+	v, err := strconv.ParseUint(hex, 16, 64)
+	if err != nil {
+		return 0
+	}
+	digest := strings.TrimPrefix(ref.String(), hash+"-")
+	pos := blobserver.DigestFraction(digest)*shardsOfDigests(hex) - float64(v)
+	return min(1, max(0, pos))
+}
+
+// shardsOfDigests returns how many shards the space of digests has, if
+// each is the digests with a prefix as long as hex.
+func shardsOfDigests(hex string) float64 {
+	return math.Ldexp(1, 4*len(hex))
+}
+
+// progress describes how the scrub's run is going: about how many of the
+// storage's blobs don't need checking, or have been checked in the
+// shards it's checking, of an estimate of how many there are, which is
+// the census's until the run has checked more blobs of a type than the
+// census sampled; the same as a fraction of the shards, and only
+// counting those it's finished, which a restart doesn't check again;
+// and how many blobs the run itself has checked.
+func (s *scrub) progress() string {
+	done, inProgress, total := s.check.ShardProgress()
+	ests, _ := s.c.estimates(s.prefix)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := &s.run
+
+	covered := make(map[string]float64) // the fraction of each hash type's digests the run checked
+	for shard, pos := range r.pos {
+		hash, hex, _ := strings.Cut(shard, "-")
+		covered[hash] += pos / shardsOfDigests(hex)
+	}
+	// estimate estimates the blobs of type hash from those the run
+	// checked.
+	estimate := func(hash string) blobserver.HashEstimate {
+		hs := r.byHash[hash]
+		if covered[hash] >= 1 {
+			return blobserver.HashEstimate{Hash: hash, Blobs: hs.Blobs, Bytes: hs.Bytes, Exact: true}
+		}
+		return hs.Estimate(hash, covered[hash])
+	}
+	byHash := make(map[string]blobserver.HashEstimate)
+	for _, e := range ests {
+		if hs := r.byHash[e.Hash]; hs != nil && (hs.Blobs > censusSample || covered[e.Hash] >= 1) {
+			e = estimate(e.Hash)
+		}
+		byHash[e.Hash] = e
+	}
+	for hash := range r.byHash {
+		if _, ok := byHash[hash]; !ok {
+			byHash[hash] = estimate(hash)
+		}
+	}
+	sum := blobserver.HashEstimate{Exact: true}
+	for _, e := range byHash {
+		sum.Blobs += e.Blobs
+		sum.Bytes += e.Bytes
+		sum.BlobsErr = blobserver.AddErrs(sum.BlobsErr, e.BlobsErr)
+		sum.BytesErr = blobserver.AddErrs(sum.BytesErr, e.BytesErr)
+		sum.Exact = sum.Exact && e.Exact
+	}
+
+	run := fmt.Sprintf("%d blobs (%s) in this run", r.all.Blobs, blobserver.HashEstimate{Bytes: r.all.Bytes}.BytesString())
+	if total == 0 || sum.Blobs == 0 {
+		return "scrubbed " + run
+	}
+	// The blobs checked, of each hash type, are estimated from the
+	// fraction of its digests in the shards done, and how far through
+	// those being checked the run is.
+	var checked, partial float64
+	shardBlobs := func(shard string) float64 {
+		hash, hex, _ := strings.Cut(shard, "-")
+		return float64(byHash[hash].Blobs) / shardsOfDigests(hex)
+	}
+	for _, shard := range done {
+		checked += shardBlobs(shard)
+	}
+	for _, shard := range inProgress {
+		partial += r.pos[shard]
+		checked += r.pos[shard] * shardBlobs(shard)
+	}
+	return fmt.Sprintf("≈%s of %s blobs (%s) checked: %0.2f%%, %0.2f%% checkpointed; %s",
+		blobserver.HashEstimate{Blobs: int64(checked)}.BlobsString(), sum.BlobsWithErr(), sum.BytesWithErr(),
+		100*(float64(len(done))+partial)/float64(total), 100*float64(len(done))/float64(total), run)
 }
 
 // cost estimates what a full pass of the scrub costs: listing the
