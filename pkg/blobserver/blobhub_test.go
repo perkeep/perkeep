@@ -17,7 +17,11 @@ limitations under the License.
 package blobserver
 
 import (
+	"errors"
+	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -95,6 +99,71 @@ func TestHubRegistration(t *testing.T) {
 	if want := 0; len(hub.blobListeners) != want {
 		t.Fatalf("hub.blobListeners size: got: %d, expected: %d", len(hub.blobListeners), want)
 	}
+}
+
+func TestHubNotifyBlobs(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := &memHub{}
+		sbs := []blob.SizedRef{
+			{Ref: blob.RefFromString("a"), Size: 1},
+			{Ref: blob.RefFromString("b"), Size: 1},
+			{Ref: blob.RefFromString("c"), Size: 1},
+		}
+		errB, errC := errors.New("b failed"), errors.New("c failed")
+
+		var mu sync.Mutex
+		var perBlob []blob.Ref
+		var groups [][]blob.Ref
+		hub.AddReceiveHook(func(sb blob.SizedRef) error {
+			mu.Lock()
+			defer mu.Unlock()
+			perBlob = append(perBlob, sb.Ref)
+			if sb.Ref == sbs[1].Ref {
+				return errB
+			}
+			return nil
+		})
+		hub.AddReceiveBlobsHook(func(got []blob.SizedRef) error {
+			var refs []blob.Ref
+			be := &BlobsError{}
+			for _, sb := range got {
+				refs = append(refs, sb.Ref)
+				if sb.Ref == sbs[2].Ref {
+					be.Add(sb.Ref, errC)
+				}
+			}
+			mu.Lock()
+			groups = append(groups, refs)
+			mu.Unlock()
+			return be.OrNil()
+		})
+		ch := make(chan blob.Ref, len(sbs))
+		hub.RegisterListener(ch)
+
+		err := hub.NotifyBlobsReceived(sbs)
+		for i, want := range []error{nil, errB, errC} {
+			if got := BlobErr(err, sbs[i].Ref); got != want {
+				t.Errorf("BlobErr(blob %d) = %v; want %v", i, got, want)
+			}
+		}
+		refs := []blob.Ref{sbs[0].Ref, sbs[1].Ref, sbs[2].Ref}
+		if !slices.Equal(perBlob, refs) {
+			t.Errorf("per-blob hook called with %v; want %v", perBlob, refs)
+		}
+		if want := [][]blob.Ref{refs}; !slices.EqualFunc(groups, want, slices.Equal) {
+			t.Errorf("group hook called with %v; want %v", groups, want)
+		}
+		// Only the blob whose hooks succeeded is announced.
+		synctest.Wait()
+		if len(ch) != 1 || <-ch != sbs[0].Ref {
+			t.Errorf("listener notified of %d blobs; want only %v", len(ch)+1, sbs[0].Ref)
+		}
+
+		// NotifyBlobReceived returns a hook's error for its blob as is.
+		if err := hub.NotifyBlobReceived(sbs[1]); err != errB {
+			t.Errorf("NotifyBlobReceived = %v; want %v", err, errB)
+		}
+	})
 }
 
 func TestHubFiring(t *testing.T) {

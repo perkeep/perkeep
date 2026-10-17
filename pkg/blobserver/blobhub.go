@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"perkeep.org/pkg/blob"
-
-	"go4.org/syncutil"
 )
 
 type BlobHub interface {
@@ -37,11 +35,27 @@ type BlobHub interface {
 	// NotifyBlobReceived returns and their error is returned.
 	NotifyBlobReceived(blob.SizedRef) error
 
+	// NotifyBlobsReceived is like NotifyBlobReceived for several blobs.
+	// It runs each receive hook once for all of them: a hook added with
+	// AddReceiveBlobsHook is called with all the blobs, and one added with
+	// AddReceiveHook is called for each blob in turn. It returns nil, or a
+	// *BlobsError listing the blobs whose hooks failed. Listeners are only
+	// notified of the other blobs.
+	NotifyBlobsReceived([]blob.SizedRef) error
+
 	// AddReceiveHook adds a hook that is synchronously run
 	// whenever blobs are received.  All registered hooks are run
 	// on each blob upload but if more than one returns an error,
 	// NotifyBlobReceived will only return one of the errors.
 	AddReceiveHook(func(blob.SizedRef) error)
+
+	// AddReceiveBlobsHook is like AddReceiveHook, but its hook is called
+	// once for all the blobs passed to NotifyBlobsReceived (or with the one
+	// passed to NotifyBlobReceived), so it can share work among them. The
+	// hook returns an error as described by BlobsReceiver: nil, a
+	// *BlobsError listing the blobs it failed for, or another error if it
+	// failed for all of them.
+	AddReceiveBlobsHook(func([]blob.SizedRef) error)
 
 	RegisterListener(ch chan<- blob.Ref)
 	UnregisterListener(ch chan<- blob.Ref)
@@ -105,37 +119,69 @@ type memHub struct {
 	mu sync.RWMutex
 
 	hooks         []func(blob.SizedRef) error
+	blobsHooks    []func([]blob.SizedRef) error
 	listeners     map[chan<- blob.Ref]bool
 	blobListeners map[blob.Ref]map[chan<- blob.Ref]bool
 }
 
 func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
+	return BlobErr(h.NotifyBlobsReceived([]blob.SizedRef{sb}), sb.Ref)
+}
+
+func (h *memHub) NotifyBlobsReceived(sbs []blob.SizedRef) error {
+	if len(sbs) == 0 {
+		return nil
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	br := sb.Ref
-
-	// Synchronous hooks. If error, prevents notifying other
-	// subscribers.
-	var grp syncutil.Group
-	for i := range h.hooks {
-		hook := h.hooks[i]
-		grp.Go(func() error { return hook(sb) })
-	}
-	if err := grp.Err(); err != nil {
-		return err
+	refs := make([]blob.Ref, len(sbs))
+	for i, sb := range sbs {
+		refs[i] = sb.Ref
 	}
 
-	// Global listeners
-	for ch := range h.listeners {
-		go func() { ch <- br }()
+	// Synchronous hooks, each in its own goroutine. A blob whose
+	// hooks fail isn't announced to listeners.
+	var (
+		mu sync.Mutex
+		be = &BlobsError{Op: "receive hook"}
+		wg sync.WaitGroup
+	)
+	for _, hook := range h.hooks {
+		wg.Go(func() {
+			for _, sb := range sbs {
+				if err := hook(sb); err != nil {
+					mu.Lock()
+					be.Add(sb.Ref, err)
+					mu.Unlock()
+				}
+			}
+		})
 	}
+	for _, hook := range h.blobsHooks {
+		wg.Go(func() {
+			err := hook(sbs)
+			mu.Lock()
+			be.AddResult(refs, err)
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
 
-	// Blob-specific listeners
-	for ch := range h.blobListeners[br] {
-		go func() { ch <- br }()
+	for _, br := range refs {
+		if be.Err(br) != nil {
+			continue
+		}
+		// Global listeners
+		for ch := range h.listeners {
+			go func() { ch <- br }()
+		}
+		// Blob-specific listeners
+		for ch := range h.blobListeners[br] {
+			go func() { ch <- br }()
+		}
 	}
-	return nil
+	return be.OrNil()
 }
 
 func (h *memHub) RegisterListener(ch chan<- blob.Ref) {
@@ -189,4 +235,10 @@ func (h *memHub) AddReceiveHook(hook func(blob.SizedRef) error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.hooks = append(h.hooks, hook)
+}
+
+func (h *memHub) AddReceiveBlobsHook(hook func([]blob.SizedRef) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.blobsHooks = append(h.blobsHooks, hook)
 }
