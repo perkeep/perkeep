@@ -21,12 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
 
+	"golang.org/x/sync/semaphore"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -139,13 +141,18 @@ func (kv *failingSetKV) Set(key, value string) error {
 // true.
 type queueWritesKV struct {
 	sorted.KeyValue
-	sets, commits int
-	fail          bool
+	sets, deletes, commits int
+	fail                   bool
 }
 
 func (kv *queueWritesKV) Set(key, value string) error {
 	kv.sets++
 	return kv.KeyValue.Set(key, value)
+}
+
+func (kv *queueWritesKV) Delete(key string) error {
+	kv.deletes++
+	return kv.KeyValue.Delete(key)
 }
 
 func (kv *queueWritesKV) CommitBatch(b sorted.BatchMutation) error {
@@ -207,6 +214,131 @@ func TestEnqueueBlobs(t *testing.T) {
 
 // TestEnqueueRetryAfterQueueError checks that a blob whose queue write
 // failed is written by a retry, rather than taken as a duplicate.
+// groupDest is a BlobsReceiver destination recording the sizes of its
+// ReceiveBlobs calls, and failing the blobs in fail.
+type groupDest struct {
+	*test.Fetcher
+	mu    sync.Mutex
+	calls []int
+	fail  map[blob.Ref]bool
+}
+
+var errDestFail = errors.New("dest failed")
+
+func (d *groupDest) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	d.mu.Lock()
+	d.calls = append(d.calls, len(blobs))
+	d.mu.Unlock()
+	be := &blobserver.BlobsError{Op: "receive"}
+	for _, b := range blobs {
+		if d.fail[b.Ref()] {
+			be.Add(b.Ref(), errDestFail)
+			continue
+		}
+		r, err := b.ReadAll(ctx)
+		if err == nil {
+			_, err = d.Fetcher.ReceiveBlob(ctx, b.Ref(), r)
+		}
+		be.Add(b.Ref(), err)
+	}
+	return be.OrNil()
+}
+
+// enqueueTestBlobs stores n new blobs in src and enqueues them in sh.
+func enqueueTestBlobs(t *testing.T, sh *SyncHandler, src *test.Fetcher, n int) []blob.SizedRef {
+	t.Helper()
+	var sbs []blob.SizedRef
+	for i := range n {
+		tb := &test.Blob{Contents: fmt.Sprintf("blob %d", i)}
+		src.AddBlob(tb)
+		if err := sh.enqueue(tb.SizedRef()); err != nil {
+			t.Fatal(err)
+		}
+		sbs = append(sbs, tb.SizedRef())
+	}
+	return sbs
+}
+
+// TestWriteFetchedGroups checks that the copy loop writes fetched blobs
+// to the destination in groups, deleting each group's queue entries in
+// one batch.
+func TestWriteFetchedGroups(t *testing.T) {
+	kv := &queueWritesKV{KeyValue: sorted.NewMemoryKeyValue()}
+	defer kv.Close()
+	src := new(test.Fetcher)
+	dst := &groupDest{Fetcher: new(test.Fetcher)}
+	sh := newSyncHandler("source", "destination", src, dst, kv)
+	sbs := enqueueTestBlobs(t, sh, src, syncWriteGroupBlobs+44)
+	bad := sbs[3].Ref
+	dst.fail = map[blob.Ref]bool{bad: true}
+
+	// Fetch them all first, so the grouping doesn't depend on timing.
+	budget := semaphore.NewWeighted(syncWriteGroupBytes)
+	fetched := make(chan fetchedBlob, len(sbs))
+	for _, sb := range sbs {
+		cs := sh.newCopyStatus(sb)
+		b, err := sh.fetchBlob(context.Background(), cs, budget)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetched <- fetchedBlob{cs, b}
+	}
+	close(fetched)
+	res := make(chan copyResult, len(sbs))
+	sh.writeFetched(context.Background(), fetched, budget, res)
+
+	if want := []int{syncWriteGroupBlobs, 44}; !slices.Equal(dst.calls, want) {
+		t.Errorf("destination ReceiveBlobs calls of sizes %v; want %v", dst.calls, want)
+	}
+	if kv.deletes != 0 || kv.commits != 2 {
+		t.Errorf("queue deletes, commits = %d, %d; want 0, 2", kv.deletes, kv.commits)
+	}
+	for range sbs {
+		r := <-res
+		if (r.sb.Ref == bad) != errors.Is(r.err, errDestFail) {
+			t.Errorf("result for %v: %v", r.sb.Ref, r.err)
+		}
+	}
+	// The failed blob stays queued, to try again; the others are done.
+	for _, sb := range sbs {
+		_, err := kv.Get(sb.Ref.String())
+		if queued := err == nil; queued != (sb.Ref == bad) {
+			t.Errorf("%v queued = %v", sb.Ref, queued)
+		}
+	}
+	if st := sh.currentStatus(); st.BlobsToCopy != 1 {
+		t.Errorf("%d blobs to copy; want 1", st.BlobsToCopy)
+	}
+	if !budget.TryAcquire(syncWriteGroupBytes) {
+		t.Error("fetch budget not all released")
+	}
+}
+
+// TestRunSyncCopiesQueued checks that a sync round copies all the queued
+// blobs and empties the queue.
+func TestRunSyncCopiesQueued(t *testing.T) {
+	kv := sorted.NewMemoryKeyValue()
+	defer kv.Close()
+	src := new(test.Fetcher)
+	dst := &groupDest{Fetcher: new(test.Fetcher)}
+	sh := newSyncHandler("source", "destination", src, dst, kv)
+	sbs := enqueueTestBlobs(t, sh, src, 600)
+	if n := sh.runSync("queue", sh.enumerateQueuedBlobs); n != len(sbs) {
+		t.Fatalf("runSync copied %d blobs; want %d", n, len(sbs))
+	}
+	if dst.NumBlobs() != len(sbs) {
+		t.Errorf("destination has %d blobs; want %d", dst.NumBlobs(), len(sbs))
+	}
+	it := kv.Find("", "")
+	for it.Next() {
+		t.Errorf("still queued: %s", it.Key())
+	}
+	it.Close()
+	if st := sh.currentStatus(); st.BlobsToCopy != 0 {
+		t.Errorf("%d blobs to copy; want 0", st.BlobsToCopy)
+	}
+}
+
 func TestEnqueueRetryAfterQueueError(t *testing.T) {
 	kv := &failingSetKV{KeyValue: sorted.NewMemoryKeyValue(), fail: true}
 	defer kv.Close()
