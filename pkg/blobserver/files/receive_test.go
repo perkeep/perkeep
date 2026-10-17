@@ -126,9 +126,21 @@ func TestReceiveSyncsDirs(t *testing.T) {
 		"syncdir " + hashDir + "/" + d[0:2],
 	}, afterMkdir...)...)
 
-	// The directories are known to be durable now.
+	// The directories are known to be durable now, and the blob is
+	// already stored, so it isn't replaced; but its directory is synced,
+	// in case another receive of it hasn't done that yet.
 	receive()
-	check("second receive", afterMkdir...)
+	check("second receive", "syncdir "+dir)
+
+	// A stored copy of the wrong size (say, truncated) is replaced.
+	if err := os.WriteFile(ds.blobPath(br), []byte("fo"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	receive()
+	check("receive over a truncated copy", afterMkdir...)
+	if got, err := os.ReadFile(ds.blobPath(br)); err != nil || string(got) != "foo" {
+		t.Fatalf("stored blob = %q, %v; want %q", got, err, "foo")
+	}
 
 	// Removing a directory forgets which ones are durable.
 	ds.tryRemoveDir(filepath.Join(root, filepath.FromSlash(dir)))

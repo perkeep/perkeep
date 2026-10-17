@@ -71,6 +71,24 @@ func (ds *Storage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
+	fileName := ds.blobPath(blobRef)
+	if fi, err := ds.fs.Lstat(fileName); err == nil && fi.Size() == written {
+		// The blob is already stored (blobs are content-addressed, and
+		// source matched its ref), so keep that copy rather than
+		// replacing it, which would cost a sync, and which fails on
+		// Windows while anything has the file open. Another receive of
+		// it may not have made its name durable yet, so sync the
+		// directory anyway.
+		tempFile.Close()
+		ds.fs.Remove(tempFile.Name())
+		success = true // the temp file is already removed
+		if syncer, ok := ds.fs.(DirSyncer); ok {
+			if err := syncer.SyncDir(hashedDirectory); err != nil {
+				return blob.SizedRef{}, err
+			}
+		}
+		return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
+	}
 	if err = tempFile.Sync(); err != nil {
 		return blob.SizedRef{}, err
 	}
@@ -85,7 +103,6 @@ func (ds *Storage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.
 		return blob.SizedRef{}, fmt.Errorf("temp file %q size %d didn't match written size %d", tempFile.Name(), stat.Size(), written)
 	}
 
-	fileName := ds.blobPath(blobRef)
 	if err := ds.fs.Rename(tempFile.Name(), fileName); err != nil {
 		return blob.SizedRef{}, err
 	}
