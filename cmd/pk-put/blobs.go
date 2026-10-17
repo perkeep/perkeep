@@ -103,7 +103,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		put, err = up.Upload(ctxbg, handle)
+		put, err = up.UploadIfMissing(ctxbg, handle)
 		handleResult("blob", put, err)
 		continue
 	}
