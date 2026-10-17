@@ -32,15 +32,20 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
+	"perkeep.org/pkg/blobserver/uploadsession"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 )
 
 // CreateBatchUploadHandler returns the handler that receives multi-part form uploads
-// to upload many blobs at once. See doc/protocol/blob-upload-protocol.txt.
-func CreateBatchUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
+// to upload many blobs at once. See doc/protocol/blob-upload.md.
+//
+// An upload with a "session" query parameter adds its blobs to that
+// upload session, from sessions, rather than receiving them into storage. See
+// doc/protocol/blob-upload-session.md.
+func CreateBatchUploadHandler(storage blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(rw, req, storage)
+		handleMultiPartUpload(rw, req, storage, sessions)
 	})
 }
 
@@ -174,7 +179,7 @@ const (
 	uploadGroupBytes = 32 << 20
 )
 
-func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
+func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager) {
 	ctx := req.Context()
 	res := new(protocol.UploadResponse)
 
@@ -182,6 +187,26 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		log.Printf("Inconfigured handler upload handler")
 		httputil.BadRequestError(rw, "Inconfigured handler.")
 		return
+	}
+
+	vivifying := req.Header.Get("X-Camlistore-Vivify") == "1"
+	var session *uploadsession.Session
+	if id := req.URL.Query().Get("session"); id != "" {
+		if vivifying {
+			// Vivifying a file needs its blobs in storage already.
+			httputil.BadRequestError(rw, "Can't vivify in an upload session.")
+			return
+		}
+		var err error
+		if sessions != nil {
+			session, err = sessions.Session(id)
+		} else {
+			err = uploadsession.ErrUnknownSession
+		}
+		if err != nil {
+			serveSessionError(rw, req, err)
+			return
+		}
 	}
 
 	var receivedBlobs []blob.SizedRef
@@ -202,11 +227,29 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 	}
 
 	// Read the blobs into memory, and receive them in groups, so storage
-	// can share work (like syncs to disk) among a group's blobs.
+	// can share work (like syncs to disk) among a group's blobs. In a
+	// session, add each to the session as it's read instead, for the
+	// session's limits to count it.
 	var group []*blob.Blob
 	var groupBytes int
 	receiveGroup := func() {
 		if len(group) == 0 {
+			return
+		}
+		if session != nil {
+			err := session.Add(ctx, group)
+			if _, ok := errors.AsType[*blobserver.BlobsError](err); err != nil && !ok {
+				addError(fmt.Sprintf("Error adding %d blobs to the session: %v\n", len(group), err))
+			} else {
+				for _, b := range group {
+					if err := blobserver.BlobErr(err, b.Ref()); err != nil {
+						addError(fmt.Sprintf("Error adding blob %v to the session: %v\n", b.Ref(), err))
+						continue
+					}
+					res.Accepted = append(res.Accepted, b.SizedRef())
+				}
+			}
+			group, groupBytes = nil, 0
 			return
 		}
 		err := blobserver.ReceiveBlobs(ctx, blobReceiver, group)
@@ -271,7 +314,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 			return data, nil
 		}))
 		groupBytes += len(data)
-		if len(group) >= uploadGroupBlobs || groupBytes >= uploadGroupBytes {
+		if session != nil || len(group) >= uploadGroupBlobs || groupBytes >= uploadGroupBytes {
 			receiveGroup()
 		}
 	}
@@ -279,7 +322,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 	res.Received = receivedBlobs
 
-	if req.Header.Get("X-Camlistore-Vivify") == "1" {
+	if vivifying {
 		// TODO(mpl): In practice, this only works because we upload blobs one by one.
 		// If we sent many blobs in one multipart, the code below means
 		// all of them would have to be file schema blobs, which is a very

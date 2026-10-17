@@ -247,6 +247,8 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		UserName:     rh.Username,
 		AuthToken:    auth.DiscoveryToken(),
 		ThumbVersion: images.ThumbnailVersion(),
+		// serverinit serves upload sessions for every blob root.
+		UploadSessions: rh.BlobRoot != "",
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()

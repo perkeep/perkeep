@@ -34,42 +34,7 @@ import (
 // TestReadOnlyRefusesWrites checks that while the health monitor reports
 // a fatal failure, the blob handlers refuse uploads but still serve reads.
 func TestReadOnlyRefusesWrites(t *testing.T) {
-	srcRoot, err := osutil.PkSourceRoot()
-	if err != nil {
-		t.Fatalf("source root folder not found: %v", err)
-	}
-	conf := serverinit.DefaultBaseConfig
-	conf.Auth = "userpass:foo:bar"
-	conf.Identity = "26F5ABDA"
-	conf.IdentitySecretRing = filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
-	conf.MemoryStorage = true
-	conf.MemoryIndex = true
-	// Also checks that the low-level config can have healthState.
-	conf.HealthState = map[string]any{"type": "memory"}
-	confData, err := json.Marshal(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
-	lowConf, err := serverinit.Load(confData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := lowConf.HealthState()["type"]; got != "memory" {
-		t.Errorf("HealthState type = %v; want memory", got)
-	}
-	mon := health.New()
-	lowConf.SetHealth(mon)
-	mux := http.NewServeMux()
-	shutdown, err := lowConf.InstallHandlers(mux, "http://"+conf.Listen)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := shutdown.Close(); err != nil {
-			t.Error(err)
-		}
-	})
+	mux, mon := newTestServer(t)
 
 	const contents = "some blob"
 	br := blob.RefFromString(contents)
@@ -108,4 +73,48 @@ func TestReadOnlyRefusesWrites(t *testing.T) {
 	if rec := do("GET", true); rec.Code != http.StatusOK || rec.Body.String() != contents {
 		t.Errorf("GET after upload = %d %q; want 200 %q", rec.Code, rec.Body, contents)
 	}
+}
+
+// newTestServer returns the handlers of a server with the default
+// config, in memory, with user "foo" and password "bar", and its health
+// monitor.
+func newTestServer(t *testing.T) (*http.ServeMux, *health.Monitor) {
+	t.Helper()
+	srcRoot, err := osutil.PkSourceRoot()
+	if err != nil {
+		t.Fatalf("source root folder not found: %v", err)
+	}
+	conf := serverinit.DefaultBaseConfig
+	conf.Auth = "userpass:foo:bar"
+	conf.Identity = "26F5ABDA"
+	conf.IdentitySecretRing = filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
+	conf.MemoryStorage = true
+	conf.MemoryIndex = true
+	// Also checks that the low-level config can have healthState.
+	conf.HealthState = map[string]any{"type": "memory"}
+	confData, err := json.Marshal(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	lowConf, err := serverinit.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lowConf.HealthState()["type"]; got != "memory" {
+		t.Errorf("HealthState type = %v; want memory", got)
+	}
+	mon := health.New()
+	lowConf.SetHealth(mon)
+	mux := http.NewServeMux()
+	shutdown, err := lowConf.InstallHandlers(mux, "http://"+conf.Listen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := shutdown.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return mux, mon
 }

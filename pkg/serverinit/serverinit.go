@@ -48,6 +48,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
+	"perkeep.org/pkg/blobserver/uploadsession"
 	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign/signhandler"
@@ -131,10 +132,14 @@ func (s *storageAndConfig) GetStorage() blobserver.Storage {
 }
 
 // action is the part following "/camli/" in the URL. It's either a
-// string like "enumerate-blobs", "stat", "upload", or a blobref.
-func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger) (http.Handler, auth.Operation) {
+// string like "enumerate-blobs", "stat", "upload", "session/ID/flush",
+// or a blobref. sessions are the upload sessions receiving into storage.
+func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger, sessions *uploadsession.Manager) (http.Handler, auth.Operation) {
 	var handler http.Handler
 	op := auth.OpAll
+	if isSessionAction(action) && (req.Method == "POST" || req.Method == "DELETE") {
+		return handlers.CreateSessionHandler(sessions), auth.OpUpload
+	}
 	switch req.Method {
 	case "GET", "HEAD":
 		switch action {
@@ -156,7 +161,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 			handler = handlers.CreateStatHandler(storage)
 			op = auth.OpStat
 		case "upload":
-			handler = handlers.CreateBatchUploadHandler(storage)
+			handler = handlers.CreateBatchUploadHandler(storage, sessions)
 			op = auth.OpUpload
 		case "remove":
 			handler = handlers.CreateRemoveHandler(storage)
@@ -171,14 +176,22 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	return handler, op
 }
 
+// isSessionAction reports whether a camli action is for upload sessions.
+func isSessionAction(action string) bool {
+	return action == "session" || strings.HasPrefix(action, "session/")
+}
+
 // isBlobWrite reports whether a request for the given method and camli
-// action (see camliHandlerUsingStorage) adds or removes blobs.
+// action (see camliHandlerUsingStorage) adds or removes blobs. Opening an
+// upload session counts, as its purpose is adding blobs, but flushing,
+// asking the status of, or closing one doesn't, so that clients can still
+// learn which blobs they added are durable.
 func isBlobWrite(method, action string) bool {
 	switch method {
 	case "PUT":
 		return true
 	case "POST":
-		return action == "upload" || action == "remove"
+		return action == "upload" || action == "remove" || action == "session"
 	}
 	return false
 }
@@ -207,6 +220,9 @@ func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.S
 			},
 		}
 	})
+	getSessions := sync.OnceValue(func() *uploadsession.Manager {
+		return uploadsession.NewManager(getStorageConfig(), uploadsession.Limits{})
+	})
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		storageConfig := getStorageConfig()
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
@@ -216,7 +232,7 @@ func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.S
 			unsupportedHandler(rw, req)
 			return
 		}
-		handler, op := camliHandlerUsingStorage(req, action, storageConfig)
+		handler, op := camliHandlerUsingStorage(req, action, storageConfig, getSessions())
 		if isBlobWrite(req.Method, action) {
 			// Checked after auth, as the reason can name blobs and paths.
 			if err := mon.ReadOnlyError(); err != nil {
