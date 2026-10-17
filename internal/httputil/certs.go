@@ -37,7 +37,6 @@ import (
 
 	"go4.org/legal"
 	"go4.org/wkfs"
-	"golang.org/x/net/http2"
 )
 
 var (
@@ -139,22 +138,14 @@ func GenSelfTLSFiles(hostname, certPath, keyPath string) (fingerprint string, er
 // a Docker container without a filesystem)
 func InstallCerts() {
 	if !SystemCARootsAvailable() {
+		// http.DefaultTransport sets ForceAttemptHTTP2, so it still
+		// uses HTTP/2 with its TLSClientConfig set.
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok {
-			tlsConf := tr.TLSClientConfig
-			isTrModified := false
-			if tlsConf == nil {
-				tlsConf = &tls.Config{}
-				tr.TLSClientConfig = tlsConf
-				isTrModified = true
+			if tr.TLSClientConfig == nil {
+				tr.TLSClientConfig = &tls.Config{}
 			}
-			if tlsConf.RootCAs == nil {
-				tlsConf.RootCAs = RootCAPool()
-				isTrModified = true
-			}
-			if isTrModified {
-				if err := http2.ConfigureTransport(tr); err != nil {
-					log.Fatalf("Error configuring default transport to HTTP/2: %v", err)
-				}
+			if tr.TLSClientConfig.RootCAs == nil {
+				tr.TLSClientConfig.RootCAs = RootCAPool()
 			}
 		}
 	}
