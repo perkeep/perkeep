@@ -1022,14 +1022,11 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 
 func (x *Index) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
 	signerFilter string,
-	attrFilter string) ([]camtypes.Claim, error) {
+	attrFilter string) (claims []camtypes.Claim, err error) {
 	if x.corpus != nil {
 		return x.corpus.AppendClaims(ctx, dst, permaNode, signerFilter, attrFilter)
 	}
-	var (
-		err error
-		it  sorted.Iterator
-	)
+	var it sorted.Iterator
 	var signerRefs SignerRefSet
 	if signerFilter != "" {
 		signerRefs, err = x.signerRefs(ctx, signerFilter)
@@ -1254,13 +1251,11 @@ func (x *Index) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
 
 // signerRefs returns the set of signer blobRefs matching the signer keyID. It
 // does not return an error if none is found.
-func (x *Index) signerRefs(ctx context.Context, keyID string) (SignerRefSet, error) {
+func (x *Index) signerRefs(ctx context.Context, keyID string) (refs SignerRefSet, err error) {
 	if x.corpus != nil {
 		return x.corpus.signerRefs[keyID], nil
 	}
 	it := x.queryPrefixString(keySignerKeyID.name)
-	var err error
-	var refs SignerRefSet
 	defer closeIterator(it, &err)
 	prefix := keySignerKeyID.name + ":"
 	for it.Next() {
