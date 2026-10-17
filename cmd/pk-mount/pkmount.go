@@ -135,6 +135,14 @@ func main() {
 
 			var ok bool
 			root, ok = blob.Parse(rootArg)
+			if !ok && blob.IsPrefix(rootArg) {
+				var err error
+				root, err = cl.ResolveRef(ctxbg, rootArg)
+				if err != nil {
+					log.Fatal(err)
+				}
+				ok = true
+			}
 
 			if !ok {
 				// not a blobref, check for root name instead

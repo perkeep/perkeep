@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
@@ -76,9 +75,9 @@ func (c *shareCmd) RunCommand(args []string) error {
 		if len(args) != 1 {
 			return cmdmain.UsageError("share takes at most one argument")
 		}
-		target, ok := blob.Parse(args[0])
-		if !ok {
-			return cmdmain.UsageError("invalid blobref")
+		target, err := getUploader().ResolveRef(ctxbg, args[0])
+		if err != nil {
+			return err
 		}
 		unsigned.SetShareTarget(target)
 	}

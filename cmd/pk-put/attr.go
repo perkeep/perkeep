@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
@@ -65,9 +64,9 @@ func (c *attrCmd) RunCommand(args []string) error {
 		value = args[2]
 	}
 
-	pn, ok := blob.Parse(permanode)
-	if !ok {
-		return fmt.Errorf("Error parsing blobref %q", permanode)
+	pn, err := getUploader().ResolveRef(ctxbg, permanode)
+	if err != nil {
+		return err
 	}
 	claimFunc := func() func(blob.Ref, string, string) *schema.Builder {
 		switch {

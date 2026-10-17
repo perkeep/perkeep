@@ -279,6 +279,27 @@ func ParseBytes(s []byte) (ref Ref, ok bool) {
 	return Ref{dt}, true
 }
 
+// IsPrefix reports whether s is an abbreviated blobref of a hash
+// function known to this package: the hash name, a hyphen, and at least
+// one but fewer than the full number of lowercase hex digits, like
+// "sha224-d9b81511e7". Full blobrefs aren't prefixes; use Parse for those.
+func IsPrefix(s string) bool {
+	name, hex, ok := strings.Cut(s, "-")
+	if !ok {
+		return false
+	}
+	meta, ok := metaFromString[digestName(name)]
+	if !ok || len(hex) == 0 || len(hex) >= meta.size*2 {
+		return false
+	}
+	for i := 0; i < len(hex); i++ {
+		if c := hex[i]; !('0' <= c && c <= '9' || 'a' <= c && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // ParseOrZero parses as a blobref. If s is invalid, a zero Ref is
 // returned which can be tested with the Valid method.
 func ParseOrZero(s string) Ref {
