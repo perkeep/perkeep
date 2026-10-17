@@ -74,19 +74,16 @@ func EstimateByHashType(ctx context.Context, src BlobEnumerator, sample int) ([]
 	var ests []HashEstimate
 	for _, hash := range blob.HashFuncs() {
 		prefix := hash + "-"
-		var n, bytes int64
-		var sumSq float64 // of the sizes
+		var hs HashSample
 		var last string
 		err := EnumerateAllFrom(ctx, src, prefix, func(sb blob.SizedRef) error {
 			ref := sb.Ref.String()
 			if !strings.HasPrefix(ref, prefix) {
 				return errSampleFull
 			}
-			n++
-			bytes += int64(sb.Size)
-			sumSq += float64(sb.Size) * float64(sb.Size)
+			hs.Add(sb.Size)
 			last = ref
-			if n == int64(sample) {
+			if hs.Blobs == int64(sample) {
 				return errSampleFull
 			}
 			return nil
@@ -94,32 +91,65 @@ func EstimateByHashType(ctx context.Context, src BlobEnumerator, sample int) ([]
 		if err != nil && !errors.Is(err, errSampleFull) {
 			return nil, err
 		}
-		if n == 0 {
-			continue
+		switch {
+		case hs.Blobs == 0:
+		case hs.Blobs < int64(sample):
+			ests = append(ests, HashEstimate{Hash: hash, Blobs: hs.Blobs, Bytes: hs.Bytes, Exact: true})
+		default:
+			ests = append(ests, hs.Estimate(hash, DigestFraction(strings.TrimPrefix(last, prefix))))
 		}
-		est := HashEstimate{Hash: hash, Blobs: n, Bytes: bytes, Exact: n < int64(sample)}
-		if !est.Exact {
-			if frac := digestFraction(strings.TrimPrefix(last, prefix)); frac > 0 {
-				est.Blobs = int64(float64(n) / frac)
-				est.Bytes = int64(float64(bytes) / frac)
-			}
-			mean := float64(bytes) / float64(n)
-			var cv2 float64 // the sizes' squared coefficient of variation
-			if mean > 0 {
-				cv2 = max(0, sumSq/float64(n)-mean*mean) / (mean * mean)
-			}
-			est.BlobsErr = int64(float64(est.Blobs) / math.Sqrt(float64(n)))
-			est.BytesErr = int64(float64(est.Bytes) * math.Sqrt((1+cv2)/float64(n)))
-		}
-		ests = append(ests, est)
 	}
 	return ests, nil
 }
 
-// digestFraction returns how far through the space of digests the
-// hex digest is, from 0 to 1, from its first 13 hex digits (52 bits,
-// which a float64 represents exactly).
-func digestFraction(hex string) float64 {
+// HashSample is a sample of a storage's blobs of one hash type, from
+// which its Estimate method estimates them all.
+type HashSample struct {
+	Blobs int64 // number of blobs
+	Bytes int64 // their total size
+
+	sumSq float64 // of the sizes
+}
+
+// Add adds a blob of the given size to the sample.
+func (s *HashSample) Add(size uint32) {
+	s.Blobs++
+	s.Bytes += int64(size)
+	s.sumSq += float64(size) * float64(size)
+}
+
+// Estimate estimates the storage's blobs of type hash, if the sample is
+// those whose digests are in the fraction frac of the space of digests
+// (see DigestFraction), with the standard errors described at
+// EstimateByHashType. If frac isn't positive, it estimates only the
+// sample's blobs.
+func (s HashSample) Estimate(hash string, frac float64) HashEstimate {
+	est := HashEstimate{Hash: hash, Blobs: s.Blobs, Bytes: s.Bytes}
+	if s.Blobs == 0 {
+		return est
+	}
+	if frac > 0 {
+		est.Blobs = int64(float64(s.Blobs) / frac)
+		est.Bytes = int64(float64(s.Bytes) / frac)
+	}
+	n := float64(s.Blobs)
+	mean := float64(s.Bytes) / n
+	var cv2 float64 // the sizes' squared coefficient of variation
+	if mean > 0 {
+		cv2 = max(0, s.sumSq/n-mean*mean) / (mean * mean)
+	}
+	est.BlobsErr = int64(float64(est.Blobs) / math.Sqrt(n))
+	est.BytesErr = int64(float64(est.Bytes) * math.Sqrt((1+cv2)/n))
+	return est
+}
+
+// DigestFraction returns how far through the space of digests the hex
+// digest (without its hash type's name) is, from 0 to 1, counting the
+// digests it's a prefix of as passed, from its first 13 hex digits (52
+// bits, which a float64 represents exactly). For example, the digests
+// up to those starting with "7f" are DigestFraction("7f"), or 0.5, of
+// them all.
+func DigestFraction(hex string) float64 {
 	const digits = 13
 	if len(hex) > digits {
 		hex = hex[:digits]
