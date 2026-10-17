@@ -45,6 +45,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
 	"perkeep.org/pkg/health"
@@ -114,6 +115,13 @@ func unsupportedHandler(rw http.ResponseWriter, req *http.Request) {
 
 func (s *storageAndConfig) Config() *blobserver.Config {
 	return s.config
+}
+
+// ReceiveBlobs implements blobserver.BlobsReceiver, using the storage's
+// own ReceiveBlobs if it has one, which the embedded blobserver.Storage
+// would hide.
+func (s *storageAndConfig) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	return blobserver.ReceiveBlobsUnchecked(ctx, s.Storage, blobs)
 }
 
 // GetStorage returns the unwrapped blobserver.Storage interface value for

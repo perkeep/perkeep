@@ -156,6 +156,42 @@ func TestOpt(t *testing.T, opt Opts) {
 	r.testRemove(blobRefs)
 
 	r.testSubFetcher()
+
+	r.testReceiveBlobs()
+}
+
+// testReceiveBlobs tests receiving several blobs with
+// blobserver.ReceiveBlobs, including one already stored, using the
+// storage's ReceiveBlobs if it's a blobserver.BlobsReceiver.
+func (r *run) testReceiveBlobs() {
+	ctx := context.Background()
+	t, sto := r.t, r.sto
+	_, ok := sto.(blobserver.BlobsReceiver)
+	t.Logf("Testing ReceiveBlobs (BlobsReceiver: %v)", ok)
+	var blobs []*blob.Blob
+	var refs []blob.Ref
+	var want []blob.SizedRef
+	for i := range 20 {
+		b := &test.Blob{Contents: fmt.Sprintf("ReceiveBlobs-%d", i)}
+		blobs = append(blobs, b.Blob())
+		refs = append(refs, b.BlobRef())
+		want = append(want, b.SizedRef())
+	}
+	if err := blobserver.ReceiveBlobs(ctx, sto, blobs[:1]); err != nil {
+		t.Fatalf("ReceiveBlobs of one blob: %v", err)
+	}
+	if err := blobserver.ReceiveBlobs(ctx, sto, blobs); err != nil {
+		t.Fatalf("ReceiveBlobs: %v", err)
+	}
+	testStat(t, sto, refs, want)
+	for _, b := range blobs {
+		rc, size, err := sto.Fetch(ctx, b.Ref())
+		if err != nil {
+			t.Fatalf("Fetch of %v after ReceiveBlobs: %v", b.Ref(), err)
+		}
+		testSizedBlob(t, rc, b.Ref(), int64(size))
+		rc.Close()
+	}
 }
 
 func (r *run) testRemove(blobRefs []blob.Ref) {

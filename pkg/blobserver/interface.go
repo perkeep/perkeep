@@ -57,6 +57,39 @@ type BlobReceiver interface {
 	ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error)
 }
 
+// BlobsReceiver is an optional interface for a BlobReceiver that can
+// receive several blobs together more cheaply than one at a time, such as
+// by writing them with one sync to disk. Callers should use
+// blobserver.ReceiveBlobs, not call ReceiveBlobs directly.
+type BlobsReceiver interface {
+	BlobReceiver
+
+	// ReceiveBlobs writes blobs to permanent storage. It returns nil if
+	// every blob was received, to the same standard as a successful
+	// ReceiveBlob. If it returns a *BlobsError (or an error wrapping
+	// one), the blobs it lists failed and the others were received. Any
+	// other error means the call failed as a whole, and no blob can be
+	// assumed received. A canceled ctx may leave some blobs received.
+	//
+	// The blobs are independent, not a transaction: some may be received
+	// while others fail, and they may be received in any order. A blob
+	// may also be received before ReceiveBlobs returns, but no blob may
+	// be visible to StatBlobs, EnumerateBlobs, or Fetch before it's
+	// durable.
+	//
+	// Work that fetches other blobs because of a received one (such as
+	// packing a file, or indexing a schema blob's dependencies) must not
+	// need a blob from the same call before that blob is durable.
+	//
+	// As with ReceiveBlob, implementations can trust that each blob's
+	// contents match its ref and are at most MaxBlobSize, and blobs has
+	// no duplicate refs. Implementations may split blobs into smaller
+	// groups. They may keep reading the blobs after returning (as replica
+	// does, for slower replicas), but never modify them. Receiving one
+	// blob must be equivalent to ReceiveBlob.
+	ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error
+}
+
 // BlobStatter is the interface for checking the size and existence of blobs.
 type BlobStatter interface {
 	// Stat checks for the existence of blobs, calling fn in
