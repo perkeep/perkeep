@@ -131,7 +131,7 @@ func (s *storage) decryptBlob(plaintext, ciphertext *bytes.Buffer) error {
 }
 
 func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	return blobserver.ErrNotImplemented // TODO
+	return fmt.Errorf("encrypt: RemoveBlobs: %w", errors.ErrUnsupported) // TODO
 }
 
 var statGate = syncutil.NewGate(20) // arbitrary

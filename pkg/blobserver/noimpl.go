@@ -19,14 +19,16 @@ package blobserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
 	"perkeep.org/pkg/blob"
 )
 
-// NoImplStorage is an implementation of Storage that returns a not
-// implemented error for all operations.
+// NoImplStorage is an implementation of Storage that returns an error
+// matching errors.ErrUnsupported for all operations but Fetch, which
+// finds no blobs.
 type NoImplStorage struct{}
 
 var _ Storage = NoImplStorage{}
@@ -36,19 +38,19 @@ func (NoImplStorage) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size 
 }
 
 func (NoImplStorage) ReceiveBlob(context.Context, blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
-	err = errors.New("ReceiveBlob not implemented")
+	err = fmt.Errorf("ReceiveBlob: %w", errors.ErrUnsupported)
 	return
 }
 
 func (NoImplStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
-	return errors.New("Stat not implemented")
+	return fmt.Errorf("StatBlobs: %w", errors.ErrUnsupported)
 }
 
 func (NoImplStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	close(dest)
-	return errors.New("EnumerateBlobs not implemented")
+	return fmt.Errorf("EnumerateBlobs: %w", errors.ErrUnsupported)
 }
 
 func (NoImplStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	return errors.New("Remove not implemented")
+	return fmt.Errorf("RemoveBlobs: %w", errors.ErrUnsupported)
 }

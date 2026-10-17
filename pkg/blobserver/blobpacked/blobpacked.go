@@ -1089,7 +1089,7 @@ func (s *storage) StorageGeneration() (initTime time.Time, random string, err er
 	sgen, sok := s.small.(blobserver.Generationer)
 	lgen, lok := s.large.(blobserver.Generationer)
 	if !sok || !lok {
-		return time.Time{}, "", blobserver.GenerationNotSupportedError("underlying storage engines don't support Generationer")
+		return time.Time{}, "", fmt.Errorf("blobpacked: underlying storage engines don't support Generationer: %w", errors.ErrUnsupported)
 	}
 	st, srand, err := sgen.StorageGeneration()
 	if err != nil {

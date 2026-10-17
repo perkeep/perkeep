@@ -30,12 +30,14 @@ import (
 // MaxBlobSize is the size of a single blob in Perkeep.
 const MaxBlobSize = constants.MaxBlobSize
 
-var (
-	ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
-
-	// ErrNotImplemented should be returned in methods where the function is not implemented
-	ErrNotImplemented = errors.New("not implemented")
-)
+// ErrCorruptBlob is the error for a blob whose contents don't match its
+// ref.
+//
+// For an operation a storage doesn't support, such as an optional
+// interface's method that a wrapper implements but the storage it wraps
+// doesn't, storage returns an error matching errors.ErrUnsupported, with
+// context: fmt.Errorf("RemoveBlobs: %w", errors.ErrUnsupported).
+var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 
 // BlobReceiver is the interface for receiving blobs.
 type BlobReceiver interface {
@@ -163,7 +165,8 @@ type BlobRemover interface {
 	// RemoveBlobs removes 0 or more blobs. Removal of
 	// non-existent items isn't an error. Returns failure if any
 	// items existed but failed to be deleted.
-	// ErrNotImplemented may be returned for storage types not implementing removal.
+	// Storage types not implementing removal return an error matching
+	// errors.ErrUnsupported.
 	// If RemoveBlobs returns an error, it's possible that either
 	// none or only some of the blobs were deleted.
 	RemoveBlobs(ctx context.Context, blobs []blob.Ref) error
@@ -215,13 +218,6 @@ type WholeRefFetcher interface {
 	OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadCloser, wholeSize int64, err error)
 }
 
-// A GenerationNotSupportedError explains why a Storage
-// value implemented the Generationer interface but failed due
-// to a wrapped Storage value not implementing the interface.
-type GenerationNotSupportedError string
-
-func (s GenerationNotSupportedError) Error() string { return string(s) }
-
 /*
 Generationer is an optional interface and an optimization and paranoia
 facility for clients which can be implemented by Storage
@@ -240,8 +236,8 @@ type Generationer interface {
 	// and unique random string (or UUID).  Implementations
 	// should call ResetStorageGeneration on demand if no
 	// information is known.
-	// The error will be of type GenerationNotSupportedError if an underlying
-	// storage target doesn't support the Generationer interface.
+	// The error matches errors.ErrUnsupported if an underlying storage
+	// target doesn't support the Generationer interface.
 	StorageGeneration() (initTime time.Time, random string, err error)
 
 	// ResetGeneration deletes the information returned by Generation
