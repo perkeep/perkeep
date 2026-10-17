@@ -467,6 +467,27 @@ func TestFetchReadStats(t *testing.T) {
 	}
 }
 
+func TestReceiveWriteStats(t *testing.T) {
+	sto := newTempDiskpackedMemory(t)
+	s := sto.(*storage)
+	b := &test.Blob{Contents: "some blob contents"}
+	if _, err := blobserver.Receive(ctxbg, sto, b.BlobRef(), b.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	// Each blob's header and its contents are written.
+	fi, err := os.Stat(s.filename(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strconv.FormatInt(fi.Size(), 10)
+	if got := writeVar.Get(s.filename(0)).String(); got != want {
+		t.Errorf("per-file write bytes = %s; want %s", got, want)
+	}
+	if got := writeTotVar.Get(s.root).String(); got != want {
+		t.Errorf("total write bytes = %s; want %s", got, want)
+	}
+}
+
 // TestCloseWithActiveReader verifies that Close doesn't wait for
 // readers still holding a pack file, and that the file is closed
 // when the reader is.

@@ -727,13 +727,13 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) (err error) {
 
 	n2, err := io.Copy(s.writer, r)
 	s.size += n2
-	writeVar.Add(fn, int64(n))
-	writeTotVar.Add(s.root, int64(n))
+	writeVar.Add(fn, n2)
+	writeTotVar.Add(s.root, n2)
 	if err != nil {
 		return err
 	}
 	if n2 != int64(br.Size) {
-		return fmt.Errorf("diskpacked: written blob size %d didn't match size %d", n, br.Size)
+		return fmt.Errorf("diskpacked: written blob size %d didn't match size %d", n2, br.Size)
 	}
 	if err = s.writer.Sync(); err != nil {
 		return err
