@@ -241,6 +241,32 @@ func (c *Client) doStat(ctx context.Context, blobs []blob.Ref, wait time.Duratio
 	return nil
 }
 
+// check returns an error if h can't be right: a Size of 0 for a ref that
+// isn't of the empty blob (which most likely means Size isn't set), a Size
+// over MaxBlobSize, or no Contents.
+func (h *UploadHandle) check() error {
+	if !h.BlobRef.Valid() {
+		return errors.New("client: UploadHandle has no valid BlobRef")
+	}
+	if h.Size > constants.MaxBlobSize {
+		return fmt.Errorf("client: UploadHandle for %v has Size %d, over the max blob size of %d", h.BlobRef, h.Size, constants.MaxBlobSize)
+	}
+	if h.Size == 0 {
+		hash := h.BlobRef.Hash()
+		if hash == nil {
+			return fmt.Errorf("client: UploadHandle for %v has an unsupported hash", h.BlobRef)
+		}
+		if blob.RefFromHash(hash) != h.BlobRef {
+			return fmt.Errorf("client: UploadHandle for %v has Size 0, but that's not the empty blob; is Size unset?", h.BlobRef)
+		}
+		return nil
+	}
+	if h.Contents == nil {
+		return fmt.Errorf("client: UploadHandle for %v has no Contents", h.BlobRef)
+	}
+	return nil
+}
+
 // contents returns a new reader of h's contents.
 func (h *UploadHandle) contents() io.Reader {
 	return io.NewSectionReader(h.Contents, 0, int64(h.Size))
@@ -252,6 +278,9 @@ func (h *UploadHandle) contents() io.Reader {
 // already have; to check many blobs, use one StatBlobs call for all of
 // them, and upload those it doesn't report.
 func (c *Client) UploadIfMissing(ctx context.Context, h *UploadHandle) (*PutResult, error) {
+	if err := h.check(); err != nil {
+		return nil, err
+	}
 	if !h.Vivify {
 		sb, err := blobserver.StatBlob(ctx, c, h.BlobRef)
 		if err == nil {
@@ -274,10 +303,10 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		return nil, err
 	}
 
-	bodySize := int64(h.Size)
-	if bodySize > constants.MaxBlobSize {
-		return nil, errors.New("client: body is bigger then max blob size")
+	if err := h.check(); err != nil {
+		return nil, err
 	}
+	bodySize := int64(h.Size)
 
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
