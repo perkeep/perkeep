@@ -44,6 +44,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -232,7 +233,7 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 	cacheCanSubFetch := false
 	if sf, ok := sto.cache.(blob.SubFetcher); ok {
 		rc, err := sf.SubFetch(ctx, ref, offset, length)
-		cacheCanSubFetch = !errors.Is(err, blob.ErrUnimplemented)
+		cacheCanSubFetch = !errors.Is(err, errors.ErrUnsupported)
 		if err == nil {
 			// Mark it as recently used. Unlike touch, don't add it if
 			// it's missing, as its size isn't known here.
@@ -241,7 +242,7 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 			sto.mu.Unlock()
 			return rc, nil
 		}
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, blob.ErrUnimplemented) {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, errors.ErrUnsupported) {
 			log.Printf("proxycache: error fetching from cache %T: %v", sto.cache, err)
 		}
 	}
@@ -274,7 +275,7 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 	if sf, ok := sto.origin.(blob.SubFetcher); ok {
 		return sf.SubFetch(ctx, ref, offset, length)
 	}
-	return nil, blob.ErrUnimplemented
+	return nil, fmt.Errorf("proxycache: origin %T can't SubFetch: %w", sto.origin, errors.ErrUnsupported)
 }
 
 // subFetchFromCache serves a SubFetch by fetching the whole blob from

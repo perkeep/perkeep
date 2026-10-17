@@ -25,7 +25,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -164,7 +163,7 @@ func (r *run) testRemove(blobRefs []blob.Ref) {
 	t, sto := r.t, r.sto
 	t.Logf("Testing Remove")
 	if err := sto.RemoveBlobs(ctx, blobRefs); err != nil {
-		if strings.Contains(err.Error(), "not implemented") {
+		if errors.Is(err, errors.ErrUnsupported) {
 			t.Logf("RemoveBlobs: %v", err)
 			return
 		}
@@ -202,7 +201,7 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range regions {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
-		if errors.Is(err, blob.ErrUnimplemented) {
+		if errors.Is(err, errors.ErrUnsupported) {
 			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
 			return
 		}
@@ -232,7 +231,7 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range invalids {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
-		if errors.Is(err, blob.ErrUnimplemented) {
+		if errors.Is(err, errors.ErrUnsupported) {
 			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
 			return
 		}

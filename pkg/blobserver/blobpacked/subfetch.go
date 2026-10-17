@@ -48,7 +48,7 @@ func (s *storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int
 	}
 	if sf, ok := s.small.(blob.SubFetcher); ok {
 		rc, err := sf.SubFetch(ctx, ref, offset, length)
-		if !errors.Is(err, blob.ErrUnimplemented) {
+		if !errors.Is(err, errors.ErrUnsupported) {
 			return rc, err
 		}
 	}

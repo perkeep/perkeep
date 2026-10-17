@@ -130,7 +130,7 @@ func (sto *overlayStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.
 // RemoveBlobs marks the given blobs as deleted, and removes them if they are in the upper layer.
 func (sto *overlayStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	if sto.deleted == nil {
-		return blobserver.ErrNotImplemented
+		return fmt.Errorf("overlay: RemoveBlobs without a deleted index: %w", errors.ErrUnsupported)
 	}
 
 	err := sto.upper.RemoveBlobs(ctx, blobs)
@@ -255,7 +255,7 @@ func (sto *overlayStorage) StorageGeneration() (initTime time.Time, random strin
 	if gener, ok := sto.upper.(blobserver.Generationer); ok {
 		return gener.StorageGeneration()
 	}
-	err = blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.upper))
+	err = fmt.Errorf("overlay: blobserver.Generationer not implemented on %T: %w", sto.upper, errors.ErrUnsupported)
 	return
 }
 
@@ -263,5 +263,5 @@ func (sto *overlayStorage) ResetStorageGeneration() error {
 	if gener, ok := sto.upper.(blobserver.Generationer); ok {
 		return gener.ResetStorageGeneration()
 	}
-	return blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.upper))
+	return fmt.Errorf("overlay: blobserver.Generationer not implemented on %T: %w", sto.upper, errors.ErrUnsupported)
 }

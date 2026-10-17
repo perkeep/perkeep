@@ -65,7 +65,7 @@ func (sto *condStorage) StorageGeneration() (initTime time.Time, random string, 
 	if gener, ok := sto.read.(blobserver.Generationer); ok {
 		return gener.StorageGeneration()
 	}
-	err = blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.read))
+	err = fmt.Errorf("cond: blobserver.Generationer not implemented on %T: %w", sto.read, errors.ErrUnsupported)
 	return
 }
 
@@ -73,7 +73,7 @@ func (sto *condStorage) ResetStorageGeneration() error {
 	if gener, ok := sto.read.(blobserver.Generationer); ok {
 		return gener.ResetStorageGeneration()
 	}
-	return blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.read))
+	return fmt.Errorf("cond: blobserver.Generationer not implemented on %T: %w", sto.read, errors.ErrUnsupported)
 }
 
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserver.Storage, err error) {
