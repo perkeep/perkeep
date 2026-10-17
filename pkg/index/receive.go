@@ -29,6 +29,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -282,13 +283,23 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 	ix.hasMissing.Delete(br)
 }
 
-func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
-	// Remember completions during the source read too. A replica may index a
-	// dependency before publishing its raw write; a later fetch can still miss it.
-	op := ix.beginIndexOp()
-	defer ix.endIndexOp(op)
+// A preparedBlob is a blob read and ready to commit to the index, or to
+// record as waiting for missing dependencies.
+type preparedBlob struct {
+	sbr  blob.SizedRef
+	skip bool // already indexed
 
-	// Do not hold ix.mu while reading from source (Issue 878).
+	// Either mm holds the blob's rows to commit, or missingErr says
+	// (errMissingDep) that missing, the blobs whose fetches failed, have
+	// to be indexed first.
+	mm         *mutationMap
+	missing    []blob.Ref
+	missingErr error
+}
+
+// prepareBlob reads blobRef's contents from source, and builds its rows,
+// fetching the blobs that takes. It doesn't hold ix.mu (Issue 878).
+func (ix *Index) prepareBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (preparedBlob, error) {
 	sniffer := NewBlobSniffer(blobRef)
 	buf := getSnifferBuffer()
 	sniffer.contents = (*buf)[:0]
@@ -297,9 +308,9 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	defer func() { putSnifferBuffer(buf, sniffer.contents) }()
 	written, err := copyWithBuffer(sniffer, source)
 	if err != nil {
-		return blob.SizedRef{}, err
+		return preparedBlob{}, err
 	}
-	sbr := blob.SizedRef{Ref: blobRef, Size: uint32(written)}
+	p := preparedBlob{sbr: blob.SizedRef{Ref: blobRef, Size: uint32(written)}}
 
 	// By default, return immediately if it looks like we already
 	// have indexed this blob before.  But if the user has
@@ -319,13 +330,14 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		if strings.HasSuffix(haveVal, "|indexed") {
 			if allowReindex, _ := strconv.ParseBool(os.Getenv("CAMLI_REDO_INDEX_ON_RECEIVE")); allowReindex {
 				if debugEnv {
-					ix.printf("index: reindexing %v", sbr)
+					ix.printf("index: reindexing %v", p.sbr)
 				}
 			} else {
 				if debugEnv {
-					ix.printf("index: ignoring upload of already-indexed %v", sbr)
+					ix.printf("index: ignoring upload of already-indexed %v", p.sbr)
 				}
-				return sbr, nil
+				p.skip = true
+				return p, nil
 			}
 		}
 	}
@@ -341,7 +353,37 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	if debugEnv {
 		ix.printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
 	}
-	// err is checked below
+	if err != nil {
+		if !errors.Is(err, errMissingDep) {
+			return preparedBlob{}, err
+		}
+		fetcher.mu.Lock()
+		defer fetcher.mu.Unlock()
+		if len(fetcher.missing) == 0 {
+			panic("errMissingDep happened, but no fetcher.missing recorded")
+		}
+		p.missing = slices.Clone(fetcher.missing)
+		p.missingErr = err
+		return p, nil
+	}
+	p.mm = mm
+	return p, nil
+}
+
+func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	// Remember completions during the source read too. A replica may index a
+	// dependency before publishing its raw write; a later fetch can still miss it.
+	op := ix.beginIndexOp()
+	defer ix.endIndexOp(op)
+
+	// Do not hold ix.mu while reading from source (Issue 878).
+	p, err := ix.prepareBlob(ctx, blobRef, source)
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
+	if p.skip {
+		return p.sbr, nil
+	}
 
 	// In a batched reindex, commit before taking ix.mu, rather than with
 	// it held: the reindex session serializes commits anyway, and
@@ -353,8 +395,8 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	// (see populateDeleteClaim). A blob indexed between this one's reads
 	// and its bookkeeping is caught by op.indexed, as before.
 	committed := false
-	if _, ok := ix.s.(sorted.ReindexSession); ok && err == nil {
-		if cerr := ix.commit(mm); cerr != nil {
+	if _, ok := ix.s.(sorted.ReindexSession); ok && p.mm != nil {
+		if cerr := ix.commit(p.mm); cerr != nil {
 			return blob.SizedRef{}, cerr
 		}
 		committed = true
@@ -363,48 +405,24 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	ix.Lock()
 	defer ix.Unlock()
 
-	if err != nil {
-		if !errors.Is(err, errMissingDep) {
-			return blob.SizedRef{}, err
-		}
-		fetcher.mu.Lock()
-		defer fetcher.mu.Unlock()
-		if len(fetcher.missing) == 0 {
-			panic("errMissingDep happened, but no fetcher.missing recorded")
-		}
-		if noteErr := ix.noteDepsLocked(op, blobRef, fetcher.missing); noteErr != nil {
-			return blob.SizedRef{}, fmt.Errorf("%w; and recording its missing dependencies failed: %w", err, noteErr)
+	if p.missing != nil {
+		if noteErr := ix.noteDepsLocked(op, blobRef, p.missing); noteErr != nil {
+			return blob.SizedRef{}, fmt.Errorf("%w; and recording its missing dependencies failed: %w", p.missingErr, noteErr)
 		}
 		// Lie and say things are good. We've successfully
 		// recorded that the blob isn't indexed, but we'll
 		// reindex it later once the dependent blobs arrive.
-		return sbr, nil
+		return p.sbr, nil
 	}
 
 	if !committed {
-		if err := ix.commit(mm); err != nil {
+		if err := ix.commit(p.mm); err != nil {
 			return blob.SizedRef{}, err
 		}
 	}
-
-	if c := ix.corpus; c != nil {
-		if err := c.addBlob(ctx, blobRef, mm); err != nil {
-			return blob.SizedRef{}, err
-		}
+	if err := ix.finishLocked(ctx, op, blobRef, p.mm); err != nil {
+		return blob.SizedRef{}, err
 	}
-
-	if len(mm.deps) > 0 {
-		// Partially indexed; mm says so in its "have:" row. As above,
-		// we'll reindex it once its dependencies are indexed.
-		if err := ix.noteDepsLocked(op, blobRef, mm.deps); err != nil {
-			return blob.SizedRef{}, err
-		}
-		return sbr, nil
-	}
-
-	ix.noteBlobIndexedLocked(blobRef)
-
-	ix.removeAllMissingEdges(blobRef)
 
 	// TODO(bradfitz): log levels? These are generally noisy
 	// (especially in tests, like search/handler_test), but I
@@ -413,29 +431,149 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	// mimeType := sniffer.MIMEType()
 	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
-	return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
+	return p.sbr, nil
 }
 
-// commit writes the contents of the mutationMap on a batch
-// mutation and commits that batch. It also updates the deletes
+// finishLocked does the bookkeeping once br's rows, mm, are committed:
+// adding it to the corpus, and then either recording the blobs it still
+// depends on, or recording that it's indexed, waking the blobs waiting
+// for it.
+//
+// ix.mu must be held.
+func (ix *Index) finishLocked(ctx context.Context, op *indexOp, br blob.Ref, mm *mutationMap) error {
+	if c := ix.corpus; c != nil {
+		if err := c.addBlob(ctx, br, mm); err != nil {
+			return err
+		}
+	}
+	if len(mm.deps) > 0 {
+		// Partially indexed; mm says so in its "have:" row. As above,
+		// we'll reindex it once its dependencies are indexed.
+		return ix.noteDepsLocked(op, br, mm.deps)
+	}
+	ix.noteBlobIndexedLocked(br)
+	ix.removeAllMissingEdges(br)
+	return nil
+}
+
+// prepareConcurrency is how many blobs ReceiveBlobs prepares at once.
+// Preparing a blob can mean reading others, such as a file schema blob's
+// parts.
+const prepareConcurrency = 8
+
+// ReceiveBlobs implements blobserver.BlobsReceiver. It indexes each blob
+// as ReceiveBlob does, but commits all their rows together, sharing one
+// sync to disk.
+//
+// Blobs that depend on others in the same call can't see their rows
+// when they're prepared, so they're recorded as waiting for them, and
+// indexed again (by indexReadyBlobs) once the call has indexed those.
+func (ix *Index) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "index"}
+	if _, ok := ix.s.(sorted.ReindexSession); ok {
+		// A batched reindex commits differently; see ReceiveBlob.
+		for _, b := range blobs {
+			r, err := b.ReadAll(ctx)
+			if err == nil {
+				_, err = ix.ReceiveBlob(ctx, b.Ref(), r)
+			}
+			be.Add(b.Ref(), err)
+		}
+		return be.OrNil()
+	}
+
+	op := ix.beginIndexOp()
+	defer ix.endIndexOp(op)
+
+	preps := make([]preparedBlob, len(blobs))
+	errs := make([]error, len(blobs))
+	work := make(chan int)
+	var wg sync.WaitGroup
+	for range min(len(blobs), prepareConcurrency) {
+		wg.Go(func() {
+			for i := range work {
+				r, err := blobs[i].ReadAll(ctx)
+				if err == nil {
+					preps[i], err = ix.prepareBlob(ctx, blobs[i].Ref(), r)
+				}
+				errs[i] = err
+			}
+		})
+	}
+	for i := range blobs {
+		work <- i
+	}
+	close(work)
+	wg.Wait()
+
+	var mms []*mutationMap
+	for i, p := range preps {
+		be.Add(blobs[i].Ref(), errs[i])
+		if errs[i] == nil && !p.skip && p.mm != nil {
+			mms = append(mms, p.mm)
+		}
+	}
+
+	ix.Lock()
+	defer ix.Unlock()
+	if err := ix.commitAll(mms); err != nil {
+		for i, p := range preps {
+			if errs[i] == nil && !p.skip && p.mm != nil {
+				be.Add(p.sbr.Ref, err)
+			}
+		}
+	} else {
+		// Finish the fully indexed blobs first, so that blobs in this
+		// call depending on them, finished next, see them in op.indexed.
+		for _, fully := range []bool{true, false} {
+			for i, p := range preps {
+				if errs[i] == nil && !p.skip && p.mm != nil && (len(p.mm.deps) == 0) == fully {
+					be.Add(p.sbr.Ref, ix.finishLocked(ctx, op, p.sbr.Ref, p.mm))
+				}
+			}
+		}
+	}
+	for i, p := range preps {
+		if errs[i] == nil && p.missing != nil {
+			if err := ix.noteDepsLocked(op, p.sbr.Ref, p.missing); err != nil {
+				be.Add(p.sbr.Ref, fmt.Errorf("%w; and recording its missing dependencies failed: %w", p.missingErr, err))
+			}
+		}
+	}
+	return be.OrNil()
+}
+
+// commit writes the rows in mm to the index, and updates the deletes
 // cache.
 func (ix *Index) commit(mm *mutationMap) error {
+	return ix.commitAll([]*mutationMap{mm})
+}
+
+// commitAll writes the rows in mms to the index in one batch, and then
+// updates the deletes cache for them, in order.
+func (ix *Index) commitAll(mms []*mutationMap) error {
+	if len(mms) == 0 {
+		return nil
+	}
 	// We want the update of the deletes cache to be atomic
 	// with the transaction commit, so we lock here instead
 	// of within updateDeletesCache.
 	ix.deletes.Lock()
 	defer ix.deletes.Unlock()
 	bm := ix.s.BeginBatch()
-	for k, v := range mm.kv {
-		bm.Set(k, v)
+	for _, mm := range mms {
+		for k, v := range mm.kv {
+			bm.Set(k, v)
+		}
 	}
-	err := ix.s.CommitBatch(bm)
-	if err != nil {
+	if err := ix.s.CommitBatch(bm); err != nil {
 		return err
 	}
-	for _, cl := range mm.deletes {
-		if err := ix.updateDeletesCache(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
+	for _, mm := range mms {
+		for _, cl := range mm.deletes {
+			if err := ix.updateDeletesCache(cl); err != nil {
+				return fmt.Errorf("Could not update the deletes cache after deletion from %v: %w", cl, err)
+			}
 		}
 	}
 	return nil
