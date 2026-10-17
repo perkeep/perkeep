@@ -158,6 +158,9 @@ func TestShardedCancelPausesPass(t *testing.T) {
 		if cs.State != StateCanceled || !cs.Paused || cs.PassSince.IsZero() {
 			t.Errorf("after Cancel, check = %v, paused %v, pass since %v; want canceled and paused", cs.State, cs.Paused, cs.PassSince)
 		}
+		if cs.Done != 1 || cs.Total != 3 {
+			t.Errorf("after Cancel, progress = %d / %d; want the paused pass's, 1 / 3", cs.Done, cs.Total)
+		}
 		if got := l.take(); !slices.Equal(got, []string{"a"}) {
 			t.Errorf("before Cancel, checked %q; want [a]", got)
 		}
@@ -188,6 +191,9 @@ func TestShardedCancelPausesPass(t *testing.T) {
 		synctest.Wait()
 		if got := l.take(); !slices.Equal(got, []string{"b", "c"}) {
 			t.Errorf("Resume checked %q; want [b c]", got)
+		}
+		if cs := m.Status().Checks[0]; cs.ProgressFrom != 1 || cs.Done != 3 {
+			t.Errorf("after Resume, progress = from %d to %d; want from the paused pass's 1, to 3", cs.ProgressFrom, cs.Done)
 		}
 		if err := m.Resume("test.sharded[x]"); err == nil {
 			t.Errorf("Resume with no pass to resume succeeded")
