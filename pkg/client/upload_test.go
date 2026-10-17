@@ -116,6 +116,45 @@ func TestUploadReaderAt(t *testing.T) {
 	}
 }
 
+// TestUploadHandleCheck checks that Upload accepts a Size of 0 only for
+// the empty blob, of any hash type, and rejects other handles that can't
+// be right before doing anything.
+func TestUploadHandleCheck(t *testing.T) {
+	ctx := context.Background()
+	c, sto := newStorageClient(t)
+	for _, alg := range []string{"sha1", "sha224", "sha256"} {
+		h, err := blob.NewHashOfType(alg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		empty := blob.RefFromHash(h)
+		if _, err := c.Upload(ctx, &UploadHandle{BlobRef: empty}); err != nil {
+			t.Errorf("Upload of empty %s blob %v: %v", alg, empty, err)
+		}
+	}
+	foo := &test.Blob{Contents: "foo"}
+	for _, tt := range []struct {
+		name string
+		h    *UploadHandle
+		want string
+	}{
+		{"unset Size", &UploadHandle{BlobRef: foo.BlobRef(), Contents: strings.NewReader("foo")}, "is Size unset?"},
+		{"no Contents", &UploadHandle{BlobRef: foo.BlobRef(), Size: foo.Size()}, "no Contents"},
+		{"too big", &UploadHandle{BlobRef: foo.BlobRef(), Size: constants.MaxBlobSize + 1, Contents: strings.NewReader("foo")}, "over the max blob size"},
+		{"no BlobRef", &UploadHandle{Size: foo.Size(), Contents: strings.NewReader("foo")}, "no valid BlobRef"},
+	} {
+		receives := sto.receives
+		for _, upload := range []func(context.Context, *UploadHandle) (*PutResult, error){c.Upload, c.UploadIfMissing} {
+			if _, err := upload(ctx, tt.h); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("%s: error = %v; want one containing %q", tt.name, err, tt.want)
+			}
+		}
+		if sto.receives != receives {
+			t.Errorf("%s: blob was received", tt.name)
+		}
+	}
+}
+
 func TestNewUploadHandleFromReader(t *testing.T) {
 	tb := &test.Blob{Contents: "foo"}
 	h, err := NewUploadHandleFromReader(tb.BlobRef(), tb.Reader())
