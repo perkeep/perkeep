@@ -180,6 +180,36 @@ func TestReceiveBlobsHookError(t *testing.T) {
 	}
 }
 
+// TestReceiveBlobsUnchecked checks that ReceiveBlobsUnchecked passes blobs
+// on as they are, duplicates included, without notifying the blob hub.
+func TestReceiveBlobsUnchecked(t *testing.T) {
+	a, b := (&test.Blob{Contents: "a"}).Blob(), (&test.Blob{Contents: "b"}).Blob()
+	blobs := []*blob.Blob{a, b, a}
+	for _, batch := range []bool{false, true} {
+		t.Run(fmt.Sprintf("BlobsReceiver=%v", batch), func(t *testing.T) {
+			fetcher := new(test.Fetcher)
+			var dst blobserver.BlobReceiver = fetcher
+			bs := &blobsStore{Fetcher: fetcher}
+			if batch {
+				dst = bs
+			}
+			notified := receivedHook(dst)
+			if err := blobserver.ReceiveBlobsUnchecked(ctxbg, dst, blobs); err != nil {
+				t.Fatal(err)
+			}
+			if fetcher.NumBlobs() != 2 {
+				t.Errorf("stored %d blobs; want 2", fetcher.NumBlobs())
+			}
+			if want := [][]blob.Ref{{a.Ref(), b.Ref(), a.Ref()}}; batch && !slices.EqualFunc(bs.calls, want, slices.Equal) {
+				t.Errorf("ReceiveBlobs calls = %v; want %v", bs.calls, want)
+			}
+			if got := notified(); len(got) != 0 {
+				t.Errorf("hub notified of %v; want nothing", got)
+			}
+		})
+	}
+}
+
 // blobsStore is a BlobsReceiver that records its ReceiveBlobs calls,
 // stores the blobs in a test.Fetcher, and then returns result's error.
 type blobsStore struct {
