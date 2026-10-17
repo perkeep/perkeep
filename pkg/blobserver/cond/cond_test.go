@@ -18,6 +18,7 @@ package cond
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -96,5 +97,55 @@ func TestReceiveIsSchema(t *testing.T) {
 	}
 	if _, err := blobserver.StatBlob(ctxbg, osto, osb.Ref); err != nil {
 		t.Errorf("other blob didn't end up on other storage")
+	}
+}
+
+// TestReceiveBlobsIsSchema checks that ReceiveBlobs sends each blob to
+// the storage ReceiveBlob would, in one call per storage, and notifies
+// each storage's blob hub of its blobs, as sync handlers watching those
+// storages rely on.
+func TestReceiveBlobsIsSchema(t *testing.T) {
+	ld := test.NewLoader()
+	sto := newCond(t, ld, map[string]any{
+		"write": map[string]any{
+			"if":   "isSchema",
+			"then": "/good-schema/",
+			"else": "/good-other/",
+		},
+		"read": "/good-other/",
+	})
+	ssto, _ := ld.GetStorage("/good-schema/")
+	osto, _ := ld.GetStorage("/good-other/")
+	var mu sync.Mutex // the storages are received into in parallel
+	notified := map[blobserver.Storage][]blob.Ref{}
+	for _, s := range []blobserver.Storage{ssto, osto} {
+		blobserver.GetHub(s).AddReceiveHook(func(sb blob.SizedRef) error {
+			mu.Lock()
+			defer mu.Unlock()
+			notified[s] = append(notified[s], sb.Ref)
+			return nil
+		})
+	}
+
+	other1, other2 := &test.Blob{Contents: "stuff"}, &test.Blob{Contents: "more stuff"}
+	schemaBlob := &test.Blob{Contents: `{"camliVersion": 1, "camliType": "foo"}`}
+	if err := blobserver.ReceiveBlobs(ctxbg, sto, []*blob.Blob{other1.Blob(), schemaBlob.Blob(), other2.Blob()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		sto  blobserver.Storage
+		want []*test.Blob
+	}{
+		{ssto, []*test.Blob{schemaBlob}},
+		{osto, []*test.Blob{other1, other2}},
+	} {
+		for _, tb := range tt.want {
+			if _, err := blobserver.StatBlob(ctxbg, tt.sto, tb.BlobRef()); err != nil {
+				t.Errorf("%v isn't on the storage it belongs on: %v", tb.BlobRef(), err)
+			}
+		}
+		if len(notified[tt.sto]) != len(tt.want) {
+			t.Errorf("storage hub notified of %v; want %d blobs", notified[tt.sto], len(tt.want))
+		}
 	}
 }

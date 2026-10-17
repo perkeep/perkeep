@@ -210,6 +210,37 @@ func TestReceiveBlobsUnchecked(t *testing.T) {
 	}
 }
 
+// refRecorder is a BlobsReceiver that only records the refs it's given.
+type refRecorder struct {
+	blobserver.NoImplStorage
+	got []blob.Ref
+}
+
+func (r *refRecorder) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
+	for _, b := range blobs {
+		r.got = append(r.got, b.Ref())
+	}
+	return nil
+}
+
+// TestReceiveBlobsNoHash checks that ReceiveBlobsNoHash passes blobs on
+// without checking their contents, and notifies the blob hub.
+func TestReceiveBlobsNoHash(t *testing.T) {
+	dst := new(refRecorder)
+	notified := receivedHook(dst)
+	good, bad := (&test.Blob{Contents: "good"}).Blob(), corruptBlob("bad")
+	if err := blobserver.ReceiveBlobsNoHash(ctxbg, dst, []*blob.Blob{good, bad, good}); err != nil {
+		t.Fatal(err)
+	}
+	want := []blob.Ref{good.Ref(), bad.Ref()} // duplicates still merged
+	if !slices.Equal(dst.got, want) {
+		t.Errorf("dst got %v; want %v", dst.got, want)
+	}
+	if got := notified(); !maps.Equal(refSet(got), refSet(want)) {
+		t.Errorf("hub notified of %v; want %v", got, want)
+	}
+}
+
 // blobsStore is a BlobsReceiver that records its ReceiveBlobs calls,
 // stores the blobs in a test.Fetcher, and then returns result's error.
 type blobsStore struct {
