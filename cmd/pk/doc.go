@@ -32,6 +32,7 @@ Modes:
 	dumpconfig: Dump the low-level server config from its simple config.
 	copy-storage: Copy blobs between storage defined by server configs.
 	describe: Ask the search system to describe one or more blobs.
+	ls-tree: Recursively list a directory, given its blobref or a permanode whose camliContent is one.
 	discovery: Perform configuration discovery against a server.
 	reindex-diskpacked: Rebuild the index of the diskpacked blob store
 	index: Synchronize blobs for all discovered blobs storage - indexer pairs.
