@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/types/camtypes"
 )
 
@@ -29,20 +30,28 @@ func TestFitnessMapDiscovery(t *testing.T) {
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION", "")
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", "")
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
+	owner := blob.RefFromString("synthetic signing public key")
 	discovery := new(camtypes.UIDiscovery)
-	addFitnessMapDiscovery(discovery)
+	addFitnessMapDiscovery(discovery, owner)
 	if discovery.FitnessMapEnabled || discovery.FitnessMapProfile != "" {
 		t.Fatal("disabled basemap advertised as enabled")
 	}
 
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
-	addFitnessMapDiscovery(discovery)
+	addFitnessMapDiscovery(discovery, owner)
 	if !discovery.FitnessMapEnabled || discovery.FitnessMapProfile == "" {
 		t.Fatal("default basemap missing from discovery")
 	}
+	source, err := fitnessTileSourceFromEnv(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discovery.FitnessMapProfile != fitnessMapProfile(source) {
+		t.Fatal("discovery does not use the thumbnail operator's cache profile")
+	}
 	profile := discovery.FitnessMapProfile
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", fitnessTileDefaultURL)
-	addFitnessMapDiscovery(discovery)
+	addFitnessMapDiscovery(discovery, owner)
 	if discovery.FitnessMapProfile != profile {
 		t.Fatal("implicit and explicit defaults have different cache profiles")
 	}
@@ -50,7 +59,7 @@ func TestFitnessMapDiscovery(t *testing.T) {
 	// A non-routable synthetic origin verifies that discovery is local-only.
 	template := "https://maps.invalid/{z}/{x}/{y}.png?key=private-test-key"
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", template)
-	addFitnessMapDiscovery(discovery)
+	addFitnessMapDiscovery(discovery, owner)
 	if !discovery.FitnessMapEnabled || discovery.FitnessMapProfile == "" {
 		t.Fatal("configured basemap missing from discovery")
 	}
@@ -69,14 +78,14 @@ func TestFitnessMapDiscovery(t *testing.T) {
 
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION", "Map data: OpenStreetMap; style: Example")
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", "https://example.invalid/licence")
-	addFitnessMapDiscovery(discovery)
+	addFitnessMapDiscovery(discovery, owner)
 	if discovery.FitnessMapProfile == profile || discovery.FitnessMapAttributionURL != "https://example.invalid/licence" {
 		t.Fatal("provider credit did not update discovery/cache profile")
 	}
 
 	for _, unsafe := range []string{"javascript:alert(1)", "https://user:secret@example.invalid/", "//example.invalid/"} {
 		t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", unsafe)
-		addFitnessMapDiscovery(discovery)
+		addFitnessMapDiscovery(discovery, owner)
 		if discovery.FitnessMapAttributionURL != "https://www.openstreetmap.org/copyright" {
 			t.Fatal("unsafe attribution link advertised")
 		}

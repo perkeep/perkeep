@@ -37,11 +37,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"perkeep.org/pkg/blob"
 )
 
 const (
-	fitnessTileDefaultURL    = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-	fitnessTileUserAgent     = "Perkeep/fitness-thumbnails (+https://perkeep.org/)"
+	fitnessTileDefaultURL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
 	fitnessTileMaxBytes      = 1 << 20
 	fitnessThumbnailMaxBytes = 20 << 20
 	fitnessTileMetaMaxBytes  = 32 << 10
@@ -96,13 +98,14 @@ var fitnessTileSources = struct {
 
 // The limiter is shared by all providers/profiles in this application process.
 // It does not run any background jobs and never reserves future request bursts.
-var fitnessTilesLimiter = &fitnessTileLimiter{slots: make(chan struct{}, 2), interval: time.Second}
+var fitnessTilesLimiter = &fitnessTileLimiter{slots: make(chan struct{}, 16)}
+
+var fitnessTileUserAgent = fitnessDefaultTileUserAgent("", blob.Ref{})
 
 type fitnessTileLimiter struct {
-	mu             sync.Mutex
-	slots          chan struct{}
-	interval       time.Duration
-	last, cooldown time.Time
+	mu       sync.Mutex
+	slots    chan struct{}
+	cooldown time.Time
 }
 
 func (l *fitnessTileLimiter) acquire(ctx context.Context) (func(), error) {
@@ -112,34 +115,20 @@ func (l *fitnessTileLimiter) acquire(ctx context.Context) (func(), error) {
 		return nil, ctx.Err()
 	}
 	release := func() { <-l.slots }
-	for {
-		if err := ctx.Err(); err != nil {
-			release()
-			return nil, err
-		}
-		l.mu.Lock()
-		now := time.Now()
-		if now.Before(l.cooldown) {
-			l.mu.Unlock()
-			release()
-			return nil, errFitnessTileCooldown
-		}
-		wait := l.last.Add(l.interval).Sub(now)
-		if wait <= 0 {
-			l.last = now
-			l.mu.Unlock()
-			return release, nil
-		}
-		l.mu.Unlock()
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			release()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
+	if err := ctx.Err(); err != nil {
+		release()
+		return nil, err
 	}
+	// Check after acquiring a slot too: a queued request must observe a
+	// Retry-After received while all slots were occupied.
+	l.mu.Lock()
+	coolingDown := time.Now().Before(l.cooldown)
+	l.mu.Unlock()
+	if coolingDown {
+		release()
+		return nil, errFitnessTileCooldown
+	}
+	return release, nil
 }
 
 func (l *fitnessTileLimiter) backoff(retryAfter string) {
@@ -163,7 +152,7 @@ func (l *fitnessTileLimiter) backoff(retryAfter string) {
 
 // OpenStreetMap is the default; "off" disables tiles. Construction only touches
 // the private filesystem: importing tracks and indexing do not fetch maps.
-func fitnessTileSourceFromEnv() (*fitnessTileSource, error) {
+func fitnessTileSourceFromEnv(owner blob.Ref) (*fitnessTileSource, error) {
 	template := os.Getenv("PERKEEP_FITNESS_TILE_URL")
 	switch template {
 	case "":
@@ -181,7 +170,7 @@ func fitnessTileSourceFromEnv() (*fitnessTileSource, error) {
 	}
 	ua := os.Getenv("PERKEEP_FITNESS_TILE_USER_AGENT")
 	if ua == "" {
-		ua = fitnessTileUserAgent
+		ua = fitnessDefaultTileUserAgent(template, owner)
 	}
 	key := fitnessTileHash(template + "\x00" + dir + "\x00" + ua)
 	fitnessTileSources.Lock()
