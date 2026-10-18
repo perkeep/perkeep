@@ -43,8 +43,8 @@ import (
 	"time"
 )
 
-// Every constructor in these tests uses a private temporary directory and fake
-// client/local httptest server. No tests use an owner's cache or public tiles.
+// Tests use private temporary directories and fake transports/local httptest
+// servers for requests, never an owner's cache or public tiles.
 type fitnessTileTestTransport func(*http.Request) (*http.Response, error)
 
 func (f fitnessTileTestTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -100,8 +100,46 @@ func fitnessTileTestSymlink(t *testing.T, target, path string) {
 	}
 }
 
+func TestFitnessTileEnvironment(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
+	t.Setenv("PERKEEP_FITNESS_TILE_USER_AGENT", "")
+	var defaultSource *fitnessTileSource
+	for _, tc := range []struct {
+		name, value, want string
+		unset             bool
+	}{
+		{name: "unset", want: fitnessTileDefaultURL, unset: true},
+		{name: "empty", want: fitnessTileDefaultURL},
+		{name: "explicit_default", value: fitnessTileDefaultURL, want: fitnessTileDefaultURL},
+		{name: "custom", value: "https://tiles.invalid/{z}/{x}/{y}.png", want: "https://tiles.invalid/{z}/{x}/{y}.png"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PERKEEP_FITNESS_TILE_URL", tc.value)
+			if tc.unset {
+				if err := os.Unsetenv("PERKEEP_FITNESS_TILE_URL"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			source, err := fitnessTileSourceFromEnv()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if source == nil || source.template != tc.want {
+				t.Fatalf("source = %v, want template %q", source, tc.want)
+			}
+			if tc.want == fitnessTileDefaultURL {
+				if defaultSource == nil {
+					defaultSource = source
+				} else if source != defaultSource {
+					t.Fatal("implicit and explicit defaults did not reuse the same cache source")
+				}
+			}
+		})
+	}
+}
+
 func TestFitnessTileDisabledAndTemplate(t *testing.T) {
-	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", filepath.Join(t.TempDir(), "must-not-create"))
 	if s, err := fitnessTileSourceFromEnv(); s != nil || err != nil {
 		t.Fatalf("disabled = %v, %v", s, err)

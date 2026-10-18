@@ -113,8 +113,10 @@ unclassified source timer into moving or elapsed duration: for example,
 Runkeeper's exported `Duration` can differ from the GPX timestamp span. Display
 units do not change the SI values stored in claims.
 
-The default preview is route-only. An administrator can explicitly enable an
-OSM-derived raster basemap with `PERKEEP_FITNESS_TILE_URL`, for example:
+Previews use an OpenStreetMap raster basemap by default, without an API key.
+Unset or empty `PERKEEP_FITNESS_TILE_URL` uses the default endpoint below.
+Administrators can select a custom tile URL template or set
+`PERKEEP_FITNESS_TILE_URL=off` for route-only previews:
 
 ```
 PERKEEP_FITNESS_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
@@ -133,6 +135,12 @@ from the archived blob store. Upstream HTTP cache directives and validators are
 honoured; absent freshness headers default to at least seven days. Composite
 PNG previews expire no later than their source tiles. Provider failures show
 the route-only preview without permanently caching that fallback.
+
+After upgrading and reloading the UI, formerly route-only thumbnails are
+generated with basemaps on demand, using a separate map cache and browser
+cache profile. No cache deletion or bulk rebuild is needed. Existing fresh
+OSM tiles and map thumbnails remain reusable when switching from an explicit
+default URL to the implicit default.
 
 Visible licence attribution accompanies map previews. The default credit is
 `© OpenStreetMap contributors`, linked to their copyright information; custom

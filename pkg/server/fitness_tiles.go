@@ -40,6 +40,7 @@ import (
 )
 
 const (
+	fitnessTileDefaultURL    = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 	fitnessTileUserAgent     = "Perkeep/fitness-thumbnails (+https://perkeep.org/)"
 	fitnessTileMaxBytes      = 1 << 20
 	fitnessThumbnailMaxBytes = 20 << 20
@@ -160,11 +161,14 @@ func (l *fitnessTileLimiter) backoff(retryAfter string) {
 	l.mu.Unlock()
 }
 
-// Empty configuration is deliberately disabled. Construction only touches the
-// private filesystem: importing tracks, indexing and Go tests do not fetch maps.
+// OpenStreetMap is the default; "off" disables tiles. Construction only touches
+// the private filesystem: importing tracks and indexing do not fetch maps.
 func fitnessTileSourceFromEnv() (*fitnessTileSource, error) {
 	template := os.Getenv("PERKEEP_FITNESS_TILE_URL")
-	if template == "" {
+	switch template {
+	case "":
+		template = fitnessTileDefaultURL
+	case "off":
 		return nil, nil
 	}
 	dir := os.Getenv("PERKEEP_FITNESS_TILE_CACHE_DIR")
@@ -244,7 +248,7 @@ func fitnessTileTemplateValid(template string) bool {
 		return false
 	}
 	// The public OSM service specifically requires its canonical HTTPS URL.
-	if strings.EqualFold(u.Hostname(), "tile.openstreetmap.org") && template != "https://tile.openstreetmap.org/{z}/{x}/{y}.png" {
+	if strings.EqualFold(u.Hostname(), "tile.openstreetmap.org") && template != fitnessTileDefaultURL {
 		return false
 	}
 	return true

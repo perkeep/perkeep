@@ -105,7 +105,7 @@ func (ih *ImageHandler) serveFitnessThumbnail(rw http.ResponseWriter, req *http.
 	// Deliberately do not read fitnessTrack or fitnessActivityType from the URL.
 	track := dp.Attr.Get(nodeattr.FitnessTrack)
 	sport := fitnessSport(dp.Attr.Get(nodeattr.FitnessActivityType))
-	// Maps are strictly opt-in, and have a separate, expiring filesystem cache.
+	// Maps have a separate, expiring filesystem cache.
 	// In particular, never let the legacy input-key ETag or permanent ThumbMeta
 	// cache hide a changed upstream map after its tile freshness expires.
 	source, sourceErr := fitnessTileSourceFromEnv()

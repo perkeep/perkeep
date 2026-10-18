@@ -232,6 +232,7 @@ func fitnessRequest(ih *ImageHandler, dp *search.DescribedPermanode, method, que
 }
 
 func TestFitnessHTTPAndCache(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	ih, dp, fetcher := fitnessTestHandler(t, fitnessTestGPX)
 	first := fitnessRequest(ih, dp, "GET", "?fitnessTrack=http://127.0.0.1/private&fitnessActivityType=ride&ftv=999", "")
 	if first.Code != 200 || first.Header().Get("Content-Type") != "image/png" {
@@ -294,6 +295,7 @@ func TestFitnessHTTPAndCache(t *testing.T) {
 }
 
 func TestFitnessMalformedHTTPSanitized(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	ih, dp, _ := fitnessTestHandler(t, `<gpx><trk><SECRET_PRIVATE_COORDINATES`)
 	rec := fitnessRequest(ih, dp, "GET", "", "")
 	if rec.Code != 422 || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" || strings.Contains(rec.Body.String(), "SECRET") || rec.Header().Get("ETag") != "" || rec.Header().Get("Cache-Control") != "private, no-store" {
@@ -339,6 +341,7 @@ func (n fitnessNoNetwork) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 func TestFitnessImageHandlerIntegrationNoNetwork(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	var calls atomic.Int64
 	old := http.DefaultTransport
 	http.DefaultTransport = fitnessNoNetwork{&calls}
@@ -417,6 +420,7 @@ type fitnessZeros struct{}
 func (fitnessZeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 
 func TestFitnessCacheBoundsAndCorruption(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	const limit = int64(320*180*4 + (1 << 20))
 	var smallPNG bytes.Buffer
 	if err := png.Encode(&smallPNG, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
@@ -459,6 +463,7 @@ func TestFitnessCacheBoundsAndCorruption(t *testing.T) {
 }
 
 func TestFitnessMissingBlobNeutral(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	ih, dp, _ := fitnessTestHandler(t, fitnessTestGPX)
 	dp.Attr.Set(nodeattr.FitnessTrack, blob.RefFromString("missing synthetic file").String())
 	rec := fitnessRequest(ih, dp, "GET", "", "")
@@ -505,6 +510,7 @@ func (f *fitnessContextFetcher) Fetch(ctx context.Context, ref blob.Ref) (io.Rea
 	return f.Fetcher.Fetch(ctx, ref)
 }
 func TestFitnessContextPropagation(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	ih, dp, _ := fitnessTestHandler(t, fitnessTestGPX)
 	f := &fitnessContextFetcher{Fetcher: ih.Fetcher}
 	ih.Fetcher = f
