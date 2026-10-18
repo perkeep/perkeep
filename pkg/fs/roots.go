@@ -28,9 +28,9 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"go4.org/syncutil"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 const refreshTime = 1 * time.Minute

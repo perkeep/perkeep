@@ -30,9 +30,9 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 // roVersionsDir is a fuse directory that represents
