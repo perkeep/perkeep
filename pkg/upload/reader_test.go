@@ -37,11 +37,9 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// These tests are of the behaviors client.UploadFile had, which its
-// callers moved to package upload rely on.
-
-// readerFileRef returns the file schema blob client.UploadFile wrote for
-// contents named name: a schema.NewFileMap of the name.
+// readerFileRef returns the file schema blob a File from NewFileFromReader
+// must write for contents named name: that of a schema.NewFileMap of the
+// name, which callers, such as the cabinets, find documents by.
 func readerFileRef(t *testing.T, name string, contents []byte) blob.Ref {
 	t.Helper()
 	br, err := schema.WriteFileMap(context.Background(), new(test.Fetcher), schema.NewFileMap(name), bytes.NewReader(contents))
@@ -72,8 +70,8 @@ func checkNotUploaded(t *testing.T, c *client.Client, br blob.Ref) {
 
 // TestFromReader checks uploading contents from a reader: small (read
 // ahead, and uploaded without a session) and big (streamed), with the
-// file schema blob client.UploadFile wrote, and the default whole-file
-// ref, and without asking whether the server has the contents.
+// file schema blob of readerFileRef, and the default whole-file ref, and
+// without asking whether the server has the contents.
 func TestFromReader(t *testing.T) {
 	c, rc := newCountingClient(t)
 	for _, size := range []int{0, 5, 3 << 20} {
@@ -414,7 +412,8 @@ func TestUploadLocalMetadata(t *testing.T) {
 		t.Errorf("file metadata = %q, %v; want chosen.zip, %v", b.FileName(), b.ModTime(), modTime)
 	}
 
-	// The file schema blob client.UploadFile wrote with a FileInfo.
+	// The file schema blob of the FileInfo's metadata, which uploads of
+	// the file before must match (as for pk-import-runkeeper's archives).
 	file := schema.NewCommonFileMap("chosen.zip", fi)
 	file.SetModTime(fi.ModTime())
 	file.SetType(schema.TypeFile)
@@ -423,7 +422,7 @@ func TestUploadLocalMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.FileRef != want {
-		t.Errorf("FileRef = %v; want %v, as client.UploadFile wrote", res.FileRef, want)
+		t.Errorf("FileRef = %v; want %v", res.FileRef, want)
 	}
 }
 

@@ -201,14 +201,13 @@ Apply the upload-first, import-by-reference contract to both CLI and browser:
   with limits suitable for legitimate multi-gigabyte exports. Random access
   skips unrelated members; compressed members still decode sequentially.
 
-The existing `pkg/client.UploadFile` has an important caveat: without
-`FileUploadOptions.WholeRef`, it hashes through an archive-sized `bytes.Buffer`.
-Do not use that path unchanged. For a local seekable file, hash with a bounded
-streaming pass and look up all computed digests before rewinding for upload.
-`FileUploadOptions.WholeRef` currently accepts only one digest; share or extend
-the existing duplicate-file lookup/parts-reuse path rather than dropping
-multi-digest lookup or reintroducing buffering. Browser upload handling must
-also stay streaming; do not materialize the whole file in JavaScript memory.
+`pk-import-runkeeper` uploads archives with `pkg/upload`'s `NewFile`. It
+hashes a local file in one bounded streaming pass, with each whole-file hash
+the server indexes, and looks up all of those digests. Only if none matches
+does it cut and upload the file, in a second pass, failing with `ErrChanged`
+if the file changed in between. Contents that can only be read once go through
+`NewFileFromReader`, which streams them. Browser upload handling must also
+stay streaming; do not materialize the whole file in JavaScript memory.
 
 Validate the submitted ref as an accessible `file` schema and derive its
 filename and size server-side. Never accept an arbitrary URL to fetch an

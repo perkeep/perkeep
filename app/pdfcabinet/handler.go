@@ -40,6 +40,7 @@ import (
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/upload"
 )
 
 const (
@@ -317,11 +318,12 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("%v is not a PDF", fileName), http.StatusBadRequest)
 			return
 		}
-		br, err := h.cl.UploadFile(ctx, fileName, bufr, nil)
+		res, err := upload.NewFileFromReader(h.cl, fileName, bufr, nil).Run(ctx)
 		if err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("could not write %v to blobserver: %v", fileName, err))
 			return
 		}
+		br := res.FileRef
 
 		pdf, err := h.fetchDocumentByPDF(br)
 		if err == nil {

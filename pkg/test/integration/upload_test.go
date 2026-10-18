@@ -26,6 +26,7 @@ import (
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/upload"
 )
 
 type fakeFile struct {
@@ -64,25 +65,24 @@ func TestUploadFile(t *testing.T) {
 	testUploadFile(t, c, f, true)
 }
 
-// testUploadFile uploads a file and checks if it can be retrieved.
-func testUploadFile(t *testing.T, c *client.Client, f *fakeFile, withFileOpts bool) *schema.Blob {
-	var (
-		ctxbg = context.Background()
-		opts  *client.FileUploadOptions
-	)
-	if withFileOpts {
-		opts = &client.FileUploadOptions{FileInfo: f}
+// testUploadFile uploads a file and checks if it can be retrieved. If
+// withFileInfo, the file schema has f's metadata, not just its name.
+func testUploadFile(t *testing.T, c *client.Client, f *fakeFile, withFileInfo bool) *schema.Blob {
+	ctxbg := context.Background()
+	up := upload.NewFileFromReader(c, f.Name(), strings.NewReader(f.content), nil)
+	if withFileInfo {
+		up = upload.NewFile(c, f, strings.NewReader(f.content), nil)
 	}
-	bref, err := c.UploadFile(ctxbg, f.Name(), strings.NewReader(f.content), opts)
+	res, err := up.Run(ctxbg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sb, err := c.FetchSchemaBlob(ctxbg, bref)
+	sb, err := c.FetchSchemaBlob(ctxbg, res.FileRef)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sb.Type() != "file" {
-		t.Fatal(`schema blob from UploadFile must have "file" type`)
+		t.Fatal(`uploaded schema blob must have "file" type`)
 	}
 	return sb
 }
