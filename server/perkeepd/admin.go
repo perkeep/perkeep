@@ -38,7 +38,7 @@ Server options:
 // runAdmin handles administrative commands without starting the daemon.
 // Exit statuses are 0 for success/help, 1 for an operation error, and 2 for
 // invalid arguments. Each command has its own flags, separate from server flags.
-func runAdmin(args []string, stdout, stderr io.Writer) int {
+func runAdmin(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("perkeepd admin", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
@@ -46,6 +46,7 @@ func runAdmin(args []string, stdout, stderr io.Writer) int {
 
 Commands:
   dumpconfig  Dump the low-level server config from its simple config.
+  googinit    Init Google Drive or Google Cloud Storage.
 
 Run "perkeepd admin <command> -help" for command-specific help.
 `)
@@ -76,6 +77,8 @@ Run "perkeepd admin <command> -help" for command-specific help.
 	switch args[0] {
 	case "dumpconfig":
 		return runAdminDumpConfig(args[1:], stdout, stderr)
+	case "googinit":
+		return runAdminGoogInit(args[1:], stdin, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "perkeepd admin: unknown command %q\n", args[0])
 		flags.Usage()

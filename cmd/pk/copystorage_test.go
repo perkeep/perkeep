@@ -24,11 +24,21 @@ import (
 	"strings"
 	"testing"
 
+	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/test"
 )
+
+func TestCopyStorageGoogleDriveRegistered(t *testing.T) {
+	// Reject the missing configuration before any network access. An unknown
+	// storage type would mean moving googinit also unregistered this backend.
+	_, err := blobserver.CreateStorage("googledrive", nil, jsonconfig.Obj{})
+	if err == nil || !strings.Contains(err.Error(), `Missing required config key "auth"`) {
+		t.Fatalf("Google Drive storage registration: %v", err)
+	}
+}
 
 // corruptingStorage is a Storage that lists one more blob than its
 // underlying storage has, and serves the wrong contents for it.

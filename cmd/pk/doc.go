@@ -26,7 +26,6 @@ Usage:
 Modes:
 
 	env: Return Perkeep environment information
-	googinit: Init Google Drive or Google Cloud Storage.
 	list: List blobs on a server.
 	claims: Ask the search system to list the claims that modify a permanode.
 	copy-storage: Copy blobs between storage defined by server configs.

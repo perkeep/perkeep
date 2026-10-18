@@ -17,6 +17,13 @@ The dump is not redacted: protect the output as you would the configuration.
 High-level configuration expansion retains its existing behavior, including
 creating cache directories; it does not install handlers or launch apps.
 
+`perkeepd admin googinit --type=cloud` (or `--type=drive`) replaces
+`pk googinit`. It prompts for the OAuth client ID, client secret, and
+authorization code, then prints the existing credential/configuration
+output without starting the daemon or writing a server configuration.
+Protect this output: it contains the client secret and refresh token.
+Use `perkeepd admin googinit --help` for details.
+
 See also:
  - The storage interface is in <root>/pkg/blobserver
  - The storage implementations are under that e.g. <root>/pkg/blobserver/localdisk
