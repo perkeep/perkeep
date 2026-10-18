@@ -562,7 +562,7 @@ func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.Stat
 // uploadNodeRegularFile uploads a regular file, with package upload, and
 // its permanode, if wanted.
 func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client.PutResult, error) {
-	if up.fileOpts.wantVivify() || up.altStatReceiver != nil || android.IsChild() {
+	if testHookFilesViaStatReceiver || up.fileOpts.wantVivify() || up.altStatReceiver != nil || android.IsChild() {
 		return up.uploadNodeRegularFileViaStatReceiver(ctx, n)
 	}
 
