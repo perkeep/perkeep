@@ -1,5 +1,22 @@
 This is the main Perkeep server.
 
+Run `perkeepd --help` for server options, or `perkeepd admin --help` for
+administrative commands. Server options belong to the daemon invocation;
+administrative commands have separate flags, after the command name.
+
+`perkeepd admin dumpconfig [configfile]` replaces `pk dumpconfig`. It prints
+an existing high- or low-level server configuration as low-level JSON,
+without starting the daemon, opening its storage, or generating a missing
+configuration. The default is server-config.json in the Perkeep configuration
+directory (overridable with CAMLI_CONFIG_DIR). Explicit relative paths,
+whether positional or supplied with `--configfile=FILE`, resolve from the
+working directory, unlike the daemon's `--configfile` flag.
+Use `perkeepd admin dumpconfig --help` for details.
+
+The dump is not redacted: protect the output as you would the configuration.
+High-level configuration expansion retains its existing behavior, including
+creating cache directories; it does not install handlers or launch apps.
+
 See also:
  - The storage interface is in <root>/pkg/blobserver
  - The storage implementations are under that e.g. <root>/pkg/blobserver/localdisk

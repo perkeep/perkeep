@@ -412,6 +412,10 @@ func checkGeoKey() error {
 }
 
 func main() {
+	flag.Usage = perkeepdUsage
+	if len(os.Args) > 1 && os.Args[1] == "admin" {
+		os.Exit(runAdmin(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	flag.Parse()
 
 	if *flagVersion {
@@ -436,6 +440,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, l)
 		}
 		return
+	}
+	if flag.NArg() != 0 {
+		fmt.Fprintf(os.Stderr, "perkeepd: unexpected argument %q; use \"perkeepd admin -help\" for administrative commands\n", flag.Arg(0))
+		flag.Usage()
+		os.Exit(2)
 	}
 	setBlobpackedRecovery()
 

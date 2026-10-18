@@ -29,7 +29,6 @@ Modes:
 	googinit: Init Google Drive or Google Cloud Storage.
 	list: List blobs on a server.
 	claims: Ask the search system to list the claims that modify a permanode.
-	dumpconfig: Dump the low-level server config from its simple config.
 	copy-storage: Copy blobs between storage defined by server configs.
 	describe: Ask the search system to describe one or more blobs.
 	ls-tree: Recursively list a directory, given its blobref or a permanode whose camliContent is one.
