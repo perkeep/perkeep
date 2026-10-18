@@ -82,26 +82,12 @@ type statResponse struct {
 
 type ResponseFormatError error
 
-var (
-	multipartOnce     sync.Once
-	multipartOverhead int64
-)
+// lengthWriter is an io.Writer counting what's written to it.
+type lengthWriter struct{ n int64 }
 
-// multipartOverhead is how many extra bytes mime/multipart's
-// Writer adds around content
-func getMultipartOverhead() int64 {
-	multipartOnce.Do(func() {
-		var b bytes.Buffer
-		w := multipart.NewWriter(&b)
-		part, _ := w.CreateFormFile("0", "0")
-
-		dummyContents := []byte("0")
-		part.Write(dummyContents)
-
-		w.Close()
-		multipartOverhead = int64(b.Len()) - 3 // remove what was added
-	})
-	return multipartOverhead
+func (w *lengthWriter) Write(p []byte) (int, error) {
+	w.n += int64(len(p))
+	return len(p), nil
 }
 
 func parseStatResponse(res *http.Response) (*statResponse, error) {
@@ -391,6 +377,12 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 // session with the given ID if it's not empty, returning the server's
 // response.
 func (c *Client) postUpload(ctx context.Context, h *UploadHandle, session string) (*protocol.UploadResponse, error) {
+	return c.postUploads(ctx, []*UploadHandle{h}, session)
+}
+
+// postUploads is like postUpload, for the blobs of hs, in one request. If
+// any of hs has Vivify set, the request asks the server to vivify.
+func (c *Client) postUploads(ctx context.Context, hs []*UploadHandle, session string) (*protocol.UploadResponse, error) {
 	pfx, err := c.prefix()
 	if err != nil {
 		return nil, err
@@ -399,37 +391,52 @@ func (c *Client) postUpload(ctx context.Context, h *UploadHandle, session string
 	if session != "" {
 		uploadURL += "?session=" + url.QueryEscape(session)
 	}
-	blobrefStr := h.BlobRef.String()
-	bodySize := int64(h.Size)
-	if env.DebugUploads() {
-		log.Printf("Uploading: %s (%d bytes)", blobrefStr, bodySize)
-	}
-
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
+
+	// The body's length: that of the same parts without their contents,
+	// and the contents.
+	var lw lengthWriter
+	lengthMW := multipart.NewWriter(&lw)
+	lengthMW.SetBoundary(multipartWriter.Boundary())
+	vivify := false
+	for _, h := range hs {
+		blobrefStr := h.BlobRef.String()
+		if env.DebugUploads() {
+			log.Printf("Uploading: %s (%d bytes)", blobrefStr, h.Size)
+		}
+		lengthMW.CreateFormFile(blobrefStr, blobrefStr)
+		lw.n += int64(h.Size)
+		vivify = vivify || h.Vivify
+	}
+	lengthMW.Close()
+	contentLength := lw.n
 
 	copyResult := make(chan error, 1)
 	go func() {
 		defer pipeWriter.Close()
-		part, err := multipartWriter.CreateFormFile(blobrefStr, blobrefStr)
-		if err != nil {
-			copyResult <- err
-			return
+		for _, h := range hs {
+			blobrefStr := h.BlobRef.String()
+			part, err := multipartWriter.CreateFormFile(blobrefStr, blobrefStr)
+			if err != nil {
+				copyResult <- err
+				return
+			}
+			if _, err := io.Copy(part, h.contents()); err != nil {
+				copyResult <- err
+				return
+			}
 		}
-		_, err = io.Copy(part, h.contents())
-		if err == nil {
-			err = multipartWriter.Close()
-		}
-		copyResult <- err
+		copyResult <- multipartWriter.Close()
 	}()
 
 	req := c.newRequest(ctx, "POST", uploadURL)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
-	if h.Vivify {
+	if vivify {
 		req.Header.Add("X-Camlistore-Vivify", "1")
 	}
 	req.Body = io.NopCloser(pipeReader)
-	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
+	req.ContentLength = contentLength
 	resp, err := c.doReqGated(req)
 	if err != nil {
 		return nil, fmt.Errorf("upload http error: %w", err)
