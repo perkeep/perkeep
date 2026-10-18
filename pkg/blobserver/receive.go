@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -51,22 +52,50 @@ func ReceiveNoHash(ctx context.Context, dst BlobReceiver, br blob.Ref, src io.Re
 
 func receive(ctx context.Context, dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb blob.SizedRef, err error) {
 	src = io.LimitReader(src, MaxBlobSize)
+	var chr *checkHashReader
 	if checkHash {
 		h := br.Hash()
 		if h == nil {
 			return sb, fmt.Errorf("invalid blob type %v; no registered hash function", br)
 		}
-		src = &checkHashReader{h, br, src, false}
+		chr = &checkHashReader{h, br, src, false}
+		src = chr
+	}
+	hub := GetHub(dst)
+	var kept *bytes.Buffer // what dst read, if the hub's hooks want it
+	if mh, ok := hub.(*memHub); ok && mh.wantsContents() {
+		kept = new(bytes.Buffer)
+		src = io.TeeReader(src, kept)
 	}
 	sb, err = dst.ReceiveBlob(ctx, br, src)
 	if err != nil {
-		if checkHash && src.(*checkHashReader).corrupt {
+		if chr != nil && chr.corrupt {
 			err = ErrCorruptBlob
 		}
 		return
 	}
-	err = GetHub(dst).NotifyBlobReceived(sb)
+	b := blob.NewBlob(sb.Ref, sb.Size, func(ctx context.Context) ([]byte, error) {
+		if kept != nil && kept.Len() == int(sb.Size) {
+			return kept.Bytes(), nil
+		}
+		return readBack(ctx, dst, sb.Ref)
+	})
+	err = BlobErr(hub.NotifyBlobsReceived(ctx, []*blob.Blob{b}), sb.Ref)
 	return
+}
+
+// readBack reads br back from dst, which just received it.
+func readBack(ctx context.Context, dst BlobReceiver, br blob.Ref) ([]byte, error) {
+	f, ok := dst.(blob.Fetcher)
+	if !ok {
+		return nil, fmt.Errorf("can't read back %v from %T, which isn't a blob.Fetcher", br, dst)
+	}
+	rc, _, err := f.Fetch(ctx, br)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // receiveBlobsConcurrency is how many concurrent ReceiveBlob calls
@@ -129,15 +158,15 @@ func receiveBlobs(ctx context.Context, dst BlobReceiver, blobs []*blob.Blob, che
 	}
 	be.AddResult(refs, err)
 
-	var received []blob.SizedRef
+	var received []*blob.Blob
 	var receivedRefs []blob.Ref
 	for _, b := range valid {
 		if be.Err(b.Ref()) == nil {
-			received = append(received, b.SizedRef())
+			received = append(received, b)
 			receivedRefs = append(receivedRefs, b.Ref())
 		}
 	}
-	be.AddResult(receivedRefs, GetHub(dst).NotifyBlobsReceived(received))
+	be.AddResult(receivedRefs, GetHub(dst).NotifyBlobsReceived(ctx, received))
 	return be.OrNil()
 }
 
