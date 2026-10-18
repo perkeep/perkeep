@@ -75,10 +75,11 @@ or
   for example `PERKEEP_STRAVA_MAX_ACTIVITIES=10` for testing.
 
 `PERKEEP_FITNESS_TILE_URL` (string)
-: Opt in to raster basemaps for viewed fitness thumbnails. The administrator's
-  template must contain `{z}`, `{x}`, and `{y}`, for example
-  `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. Unset or empty disables
-  external tiles. No map prefetching occurs during imports or indexing.
+: Raster basemap provider for viewed fitness thumbnails. Unset or empty
+  defaults to `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, without an
+  API key. Set to `off` to disable external tiles and show route-only previews.
+  A custom URL template must contain `{z}`, `{x}`, and `{y}`.
+  No map prefetching occurs during imports or indexing.
 
 `PERKEEP_FITNESS_TILE_CACHE_DIR` (string)
 : Private directory for HTTP-aware tile and derived PNG caches, not archived

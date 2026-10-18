@@ -25,19 +25,31 @@ import (
 )
 
 func TestFitnessMapDiscovery(t *testing.T) {
-	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
+	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", t.TempDir())
+	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION", "")
+	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", "")
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	discovery := new(camtypes.UIDiscovery)
 	addFitnessMapDiscovery(discovery)
 	if discovery.FitnessMapEnabled || discovery.FitnessMapProfile != "" {
-		t.Fatal("unconfigured basemap advertised as enabled")
+		t.Fatal("disabled basemap advertised as enabled")
+	}
+
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
+	addFitnessMapDiscovery(discovery)
+	if !discovery.FitnessMapEnabled || discovery.FitnessMapProfile == "" {
+		t.Fatal("default basemap missing from discovery")
+	}
+	profile := discovery.FitnessMapProfile
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", fitnessTileDefaultURL)
+	addFitnessMapDiscovery(discovery)
+	if discovery.FitnessMapProfile != profile {
+		t.Fatal("implicit and explicit defaults have different cache profiles")
 	}
 
 	// A non-routable synthetic origin verifies that discovery is local-only.
 	template := "https://maps.invalid/{z}/{x}/{y}.png?key=private-test-key"
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", template)
-	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", t.TempDir())
-	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION", "")
-	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", "")
 	addFitnessMapDiscovery(discovery)
 	if !discovery.FitnessMapEnabled || discovery.FitnessMapProfile == "" {
 		t.Fatal("configured basemap missing from discovery")
@@ -53,7 +65,7 @@ func TestFitnessMapDiscovery(t *testing.T) {
 	if strings.Contains(string(raw), "private-test-key") || strings.Contains(string(raw), "maps.invalid") {
 		t.Fatal("provider URL or credential leaked through discovery")
 	}
-	profile := discovery.FitnessMapProfile
+	profile = discovery.FitnessMapProfile
 
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION", "Map data: OpenStreetMap; style: Example")
 	t.Setenv("PERKEEP_FITNESS_TILE_ATTRIBUTION_URL", "https://example.invalid/licence")

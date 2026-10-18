@@ -39,8 +39,8 @@ import (
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
-// Every map, track, name and coordinate here is synthetic. Tile HTTP is solely
-// to httptest localhost servers; tests never contact OSM or read owner data.
+// Every map, track, name and coordinate here is synthetic. Tile HTTP uses fake
+// transports or httptest localhost servers, never OSM or owner data.
 type fitnessBasemapClock struct{ nanos atomic.Int64 }
 
 func (c *fitnessBasemapClock) now() time.Time          { return time.Unix(0, c.nanos.Load()) }
@@ -94,6 +94,56 @@ func fitnessBasemapTilePNG(t *testing.T, z, tx, ty int, version uint8) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func TestFitnessBasemapDefaultReplacesRouteOnlyCache(t *testing.T) {
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
+	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", t.TempDir())
+	t.Setenv("PERKEEP_FITNESS_TILE_USER_AGENT", "Perkeep synthetic default map test")
+	ih, dp, _ := fitnessTestHandler(t, fitnessTestGPX)
+	routeOnly := fitnessRequest(ih, dp, "GET", "", "")
+	if routeOnly.Code != 200 || routeOnly.Header().Get("ETag") == "" {
+		t.Fatal("route-only preview failed")
+	}
+	track := dp.Attr.Get(nodeattr.FitnessTrack)
+	if _, err := ih.ThumbMeta.Get(fitnessCacheKey(track, "run", 320, 180)); err != nil {
+		t.Fatal("route-only preview was not cached", err)
+	}
+
+	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
+	source, err := fitnessTileSourceFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the default endpoint without contacting the public service.
+	var calls atomic.Int64
+	source.client.Transport = fitnessTileTestTransport(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		if r.URL.Scheme != "https" || r.URL.Host != "tile.openstreetmap.org" {
+			t.Errorf("default tile endpoint = %s", r.URL)
+		}
+		z, x, y := fitnessBasemapCoords(t, r)
+		return fitnessTileTestResponse(200, http.Header{"Cache-Control": {"max-age=3600"}}, fitnessBasemapTilePNG(t, z, x, y, 0)), nil
+	})
+	source.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 2)}
+
+	// Neither the old server-side PNG nor its browser validator may hide maps.
+	mapped := fitnessRequest(ih, dp, "GET", "", routeOnly.Header().Get("ETag"))
+	if mapped.Code != 200 || mapped.Header().Get("ETag") == "" || mapped.Header().Get("ETag") == routeOnly.Header().Get("ETag") || bytes.Equal(mapped.Body.Bytes(), routeOnly.Body.Bytes()) {
+		t.Fatal("default map did not replace cached route-only preview")
+	}
+	if calls.Load() == 0 {
+		t.Fatal("default map did not request tiles")
+	}
+	firstCalls := calls.Load()
+	cached := fitnessRequest(ih, dp, "GET", "", "")
+	if cached.Code != 200 || !bytes.Equal(cached.Body.Bytes(), mapped.Body.Bytes()) || calls.Load() != firstCalls {
+		t.Fatal("default map did not reuse its fresh composite cache")
+	}
+	conditional := fitnessRequest(ih, dp, "GET", "", mapped.Header().Get("ETag"))
+	if conditional.Code != 304 || calls.Load() != firstCalls {
+		t.Fatal("default map did not reuse its browser validator")
+	}
 }
 
 func TestFitnessBasemapProjectionAndViewport(t *testing.T) {
