@@ -283,6 +283,15 @@ const idB = "22222222-2222-4222-8222-222222222222"
 const idC = "33333333-3333-4333-8333-333333333333"
 const goodGPX = `<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1"><trk><trkseg><trkpt lat="0" lon="0"><time>2024-01-02T03:04:05-08:00</time></trkpt><trkpt lat="1" lon="2"/></trkseg></trk></gpx>`
 
+// Synthetic reproduction of Runkeeper's missing segment close: a new segment
+// starts before the previous segment has closed. Inserting one close before
+// that opening repairs the route without merging its segment boundaries.
+const malformedNestedGPX = `<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1"><trk><trkseg><trkseg><trkpt lat="0" lon="0"><time>2024-01-02T03:04:05-08:00</time></trkpt><trkpt lat="1" lon="2"/></trkseg></trk></gpx>`
+
+// Balanced nested segments are not the known missing-close defect: inserting
+// a close would leave an extra original close, so they must remain unusable.
+const balancedNestedGPX = `<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1"><trk><trkseg><trkseg><trkpt lat="0" lon="0"><time>2024-01-02T03:04:05-08:00</time></trkpt><trkpt lat="1" lon="2"/></trkseg></trkseg></trk></gpx>`
+
 func synthetic() map[string]string {
 	return map[string]string{
 		"profile.json": `{"username":"optional-user","email":"Optional[owner@example.invalid]","name":"Test Person","distanceUnits":"mi"}`,
@@ -346,7 +355,7 @@ func TestArchiveIncremental(t *testing.T) {
 	if a.PermanodeRef() == b.PermanodeRef() {
 		t.Fatal("shared GPX collapsed UUIDs")
 	}
-	for k, want := range map[string]string{nodeattr.Type: nodeattr.FitnessActivity, nodeattr.FitnessDistance: "1609.344", nodeattr.FitnessRecordedDuration: "90062", nodeattr.FitnessEnergy: "8368", "startDate": "2024-01-02T11:04:05Z", "latitude": "0", "longitude": "0", "runkeeperFriendsTagged": "Friend", nodeattr.Description: "Notes", attrVersion: importVersion} {
+	for k, want := range map[string]string{nodeattr.Type: nodeattr.FitnessActivity, nodeattr.FitnessDistance: "1609.344", nodeattr.FitnessRecordedDuration: "90062", nodeattr.FitnessEnergy: "8368", "startDate": "2024-01-02T11:04:05Z", attrStartDateSource: startDateSourceGPX, "latitude": "0", "longitude": "0", "runkeeperFriendsTagged": "Friend", nodeattr.Description: "Notes", attrVersion: importVersion} {
 		if got := a.Attr(k); got != want {
 			t.Errorf("%s=%q want %q", k, got, want)
 		}
@@ -356,6 +365,9 @@ func TestArchiveIncremental(t *testing.T) {
 	}
 	if a.Attr(nodeattr.FitnessTrack) != b.Attr(nodeattr.FitnessTrack) {
 		t.Fatal("shared track not reused")
+	}
+	if a.Attr(nodeattr.FitnessTrack) != a.Attr(attrSourceGPX) || a.Attr(attrGPXRepairVersion) != "" || a.Attr(attrGPXRepairCount) != "" {
+		t.Fatal("valid original should be referenced directly without repair provenance")
 	}
 	if got := f.file(t, a.Attr(attrSourceGPX)); got != goodGPX {
 		t.Fatal("source GPX altered")
@@ -406,8 +418,8 @@ func TestArchiveIncremental(t *testing.T) {
 		t.Fatalf("added activity progress %+v", p)
 	}
 	c := f.activity(t, idC)
-	if c.Attr("startDate") != "" || c.Attr(nodeattr.FitnessTrack) != "" || c.Attr(nodeattr.FitnessActivityType) != "other" || c.Attr("runkeeperActivityType") != "Wheelchair" {
-		t.Fatal("missing timezone or classification mishandled")
+	if c.Attr("startDate") != "2024-01-03T00:00:00Z" || c.Attr(attrStartDateSource) != startDateSourceCSVAssumedUTC || c.Attr(nodeattr.FitnessTrack) != "" || c.Attr(nodeattr.FitnessActivityType) != "other" || c.Attr("runkeeperActivityType") != "Wheelchair" {
+		t.Fatal("CSV sorting fallback or classification mishandled")
 	}
 }
 
@@ -457,10 +469,10 @@ func TestMalformedTrackRemovesOnlyModeledTrack(t *testing.T) {
 	f.run(t, source(t, files))
 	a := f.activity(t, idA)
 	ref := a.PermanodeRef()
-	files["shared.gpx"] = strings.Replace(goodGPX, "</trkseg>", "", 1)
+	files["shared.gpx"] = balancedNestedGPX
 	p := f.run(t, source(t, files))
 	a = f.activity(t, idA)
-	if a.PermanodeRef() != ref || a.Attr(nodeattr.FitnessTrack) != "" || a.Attr("startDate") != "" || a.Attr("latitude") != "" || a.Attr(attrVersion) != importVersion || a.Attr(attrSourceGPX) == "" || p.WarningCount < 2 {
+	if a.PermanodeRef() != ref || a.Attr(nodeattr.FitnessTrack) != "" || a.Attr("startDate") != "2024-01-02T11:04:05Z" || a.Attr(attrStartDateSource) != startDateSourceGPX || a.Attr("latitude") != "" || a.Attr("longitude") != "" || a.Attr(attrVersion) != importVersion || a.Attr(attrSourceGPX) == "" || p.WarningCount != 2 {
 		t.Fatalf("bad malformed-track refresh: %+v", p)
 	}
 	if f.file(t, a.Attr(attrSourceGPX)) != files["shared.gpx"] {
@@ -476,6 +488,145 @@ func TestMalformedTrackRemovesOnlyModeledTrack(t *testing.T) {
 	p = f.run(t, source(t, files))
 	if p.Unchanged != 0 {
 		t.Fatal("malformed trailing source change ignored")
+	}
+}
+
+func TestArchiveStartDateSources(t *testing.T) {
+	const csvLocal = "2024-01-02 03:04:05"
+	const csvInstant = "2024-01-02T03:04:05.25+02:00"
+	const localStart = "2024-01-02T03:04:05Z"
+	const csvStart = "2024-01-02T01:04:05.25Z"
+	const gpxStart = "2024-01-02T11:04:05Z"
+	noTimeGPX := strings.Replace(goodGPX, "<time>2024-01-02T03:04:05-08:00</time>", "", 1)
+	noTimeBadGPX := strings.Replace(noTimeGPX, "</trkseg>", "", 1)
+	for _, tt := range []struct {
+		name, date, track, start, source string
+		usable                           bool
+		warnings                         int
+	}{
+		{"localCSVOnly", csvLocal, "", localStart, startDateSourceCSVAssumedUTC, false, 1},
+		{"explicitCSVOnly", csvInstant, "", csvStart, startDateSourceCSV, false, 0},
+		{"dateOnlyCSV", "2024-01-02", "", "2024-01-02T00:00:00Z", startDateSourceCSVAssumedUTC, false, 1},
+		{"invalidCSV", "not a date", "", "", "", false, 1},
+		{"emptyCSV", "", "", "", "", false, 1},
+		{"GPXOverridesLocalCSV", csvLocal, goodGPX, gpxStart, startDateSourceGPX, true, 0},
+		{"GPXOverridesExplicitCSV", csvInstant, goodGPX, gpxStart, startDateSourceGPX, true, 0},
+		{"GPXWithInvalidCSV", "not a date", goodGPX, gpxStart, startDateSourceGPX, true, 0},
+		{"timelessGPX", csvLocal, noTimeGPX, localStart, startDateSourceCSVAssumedUTC, true, 1},
+		{"timelessGPXInvalidCSV", "not a date", noTimeGPX, "", "", true, 1},
+		{"repairedGPXRetainsTime", csvLocal, malformedNestedGPX, gpxStart, startDateSourceGPX, true, 1},
+		{"balancedNestedGPXRetainsTime", csvLocal, balancedNestedGPX, gpxStart, startDateSourceGPX, false, 1},
+		{"badCoordinatesRetainTime", csvInstant, strings.Replace(goodGPX, `lat="0"`, `lat="NaN"`, 1), gpxStart, startDateSourceGPX, false, 1},
+		{"malformedGPXFallsBackLocalCSV", csvLocal, noTimeBadGPX, localStart, startDateSourceCSVAssumedUTC, false, 2},
+		{"malformedGPXFallsBackExplicitCSV", csvInstant, noTimeBadGPX, csvStart, startDateSourceCSV, false, 1},
+		{"malformedGPXNoDate", "not a date", noTimeBadGPX, "", "", false, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			trackName := ""
+			files := map[string]string{"profile.json": `{"username":"test-user"}`}
+			if tt.track != "" {
+				trackName = "track.gpx"
+				files[trackName] = tt.track
+			}
+			files["cardioActivities.csv"] = "Activity Id,Date,Type,Duration,GPX File\n" + idA + "," + tt.date + ",Running,1:00," + trackName + "\n"
+			p := f.run(t, source(t, files))
+			a := f.activity(t, idA)
+			if a.Attr("startDate") != tt.start || a.Attr(attrStartDateSource) != tt.source {
+				t.Fatalf("start/source = %q/%q, want %q/%q", a.Attr("startDate"), a.Attr(attrStartDateSource), tt.start, tt.source)
+			}
+			if a.Attr("runkeeperLocalDate") != tt.date {
+				t.Fatal("original CSV date changed")
+			}
+			if (a.Attr(nodeattr.FitnessTrack) != "") != tt.usable {
+				t.Fatal("start-date recovery changed route usability")
+			}
+			if !tt.usable && (a.Attr("latitude") != "" || a.Attr("longitude") != "") {
+				t.Fatal("unusable track published route coordinates")
+			}
+			if tt.track != "" && f.file(t, a.Attr(attrSourceGPX)) != tt.track {
+				t.Fatal("original track changed")
+			}
+			if p.WarningCount != tt.warnings {
+				t.Errorf("warnings=%d, want %d: %v", p.WarningCount, tt.warnings, p.Warnings)
+			}
+		})
+	}
+}
+
+func TestVersionOneStartDateMigration(t *testing.T) {
+	if importVersion != "3" {
+		t.Fatalf("date and repair reconciliation requires import version 3, got %q", importVersion)
+	}
+	for _, track := range []string{"", balancedNestedGPX} {
+		name := "CSVFallback"
+		if track != "" {
+			name = "MalformedGPX"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			files := map[string]string{
+				"profile.json":         `{"username":"test-user"}`,
+				"cardioActivities.csv": "Activity Id,Date,Type,Duration,GPX File\n" + idA + ",2024-01-02 03:04:05,Running,1:00,\n",
+			}
+			if track != "" {
+				files["track.gpx"] = track
+				files["cardioActivities.csv"] = strings.Replace(files["cardioActivities.csv"], ",1:00,\n", ",1:00,track.gpx\n", 1)
+			}
+			src := source(t, files)
+			f.run(t, src)
+			a := f.activity(t, idA)
+			ref := a.PermanodeRef()
+			originalJSON := a.Attr(attrActivityJSON)
+			originalGPX := a.Attr(attrSourceGPX)
+			// Model a completed version-1 node: its original sources exist, but
+			// the old no-GPX/malformed-GPX policy omitted the modeled date.
+			if err := a.SetAttrsWithDeletes([]string{"startDate", attrStartDateSource}, attrVersion, "1"); err != nil {
+				t.Fatal(err)
+			}
+			p := f.run(t, src)
+			a = f.activity(t, idA)
+			wantStart, wantSource := "2024-01-02T03:04:05Z", startDateSourceCSVAssumedUTC
+			if track != "" {
+				wantStart, wantSource = "2024-01-02T11:04:05Z", startDateSourceGPX
+			}
+			if p.Done != 1 || p.Unchanged != 0 || a.PermanodeRef() != ref || a.Attr(attrVersion) != importVersion || a.Attr("startDate") != wantStart || a.Attr(attrStartDateSource) != wantSource {
+				t.Fatal("version-1 activity was not redated on its existing permanode")
+			}
+			if a.Attr(attrActivityJSON) != originalJSON || a.Attr(attrSourceGPX) != originalGPX || a.Attr(nodeattr.FitnessTrack) != "" {
+				t.Fatal("migration changed original attachments or invented a renderable route")
+			}
+			before := f.s.NumBlobs()
+			p = f.run(t, src)
+			if p.Unchanged != 1 || f.s.NumBlobs() != before {
+				t.Fatal("second migrated import added claims or attachment blobs")
+			}
+		})
+	}
+}
+
+func TestStartDateSourceRemoval(t *testing.T) {
+	f := newFixture(t)
+	files := map[string]string{
+		"profile.json":         `{"username":"test-user"}`,
+		"cardioActivities.csv": "Activity Id,Date,Type,Duration\n" + idA + ",2024-01-02,Running,1:00\n",
+	}
+	f.run(t, source(t, files))
+	a := f.activity(t, idA)
+	ref := a.PermanodeRef()
+	if a.Attr("startDate") == "" || a.Attr(attrStartDateSource) != startDateSourceCSVAssumedUTC {
+		t.Fatal("missing initial CSV fallback")
+	}
+	files["cardioActivities.csv"] = strings.Replace(files["cardioActivities.csv"], "2024-01-02", "invalid date", 1)
+	p := f.run(t, source(t, files))
+	a = f.activity(t, idA)
+	if a.PermanodeRef() != ref || a.Attr("startDate") != "" || a.Attr(attrStartDateSource) != "" || a.Attr("runkeeperLocalDate") != "invalid date" || p.WarningCount != 1 {
+		t.Fatal("invalid source retained a stale date or date-source marker")
+	}
+	before := f.s.NumBlobs()
+	p = f.run(t, source(t, files))
+	if p.Unchanged != 1 || f.s.NumBlobs() != before {
+		t.Fatal("undated activity repeat added claims or attachment blobs")
 	}
 }
 
@@ -516,6 +667,16 @@ func TestPersonalArchive(t *testing.T) {
 		if attrs.Get(nodeattr.FitnessTrack) != "" {
 			counts["tracks"]++
 		}
+		if attrs.Get(attrGPXRepairVersion) != "" {
+			counts["repairedTracks"]++
+			if attrs.Get(attrGPXRepairVersion) != gpxRepairVersion || attrs.Get(attrGPXRepairCount) == "" || attrs.Get(nodeattr.FitnessTrack) == attrs.Get(attrSourceGPX) {
+				t.Error("repaired route lacks separate derived file or versioned provenance")
+			}
+			info, err := parseTrack(strings.NewReader(f.file(t, attrs.Get(nodeattr.FitnessTrack))), "")
+			if err != nil || !info.Usable {
+				t.Error("derived route is not strictly usable GPX")
+			}
+		}
 		if attrs.Get(attrSourceGPX) != "" {
 			counts["sourceTracks"]++
 		}
@@ -526,14 +687,20 @@ func TestPersonalArchive(t *testing.T) {
 			}
 			counts["photos"] += len(photos)
 		}
-		if attrs.Get("startDate") == "" {
-			counts["unzoned"]++
+		if attrs.Get("startDate") != "" {
+			counts["dated"]++
+		}
+		switch attrs.Get(attrStartDateSource) {
+		case startDateSourceGPX:
+			counts["gpxDates"]++
+		case startDateSourceCSVAssumedUTC:
+			counts["csvAssumedDates"]++
 		}
 		if attrs.Get(attrSteps) != "" {
 			counts["sensorAttachments"]++
 		}
 	}
-	want := map[string]int{"activities": 855, "tracks": 844, "sourceTracks": 850, "photos": 5, "unzoned": 11}
+	want := map[string]int{"activities": 855, "tracks": 850, "repairedTracks": 6, "sourceTracks": 850, "photos": 5, "dated": 855, "gpxDates": 850, "csvAssumedDates": 5}
 	for k, v := range want {
 		if counts[k] != v {
 			t.Errorf("%s=%d, want %d", k, counts[k], v)
@@ -541,6 +708,18 @@ func TestPersonalArchive(t *testing.T) {
 	}
 	if counts["sensorAttachments"] == 0 {
 		t.Fatal("missing sensor attachments")
+	}
+	if progress.WarningCount != 11 {
+		t.Errorf("warnings=%d, want 11", progress.WarningCount)
+	}
+	repairedWarnings := 0
+	for _, warning := range progress.Warnings {
+		if strings.Contains(strings.ToLower(warning), "repaired") {
+			repairedWarnings++
+		}
+	}
+	if repairedWarnings != 6 {
+		t.Errorf("explicit repaired warnings=%d, want 6", repairedWarnings)
 	}
 	before := f.s.NumBlobs()
 	second := f.run(t, src)
@@ -577,13 +756,16 @@ func TestOptionalDataRemoval(t *testing.T) {
 	files["steps.csv"] = "Activity Id,Timestamp,Steps\n"
 	p := f.run(t, source(t, files))
 	a := f.activity(t, idA)
-	for _, k := range []string{nodeattr.Description, "runkeeperFriendsTagged", nodeattr.FitnessTrack, "startDate", "latitude", "longitude", attrSourceGPX, attrPhotosJSON, attrSteps} {
+	for _, k := range []string{nodeattr.Description, "runkeeperFriendsTagged", nodeattr.FitnessTrack, "latitude", "longitude", attrSourceGPX, attrPhotosJSON, attrSteps} {
 		if a.Attr(k) != "" {
 			t.Errorf("stale optional %s remains", k)
 		}
 	}
 	if a.Attr(nodeattr.FitnessRecordedDuration) != "90062" || a.Attr(nodeattr.FitnessElapsedDuration) != "" {
 		t.Fatal("provider timer mislabeled")
+	}
+	if a.Attr("startDate") != "2024-01-02T03:04:05Z" || a.Attr(attrStartDateSource) != startDateSourceCSVAssumedUTC {
+		t.Fatal("removing GPX did not replace its start with the marked CSV fallback")
 	}
 	if p.Unchanged != 0 {
 		t.Fatal("sensor removal must refresh both activities")

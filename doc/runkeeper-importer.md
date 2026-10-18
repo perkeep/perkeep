@@ -21,9 +21,26 @@ Runkeeper should write the same attributes, including:
 - SI measurements, title/notes, start coordinates, and a file-schema reference
   in `fitnessTrack` for usable GPX.
 
+Populate ordinary `startDate` aggressively at import time, without teaching
+search to read `runkeeperLocalDate`. Prefer an explicitly zoned GPX track or
+point time even when its route is unusable, then an explicitly zoned RFC3339
+CSV date. Normalize known instants to UTC. Otherwise accept unzoned CSV
+`YYYY-MM-DD HH:MM:SS`, local ISO `YYYY-MM-DDTHH:MM:SS` (both with optional
+fractions), or date-only `YYYY-MM-DD`, encoding the wall-clock fields as UTC
+for sorting (midnight for date-only). Preserve the raw CSV date verbatim.
+
+Record provenance in `runkeeperStartDateSource`: `gpx`, `csv`, or
+`csv-assumed-utc`. The last value explicitly marks an approximate sorting
+placeholder, **not a known UTC instant**. Never infer the user's timezone from
+the server's timezone. Warn for assumed-UTC fallback; if neither CSV nor GPX
+has a usable date, warn and retain an undated activity instead of inventing
+today's date. This requested fallback supersedes the original plan's policy
+of leaving all unzoned CSV activities without `startDate`; it does not assert
+that the source export supplied a timezone.
+
 That enables the same red routes, activity badges, configured OSM-derived
-basemaps, `is:run`, `is:bike`, and distance predicates. OSM tiles remain the
-existing explicit server option. Do not add provider-specific rendering.
+basemaps, `is:run`, `is:bike`, and distance predicates. Basemap configuration
+remains shared with the existing renderer. Do not add provider-specific rendering.
 Preserve classifications such as `Wheelchair` even if their generic category
 is initially `other`. The existing `is:ebike` predicate is a special case
 based on Strava-specific fields, not a generic electric-bike classification.
@@ -235,6 +252,17 @@ change that fingerprint. Mark an activity complete only after its attributes
 and attachments succeed; retry incomplete activities on the same permanode.
 Avoid deleting and resetting a completion marker for unchanged activities.
 
+`runkeeperImportVersion=3` reconciles previously completed version-1 and
+version-2 activities on their existing permanodes when the archive is
+reimported. Manage `startDate`, `runkeeperStartDateSource`, route references,
+repair provenance, and completion hash/version in the same atomic update,
+including removal of dates or repair markers when no longer applicable.
+Fingerprint the original inputs, applicable repair algorithm version, and
+derived GPX content hash so a future repair algorithm can reconcile its routes.
+Upload original and derived attachments before publishing that claim; a failed
+derived upload or claim must leave the previous complete activity intact.
+Repeating the reconciled import must add no activity claims or attachment blobs.
+
 Preserve original source data, including unknown columns, notes, tagged
 friends, photos, measurements, and sensor samples. Retaining the original ZIP
 provides a lossless baseline; add useful modeled fields and stable attachment
@@ -253,13 +281,45 @@ The inspected export has 855 distinct activity UUIDs and 847 GPX files:
 - Three GPX filenames are each referenced by two different activity UUIDs.
   Never use GPX filenames or start times as activity identity.
 - Five activities have no GPX. CSV dates have no timezone; GPX timestamps have
-  UTC instants. Preserve the source local date, and do not label an unknown
-  timezone as UTC. Decide whether to offer a user-specified fallback timezone.
-- Six GPX files fail strict XML parsing, with an unmatched segment opening.
-  Preserve the original files in source attachments and omit `fitnessTrack`
-  when a track cannot be safely rendered. Report warnings without blocking
-  unrelated activities; any targeted repair must be explicit, tested, and stored
-  as a derived track rather than overwriting the original.
+  UTC instants. Preserve the source local date and apply the explicitly marked
+  `csv-assumed-utc` sorting fallback above, rather than guessing a local
+  timezone. This marked approximation replaces the original no-UTC-fallback
+  policy.
+- Six GPX files fail strict XML parsing because a new track segment starts
+  before the previous segment closes. Automatically repair this specific
+  missing-close defect for all users, not just this archive: insert a close
+  before the new segment at `gpx/trk/trkseg`, preserving segment boundaries and
+  every original byte except the inserted closures. Do not use a generally
+  lax XML parser or silently merge point groups.
+  Strictly validate the derived GPX with the same namespace, coordinate, time,
+  and point-count checks as an original before making it renderable. Keep
+  the original file unchanged in `runkeeperSourceGPX`; point `fitnessTrack`
+  to a separate `runkeeper-repaired-v1.gpx` file and record
+  `runkeeperGPXRepairVersion=1` and the decimal insertion count in
+  `runkeeperGPXRepairCount`. Valid original tracks use direct references and
+  no repair markers. Clear stale markers when the GPX becomes valid,
+  unrepairable, or absent. Successful repairs produce explicit warnings.
+  Repair streams through private temporary disk files, bounded to 16 MiB
+  input/output and XML depth 64; derived routes retain the 200,000-point and
+  128-byte time-text limits. GPX is processed incrementally; only inspection
+  metadata is cached, not repaired files.
+  Reject balanced nested segments, unrelated malformed XML, extraneous roots
+  or trailing data, wrong GPX structural namespaces, and invalid
+  coordinates/times instead of guessing additional changes. Refuse to close
+  a segment with its own namespace declarations, since moving its close could
+  change inherited bindings; prefixes declared on the GPX root or track are
+  supported.
+  Unrepairable tracks still import metadata
+  and preserve source attachments, but omit `fitnessTrack` and coordinates.
+  Retain a valid start time already parsed before failure, even after repair.
+  If none was found, the bounded recovery scan of the first 256 KiB can recover
+  explicitly zoned track/point times through bad coordinates or nested track
+  segments. Require GPX 1.1 root namespace/version, XML depth at most 64, and
+  time text at most 128 bytes. Date recovery alone never promotes invalid XML
+  to a renderable route. The inspected archive consequently has 850 renderable
+  tracks (six repaired), 850 original-track references, and 855 dated activities:
+  850 GPX dates and five marked CSV fallbacks. Its 11 warnings are six explicit
+  repairs and five CSV-date fallbacks; repeating the import adds zero blobs.
 - The profile's email is encoded as `Optional[address]`.
 - There are five photos, two weight measurements, and 462,060 step samples.
   Heart-rate CSV contains only a header.

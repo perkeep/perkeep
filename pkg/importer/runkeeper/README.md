@@ -87,16 +87,63 @@ bounds. The generic fitness card can use this duration as its fallback.
 
 Route name becomes `title`, notes become `description`, and tagged friends stay
 in `runkeeperFriendsTagged`. The source wall-clock date is retained verbatim
-in `runkeeperLocalDate`. Only explicitly zoned GPX track/point times establish
-UTC `startDate`; the server's local timezone is never used. Missing or unusable
-tracks do not prevent activity metadata import.
+in `runkeeperLocalDate`; search continues to use the ordinary `startDate`
+attribute, not a provider-specific date fallback.
+
+`startDate` is populated from the best available source, in this order:
+
+1. An explicitly zoned GPX track or point time, normalized to UTC, even when
+   the route itself cannot be rendered.
+2. An explicitly zoned RFC3339 CSV date, normalized to UTC.
+3. An unzoned CSV `YYYY-MM-DD HH:MM:SS` or local ISO `YYYY-MM-DDTHH:MM:SS`
+   (including fractional seconds), or a date-only `YYYY-MM-DD`. Its wall-clock
+   fields are encoded as UTC for sorting; date-only values use midnight.
+
+`runkeeperStartDateSource` records `gpx`, `csv`, or `csv-assumed-utc`,
+respectively. **`csv-assumed-utc` is an approximate sorting placeholder, not
+a known UTC instant or a discovered source timezone.** The server's local
+timezone is never used. The importer warns when it needs this fallback.
+If neither source supplies a usable date, it warns and imports an undated
+activity rather than inventing today's date. Missing or unusable tracks do
+not prevent activity metadata import.
 
 Strictly valid, renderable GPX 1.1 originals are referenced directly by
-`fitnessTrack`. Malformed XML, nested segments, invalid coordinates/times,
-tracks above 16 MiB, or tracks above 200,000 points produce warnings and omit
-`fitnessTrack`, preserving the original in `runkeeperSourceGPX`. No repairs or
-invented points are performed. A GPX without timestamps can still render but
-does not establish a start instant.
+`fitnessTrack`, without repair attributes. The importer automatically repairs
+one known Runkeeper export defect for every user: a new `trkseg` starts while
+the previous segment is still open at `gpx/trk/trkseg`. It inserts the missing
+closing tag immediately before the new segment; it never merges segments,
+invents points, or changes other source bytes. There is no opt-in setting or
+private-archive-specific exception.
+
+The repaired candidate must pass the same strict GPX namespace, coordinate,
+time, point-count, and XML validation as an original. Only then does
+`fitnessTrack` reference a **separate derived file**,
+`runkeeper-repaired-v1.gpx`. `runkeeperSourceGPX` always retains the unmodified
+original. `runkeeperGPXRepairVersion=1` identifies the repair algorithm and
+`runkeeperGPXRepairCount` records the decimal number of inserted closes.
+Successful repairs produce an explicit warning, not a silent source rewrite.
+
+Balanced nested segments (which would leave an extra original close), other
+XML damage, wrong namespaces on GPX structural elements, invalid
+coordinates/times, and resource-limit violations remain unusable. Repair also
+refuses to close a segment with its own namespace declarations: moving its
+close could change the next segment's inherited bindings. GPX prefixes
+declared on the root or track are supported. Rejected originals are still
+attached, with a warning and no `fitnessTrack` or coordinates.
+
+Repair uses a disposable private disk file, with at most 16 MiB each of input
+and derived output, XML depth 64, 200,000 points, and 128-byte time text. GPX is
+processed incrementally; only inspection metadata is cached, not repaired
+files. Temporary files are removed on success or failure.
+
+A valid GPX time encountered before a later XML or route-validation failure is
+retained, including when a repaired route is available. When needed, a
+separate recovery scan reads at most the first 256 KiB, requires a GPX 1.1
+root/namespace, and accepts only explicitly zoned track/point times. It
+tolerates bad coordinates or extra nested segments for date recovery only,
+with a maximum XML depth of 64 and time text of 128 bytes. Date recovery alone
+never makes an invalid route renderable. A GPX without timestamps can still
+render; the CSV date policy then applies.
 
 ## Preserving source data
 
@@ -125,13 +172,24 @@ fetched from network URLs. There are no per-activity latest-ZIP attributes.
 
 `runkeeperSourceHash` is a versioned SHA-256 fingerprint of the source activity
 row plus its complete GPX bytes, associated photo rows/image bytes, and grouped
-sensor rows. It is independent of ZIP ordering, container timestamps, unrelated
-activities, and the overall ZIP hash. Even malformed GPX tail changes count.
-`runkeeperImportVersion=1` marks completion. All attachments are uploaded first;
-one atomic claim then publishes modeled attributes, removes now-absent optional
-attributes, and publishes hash/version last. Failures retain the previous
-complete activity; retry uses the same permanode. Unchanged activities create
-no claims or attachment blobs. Run status/history claims are separate.
+sensor rows, plus the applicable GPX repair algorithm version and derived
+content hash. It is independent of ZIP ordering, container timestamps,
+unrelated activities, and the overall ZIP hash. Even malformed GPX tail changes
+count. `runkeeperImportVersion=3` marks completion. Explicit reimport of a
+stored ZIP or importing the same ZIP again reconciles version-1 and version-2
+activities on their existing UUID permanodes, adding dates or separate repaired
+routes and provenance where possible. Future repair algorithm versions also
+invalidate the affected fingerprints.
+All attachments are uploaded first; one atomic claim then publishes modeled
+attributes, including repair provenance, removes now-absent optional
+attributes, and publishes hash/version last in that same claim. A failed derived
+upload or claim retains the previous complete activity; retry uses the same
+permanode and original attachments. Unchanged activities create no claims or
+attachment blobs. When an input becomes valid, unrepairable, or loses its GPX,
+stale repair-version/count attributes are removed with the modeled route update.
+The date and its source marker are managed attributes: GPX removal can replace
+them with a marked CSV fallback; if no date remains usable, both are removed.
+Run status/history claims are separate.
 
 CSV parsing streams with a 1 MiB logical-record limit, 128 columns, and 128 bytes
 per header name. UTF-8 is required; modeled text fields are limited to 16 KiB.
@@ -157,14 +215,23 @@ total count. Progress is batched every 100 activities and at start/completion.
 
 ```
 go test ./pkg/importer/runkeeper ./pkg/importer/allimporters
+go test ./pkg/importer/runkeeper -run '^$' -bench BenchmarkRepairTrackRootAttributes
 PERKEEP_RUNKEEPER_TEST_ARCHIVE=/absolute/path/to/private-export.zip \
   go test ./pkg/importer/runkeeper -run TestPersonalArchive -v
 ```
 
 The opt-in private test expects the separately inspected 855-activity export;
 it never commits or prints its personal rows. It checks source preservation,
-855 distinct activities, 844 usable tracks, 850 per-activity original-track
-references (three shared filenames), five photos, 11 unzoned activities, and
-zero additional blobs on repeat. Ordinary tests use synthetic data, exercise
-failed-upload/claim retries and incremental edits, and stream a generated
-250,000-row sensor member while checking sampled live heap and spool bounds.
+855 distinct activities, 850 usable tracks (including six automatically
+repaired routes), 850 per-activity original-track references (three shared
+filenames), five photos, and 855 dated activities: 850 GPX-derived dates and
+five marked CSV-assumed-UTC dates. It expects 11 warnings (six explicit repair
+warnings and five CSV-date fallbacks) and zero additional blobs on repeat.
+Ordinary tests use synthetic data, exercise strict repair and byte/segment
+preservation, rejected repairs, date recovery, version-1/date and version-2/repair
+migration, failed-derived-upload/atomic-claim retries and incremental edits, and
+stream a generated 250,000-row sensor member while checking sampled live heap
+and spool bounds.
+The optional root-attribute benchmark holds point count fixed while increasing
+unrelated GPX attributes; it exercises namespace lookup without a flaky timing
+assertion.

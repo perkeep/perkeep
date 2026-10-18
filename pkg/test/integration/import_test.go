@@ -22,15 +22,20 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 )
@@ -95,7 +100,7 @@ func runkeeperFixture(t *testing.T) string {
 			"33333333-3333-4333-8333-333333333333,2023-09-18 13:50:08,Running,,1.00,10:00,,,100,10,,,,\n" +
 			"44444444-4444-4444-8444-444444444444,2023-09-17 13:50:08,Walking,,1.00,10:00,,,100,10,,,,broken.gpx\n",
 		"track.gpx":  `<?xml version="1.0"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk><time>2023-09-20T20:50:08Z</time><trkseg><trkpt lat="47.6" lon="-122.3"><time>2023-09-20T20:50:08Z</time></trkpt><trkpt lat="47.61" lon="-122.31"/></trkseg></trk></gpx>`,
-		"broken.gpx": `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg><trkseg></trk></gpx>`,
+		"broken.gpx": `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk><time>2023-09-17T20:50:08Z</time><trkseg><trkpt lat="47.6" lon="-122.3"/><trkseg><trkpt lat="47.61" lon="-122.31"/></trkseg></trk></gpx>`,
 		"steps.csv":  "Activity Id, Timestamp, Steps\n11111111-1111-4111-8111-111111111111,0,5\n",
 	}
 	for name, data := range files {
@@ -118,7 +123,7 @@ func runkeeperFixture(t *testing.T) string {
 }
 
 func TestRunkeeperCLI(t *testing.T) {
-	testRunkeeperCLI(t, runkeeperFixture(t), 4)
+	testRunkeeperCLI(t, runkeeperFixture(t), 4, 1)
 }
 
 // Personal exports stay outside the repository. This optional check runs the
@@ -151,10 +156,10 @@ func TestRunkeeperPersonalCLI(t *testing.T) {
 		}
 		count++
 	}
-	testRunkeeperCLI(t, name, count)
+	testRunkeeperCLI(t, name, count, -1)
 }
 
-func testRunkeeperCLI(t *testing.T, filename string, want int) {
+func testRunkeeperCLI(t *testing.T, filename string, want, wantRepaired int) {
 	t.Helper()
 	w := archiveWorld(t)
 	c, err := client.New(client.OptionServer(w.ServerBaseURL()), client.OptionNoExternalConfig(),
@@ -166,7 +171,11 @@ func testRunkeeperCLI(t *testing.T, filename string, want int) {
 	ctx := context.Background()
 	query := func(expr string) *search.SearchResult {
 		t.Helper()
-		result, err := c.Query(ctx, &search.SearchQuery{Expression: expr, Limit: -1})
+		result, err := c.Query(ctx, &search.SearchQuery{
+			Expression: expr,
+			Limit:      -1,
+			Describe:   &search.DescribeRequest{Depth: 1},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,10 +198,67 @@ func testRunkeeperCLI(t *testing.T, filename string, want int) {
 		t.Fatalf("inspection created %d accounts", got)
 	}
 	run(filename)
-	activities := query("is:fitness").Blobs
+	result := query("is:fitness")
+	activities := result.Blobs
 	if len(activities) != want {
 		t.Fatalf("activities = %d, want %d", len(activities), want)
 	}
+	if result.Describe == nil {
+		t.Fatal("missing activity descriptions")
+	}
+	readTrack := func(ref blob.Ref, filename string) []byte {
+		t.Helper()
+		f, err := schema.NewFileReader(ctx, c, ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if filename != "" && f.FileName() != filename {
+			t.Fatal("unexpected derived track filename")
+		}
+		data, err := io.ReadAll(io.LimitReader(f, (16<<20)+1))
+		if err != nil || len(data) > 16<<20 {
+			t.Fatal("cannot read bounded GPX attachment")
+		}
+		return data
+	}
+	var previous time.Time
+	repaired := 0
+	for _, activity := range activities {
+		desc := result.Describe.Meta[activity.Blob.String()]
+		if desc == nil || desc.Permanode == nil {
+			t.Fatal("imported activity has no permanode description")
+		}
+		attrs := desc.Permanode.Attr
+		start, err := time.Parse(time.RFC3339Nano, attrs.Get(nodeattr.StartDate))
+		if err != nil || attrs.Get("runkeeperStartDateSource") == "" {
+			t.Fatal("imported activity has no sortable startDate or date provenance")
+		}
+		if !previous.IsZero() && start.After(previous) {
+			t.Fatal("default search order does not follow activity startDate")
+		}
+		previous = start
+		if version := attrs.Get("runkeeperGPXRepairVersion"); version != "" {
+			original := blob.ParseOrZero(attrs.Get("runkeeperSourceGPX"))
+			derived := blob.ParseOrZero(attrs.Get(nodeattr.FitnessTrack))
+			count, err := strconv.Atoi(attrs.Get("runkeeperGPXRepairCount"))
+			if version != "1" || err != nil || count < 1 || !original.Valid() || !derived.Valid() || original == derived {
+				t.Fatal("repaired track lacks separate original/derived refs and versioned provenance")
+			}
+			var document struct{}
+			if err := xml.NewDecoder(bytes.NewReader(readTrack(original, ""))).Decode(&document); err == nil {
+				t.Fatal("original malformed GPX was modified")
+			}
+			if err := xml.NewDecoder(bytes.NewReader(readTrack(derived, "runkeeper-repaired-v1.gpx"))).Decode(&document); err != nil {
+				t.Fatal("derived GPX is still malformed")
+			}
+			repaired++
+		}
+	}
+	if wantRepaired >= 0 && repaired != wantRepaired {
+		t.Fatalf("repaired tracks = %d, want %d", repaired, wantRepaired)
+	}
+	t.Logf("validated %d dated activities, including %d versioned repaired tracks", len(activities), repaired)
 	if got := len(query("is:run").Blobs); got == 0 {
 		t.Fatal("is:run did not match imported activities")
 	}
