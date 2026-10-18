@@ -45,10 +45,11 @@ func runAdmin(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, `Usage: perkeepd admin <command> [options] [arguments]
 
 Commands:
-  copy-storage  Copy blobs between storage defined by server configs.
-  dbinit        Set up the database for the indexer.
-  dumpconfig    Dump the low-level server config from its simple config.
-  googinit      Init Google Drive or Google Cloud Storage.
+  copy-storage        Copy blobs between storage defined by server configs.
+  dbinit              Set up the database for the indexer.
+  dumpconfig          Dump the low-level server config from its simple config.
+  googinit            Init Google Drive or Google Cloud Storage.
+  reindex-diskpacked  Rebuild the index of the diskpacked blob store.
 
 Run "perkeepd admin <command> -help" for command-specific help.
 `)
@@ -85,6 +86,8 @@ Run "perkeepd admin <command> -help" for command-specific help.
 		return runAdminDumpConfig(args[1:], stdout, stderr)
 	case "googinit":
 		return runAdminGoogInit(args[1:], stdin, stdout, stderr)
+	case "reindex-diskpacked":
+		return runAdminReindexDiskpacked(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "perkeepd admin: unknown command %q\n", args[0])
 		flags.Usage()

@@ -21,7 +21,7 @@ import (
 	"log"
 	"slices"
 
-	// Register cloud config hooks for clients and the remaining admin modes.
+	// Register cloud config hooks for client configuration.
 	_ "perkeep.org/internal/osutil/gce"
 
 	"perkeep.org/pkg/client"
