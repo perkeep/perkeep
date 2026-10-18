@@ -166,17 +166,17 @@ func TestFitnessDistanceSearchHelp(t *testing.T) {
 func TestFloatConstraintNonfinite(t *testing.T) {
 	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 		for _, fc := range []*FloatConstraint{{}, {ZeroMin: true}, {Min: 1, Max: 2}} {
-			if fc.floatMatches(v) {
+			if floatConstraintFloatMatches(fc, v) {
 				t.Errorf("%+v matches nonfinite value %v", fc, v)
 			}
 		}
 		for _, fc := range []*FloatConstraint{{Min: v}, {Max: v}} {
-			if err := fc.checkValid(); err == nil {
+			if err := floatConstraintCheckValid(fc); err == nil {
 				t.Errorf("%+v accepts a nonfinite bound", fc)
 			}
 		}
 	}
-	if !(&FloatConstraint{}).floatMatches(math.MaxFloat64) {
+	if !floatConstraintFloatMatches(&FloatConstraint{}, math.MaxFloat64) {
 		t.Error("unbounded FloatConstraint does not match MaxFloat64")
 	}
 }

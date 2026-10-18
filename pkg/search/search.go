@@ -23,11 +23,9 @@ limitations under the License.
 // occurred does not affect the result.
 package search // import "perkeep.org/pkg/search"
 
-import (
-	"context"
-)
+import "perkeep.org/internal/searchtypes"
 
-type QueryDescriber interface {
-	Query(context.Context, *SearchQuery) (*SearchResult, error)
-	Describe(context.Context, *DescribeRequest) (*DescribeResponse, error)
-}
+type QueryDescriber = searchtypes.QueryDescriber
+
+// GetRecentPermanoder is the interface containing the GetRecentPermanodes method.
+type GetRecentPermanoder = searchtypes.GetRecentPermanoder

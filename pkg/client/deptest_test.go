@@ -24,6 +24,19 @@ import (
 )
 
 func TestDeps(t *testing.T) {
+	// Check the production dependency closure, including shared protocol helpers.
+	badDeps := map[string]string{
+		"perkeep.org/pkg/server":        "clients must not depend on server handlers",
+		"perkeep.org/pkg/serverinit":    "clients must not assemble a server",
+		"perkeep.org/pkg/search":        "clients must use internal/searchtypes instead of the search implementation",
+		"perkeep.org/pkg/index":         "clients must not depend on the index",
+		"perkeep.org/pkg/webserver":     "client authentication must not depend on the HTTP server implementation",
+		"perkeep.org/internal/images":   "clients must not decode or transform images",
+		"tailscale.com/tsnet":           "clients use HTTP and do not run a tailnet node",
+		"github.com/tetratelabs/wazero": "clients must not embed a WebAssembly runtime",
+		"github.com/gen2brain/avif":     "clients must not embed an AVIF decoder",
+		"github.com/gen2brain/heic":     "clients must not embed a HEIC decoder",
+	}
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},
 		{"linux/amd64", "linux", "amd64"},
@@ -40,13 +53,16 @@ func TestDeps(t *testing.T) {
 				GOOS:     target.goos,
 				GOARCH:   target.goarch,
 				ExtraEnv: extraEnv,
-				BadDeps: map[string]string{
-					"tailscale.com/tsnet":       "clients use HTTP and do not run a tailnet node",
-					"perkeep.org/pkg/webserver": "client authentication must not depend on the HTTP server implementation",
-				},
+				BadDeps:  badDeps,
 				OnDep: func(dep string) {
-					if strings.HasPrefix(dep, "tailscale.com/tsnet/") || strings.HasPrefix(dep, "gvisor.dev/") {
-						t.Errorf("package %q is not allowed as a dependency: clients must not embed a tailnet node or userspace network stack", dep)
+					// BadDeps checks exact packages; also reject their subpackages.
+					for root, why := range badDeps {
+						if strings.HasPrefix(dep, root+"/") {
+							t.Errorf("package %q is not allowed as a dependency: %s", dep, why)
+						}
+					}
+					if strings.HasPrefix(dep, "gvisor.dev/") {
+						t.Errorf("package %q is not allowed as a dependency: clients must not embed a userspace network stack", dep)
 					}
 				},
 			}.Check(t)

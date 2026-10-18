@@ -67,7 +67,7 @@ func TestTimeConstraint(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		got := tt.c.timeMatches(tt.t)
+		got := timeConstraintTimeMatches(tt.c, tt.t)
 		if got != tt.want {
 			t.Errorf("%d. matches(tc=%+v, t=%v) = %v; want %v", i, tt.c, tt.t, got, tt.want)
 		}

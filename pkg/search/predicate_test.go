@@ -750,11 +750,11 @@ func TestMatchPrefix(t *testing.T) {
 
 func TestLocationConstraint(t *testing.T) {
 	var c LocationConstraint
-	if c.matchesLatLong(1, 2) {
+	if locationConstraintMatchesLatLong(&c, 1, 2) {
 		t.Error("zero value shouldn't match")
 	}
 	c.Any = true
-	if !c.matchesLatLong(1, 2) {
+	if !locationConstraintMatchesLatLong(&c, 1, 2) {
 		t.Error("Any should match")
 	}
 
@@ -780,7 +780,7 @@ func TestLocationConstraint(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := tt.c.matchesLatLong(tt.lat, tt.long); got != tt.want {
+		if got := locationConstraintMatchesLatLong(&tt.c, tt.lat, tt.long); got != tt.want {
 			t.Errorf("%#v.matches(%v, %v) = %v; want %v", tt.c, tt.lat, tt.long, got, tt.want)
 		}
 	}
