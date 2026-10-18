@@ -154,6 +154,12 @@ limitations under the License.
 				test('moving duration preferred', function() { equal('1m 5s', fitness.formatDuration('65', '130')); });
 				test('zero moving duration preferred', function() { equal('0s', fitness.formatDuration('0', '130')); });
 				test('missing moving uses elapsed', function() { equal('2m 10s', fitness.formatDuration(null, '130')); });
+				test('unknown timer semantics uses recorded duration', function() { equal('5m 18s', fitness.formatDuration(null, null, '318')); });
+				test('known elapsed preferred over recorded', function() { equal('7m 31s', fitness.formatDuration(null, '451', '318')); });
+				test('zero recorded duration retained', function() { equal('0s', fitness.formatDuration(null, null, '0')); });
+				test('recorded duration fitness card', function() {
+					equal('1.0 km \u00b7 5m 18s', activity({fitnessDistance: '1000', fitnessRecordedDuration: '318', fitnessSource: 'runkeeper'}).metrics);
+				});
 				test('invalid moving uses elapsed', function() {
 					['-1', '', '65junk', 'Infinity'].forEach(function(value) { equal('2m 10s', fitness.formatDuration(value, '130')); });
 				});

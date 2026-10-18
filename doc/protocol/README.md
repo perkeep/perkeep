@@ -10,3 +10,4 @@
   * [Upload Sessions](blob-upload-session.md)
 * [JSON signing & verification](jsonsign.md)
 * [Indexed EXIF](search-exif.md)
+* [Archive imports](archive-import.md)

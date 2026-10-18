@@ -19,8 +19,11 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"mime/multipart"
@@ -33,7 +36,6 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"perkeep.org/internal/hashutil"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -465,18 +467,36 @@ type FileUploadOptions struct {
 	// FileInfo optionally specifies the FileInfo to populate the schema of the file blob.
 	FileInfo os.FileInfo
 	// WholeRef optionally specifies the digest of the uploaded file contents, which
-	// allows UploadFile to skip computing the digest (needed to check if the contents
-	// are already on the server).
+	// allows UploadFile to skip the preliminary digest pass used to check if the
+	// contents are already on the server.
 	WholeRef blob.Ref
+	// WholeRefs optionally specifies additional digests of the same contents,
+	// for example SHA-1 and SHA-256. These are searched together with WholeRef.
+	// Like WholeRef, these digests are trusted when reusing existing contents.
+	WholeRefs []blob.Ref
 }
 
 // UploadFile uploads the contents of the file, as well as a file blob with
 // filename for these contents. If the contents or the file blob are found on
 // the server, they're not uploaded.
 //
+// Without supplied whole-file digests, a seekable reader is hashed with the
+// canonical hash, SHA-1, and SHA-256 in one streaming pass, then rewound to its
+// original offset. A non-seekable reader is uploaded directly without a
+// whole-file duplicate search. Neither path buffers the entire input.
+//
+// If contents has a Stat method (as *os.File does) and is a regular file, its
+// size and modification time are checked before publishing the file schema.
+// Pipes and devices can change metadata during normal reads. On a duplicate
+// miss, supported whole-file digests are also checked against the uploaded bytes.
+// Changes can leave uploaded chunks behind, but do not publish a file schema.
+//
 // Note: this method is still a work in progress, and might change to accommodate
 // the needs of pk-put file.
 func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
+	if err := ctx.Err(); err != nil {
+		return blob.Ref{}, err
+	}
 	fileMap := schema.NewFileMap(filename)
 	if opts != nil && opts.FileInfo != nil {
 		fileMap = schema.NewCommonFileMap(filename, opts.FileInfo)
@@ -487,49 +507,149 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 	}
 	fileMap.SetType(schema.TypeFile)
 
-	var wholeRef []blob.Ref
-	if opts != nil && opts.WholeRef.Valid() {
-		wholeRef = append(wholeRef, opts.WholeRef)
-	} else {
-		var buf bytes.Buffer
-		var err error
-		wholeRef, err = c.wholeRef(io.TeeReader(contents, &buf))
+	check := func() error { return ctx.Err() }
+	if f, ok := contents.(interface{ Stat() (os.FileInfo, error) }); ok {
+		before, err := f.Stat()
 		if err != nil {
 			return blob.Ref{}, err
 		}
-		contents = io.MultiReader(&buf, contents)
+		if before.Mode().IsRegular() {
+			check = func() error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				after, err := f.Stat()
+				if err != nil {
+					return err
+				}
+				if before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) || before.Mode() != after.Mode() {
+					return errors.New("client: file changed during upload")
+				}
+				return nil
+			}
+		}
 	}
 
-	fileRef, err := c.fileMapFromDuplicate(ctx, fileMap, wholeRef)
+	var wholeRef []blob.Ref
+	if opts != nil {
+		if opts.WholeRef.Valid() {
+			wholeRef = append(wholeRef, opts.WholeRef)
+		}
+		for _, ref := range opts.WholeRefs {
+			if !ref.Valid() {
+				return blob.Ref{}, errors.New("client: invalid whole-file digest")
+			}
+			found := false
+			for _, have := range wholeRef {
+				if ref == have {
+					found = true
+					break
+				}
+			}
+			if !found {
+				wholeRef = append(wholeRef, ref)
+			}
+		}
+	}
+	if seeker, ok := contents.(io.ReadSeeker); ok && len(wholeRef) == 0 {
+		// Some readers, notably *os.File for pipes, implement Seek but cannot
+		// actually seek. If the initial probe fails no input has been consumed,
+		// so they can safely use the direct streaming path instead.
+		if offset, err := seeker.Seek(0, io.SeekCurrent); err == nil {
+			wholeRef, err = c.wholeRef(&uploadFileReader{ctx, contents})
+			if err != nil {
+				return blob.Ref{}, err
+			}
+			if err := check(); err != nil {
+				return blob.Ref{}, err
+			}
+			if _, err := seeker.Seek(offset, io.SeekStart); err != nil {
+				return blob.Ref{}, err
+			}
+		}
+	}
+
+	if len(wholeRef) > 0 && c.sto == nil {
+		fileRef, err := c.fileMapFromDuplicate(ctx, fileMap, wholeRef, check)
+		if err != nil && !errors.Is(err, ErrNoSearchRoot) {
+			return blob.Ref{}, err
+		}
+		if fileRef.Valid() {
+			return fileRef, nil
+		}
+	}
+	if err := check(); err != nil {
+		return blob.Ref{}, err
+	}
+
+	// Do not publish the top-level schema until all the input has been read
+	// and checked. In particular, a file may change after the prehash pass.
+	var hashes []hash.Hash
+	var refs []blob.Ref
+	var writers []io.Writer
+	for _, ref := range wholeRef {
+		if h := ref.Hash(); h != nil {
+			hashes = append(hashes, h)
+			refs = append(refs, ref)
+			writers = append(writers, h)
+		}
+	}
+	var reader io.Reader = &uploadFileReader{ctx, contents}
+	if len(writers) > 0 {
+		reader = io.TeeReader(reader, io.MultiWriter(writers...))
+	}
+	if err := schema.WriteFileChunks(ctx, c, fileMap, reader); err != nil {
+		return blob.Ref{}, err
+	}
+	for i, ref := range refs {
+		if !ref.HashMatches(hashes[i]) {
+			return blob.Ref{}, errors.New("client: file contents changed or whole-file digest does not match")
+		}
+	}
+	if err := check(); err != nil {
+		return blob.Ref{}, err
+	}
+	json, err := fileMap.JSON()
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	if fileRef.Valid() {
-		return fileRef, nil
+	pr, err := c.Upload(ctx, NewUploadHandleFromString(json))
+	if err != nil {
+		return blob.Ref{}, err
 	}
-
-	return schema.WriteFileMap(ctx, c, fileMap, contents)
+	return pr.BlobRef, nil
 }
 
-// TODO(mpl): replace up.wholeFileDigest in pk-put with c.wholeRef maybe.
+// uploadFileReader checks cancellation between reads without exposing optional
+// methods such as WriterTo that could bypass the check or copy a whole input.
+type uploadFileReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r *uploadFileReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
+}
 
 // wholeRef returns the blob ref(s) of the regular file's contents
 // as if it were one entire blob (ignoring blob size limits).
-// By default, only one ref is returned, unless the server has advertised
-// that it has indexes calculated for other hash functions.
+// The canonical digest, SHA-1, and SHA-256 are calculated in one bounded-memory
+// streaming pass, independently of which hashes the server currently indexes.
 func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
-	hasLegacySHA1, err := c.HasLegacySHA1()
-	if err != nil {
-		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %w", err)
+	hashes := []hash.Hash{blob.NewHash(), sha1.New(), sha256.New()}
+	writers := make([]io.Writer, len(hashes))
+	for i, h := range hashes {
+		writers[i] = h
 	}
-	td := hashutil.NewTrackDigestReader(contents)
-	td.DoLegacySHA1 = hasLegacySHA1
-	if _, err := io.Copy(io.Discard, td); err != nil {
+	if _, err := io.Copy(io.MultiWriter(writers...), contents); err != nil {
 		return nil, err
 	}
-	refs := []blob.Ref{blob.RefFromHash(td.Hash())}
-	if td.DoLegacySHA1 {
-		refs = append(refs, blob.RefFromHash(td.LegacySHA1Hash()))
+	refs := make([]blob.Ref, len(hashes))
+	for i, h := range hashes {
+		refs[i] = blob.RefFromHash(h)
 	}
 	return refs, nil
 }
@@ -540,7 +660,7 @@ func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
 // already be partially populated) has its "parts" field populated,
 // and then fileMap is uploaded (if necessary).
 // If no file blob is found, a zero blob.Ref (and no error) is returned.
-func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Builder, wholeRef []blob.Ref) (blob.Ref, error) {
+func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Builder, wholeRef []blob.Ref, check func() error) (blob.Ref, error) {
 	dupFileRef, err := c.SearchExistingFileSchema(ctx, wholeRef...)
 	if err != nil {
 		return blob.Ref{}, err
@@ -553,7 +673,12 @@ func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Build
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %w", wholeRef, err)
 	}
-	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
+	if err := fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts()); err != nil {
+		return blob.Ref{}, err
+	}
+	if err := check(); err != nil {
+		return blob.Ref{}, err
+	}
 	json, err := fileMap.JSON()
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %w", wholeRef, err)

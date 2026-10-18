@@ -36,6 +36,10 @@ const (
 	// FitnessElapsedDuration is the elapsed duration, in seconds.
 	FitnessElapsedDuration = "fitnessElapsedDuration"
 
+	// FitnessRecordedDuration is a provider's recorded duration, in seconds,
+	// when its pause/moving-time semantics are not known.
+	FitnessRecordedDuration = "fitnessRecordedDuration"
+
 	// FitnessElevationGain is the total elevation gained, in meters.
 	FitnessElevationGain = "fitnessElevationGain"
 
