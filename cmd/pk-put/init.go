@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -175,6 +176,18 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 	if err := cl.GetJSON(ctxbg, helpRoot+"?clientConfig=true", &cc); err != nil {
 		return nil, err
 	}
+	defaultServer := cc.Servers["default"]
+	if defaultServer == nil {
+		return nil, errors.New("server returned a client configuration without a default server")
+	}
+	// The downloaded auth may reference a file local to the server. Use the
+	// credentials that authenticated these requests instead, escaping a
+	// literal leading @ so it is not interpreted as a client-side file.
+	password := fields[1]
+	if strings.HasPrefix(password, "@") {
+		password = "@" + password
+	}
+	defaultServer.Auth = "userpass:" + fields[0] + ":" + password
 	return &cc, nil
 }
 

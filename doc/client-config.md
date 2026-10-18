@@ -74,7 +74,12 @@ server configurations. For example:
 
 * `auth`: the authentication mechanism to use. Only supported for now is HTTP
   basic authentication, of the form: `userpass:alice:secret`. Username "alice",
-  password "secret".
+  password "secret". The password also supports the server's
+  [credential file syntax](server-config.md#credential-files), for example
+  `userpass:alice:@/run/secrets/perkeep-password`. Relative paths are relative
+  to the client process's working directory. A configuration downloaded from
+  the server's `/help/` page retains any auth file references; create the
+  credential file on the client and adjust the path as needed.
 
     If the server is not on the same host, it is highly recommended to use TLS
     or another form of secure connection to the server.

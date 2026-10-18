@@ -21,6 +21,8 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   * `userpass:alice:secret:vivify=othersecret`: Alice has password "secret",
     but her Android phone can use password "othersecret" to do a minimal set of
     operations (upload new things, but not access anything).
+    Passwords can also use [credential files](#credential-files), for example
+    `userpass:alice:@/run/secrets/perkeep-password`.
   * `tailscale:ARG`: permit access only over Tailscale, where ARG is one of:
     * `full-access-to-tailnet`: to grant full read/write access to Perkeep to any
       entity on the Tailscale tailnet which has network-level access to the Perkeep server;
@@ -82,6 +84,54 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   resources. The UI files will be expected in `<sourceRoot>/server/perkeepd/ui`
   and the Closure library in `<sourceRoot>/third_party/closure/lib`.
 
+
+## Credential files {#credential-files}
+
+Credential values can use `@path` to read their value from a file instead of
+including it in the JSON:
+
+```json
+{
+    "auth": "userpass:alice:@/run/secrets/perkeep-password",
+    "s3": "@/run/secrets/s3-access-key:@./s3-secret-key:my-bucket"
+}
+```
+
+This syntax is supported in:
+
+* Both credential parts of `s3` and `b2` (access key ID and secret key).
+* The first three parts of `googlecloudstorage` and `googledrive` (client ID,
+  client secret, and refresh token). The `:bucket` automatic-credentials form
+  of `googlecloudstorage` is unchanged.
+* The password part of `mysql` and `postgres`.
+* Passwords in `auth`'s `userpass`, `basic`, and development-only `devauth`
+  modes, including `userpass`'s `vivify=@path` option. This also works anywhere
+  else an auth string is parsed, including low-level configurations.
+* `immich.password`, and the entire `flickr`, `picasa`, and `instapaper`
+  importer secret values.
+
+Files are read during configuration setup, not on each request. Leading and
+trailing whitespace (including a final newline) is removed. File contents
+are used literally, so they may contain `:` or a leading `@`. A missing or
+unreadable file is a configuration error; there is no fallback to treating
+the reference as a literal credential.
+
+Relative paths, such as `@./s3-secret-key`, are relative to the server process's
+working directory, **not** the configuration file's directory. Paths embedded
+in colon-separated fields must not contain `:`. Use absolute paths when
+running as a service, and restrict credential file permissions appropriately.
+
+To supply a literal credential beginning with `@`, double its first `@`:
+`@@secret` means the literal value `@secret`. Other literal values, including
+values containing `/`, are unchanged. Existing path settings such as
+`httpsKey` and `identitySecretRing` remain ordinary paths without an `@`
+prefix.
+
+Client configurations downloaded from `/help/` retain auth file references,
+not the files' contents. Provision the credential file on each client and
+adjust its path in the downloaded configuration as needed. `pk-put init
+--userpass=alice:password` instead saves the credentials supplied on its
+command line, not the server's file reference.
 
 ## Storage options {#storage}
 
