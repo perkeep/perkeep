@@ -7,6 +7,6 @@
 ### ex. remove garbage files.
 
 cd /usr/bin
-rm -f perkeepd pk pk-get pk-put pk-mount
+rm -f perkeepd pk pk-copy-storage pk-get pk-put pk-mount
 
 exit 0

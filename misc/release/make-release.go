@@ -283,7 +283,10 @@ func packBinaries(osType string) string {
 		exeName("scanningcabinet", osType): false,
 	}
 	switch osType {
+	case "windows":
+		binaries["pk-copy-storage.cmd"] = false
 	case "linux", "darwin":
+		binaries["pk-copy-storage"] = false
 		binaries["pk-mount"] = false
 	}
 	toPack := func(bin string) bool {

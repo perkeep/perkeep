@@ -1,6 +1,7 @@
 # Copyright 2014 The Perkeep Authors.
 # Generic purpose Perkeep image, that builds the server (perkeepd)
-# and the command-line clients (pk, pk-put, pk-get, and pk-mount).
+# and the command-line clients (pk, pk-put, pk-get, and pk-mount),
+# including the tiny pk-copy-storage wrapper for perkeepd.
 
 # The build stage always runs on the native build platform and
 # cross-compiles for the target, rather than running the Go toolchain

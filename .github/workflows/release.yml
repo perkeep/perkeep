@@ -46,6 +46,7 @@ jobs:
         run: |
           set -euxo pipefail
           go build -ldflags "-extldflags -static" -o pk        ./cmd/pk
+          cp cmd/pk-copy-storage/pk-copy-storage .
           go build -ldflags "-extldflags -static" -o pk-get    ./cmd/pk-get
           go build -ldflags "-extldflags -static" -o pk-put    ./cmd/pk-put
           go build -ldflags "-extldflags -static" -o perkeepd  ./server/perkeepd
@@ -60,6 +61,7 @@ jobs:
         run: |
           set -euxo pipefail
           GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk.exe       ./cmd/pk
+          cp cmd/pk-copy-storage/pk-copy-storage.cmd .
           GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk-get.exe   ./cmd/pk-get
           GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o pk-put.exe   ./cmd/pk-put
           GOOS=windows GOARCH=${{ matrix.GOARCH }} go build -o perkeepd.exe ./server/perkeepd
@@ -76,10 +78,10 @@ jobs:
 
           if [[ "${{ matrix.GOOS }}" == "windows" ]]; then
             archive="perkeep-${suffix}.zip"
-            zip -9 "$archive" pk.exe pk-get.exe pk-put.exe perkeepd.exe
+            zip -9 "$archive" pk.exe pk-copy-storage.cmd pk-get.exe pk-put.exe perkeepd.exe
           else
             archive="perkeep-${suffix}.tar.gz"
-            tar -czf "$archive" pk pk-get pk-put perkeepd pk-mount
+            tar -czf "$archive" pk pk-copy-storage pk-get pk-put perkeepd pk-mount
           fi
 
           echo "ARCHIVE_NAME=$archive" >> "$GITHUB_ENV"

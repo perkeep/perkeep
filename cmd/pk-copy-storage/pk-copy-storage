@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "$(dirname "$0")/perkeepd" admin copy-storage "$@"

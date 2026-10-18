@@ -10,3 +10,8 @@ To build Perkeep:
 
 4) The compiled binaries should now be in the usual go install directory:
    perkeepd (the server), pk, pk-put, pk-get, and pk-import-runkeeper.
+
+   The build also installs pk-copy-storage (pk-copy-storage.cmd on Windows),
+   a tiny wrapper for "perkeepd admin copy-storage", alongside perkeepd.
+   It is not a Go program; see cmd/pk-copy-storage/README.md for installation
+   without make.go.

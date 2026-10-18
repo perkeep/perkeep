@@ -45,8 +45,9 @@ func runAdmin(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, `Usage: perkeepd admin <command> [options] [arguments]
 
 Commands:
-  dumpconfig  Dump the low-level server config from its simple config.
-  googinit    Init Google Drive or Google Cloud Storage.
+  copy-storage  Copy blobs between storage defined by server configs.
+  dumpconfig    Dump the low-level server config from its simple config.
+  googinit      Init Google Drive or Google Cloud Storage.
 
 Run "perkeepd admin <command> -help" for command-specific help.
 `)
@@ -75,6 +76,8 @@ Run "perkeepd admin <command> -help" for command-specific help.
 		args = []string{args[1], "-help"}
 	}
 	switch args[0] {
+	case "copy-storage":
+		return runAdminCopyStorage(args[1:], stdout, stderr)
 	case "dumpconfig":
 		return runAdminDumpConfig(args[1:], stdout, stderr)
 	case "googinit":
