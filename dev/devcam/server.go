@@ -347,8 +347,8 @@ func (c *serverCmd) setEnvVars() error {
 	return nil
 }
 
-func (c *serverCmd) setupIndexer() error {
-	args := []string{"dbinit"}
+func (c *serverCmd) indexerSetupCommand() *exec.Cmd {
+	args := []string{"admin", "dbinit"}
 	switch {
 	case c.postgres:
 		args = append(args,
@@ -375,12 +375,18 @@ func (c *serverCmd) setupIndexer() error {
 	} else {
 		args = append(args, "-ignoreexists")
 	}
-	binPath := filepath.Join("bin", "pk")
-	cmd := exec.Command(binPath, args...)
+	return exec.Command(filepath.Join("bin", "perkeepd"), args...)
+}
+
+func (c *serverCmd) setupIndexer() error {
+	cmd := c.indexerSetupCommand()
+	if cmd == nil {
+		return nil
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Could not run pk dbinit: %w", err)
+		return fmt.Errorf("Could not run perkeepd admin dbinit: %w", err)
 	}
 	return nil
 }

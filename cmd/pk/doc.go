@@ -16,8 +16,7 @@ limitations under the License.
 
 /*
 The pk binary is a collection of commands to help with the use of
-a camlistore server. Notably, it can initialize a database for the
-indexer, and it can sync blobs between blobservers.
+a Perkeep server. Notably, it can sync blobs between blobservers.
 
 Usage:
 
@@ -35,15 +34,13 @@ Modes:
 	reindex-diskpacked: Rebuild the index of the diskpacked blob store
 	index: Synchronize blobs for all discovered blobs storage - indexer pairs.
 	sync: Synchronize blobs from a source to a destination.
-	dbinit: Set up the database for the indexer.
+
 	debug: Show misc meta-info from the given file.
 
 Examples:
 
 	pk sync --all
 	pk sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
-
-	pk dbinit -user root -password root -host localhost -dbname camliprod -wipe
 
 For mode-specific help:
 

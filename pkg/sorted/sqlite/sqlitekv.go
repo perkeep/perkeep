@@ -96,7 +96,7 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 	version, err := kv.SchemaVersion()
 	if err != nil {
-		return nil, fmt.Errorf("error getting schema version (need to init database with 'camtool dbinit %s'?): %w", file, err)
+		return nil, fmt.Errorf("error getting schema version (need to init database with 'perkeepd admin dbinit --dbtype=sqlite --dbname=%q'?): %w", file, err)
 	}
 
 	if err := kv.ping(); err != nil {

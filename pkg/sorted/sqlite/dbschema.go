@@ -18,8 +18,8 @@ package sqlite
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"log"
 	"strconv"
 
 	"perkeep.org/pkg/sorted"
@@ -113,10 +113,10 @@ func InitDB(path string) error {
 	// Check if the WAL mode was set correctly
 	var journalMode string
 	if err = db.QueryRow("PRAGMA journal_mode").Scan(&journalMode); err != nil {
-		log.Fatalf("Unable to determine sqlite3 journal_mode: %v", err)
+		return fmt.Errorf("Unable to determine sqlite3 journal_mode: %w", err)
 	}
 	if journalMode != "wal" {
-		log.Fatal("SQLite Write Ahead Logging (introducted in v3.7.0) is required. See http://perkeep.org/issue/114")
+		return errors.New("SQLite Write Ahead Logging (introducted in v3.7.0) is required. See http://perkeep.org/issue/114")
 	}
 
 	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion()))

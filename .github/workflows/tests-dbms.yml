@@ -51,7 +51,8 @@ jobs:
       run: |
         set -o pipefail
         go test -v -count=1 -run 'MySQL|Postgres|PostgreSQL|Rollback' \
-          ./pkg/sorted/mysql ./pkg/sorted/postgres ./pkg/index 2>&1 | tee test.log
+          ./pkg/sorted/mysql ./pkg/sorted/postgres ./pkg/index \
+          ./server/perkeepd 2>&1 | tee test.log
         # A skipped test means the databases weren't used.
         if grep -- '--- SKIP' test.log; then
           echo "::error::tests were skipped"

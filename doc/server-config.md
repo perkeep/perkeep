@@ -169,8 +169,8 @@ create a schema in addition to the default schema. You will need `grant create,
 insert, update, delete, alter, show databases on *.*` permissions for your
 database user.
 
-You can use the [pk dbinit](/cmd/pk/) command to initialize your
-database, and see [dbinit.go](/cmd/pk/dbinit.go) and
+You can use `perkeepd admin dbinit` to initialize your
+database, and see [admin_dbinit.go](/server/perkeepd/admin_dbinit.go) and
 [dbschema.go](/pkg/sorted/mysql/dbschema.go) if you're curious about the
 details.
 
