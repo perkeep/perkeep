@@ -61,8 +61,9 @@ type ArchiveImportStatus struct {
 
 // ArchiveImportResult is returned by archive inspect and start operations.
 type ArchiveImportResult struct {
-	Identity   ArchiveIdentity      `json:"identity"`
-	AccountRef blob.Ref             `json:"accountRef,omitempty"`
+	Identity ArchiveIdentity `json:"identity"`
+	// omitempty does not omit a zero blob.Ref struct, which marshals as null.
+	AccountRef blob.Ref             `json:"accountRef,omitzero"`
 	Created    bool                 `json:"created,omitempty"`
 	Status     *ArchiveImportStatus `json:"status,omitempty"`
 }

@@ -219,6 +219,18 @@ func TestRunkeeperBrowser(t *testing.T) {
 		if result.Identity.UserName != "runner" || result.Identity.Email != "runner@example.com" {
 			t.Fatalf("%s identity = %+v", action, result.Identity)
 		}
+		if action == "inspect" && !result.AccountRef.Valid() {
+			// Check the actual wire shape, not only the Go round trip:
+			// unmarshalling null also produces an invalid blob.Ref, but
+			// older browser clients require this optional field to be absent.
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(body, &wire); err != nil {
+				t.Fatal(err)
+			}
+			if value, present := wire["accountRef"]; present {
+				t.Fatalf("unmatched accountRef must be omitted, got %s", value)
+			}
+		}
 		return &result
 	}
 	inspection := submit("inspect")
