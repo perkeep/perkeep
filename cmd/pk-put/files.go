@@ -251,9 +251,13 @@ func (c *fileCmd) RunCommand(args []string) error {
 				log.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
 				continue
 			}
-			t := up.NewTreeUpload(filename)
-			t.Start()
-			lastPut, err = t.Wait()
+			if up.canUploadTree() {
+				lastPut, err = up.uploadTree(ctxbg, filename)
+			} else {
+				t := up.NewTreeUpload(filename)
+				t.Start()
+				lastPut, err = t.Wait()
+			}
 		} else {
 			lastPut, err = up.UploadFile(ctxbg, filename)
 			if err == nil && c.deleteAfterUpload {
