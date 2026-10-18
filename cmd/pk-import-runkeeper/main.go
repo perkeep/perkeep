@@ -27,12 +27,12 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"time"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/pkg/upload"
 )
 
 var errUsage = errors.New("invalid command line")
@@ -127,10 +127,11 @@ func (c *importCmd) run(ctx context.Context, args []string) error {
 			return errors.New("archive must be a regular file")
 		}
 		fmt.Fprintf(c.stderr, "Hashing and uploading %s (%d bytes)...\n", name, fi.Size())
-		ref, err = cl.UploadFile(ctx, filepath.Base(name), f, &client.FileUploadOptions{FileInfo: fi})
+		res, err := upload.NewFile(cl, fi, f, nil).Run(ctx)
 		if err != nil {
 			return err
 		}
+		ref = res.FileRef
 	}
 	fmt.Fprintf(c.stderr, "Archive file: %s\n", ref)
 	var result *camtypes.ArchiveImportResult

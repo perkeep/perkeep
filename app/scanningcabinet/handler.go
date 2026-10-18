@@ -33,7 +33,6 @@ import (
 
 	uistatic "perkeep.org/app/scanningcabinet/ui"
 	"perkeep.org/internal/httputil"
-	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/app"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
@@ -41,6 +40,7 @@ import (
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/search"
 	camliserver "perkeep.org/pkg/server"
+	"perkeep.org/pkg/upload"
 
 	"go4.org/syncutil"
 )
@@ -319,7 +319,6 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	var br blob.Ref
 	var fileName string
 	var creation time.Time
-	cr := countingReader{}
 	for {
 		part, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {
@@ -350,12 +349,12 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		fileName = path.Base(name)
-		cr.r = part
-		br, err = h.cl.UploadFile(ctx, fileName, &cr, nil)
+		res, err := upload.NewFileFromReader(h.cl, fileName, part, nil).Run(ctx)
 		if err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("could not write %v to blobserver: %w", fileName, err))
 			return
 		}
+		br = res.FileRef
 	}
 
 	creationProvided := true
@@ -392,25 +391,6 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	io.WriteString(w, scanRef.String())
-}
-
-type countingReader struct {
-	hdr []byte
-	n   int
-	r   io.Reader
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
-	if c.n < 1024 {
-		c.hdr = append(c.hdr, p[:n]...)
-	}
-	c.n += n
-	return n, err
-}
-
-func (c *countingReader) Mime() string {
-	return magic.MIMEType(c.hdr)
 }
 
 func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
