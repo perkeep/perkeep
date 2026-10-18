@@ -165,6 +165,7 @@ func newWrappedClient(t *testing.T, wrap func(http.Handler) http.Handler) (*clie
 	rc := &requestCounter{RoundTripper: hc.Transport, n: make(map[string]int)}
 	hc.Transport = rc
 	c.SetHTTPClient(hc)
+	c.SetHaveCache(&mapHaveCache{m: make(map[blob.Ref]uint32)}) // as pk-put's client has
 	counters.Store(c, rc)
 	t.Cleanup(func() { counters.Delete(c) })
 	return c, rc
@@ -242,8 +243,27 @@ func checkContents(t *testing.T, fetcher blob.Fetcher, fileRef blob.Ref, content
 	}
 }
 
+// mapHaveCache is a client.HaveCache in a map.
+type mapHaveCache struct {
+	mu sync.Mutex
+	m  map[blob.Ref]uint32
+}
+
+func (c *mapHaveCache) StatBlobCache(br blob.Ref) (uint32, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	size, ok := c.m[br]
+	return size, ok
+}
+
+func (c *mapHaveCache) NoteBlobExists(br blob.Ref, size uint32) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.m[br] = size
+}
+
 // TestUploadSmall checks that a file of one chunk is uploaded without a
-// session: one stat of its blobs, and an upload of each.
+// session, or asking the server about its blobs: an upload of each.
 func TestUploadSmall(t *testing.T) {
 	c, rc := newCountingClient(t)
 	res, p := uploadFile(t, c, "small.txt", []byte("hello"), nil)
@@ -253,20 +273,21 @@ func TestUploadSmall(t *testing.T) {
 	if p.ChunksUploaded != 1 || p.BytesHashed != 0 {
 		t.Errorf("Progress = %+v; want 1 chunk uploaded, nothing hashed", p)
 	}
-	if got, want := rc.take(), map[string]int{"stat": 1, "upload": 2}; !maps.Equal(got, want) {
+	if got, want := rc.take(), map[string]int{"upload": 2}; !maps.Equal(got, want) {
 		t.Errorf("requests %v; want %v", got, want)
 	}
 
-	// The same file again: just the stat.
+	// The same file again: the have cache has its blobs.
 	uploadFile(t, c, "small.txt", []byte("hello"), nil)
-	if got, want := rc.take(), map[string]int{"stat": 1}; !maps.Equal(got, want) {
-		t.Errorf("uploading again, requests %v; want %v", got, want)
+	if got := rc.take(); len(got) != 0 {
+		t.Errorf("uploading again, requests %v; want none", got)
 	}
 }
 
 // TestUploadRequests checks the requests of a file of many chunks: its
-// own session, one stat of all its blobs, and a flush before and after
-// the file schema blob's upload.
+// own session, one stat of all its blobs, uploads of them (sent together
+// when they wait for a free request, so as many as the blobs at most),
+// and a flush before and after the file schema blob's upload.
 func TestUploadRequests(t *testing.T) {
 	c, rc := newCountingClient(t)
 	contents := randBytes(7, 3<<20)
@@ -286,8 +307,12 @@ func TestUploadRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	blobs += len(bytesBlobs)
-	want := map[string]int{"search": 1, "open": 1, "stat": 1, "upload": blobs, "flush": 2, "close": 1}
-	if got := rc.take(); !maps.Equal(got, want) {
+	got := rc.take()
+	if n := got["upload"]; n < 2 || n > blobs {
+		t.Errorf("%d upload requests for %d blobs; want 2 to %d", n, blobs, blobs)
+	}
+	delete(got, "upload")
+	if want := map[string]int{"search": 1, "open": 1, "stat": 1, "flush": 2, "close": 1}; !maps.Equal(got, want) {
 		t.Errorf("requests %v; want %v", got, want)
 	}
 }

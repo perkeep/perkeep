@@ -415,6 +415,10 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 	return res, nil
 }
 
+// oneChunk reports whether the file is cut into one chunk, as files of
+// up to sessionThreshold bytes are.
+func (f *File) oneChunk() bool { return f.size >= 0 && f.size <= sessionThreshold }
+
 // newFileMap returns the builder of the file's schema blob, without its
 // parts.
 func (f *File) newFileMap() *schema.Builder {
@@ -639,12 +643,17 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink, r io.Reader, tail fun
 			}
 			refs = append(refs, b.tail...)
 			have := make(map[blob.Ref]bool)
-			err := f.c.StatBlobs(gctx, refs, func(sb blob.SizedRef) error {
-				have[sb.Ref] = true
-				return nil
-			})
-			if err != nil {
-				return err
+			// Asking about the blobs of a file of one chunk takes as long
+			// as uploading them, and only spares uploading them when the
+			// server has them anyway; uploads skip what the have cache has.
+			if !f.oneChunk() {
+				err := f.c.StatBlobs(gctx, refs, func(sb blob.SizedRef) error {
+					have[sb.Ref] = true
+					return nil
+				})
+				if err != nil {
+					return err
+				}
 			}
 			for _, br := range b.tail {
 				if !have[br] {
@@ -804,7 +813,7 @@ func (f *File) newSink(ctx context.Context) (*sink, error) {
 	if f.opts.Session != nil {
 		return &sink{c: f.c, s: f.opts.Session}, nil
 	}
-	if f.size >= 0 && f.size <= sessionThreshold {
+	if f.oneChunk() {
 		return &sink{c: f.c}, nil
 	}
 	s, err := f.c.NewUploadSession(ctx)

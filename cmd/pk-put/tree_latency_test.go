@@ -155,14 +155,12 @@ func writeTestTree(t *testing.T, root string, dirs, files, size int) {
 // how long uploading a tree takes: as pk-put did before package upload,
 // as it does with TreeUpload and package upload's File, and with
 // upload.Tree. It logs the simulated times and request counts, and checks
-// upload.Tree is faster than TreeUpload with File.
+// upload.Tree is the fastest.
 //
 // The client's HTTP transport here is HTTP/1, so it makes up to 5
-// requests at once (with HTTP/2, 50). With one blob per upload request,
-// that bounds every way by its number of requests: before package
-// upload, pk-put didn't ask the server about a file's chunks at all,
-// which, when every request costs a round trip, makes it faster than
-// upload.Tree for small files.
+// requests at once (with HTTP/2, 50), which bounds each way by its number
+// of requests. upload.Tree makes the fewest, sending blobs together in
+// its session's requests.
 func TestTreeUploadSimulatedLatency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
@@ -220,8 +218,8 @@ func TestTreeUploadSimulatedLatency(t *testing.T) {
 					ls.mu.Unlock()
 				})
 			}
-			if times[2] >= times[1] {
-				t.Errorf("%s, %s: upload.Tree took %v, TreeUpload+upload.File %v; want upload.Tree faster", wl.name, model.name, times[2], times[1])
+			if times[2] >= times[1] || times[2] >= times[0] {
+				t.Errorf("%s, %s: times %v; want upload.Tree's, the last, the fastest", wl.name, model.name, times)
 			}
 		}
 	}
