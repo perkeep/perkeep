@@ -117,6 +117,13 @@ func newTestClient(t *testing.T) *client.Client {
 // requestCounter, which doesn't count the checks of uploadFile.
 func newCountingClient(t *testing.T) (*client.Client, *requestCounter) {
 	t.Helper()
+	return newWrappedClient(t, nil)
+}
+
+// newWrappedClient is like newCountingClient, with the server's handlers
+// wrapped by wrap, if non-nil.
+func newWrappedClient(t *testing.T, wrap func(http.Handler) http.Handler) (*client.Client, *requestCounter) {
+	t.Helper()
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
 		t.Fatalf("source root folder not found: %v", err)
@@ -144,7 +151,11 @@ func newCountingClient(t *testing.T) (*client.Client, *requestCounter) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { shutdown.Close() })
-	ts := httptest.NewTestServer(t, mux)
+	var h http.Handler = mux
+	if wrap != nil {
+		h = wrap(mux)
+	}
+	ts := httptest.NewTestServer(t, h)
 	c, err := client.New(client.OptionServer("http://example.com"), client.OptionNoExternalConfig(),
 		client.OptionAuthMode(auth.NewBasicAuth("foo", "bar")))
 	if err != nil {
