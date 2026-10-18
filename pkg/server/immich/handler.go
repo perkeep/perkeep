@@ -700,7 +700,7 @@ func (h *Handler) serveAssetUpload(w http.ResponseWriter, r *http.Request) {
 	// SHA-1 is only an Immich interoperability checksum. Perkeep uses its
 	// normal blob hash for chunks, file schemas and the planned permanode.
 	checksumHash, contentHash := sha1.New(), blob.NewHash()
-	a.FileRef, err = schema.WriteFileFromReaderWithModTime(r.Context(), h.storage, a.Name, modified,
+	a.FileRef, err = h.writeFile(r.Context(), a.Name, modified,
 		io.TeeReader(src, io.MultiWriter(checksumHash, contentHash)))
 	src.Close()
 	if err != nil {
@@ -719,7 +719,7 @@ func (h *Handler) serveAssetUpload(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, "opening sidecar", err)
 			return
 		}
-		a.SidecarRef, err = schema.WriteFileFromReaderWithModTime(r.Context(), h.storage, a.Name+".xmp", modified, sidecar)
+		a.SidecarRef, err = h.writeFile(r.Context(), a.Name+".xmp", modified, sidecar)
 		sidecar.Close()
 		if err != nil {
 			h.fail(w, "storing sidecar", err)
@@ -878,6 +878,19 @@ func (h *Handler) serveAssetUpload(w http.ResponseWriter, r *http.Request) {
 	} else {
 		immichJSON(w, http.StatusCreated, map[string]any{"id": a.ID, "status": "created"})
 	}
+}
+
+// writeFile writes r to storage as a file of the given name and
+// modification time, returning its file schema blob's ref. It writes the
+// blobs in groups (see schema.WriteFileMapGrouped), so a photo's chunks
+// share their syncs to disk, but the file schema blob is the same as
+// schema.WriteFileFromReaderWithModTime's.
+func (h *Handler) writeFile(ctx context.Context, name string, modTime time.Time, r io.Reader) (blob.Ref, error) {
+	file := schema.NewFileMap(name)
+	if !modTime.IsZero() {
+		file.SetModTime(modTime)
+	}
+	return schema.WriteFileMapGrouped(ctx, h.storage, file, r)
 }
 
 func (h *Handler) storeSigned(ctx context.Context, b *schema.Builder, at time.Time) (blob.Ref, error) {

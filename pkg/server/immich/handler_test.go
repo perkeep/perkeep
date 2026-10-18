@@ -768,3 +768,28 @@ func TestImmichFailedUploadNeverAcknowledged(t *testing.T) {
 		})
 	}
 }
+
+// TestImmichUploadFileRef checks that an uploaded photo's file schema blob
+// is the one schema.WriteFileFromReaderWithModTime makes, though the
+// handler writes its blobs in groups.
+func TestImmichUploadFileRef(t *testing.T) {
+	h := newImmichTestHandler(t)
+	token := immichTestLogin(t, h)
+	original := strings.Repeat("several chunks of photo; ", 3<<20/25)
+	id := immichUploadedID(t, immichTestUpload(t, h, token, original, nil), 201)
+	a, err := h.asset(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified, err := time.Parse(time.RFC3339Nano, "2025-01-03T03:04:05.123Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := schema.WriteFileFromReaderWithModTime(context.Background(), new(test.Fetcher), "photo.jpg", modified, strings.NewReader(original))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FileRef != want {
+		t.Errorf("FileRef = %v; want %v", a.FileRef, want)
+	}
+}
