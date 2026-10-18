@@ -45,20 +45,24 @@ type UploadSession struct {
 	c  *Client
 	id string
 
-	flushMu sync.Mutex // serializes Flush calls
+	flushing chan struct{} // a token, held by whoever is flushing
 
 	mu sync.Mutex
 	// accepted are the blobs the server accepted, and hasn't reported
-	// durable.
+	// durable or failed.
 	accepted map[blob.Ref]uint32
-	// early are blobs a Flush reported durable before their Upload call
+	// early are blobs a flush reported durable before their Upload call
 	// noted them accepted.
 	early map[blob.Ref]bool
-	// durable are blobs found durable outside of a Flush, for the next
-	// Flush to return.
-	durable []blob.SizedRef
-	// ack are the blobs the last successful Flush returned, for the next
-	// to acknowledge.
+	// failed are the blobs that failed or were lost, and haven't been
+	// uploaded again, for WaitDurable.
+	failed map[blob.Ref]error
+	// durable and failures are what flushes learned since the last
+	// Flush, for the next to return.
+	durable  []blob.SizedRef
+	failures *blobserver.BlobsError
+	// ack are the blobs the last successful flush request reported
+	// durable, for the next to acknowledge.
 	ack []blob.Ref
 }
 
@@ -98,8 +102,10 @@ func (c *Client) NewUploadSession(ctx context.Context) (*UploadSession, error) {
 	return &UploadSession{
 		c:        c,
 		id:       opened.Session,
+		flushing: make(chan struct{}, 1),
 		accepted: make(map[blob.Ref]uint32),
 		early:    make(map[blob.Ref]bool),
+		failed:   make(map[blob.Ref]error),
 	}, nil
 }
 
@@ -177,6 +183,7 @@ func (s *UploadSession) Upload(ctx context.Context, h *UploadHandle) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	delete(s.failed, h.BlobRef)
 	switch {
 	case received:
 		c.haveCache.NoteBlobExists(h.BlobRef, h.Size)
@@ -213,9 +220,87 @@ func (s *UploadSession) Upload(ctx context.Context, h *UploadHandle) error {
 // lost: the caller can call Flush again, and it will report the same
 // blobs and more.
 func (s *UploadSession) Flush(ctx context.Context) ([]blob.SizedRef, error) {
-	s.flushMu.Lock()
-	defer s.flushMu.Unlock()
+	if err := s.startFlushing(ctx); err != nil {
+		return nil, err
+	}
+	defer s.doneFlushing()
+	if err := s.flush(ctx); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	durable, failures := s.durable, s.failures
+	s.durable, s.failures = nil, nil
+	return durable, failures.OrNil()
+}
 
+// WaitDurable waits until each of refs is durable, flushing the session
+// as needed (or until ctx is done). Upload must have accepted each of
+// refs, and returned, before WaitDurable is called.
+//
+// Flushes are shared with concurrent WaitDurable calls: a call that finds
+// its blobs settled by another's flush doesn't flush again. WaitDurable
+// doesn't take the blobs from Flush's reports: the next Flush still
+// returns them.
+//
+// It returns nil if all of refs are durable, and otherwise either a
+// *blobserver.BlobsError listing those that failed or were lost (as
+// Flush reports them; the caller should upload them again), or another
+// error if a flush failed as a whole.
+func (s *UploadSession) WaitDurable(ctx context.Context, refs []blob.Ref) error {
+	if !s.settled(refs) {
+		if err := s.startFlushing(ctx); err != nil {
+			return err
+		}
+		defer s.doneFlushing()
+		// The flush we waited for may have settled refs.
+		if !s.settled(refs) {
+			if err := s.flush(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	be := &blobserver.BlobsError{Op: "upload session wait"}
+	for _, br := range refs {
+		be.Add(br, s.failed[br])
+	}
+	return be.OrNil()
+}
+
+// settled reports whether none of refs is waiting for a flush to learn
+// whether it's durable.
+func (s *UploadSession) settled(refs []blob.Ref) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, br := range refs {
+		if _, ok := s.accepted[br]; ok {
+			return false
+		}
+	}
+	return true
+}
+
+// startFlushing waits for any flush in progress to finish, or for ctx to
+// be done. If it returns nil, the caller may flush, and must call
+// doneFlushing after.
+func (s *UploadSession) startFlushing(ctx context.Context) error {
+	select {
+	case s.flushing <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *UploadSession) doneFlushing() { <-s.flushing }
+
+// flush flushes the session on the server, recording what it learns for
+// WaitDurable and the next Flush. It returns an error only if the flush
+// failed as a whole, learning nothing; a lost session is recorded as the
+// loss of its blobs. The caller must hold the flushing token.
+func (s *UploadSession) flush(ctx context.Context) error {
 	s.mu.Lock()
 	before := make(map[blob.Ref]bool, len(s.accepted))
 	for br := range s.accepted {
@@ -228,29 +313,29 @@ func (s *UploadSession) Flush(ctx context.Context) ([]blob.SizedRef, error) {
 	s.mu.Unlock()
 
 	st, err := s.postFlush(ctx, form)
-	be := &blobserver.BlobsError{Op: "upload session flush"}
-	if errors.Is(err, uploadsession.ErrUnknownSession) {
-		// Everything not yet reported durable is lost.
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		for br := range s.accepted {
-			be.Add(br, err)
-		}
-		clear(s.accepted)
-		clear(s.early)
-		s.ack = nil
-		durable := s.durable
-		s.durable = nil
-		return durable, be.OrNil()
-	}
-	if err != nil {
-		return nil, err
+	if err != nil && !errors.Is(err, uploadsession.ErrUnknownSession) {
+		return err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	durable := append(s.durable, st.Durable...)
-	s.durable = nil
+	if s.failures == nil {
+		s.failures = &blobserver.BlobsError{Op: "upload session flush"}
+	}
+	fail := func(br blob.Ref, err error) {
+		s.failures.Add(br, err)
+		s.failed[br] = err
+		delete(s.accepted, br)
+	}
+	if err != nil {
+		// Everything not yet reported durable is lost.
+		for br := range s.accepted {
+			fail(br, err)
+		}
+		clear(s.early)
+		s.ack = nil
+		return nil
+	}
 	for _, sb := range st.Durable {
 		if _, ok := s.accepted[sb.Ref]; ok {
 			delete(s.accepted, sb.Ref)
@@ -260,23 +345,22 @@ func (s *UploadSession) Flush(ctx context.Context) ([]blob.SizedRef, error) {
 		}
 		s.c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
 	}
+	s.durable = append(s.durable, st.Durable...)
 	for _, fb := range st.Failed {
-		be.Add(fb.BlobRef, fmt.Errorf("client: server failed to commit blob: %s", fb.Error))
-		delete(s.accepted, fb.BlobRef)
+		fail(fb.BlobRef, fmt.Errorf("client: server failed to commit blob: %s", fb.Error))
 	}
 	// The server reports every blob added before the flush as durable or
 	// failed; one it reported neither is lost.
 	for br := range before {
 		if _, ok := s.accepted[br]; ok {
-			be.Add(br, errLostBlob)
-			delete(s.accepted, br)
+			fail(br, errLostBlob)
 		}
 	}
 	s.ack = s.ack[:0]
 	for _, sb := range st.Durable {
 		s.ack = append(s.ack, sb.Ref)
 	}
-	return durable, be.OrNil()
+	return nil
 }
 
 // postFlush sends the flush request, with form's acknowledgements.

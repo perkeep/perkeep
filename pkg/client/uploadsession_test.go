@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
@@ -76,6 +77,8 @@ type sessionServer struct {
 	failFlush  bool          // whether to fail flush requests with a 500
 	holdUpload chan struct{} // if non-nil, upload responses wait for it to close
 	uploading  chan struct{} // if non-nil, closed when an upload has been handled
+	holdFlush  chan struct{} // if non-nil, flush responses wait for it to close
+	flushing   chan struct{} // if non-nil, closed when a flush has been handled
 }
 
 // newSessionClient returns a client of a new sessionServer, which has
@@ -118,11 +121,23 @@ func newSessionClient(t *testing.T, withSessions bool) (*Client, *sessionServer)
 				srv.mu.Lock()
 				srv.acks = append(srv.acks, r.PostForm["ack"])
 				fail := srv.failFlush
+				hold, flushing := srv.holdFlush, srv.flushing
 				srv.mu.Unlock()
 				if fail {
 					http.Error(w, "flush failed", http.StatusInternalServerError)
 					return
 				}
+				rec := httptest.NewRecorder()
+				session.ServeHTTP(rec, r)
+				if flushing != nil {
+					close(flushing)
+				}
+				if hold != nil {
+					<-hold
+				}
+				w.WriteHeader(rec.Code)
+				w.Write(rec.Body.Bytes())
+				return
 			}
 			session.ServeHTTP(w, r)
 		default:
@@ -346,4 +361,93 @@ func TestUploadSessionFlushDuringUpload(t *testing.T) {
 	if durable, err := s.Flush(context.Background()); err != nil || len(durable) != 0 {
 		t.Errorf("Flush after the Upload = %v, %v; want nothing", durable, err)
 	}
+}
+
+// flushCount returns how many flush requests srv has had.
+func (srv *sessionServer) flushCount() int {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	return len(srv.acks)
+}
+
+// TestWaitDurable checks that WaitDurable flushes to learn its blobs are
+// durable, reports failures, and leaves what it learns for Flush.
+func TestWaitDurable(t *testing.T) {
+	c, srv := newSessionClient(t, true)
+	s := newSession(t, c)
+	a, b := &test.Blob{Contents: "a"}, &test.Blob{Contents: "b"}
+	srv.sto.mu.Lock()
+	srv.sto.fail = map[blob.Ref]bool{b.BlobRef(): true}
+	srv.sto.mu.Unlock()
+	sessionUpload(t, s, a, b)
+
+	if err := s.WaitDurable(context.Background(), a.BlobRefSlice()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.haveCache.StatBlobCache(a.BlobRef()); !ok {
+		t.Errorf("%v not in the have cache after WaitDurable", a.BlobRef())
+	}
+	err := s.WaitDurable(context.Background(), []blob.Ref{a.BlobRef(), b.BlobRef()})
+	if be, ok := errors.AsType[*blobserver.BlobsError](err); !ok || be.Len() != 1 || be.Err(b.BlobRef()) == nil {
+		t.Errorf("WaitDurable with a failed blob = %v; want %v failing", err, b.BlobRef())
+	}
+	if n := srv.flushCount(); n != 1 {
+		t.Errorf("%d flush requests; want 1, as the second WaitDurable had nothing to wait for", n)
+	}
+
+	durable, err := s.Flush(context.Background())
+	if want := sortedSizedRefs(a); !slices.Equal(durable, want) {
+		t.Errorf("Flush after WaitDurable = %v; want %v", durable, want)
+	}
+	if be, ok := errors.AsType[*blobserver.BlobsError](err); !ok || be.Len() != 1 || be.Err(b.BlobRef()) == nil {
+		t.Errorf("Flush after WaitDurable error = %v; want %v failing", err, b.BlobRef())
+	}
+
+	// Uploading the failed blob again makes it wait for the next flush.
+	srv.sto.mu.Lock()
+	srv.sto.fail = nil
+	srv.sto.mu.Unlock()
+	sessionUpload(t, s, b)
+	if err := s.WaitDurable(context.Background(), b.BlobRefSlice()); err != nil {
+		t.Errorf("WaitDurable after uploading again = %v", err)
+	}
+}
+
+// TestWaitDurableSharesFlush checks that a WaitDurable call whose blobs a
+// concurrent call's flush settles doesn't flush again.
+func TestWaitDurableSharesFlush(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c, srv := newSessionClient(t, true)
+		s := newSession(t, c)
+		a, b := &test.Blob{Contents: "a"}, &test.Blob{Contents: "b"}
+		sessionUpload(t, s, a, b)
+		hold, flushing := make(chan struct{}), make(chan struct{})
+		srv.mu.Lock()
+		srv.holdFlush, srv.flushing = hold, flushing
+		srv.mu.Unlock()
+
+		errc := make(chan error, 2)
+		go func() { errc <- s.WaitDurable(context.Background(), a.BlobRefSlice()) }()
+		<-flushing // the first call's flush is in progress
+		srv.mu.Lock()
+		srv.holdFlush, srv.flushing = nil, nil
+		srv.mu.Unlock()
+		go func() { errc <- s.WaitDurable(context.Background(), b.BlobRefSlice()) }()
+		synctest.Wait() // the second call waits for the first's flush
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if err := s.WaitDurable(ctx, b.BlobRefSlice()); !errors.Is(err, context.Canceled) {
+			t.Errorf("WaitDurable with a done ctx during a flush = %v; want %v", err, context.Canceled)
+		}
+		close(hold)
+		for range 2 {
+			if err := <-errc; err != nil {
+				t.Error(err)
+			}
+		}
+		if n := srv.flushCount(); n != 1 {
+			t.Errorf("%d flush requests; want 1", n)
+		}
+	})
 }
