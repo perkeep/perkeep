@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"perkeep.org/pkg/schema/nodeattr"
 )
@@ -52,8 +53,8 @@ func TestParseActivity(t *testing.T) {
 			t.Errorf("%s=%q want %q", k, a.Attrs[k], v)
 		}
 	}
-	if _, ok := a.Attrs["startDate"]; ok {
-		t.Fatal("unzoned CSV date became startDate")
+	if a.Attrs["startDate"] != "2025-01-02T03:04:05Z" || a.Attrs[attrStartDateSource] != startDateSourceCSVAssumedUTC || a.Attrs["runkeeperLocalDate"] != "2025-01-02 03:04:05" {
+		t.Fatal("unzoned CSV date lost its explicit approximate-UTC provenance")
 	}
 	for _, row := range []rawRow{
 		{"Activity Id": "../../unsafe"},
@@ -72,6 +73,53 @@ func TestParseActivity(t *testing.T) {
 		}
 	}
 }
+
+func TestCSVStartDate(t *testing.T) {
+	if attrStartDateSource != "runkeeperStartDateSource" || startDateSourceGPX != "gpx" || startDateSourceCSV != "csv" || startDateSourceCSVAssumedUTC != "csv-assumed-utc" {
+		t.Fatal("date-source attribute or values do not match the stored schema")
+	}
+	// A timezone-less source is encoded as UTC for sorting, not interpreted in
+	// the machine's timezone. Use two non-UTC zones, including a DST-like offset.
+	oldLocal := time.Local
+	defer func() { time.Local = oldLocal }()
+	for _, offset := range []int{-8 * 3600, 11 * 3600} {
+		time.Local = time.FixedZone("test-local", offset)
+		t.Run(strconv.Itoa(offset), func(t *testing.T) {
+			for _, tt := range []struct {
+				date, start, source string
+			}{
+				{"2024-01-02T03:04:05Z", "2024-01-02T03:04:05Z", startDateSourceCSV},
+				{"2024-01-02T03:04:05.123456789-08:00", "2024-01-02T11:04:05.123456789Z", startDateSourceCSV},
+				{"2024-01-02T03:04:05+05:30", "2024-01-01T21:34:05Z", startDateSourceCSV},
+				{"2024-01-02 03:04:05", "2024-01-02T03:04:05Z", startDateSourceCSVAssumedUTC},
+				{"2024-01-02 03:04:05.123456789", "2024-01-02T03:04:05.123456789Z", startDateSourceCSVAssumedUTC},
+				{"2024-01-02T03:04:05", "2024-01-02T03:04:05Z", startDateSourceCSVAssumedUTC},
+				{"2024-01-02T03:04:05.25", "2024-01-02T03:04:05.25Z", startDateSourceCSVAssumedUTC},
+				{"2024-01-02", "2024-01-02T00:00:00Z", startDateSourceCSVAssumedUTC},
+				{"", "", ""},
+				{"not a date", "", ""},
+				{"2024-02-30 03:04:05", "", ""},
+				{"2024-01-02 25:04:05", "", ""},
+				{"2024-01-02T03:04:05+99:00", "", ""},
+				{"2024-01-02 trailing junk", "", ""},
+				{"9999-12-31T23:59:59-01:00", "", ""},
+			} {
+				start, source := csvStartDate(tt.date)
+				if start != tt.start || source != tt.source {
+					t.Errorf("csvStartDate(%q) = (%q, %q), want (%q, %q)", tt.date, start, source, tt.start, tt.source)
+				}
+				a, err := parseActivity(rawRow{"Activity Id": idA, "Date": tt.date})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if a.Attrs["startDate"] != tt.start || a.Attrs[attrStartDateSource] != tt.source || a.Attrs["runkeeperLocalDate"] != tt.date {
+					t.Errorf("parseActivity(%q) has incorrect start/date source or altered original date", tt.date)
+				}
+			}
+		})
+	}
+}
+
 func TestCSVBoundsAndColumns(t *testing.T) {
 	for name, data := range map[string]string{
 		"oversized":     `a,"` + strings.Repeat("x", maxRecord) + `"` + "\n",
@@ -159,6 +207,121 @@ func TestTrackValidation(t *testing.T) {
 	info, err := parseTrack(strings.NewReader(noTime), "hash")
 	if err != nil || !info.Usable || info.Start != "" {
 		t.Fatalf("timeless track=%+v %v", info, err)
+	}
+}
+
+func TestTrackStartSurvivesRouteFailure(t *testing.T) {
+	const want = "2024-01-02T11:04:05Z"
+	for name, text := range map[string]string{
+		"laterXMLFailure":    strings.Replace(goodGPX, "</trkseg>", "", 1),
+		"laterBadCoordinate": strings.Replace(goodGPX, `lat="1"`, `lat="NaN"`, 1),
+		"laterUnzonedTime":   strings.Replace(goodGPX, `<trkpt lat="1" lon="2"/>`, `<trkpt lat="1" lon="2"><time>2024-01-02T03:05:05</time></trkpt>`, 1),
+		"laterNestedSegment": strings.Replace(goodGPX, `<trkpt lat="1" lon="2"/>`, `<trkseg><trkpt lat="1" lon="2"/></trkseg>`, 1),
+		"laterPointLimit":    strings.Replace(goodGPX, "</trkseg>", strings.Repeat(`<trkpt lat="1" lon="2"/>`, maxRenderPoints)+"</trkseg>", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			info, err := parseTrack(strings.NewReader(text), "complete-hash")
+			if err == nil || info.Usable || info.Start != want || info.Hash != "complete-hash" {
+				t.Fatalf("progressive strict parse lost start or accepted broken route: %+v, %v", info, err)
+			}
+			info, err = inspectTrack(source(t, map[string]string{"track.gpx": text}), "track.gpx")
+			if err != nil || info.Usable || info.Start != want || info.Warning == "" || info.Latitude != "" || info.Longitude != "" || info.Hash == "" {
+				t.Fatalf("inspection lost start or retained invalid route coordinates: %+v, %v", info, err)
+			}
+		})
+	}
+}
+
+func TestInspectTrackRejectsForeignNamespaces(t *testing.T) {
+	const foreign = "https://example.invalid/foreign"
+	const pointTime = "<time>2024-01-02T03:04:05-08:00</time>"
+	noTime := strings.Replace(goodGPX, pointTime, "", 1)
+	for _, tt := range []struct {
+		name, text, start string
+	}{
+		{"root", strings.Replace(goodGPX, gpxNamespace, foreign, 1), ""},
+		{"track", strings.Replace(goodGPX, "<trk>", `<trk xmlns="`+foreign+`">`, 1), ""},
+		{"segment", strings.Replace(goodGPX, "<trkseg>", `<trkseg xmlns="`+foreign+`">`, 1), ""},
+		{"point", strings.Replace(goodGPX, `<trkpt lat="0"`, `<trkpt xmlns="`+foreign+`" lat="0"`, 1), ""},
+		{"pointTime", strings.Replace(goodGPX, "<time>", `<time xmlns="`+foreign+`">`, 1), ""},
+		{"trackTime", strings.Replace(noTime, "<trk>", `<trk><time xmlns="`+foreign+`">2024-01-02T03:04:05-08:00</time>`, 1), ""},
+		{"namespacedRootVersion", strings.Replace(goodGPX, `version="1.1"`, `xmlns:foreign="`+foreign+`" foreign:version="1.1"`, 1), ""},
+		{"laterForeignPoint", strings.Replace(goodGPX, `<trkpt lat="1"`, `<trkpt xmlns="`+foreign+`" lat="1"`, 1), "2024-01-02T11:04:05Z"},
+		{"laterForeignTime", strings.Replace(goodGPX, `<trkpt lat="1" lon="2"/>`, `<trkpt lat="1" lon="2"><time xmlns="`+foreign+`">2024-01-03T00:00:00Z</time></trkpt>`, 1), "2024-01-02T11:04:05Z"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			info, err := inspectTrack(source(t, map[string]string{"track.gpx": tt.text}), "track.gpx")
+			if err != nil || info.Usable || info.Start != tt.start || info.Warning == "" || info.Latitude != "" || info.Longitude != "" || info.Hash == "" {
+				t.Fatalf("foreign namespace/version affected trusted date or route: %+v, %v", info, err)
+			}
+		})
+	}
+}
+
+func TestRecoverTrackStart(t *testing.T) {
+	const instant = "2024-01-02T03:04:05.123-08:00"
+	const want = "2024-01-02T11:04:05.123Z"
+	const root = `<gpx xmlns="` + gpxNamespace + `" version="1.1">`
+	if maxStartDateScan != 256<<10 {
+		t.Fatalf("date recovery byte limit = %d, want 256 KiB", maxStartDateScan)
+	}
+	scanPrefix, scanSuffix := root+`<!--`, `--><trk><time>`+instant+`</time>`
+	for _, tt := range []struct {
+		name, text, start string
+	}{
+		{"point", goodGPX, "2024-01-02T11:04:05Z"},
+		{"track", root + `<trk><time>` + instant + `</time></trk></gpx>`, want},
+		{"badCoordinate", root + `<trk><trkseg><trkpt lat="NaN" lon="2"><time>` + instant + `</time></trkpt></trkseg></trk></gpx>`, want},
+		{"nestedUnclosedSegment", malformedNestedGPX, "2024-01-02T11:04:05Z"},
+		{"deepSegments", root + `<trk>` + strings.Repeat("<trkseg>", 4) + `<trkpt><time>` + instant + `</time>`, want},
+		{"malformedTail", root + `<trk><time>` + instant + `</time><`, want},
+		{"empty", "", ""},
+		{"leadingWhitespace", " \n\t" + strings.TrimPrefix(goodGPX, `<?xml version="1.0"?>`), "2024-01-02T11:04:05Z"},
+		{"leadingNonWhitespace", "not GPX\n" + strings.TrimPrefix(goodGPX, `<?xml version="1.0"?>`), ""},
+		{"concatenatedDocuments", root + `</gpx>` + strings.TrimPrefix(goodGPX, `<?xml version="1.0"?>`), ""},
+		{"wrongRoot", `<other xmlns="` + gpxNamespace + `" version="1.1"><trk><time>` + instant + `</time></trk></other>`, ""},
+		{"wrongNamespace", strings.Replace(goodGPX, gpxNamespace, "https://example.invalid/gpx", 1), ""},
+		{"missingNamespace", strings.Replace(goodGPX, ` xmlns="`+gpxNamespace+`"`, "", 1), ""},
+		{"wrongVersion", strings.Replace(goodGPX, `version="1.1"`, `version="1.0"`, 1), ""},
+		{"missingVersion", strings.Replace(goodGPX, ` version="1.1"`, "", 1), ""},
+		{"unzoned", strings.Replace(goodGPX, "-08:00", "", 1), ""},
+		{"invalidDate", strings.Replace(goodGPX, "2024-01-02", "2024-02-30", 1), ""},
+		{"metadataTime", root + `<metadata><time>` + instant + `</time></metadata></gpx>`, ""},
+		{"waypointTime", root + `<wpt lat="1" lon="2"><time>` + instant + `</time></wpt></gpx>`, ""},
+		{"extensionTime", root + `<trk><extensions><time>` + instant + `</time></extensions></trk></gpx>`, ""},
+		{"foreignTime", root + `<trk><time xmlns="https://example.invalid">` + instant + `</time></trk></gpx>`, ""},
+		{"nestedTimeMarkup", root + `<trk><time><value>` + instant + `</value></time></trk></gpx>`, ""},
+		{"maximumTimeText", root + `<trk><time>` + strings.Repeat(" ", 128-len(instant)) + instant + `</time></trk></gpx>`, want},
+		{"oversizedTime", root + `<trk><time>` + strings.Repeat(" ", 129) + instant + `</time></trk></gpx>`, ""},
+		{"maximumDepth", root + `<trk>` + strings.Repeat("<trkseg>", 60) + `<trkpt><time>` + instant + `</time>`, want},
+		{"excessiveDepth", root + `<trk>` + strings.Repeat("<trkseg>", 64) + `<trkpt><time>` + instant + `</time>`, ""},
+		{"atPrefixBudget", scanPrefix + strings.Repeat("x", maxStartDateScan-len(scanPrefix)-len(scanSuffix)) + scanSuffix, want},
+		{"beyondPrefixBudget", root + `<!--` + strings.Repeat("x", maxStartDateScan) + `--><trk><time>` + instant + `</time></trk></gpx>`, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &countingReader{r: strings.NewReader(tt.text)}
+			if got := recoverTrackStart(r); got != tt.start {
+				t.Errorf("recovered start = %q, want %q", got, tt.start)
+			}
+			if r.n > maxStartDateScan {
+				t.Fatalf("recovery read %d bytes, exceeds %d-byte budget", r.n, maxStartDateScan)
+			}
+		})
+	}
+}
+
+func TestInspectTrackRecoversStartBeforeStrictFailure(t *testing.T) {
+	for name, text := range map[string]string{
+		"badFirstCoordinate": strings.Replace(goodGPX, `lat="0"`, `lat="NaN"`, 1),
+		"nestedSegment":      balancedNestedGPX,
+		"oversizedRoute":     strings.Replace(goodGPX, "</gpx>", "<!--"+strings.Repeat("x", maxRenderTrack)+"--></gpx>", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			info, err := inspectTrack(source(t, map[string]string{"track.gpx": text}), "track.gpx")
+			if err != nil || info.Usable || info.Start != "2024-01-02T11:04:05Z" || info.Warning == "" || info.Latitude != "" || info.Longitude != "" || info.Hash == "" {
+				t.Fatalf("start recovery incorrectly handled unusable route: %+v, %v", info, err)
+			}
+		})
 	}
 }
 

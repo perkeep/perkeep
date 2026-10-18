@@ -21,11 +21,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -36,7 +38,7 @@ import (
 )
 
 const (
-	importVersion    = "1"
+	importVersion    = "3"
 	attrVersion      = "runkeeperImportVersion"
 	attrHash         = "runkeeperSourceHash"
 	attrActivityJSON = "runkeeperActivityJSON"
@@ -54,7 +56,8 @@ var activityKeys = []string{
 	nodeattr.FitnessActivityType, nodeattr.FitnessDistance, nodeattr.FitnessElevationGain, nodeattr.FitnessEnergy,
 	nodeattr.FitnessAverageHeartRate, nodeattr.FitnessRecordedDuration, nodeattr.FitnessElapsedDuration, nodeattr.FitnessTrack,
 	"startDate", "latitude", "longitude", "runkeeperActivityType", "runkeeperLocalDate", "runkeeperFriendsTagged",
-	attrActivityJSON, attrSourceGPX, attrPhotosJSON, attrSteps, attrHeartRate,
+	attrActivityJSON, attrSourceGPX, attrPhotosJSON, attrSteps, attrHeartRate, attrStartDateSource,
+	attrGPXRepairVersion, attrGPXRepairCount,
 }
 
 type importProgress struct {
@@ -287,8 +290,13 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 			}
 		}
 	}
-	if !track.Usable || track.Start == "" {
-		r.warn(a.ID + ": no trusted GPX start instant; retaining local date without a timezone")
+	if track.Start == "" {
+		switch a.Attrs[attrStartDateSource] {
+		case startDateSourceCSVAssumedUTC:
+			r.warn(a.ID + ": no zoned activity time; using CSV wall-clock date as UTC for startDate (timezone unknown)")
+		case "":
+			r.warn(a.ID + ": no usable activity date in GPX or CSV")
+		}
 	}
 	var photos []photoInput
 	for _, row := range rows {
@@ -325,12 +333,13 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 	}
 	h := sha256.New()
 	if err := json.NewEncoder(h).Encode(struct {
-		Version          string
-		Row              rawRow
-		Track            string
-		Photos           []photoInput
-		Steps, HeartRate string
-	}{importVersion, a.Raw, track.Hash, photos, steps, heart}); err != nil {
+		Version                           string
+		Row                               rawRow
+		Track                             string
+		TrackRepairVersion, RepairedTrack string
+		Photos                            []photoInput
+		Steps, HeartRate                  string
+	}{importVersion, a.Raw, track.Hash, track.RepairVersion, track.RepairedHash, photos, steps, heart}); err != nil {
 		return false, err
 	}
 	fingerprint := hex.EncodeToString(h.Sum(nil))
@@ -345,6 +354,10 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 	for k, v := range a.Attrs {
 		attrs[k] = v
 	}
+	if track.Start != "" {
+		attrs[nodeattr.StartDate] = track.Start
+		attrs[attrStartDateSource] = startDateSourceGPX
+	}
 	ref, err := r.writeJSON("activity.json", a.Raw)
 	if err != nil {
 		return false, err
@@ -357,11 +370,16 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 		}
 		attrs[attrSourceGPX] = ref.String()
 		if track.Usable {
+			if track.RepairVersion != "" {
+				ref, err = r.writeRepairedTrack(trackName, track)
+				if err != nil {
+					return false, err
+				}
+				attrs[attrGPXRepairVersion] = track.RepairVersion
+				attrs[attrGPXRepairCount] = strconv.Itoa(track.RepairCount)
+			}
 			attrs[nodeattr.FitnessTrack] = ref.String()
 			attrs["latitude"], attrs["longitude"] = track.Latitude, track.Longitude
-			if track.Start != "" {
-				attrs["startDate"] = track.Start
-			}
 		}
 	}
 	for i := range photos {
@@ -416,6 +434,20 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 	}
 	return true, nil
 }
+
+func (r *archiveRun) writeRepairedTrack(name string, expected trackInfo) (blob.Ref, error) {
+	f, info, err := repairedTrackFile(r.src, name, expected.Hash)
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	defer removeTrackFile(f)
+	if info.RepairVersion != expected.RepairVersion || info.RepairCount != expected.RepairCount || info.RepairedHash != expected.RepairedHash {
+		return blob.Ref{}, errors.New("runkeeper: repaired GPX changed during import")
+	}
+	filename := "runkeeper-repaired-v" + info.RepairVersion + ".gpx"
+	return schema.WriteFileFromReader(r.rc.Context(), r.rc.Host.Target(), filename, contextReader{r.rc.Context(), f})
+}
+
 func (r *archiveRun) writeSensor(name, filename string) (blob.Ref, error) {
 	f, err := os.Open(name)
 	if err != nil {

@@ -45,13 +45,20 @@ Reuse the existing attributes rather than creating fitness-specific aliases:
 | --- | --- |
 | `title` | Activity name. |
 | `description` | Plain-text activity description. |
-| `startDate` | Start instant in RFC 3339, normalized to UTC (`Z`). |
+| `startDate` | Start time in RFC 3339, normalized to UTC (`Z`); see the timezone policy below. |
 | `latitude`, `longitude` | Start coordinates in decimal degrees, when known; zero is a valid coordinate. |
 | `url` | Original activity URL. |
 
 Preserve a provider's local timezone separately when available. It does not
 change the meaning of the UTC `startDate`. Importers must convert quantities
 to the units above; for example, a nutritional kilocalorie is 4,184 joules.
+
+When the source omits the timezone, the
+[Runkeeper importer](/pkg/importer/runkeeper/README.md) can encode the original
+wall-clock date as a UTC sorting approximation, retaining the original date
+and marking `runkeeperStartDateSource=csv-assumed-utc`. This is not a known
+instant or source timezone. Do not use such an approximation to synthesize
+GPX sample timestamps.
 
 ## Track and source data
 

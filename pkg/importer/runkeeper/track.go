@@ -40,6 +40,8 @@ type trackInfo struct {
 	Hash, Start, Latitude, Longitude string
 	Usable                           bool
 	Warning                          string
+	RepairVersion, RepairedHash      string
+	RepairCount                      int
 }
 
 func hashMember(src memberSource, name string, limit int64) (string, error) {
@@ -73,7 +75,7 @@ func inspectTrack(src memberSource, name string) (trackInfo, error) {
 	info.Hash = hex.EncodeToString(h.Sum(nil))
 	if size > maxRenderTrack {
 		info.Warning = boundedWarning(fmt.Sprintf("unusable GPX %s: exceeds thumbnail byte limit", name))
-		return info, nil
+		return recoverTrackDate(src, name, info)
 	}
 	r, err := src.OpenLimit(name, maxRenderTrack)
 	if err != nil {
@@ -82,10 +84,42 @@ func inspectTrack(src memberSource, name string) (trackInfo, error) {
 	defer r.Close()
 	info, err = parseTrack(r, info.Hash)
 	if err != nil {
-		return trackInfo{Hash: info.Hash, Warning: boundedWarning(fmt.Sprintf("unusable GPX %s: %v", name, err))}, nil
+		if errors.Is(err, errNestedTrackSegment) {
+			f, repaired, repairErr := repairedTrackFile(src, name, info.Hash)
+			if repairErr == nil {
+				removeTrackFile(f)
+				if info.Start != "" {
+					repaired.Start = info.Start
+				}
+				return repaired, nil
+			}
+			if !errors.Is(repairErr, errGPXRepairRejected) {
+				return info, repairErr
+			}
+		}
+		info = trackInfo{
+			Hash:    info.Hash,
+			Start:   info.Start,
+			Warning: boundedWarning(fmt.Sprintf("unusable GPX %s: %v", name, err)),
+		}
+		return recoverTrackDate(src, name, info)
 	}
 	return info, nil
 }
+
+func recoverTrackDate(src memberSource, name string, info trackInfo) (trackInfo, error) {
+	if info.Start != "" {
+		return info, nil
+	}
+	r, err := src.OpenLimit(name, maxTrack)
+	if err != nil {
+		return info, err
+	}
+	defer r.Close()
+	info.Start = recoverTrackStart(r)
+	return info, nil
+}
+
 func parseTrack(r io.Reader, hash string) (trackInfo, error) {
 	info := trackInfo{Hash: hash}
 	d := xml.NewDecoder(r)
@@ -111,7 +145,7 @@ func parseTrack(r io.Reader, hash string) (trackInfo, error) {
 				}
 				version := ""
 				for _, a := range t.Attr {
-					if a.Name.Local == "version" {
+					if a.Name.Space == "" && a.Name.Local == "version" {
 						version = a.Value
 					}
 				}
@@ -121,8 +155,14 @@ func parseTrack(r io.Reader, hash string) (trackInfo, error) {
 			}
 			path = append(path, t.Name.Local)
 			loc := strings.Join(path, "/")
+			switch loc {
+			case "gpx/trk", "gpx/trk/trkseg", "gpx/trk/trkseg/trkpt", "gpx/trk/time", "gpx/trk/trkseg/trkpt/time":
+				if t.Name.Space != gpxNamespace {
+					return info, errors.New("unexpected GPX element namespace")
+				}
+			}
 			if t.Name.Space == gpxNamespace && t.Name.Local == "trkseg" && loc != "gpx/trk/trkseg" {
-				return info, errors.New("misplaced or nested track segment")
+				return info, errNestedTrackSegment
 			}
 			if t.Name.Space == gpxNamespace && t.Name.Local == "trkpt" && loc != "gpx/trk/trkseg/trkpt" {
 				return info, errors.New("misplaced track point")
@@ -156,11 +196,12 @@ func parseTrack(r io.Reader, hash string) (trackInfo, error) {
 					return info, err
 				}
 				instant, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(text))
-				if err != nil {
+				start := formatStartDate(instant)
+				if err != nil || start == "" {
 					return info, errors.New("invalid or unzoned GPX time")
 				}
 				if info.Start == "" {
-					info.Start = instant.UTC().Format(time.RFC3339Nano)
+					info.Start = start
 				}
 				path = path[:len(path)-1]
 			}

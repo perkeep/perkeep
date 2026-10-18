@@ -259,6 +259,10 @@ func parseActivity(row rawRow) (*activity, error) {
 		nodeattr.Type: nodeattr.FitnessActivity, nodeattr.FitnessSource: "runkeeper", nodeattr.FitnessSourceID: id,
 		"runkeeperActivityType": row["Type"], "runkeeperLocalDate": row["Date"],
 	}}
+	if start, source := csvStartDate(row["Date"]); start != "" {
+		a.Attrs[nodeattr.StartDate] = start
+		a.Attrs[attrStartDateSource] = source
+	}
 	if row["Type"] != "" {
 		a.Attrs[nodeattr.FitnessActivityType] = activityType(row["Type"])
 	}
