@@ -833,12 +833,8 @@ func (h *mutFileHandle) Write(ctx context.Context, req *fuse.WriteRequest, res *
 // Note that this is distinct from Fsync -- which is a user-requested
 // flush (fsync, etc...)
 func (h *mutFileHandle) Flush(ctx context.Context, req *fuse.FlushRequest) error {
-	// The fuse package cancels ctx when the kernel sends an INTERRUPT,
-	// which happens whenever the closing thread gets any signal, including
-	// the Go runtime's SIGURG preemption signals. Returning EINTR here
-	// would fail the close(2), which callers can't safely retry, so
-	// finish the upload regardless.
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := flushContext(ctx, func() bool { return threadKilled(req.Pid) })
+	defer cancel()
 
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
