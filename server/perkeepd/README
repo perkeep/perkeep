@@ -24,6 +24,31 @@ output without starting the daemon or writing a server configuration.
 Protect this output: it contains the client secret and refresh token.
 Use `perkeepd admin googinit --help` for details.
 
+`perkeepd admin copy-storage --dst-config=FILE PREFIX` copies blobs missing
+from the destination storage, using storage definitions from server
+configurations. `--src-config=FILE` selects the source configuration (the
+default is server-config.json in the Perkeep configuration directory);
+`--dst-prefix=PREFIX` selects a different destination prefix. Explicit
+relative configuration paths resolve from the working directory.
+Stop the server before copying: both processes may use the same local files.
+This command opens the selected storage without starting the daemon or
+generating a missing configuration. Existing high-level configuration
+expansion can still create cache directories.
+
+Use `--n` for a dry run and `--limit=N` to sample the first N source blobs;
+`--workers=N` controls copy concurrency. The command lists only the source,
+stats its blobs in the destination, and verifies each copied blob's digest.
+It does not remove blobs from the source. Both `pk copy-storage` and the
+small `pk-copy-storage` shell wrapper delegate to this administrative
+command, rather than carrying another copy of the storage backends.
+The command accepts `--verbose` for compatibility but ignores it, as the
+old standalone command did. Use `perkeepd admin copy-storage --help` for
+details and an example.
+
+Like the other administrative commands, it exits with status 0 for success
+or help, 1 for an operation error, and 2 for invalid arguments. Both wrappers
+relay these statuses unchanged.
+
 See also:
  - The storage interface is in <root>/pkg/blobserver
  - The storage implementations are under that e.g. <root>/pkg/blobserver/localdisk

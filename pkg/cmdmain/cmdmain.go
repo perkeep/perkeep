@@ -106,6 +106,13 @@ type ExecRunner interface {
 	LookPath() (string, error)
 }
 
+// ExecRunnerArgs optionally transforms an ExecRunner's forwarded arguments,
+// for example to select a subcommand of the target executable.
+type ExecRunnerArgs interface {
+	ExecRunner
+	ExecArgs(args []string) []string
+}
+
 // Demoter is an interface that boring commands can implement to
 // demote themselves in the tool listing, for boring or low-level
 // subcommands. They only show up in --help mode.
@@ -333,8 +340,7 @@ func Main() {
 }
 
 // runAsNewCommand runs the executable specified by cmd's LookPath, which means
-// cmd must implement the ExecRunner interface. The executable must be a binary of
-// a program that runs Main.
+// cmd must implement the ExecRunner interface.
 func runAsNewCommand(cmd CommandRunner, mode string) {
 	execCmd, ok := cmd.(ExecRunner)
 	if !ok {
@@ -344,15 +350,26 @@ func runAsNewCommand(cmd CommandRunner, mode string) {
 	if err != nil {
 		Errorf("Error: %v\n", err)
 		Exit(2)
+		return
 	}
 	allArgs := shiftFlags(mode)
+	if argCmd, ok := execCmd.(ExecRunnerArgs); ok {
+		allArgs = argCmd.ExecArgs(allArgs)
+	}
 	if err := runExec(cmdPath, allArgs, newCopyEnv()); err != nil {
-		panic(fmt.Sprintf("running %v should have ended with an os.Exit, and not leave us with that error: %v", cmdPath, err))
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			Exit(exitErr.ExitCode())
+			return
+		}
+		Errorf("Error: running %v: %v\n", cmdPath, err)
+		Exit(2)
 	}
 }
 
 // shiftFlags prepends all the arguments (global flags) passed before the given
 // mode to the list of arguments after that mode, and returns that list.
+// A "--" terminating the global flags is not forwarded to the command.
 func shiftFlags(mode string) []string {
 	modePos := 0
 	for k, v := range os.Args {
@@ -362,6 +379,9 @@ func shiftFlags(mode string) []string {
 		}
 	}
 	globalFlags := os.Args[1:modePos]
+	if len(globalFlags) > 0 && globalFlags[len(globalFlags)-1] == "--" {
+		globalFlags = globalFlags[:len(globalFlags)-1]
+	}
 	return append(globalFlags, os.Args[modePos+1:]...)
 }
 
@@ -397,6 +417,7 @@ func runExec(bin string, args []string, e *env) error {
 
 	cmd := exec.Command(bin, args...)
 	cmd.Env = e.flat()
+	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
 	return cmd.Run()

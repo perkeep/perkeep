@@ -18,6 +18,7 @@ fi
 chown http:http $SYNOPKG_PKGDEST/usr/bin/*
 ln -sf $SYNOPKG_PKGDEST/usr/bin/perkeepd /usr/bin/
 ln -sf $SYNOPKG_PKGDEST/usr/bin/pk /usr/bin/
+ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-copy-storage /usr/bin/
 ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-get /usr/bin/
 ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-put /usr/bin/
 ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-mount /usr/bin/

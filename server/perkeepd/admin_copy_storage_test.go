@@ -32,8 +32,8 @@ import (
 )
 
 func TestCopyStorageGoogleDriveRegistered(t *testing.T) {
-	// Reject the missing configuration before any network access. An unknown
-	// storage type would mean moving googinit also unregistered this backend.
+	// Reject the missing configuration before any network access. Importing
+	// the backend here would mask a missing production registration.
 	_, err := blobserver.CreateStorage("googledrive", nil, jsonconfig.Obj{})
 	if err == nil || !strings.Contains(err.Error(), `Missing required config key "auth"`) {
 		t.Fatalf("Google Drive storage registration: %v", err)

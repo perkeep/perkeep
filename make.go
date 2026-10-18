@@ -184,9 +184,51 @@ func main() {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
 	}
 
+	if err := installCopyStorageWrapper(pkRoot, actualBinDir(), *buildOS); err != nil {
+		log.Fatalf("Error installing pk-copy-storage wrapper: %v", err)
+	}
+
 	if !*quiet {
 		log.Printf("Success. Binaries are in %s", actualBinDir())
 	}
+}
+
+// installCopyStorageWrapper installs the small launcher if perkeepd is present.
+// Checking the output handles all target patterns, and also refreshes the wrapper
+// when a previous build left perkeepd in the install directory.
+func installCopyStorageWrapper(srcRoot, binDir, goos string) error {
+	server := "perkeepd"
+	if goos == "windows" {
+		server += ".exe"
+	}
+	serverPath := filepath.Join(binDir, server)
+	info, err := os.Stat(serverPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", serverPath)
+	}
+
+	name := "pk-copy-storage"
+	mode := os.FileMode(0755)
+	if goos == "windows" {
+		name += ".cmd"
+		mode = 0644
+	}
+	data, err := os.ReadFile(filepath.Join(srcRoot, "cmd", "pk-copy-storage", name))
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(binDir, name)
+	if err := os.WriteFile(dst, data, mode); err != nil {
+		return err
+	}
+	// WriteFile preserves the mode of an existing file.
+	return os.Chmod(dst, mode)
 }
 
 func buildTags(arch string, static bool) string {

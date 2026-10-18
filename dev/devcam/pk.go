@@ -22,6 +22,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"perkeep.org/internal/osutil"
@@ -62,7 +63,11 @@ func (c *toolCmd) Describe() string {
 
 func (c *toolCmd) RunCommand(args []string) error {
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "pk")); err != nil {
+		targets := []string{filepath.Join("cmd", "pk")}
+		if toolNeedsPerkeepd(args) {
+			targets = append(targets, filepath.Join("server", "perkeepd"))
+		}
+		if err := build(targets...); err != nil {
 			return fmt.Errorf("Could not build pk: %w", err)
 		}
 	}
@@ -78,4 +83,20 @@ func (c *toolCmd) RunCommand(args []string) error {
 		return err
 	}
 	return runExec(cmdBin, args, c.env)
+}
+
+// toolNeedsPerkeepd reports whether pk will delegate to perkeepd.
+func toolNeedsPerkeepd(args []string) bool {
+	// Mirror pk's global flags (pkg/cmdmain). Parse rather than scan args so
+	// flag values and arguments to other modes aren't mistaken for a mode.
+	flags := flag.NewFlagSet("pk", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	version := flags.Bool("version", false, "")
+	help := flags.Bool("help", false, "")
+	legal := flags.Bool("legal", false, "")
+	flags.Bool("verbose", false, "")
+	if err := flags.Parse(args); err != nil {
+		return false
+	}
+	return !*version && !*help && !*legal && flags.Arg(0) == "copy-storage"
 }
