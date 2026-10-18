@@ -414,7 +414,7 @@ func checkGeoKey() error {
 func main() {
 	flag.Usage = perkeepdUsage
 	if len(os.Args) > 1 && os.Args[1] == "admin" {
-		os.Exit(runAdmin(os.Args[2:], os.Stdout, os.Stderr))
+		os.Exit(runAdmin(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	flag.Parse()
 

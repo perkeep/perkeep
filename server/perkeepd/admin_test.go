@@ -56,6 +56,10 @@ func TestRunAdminArguments(t *testing.T) {
 		{"dumpconfig -h", 0, "not redacted"},
 		{"dumpconfig -help", 0, "not redacted"},
 		{"dumpconfig --help", 0, "not redacted"},
+		{"help googinit", 0, "Usage: perkeepd admin googinit"},
+		{"googinit -h", 0, "not redacted"},
+		{"googinit -help", 0, "not redacted"},
+		{"googinit --help", 0, "not redacted"},
 		{"", 2, "Usage:"},
 		{"unknown", 2, "unknown command"},
 		{"-unknown", 2, "flag provided but not defined"},
@@ -70,10 +74,16 @@ func TestRunAdminArguments(t *testing.T) {
 		{"-configfile=one dumpconfig", 2, "flag provided but not defined"},
 		{"dumpconfig -listen=:0", 2, "flag provided but not defined"},
 		{"dumpconfig -reindex", 2, "flag provided but not defined"},
+		{"googinit", 2, "Invalid storage type"},
+		{"googinit --type=other", 2, "Invalid storage type"},
+		{"googinit --type", 2, "flag needs an argument"},
+		{"googinit --type=cloud extra", 2, "does not accept positional arguments"},
+		{"googinit --type=drive --listen=:0", 2, "flag provided but not defined"},
+		{"googinit --configfile=one", 2, "flag provided but not defined"},
 	} {
 		t.Run(tt.args, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			if got := runAdmin(strings.Fields(tt.args), &stdout, &stderr); got != tt.code {
+			if got := runAdmin(strings.Fields(tt.args), strings.NewReader(""), &stdout, &stderr); got != tt.code {
 				t.Errorf("status = %d; want %d; stderr: %s", got, tt.code, &stderr)
 			}
 			if stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.text) {
@@ -119,7 +129,7 @@ func TestRunAdminDumpConfig(t *testing.T) {
 	} {
 		// Repeated invocations must not retain flag values or Visit state.
 		var stdout, stderr bytes.Buffer
-		if got := runAdmin(append([]string{"dumpconfig"}, tt.args...), &stdout, &stderr); got != 0 {
+		if got := runAdmin(append([]string{"dumpconfig"}, tt.args...), strings.NewReader(""), &stdout, &stderr); got != 0 {
 			t.Fatalf("dumpconfig %q: status = %d; stderr: %s", tt.args, got, &stderr)
 		}
 		// Exact bytes also check indentation, no trailing newline, preservation
@@ -144,7 +154,7 @@ func TestRunAdminDumpConfigErrors(t *testing.T) {
 				writeAdminConfig(t, file, "{")
 			}
 			var stdout, stderr bytes.Buffer
-			if got := runAdmin(args, &stdout, &stderr); got != 1 {
+			if got := runAdmin(args, strings.NewReader(""), &stdout, &stderr); got != 1 {
 				t.Errorf("status = %d; want 1; stderr: %s", got, &stderr)
 			}
 			if stdout.Len() != 0 || !strings.Contains(stderr.String(), "perkeepd admin dumpconfig:") {

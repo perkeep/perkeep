@@ -38,6 +38,8 @@ import (
 	_ "perkeep.org/pkg/blobserver/blobpacked"
 	_ "perkeep.org/pkg/blobserver/diskpacked"
 	_ "perkeep.org/pkg/blobserver/google/cloudstorage"
+	// Previously registered by googinit's scope import.
+	_ "perkeep.org/pkg/blobserver/google/drive"
 	_ "perkeep.org/pkg/blobserver/localdisk"
 	_ "perkeep.org/pkg/blobserver/s3"
 	_ "perkeep.org/pkg/sorted/kvfile"
