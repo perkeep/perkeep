@@ -23,9 +23,10 @@ import (
 	"tailscale.com/tstest/deptest"
 )
 
-func TestCopyStorageDeps(t *testing.T) {
-	// Diskpacked recovery still needs server configuration.
-	// SQLite remains allowed for client features.
+func TestCLIBackendDeps(t *testing.T) {
+	// SQLite remains allowed for client features. Search/index/image
+	// implementations still arrive through shared client types; those
+	// dependency paths will be addressed separately.
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},
 		{"linux/amd64", "linux", "amd64"},
@@ -49,6 +50,8 @@ func TestCopyStorageDeps(t *testing.T) {
 					"perkeep.org/pkg/sorted/postgres":         "database setup belongs in perkeepd admin dbinit",
 					"github.com/go-sql-driver/mysql":          "database setup belongs in perkeepd admin dbinit",
 					"github.com/jackc/pgx/v5/stdlib":          "database setup belongs in perkeepd admin dbinit",
+					"perkeep.org/pkg/blobserver/diskpacked":   "local storage recovery belongs in perkeepd admin reindex-diskpacked",
+					"perkeep.org/pkg/serverinit":              "server configuration belongs in perkeepd admin",
 				},
 				OnDep: func(dep string) {
 					for _, prefix := range []string{

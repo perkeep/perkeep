@@ -81,6 +81,7 @@ func TestAdminProcess(t *testing.T) {
 		{"root-googinit", []string{"googinit"}, 2, `unexpected argument "googinit"`, false},
 		{"root-copy-storage", []string{"copy-storage"}, 2, `unexpected argument "copy-storage"`, false},
 		{"root-dbinit", []string{"dbinit"}, 2, `unexpected argument "dbinit"`, false},
+		{"reindex-diskpacked-help", []string{"admin", "reindex-diskpacked", "--help"}, 0, "Usage: perkeepd admin reindex-diskpacked", false},
 		{"server-flags-before-admin", []string{"-configfile=input.json", "admin", "dumpconfig"}, 2, `unexpected argument "admin"`, false},
 		{"recovery-before-admin", []string{"-recovery=99", "admin", "dumpconfig"}, 2, `unexpected argument "admin"`, false},
 		{"root-delimiter", []string{"--", "admin", "dumpconfig"}, 2, `unexpected argument "admin"`, false},

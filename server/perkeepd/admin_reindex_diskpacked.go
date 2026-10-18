@@ -21,68 +21,67 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
-	"os"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blobserver/diskpacked"
-	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/serverinit"
 )
 
-type reindexdpCmd struct {
-	overwrite bool
-}
+func runAdminReindexDiskpacked(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("perkeepd admin reindex-diskpacked", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	overwrite := flags.Bool("overwrite", false, "Whether to overwrite the existing index. If false, only check.")
+	flags.Usage = func() {
+		fmt.Fprint(stderr, `Usage: perkeepd admin reindex-diskpacked [--overwrite] [path]
 
-func init() {
-	cmdmain.RegisterMode("reindex-diskpacked",
-		func(flags *flag.FlagSet) cmdmain.CommandRunner {
-			cmd := new(reindexdpCmd)
-			flags.BoolVar(&cmd.overwrite, "overwrite", false,
-				"Whether to overwrite the existing index. If false, only check.")
-			return cmd
-		})
-}
+Check or rebuild the index of a diskpacked blob store while the server is stopped.
+The default server configuration selects the store; path, if given, must match
+one of its diskpacked handlers. No other handlers are opened.
+The existing index backend is opened even when only checking.
 
-func (c *reindexdpCmd) Demote() bool { return true }
-
-func (c *reindexdpCmd) Describe() string {
-	return "Rebuild the index of the diskpacked blob store"
-}
-
-func (c *reindexdpCmd) Usage() {
-	fmt.Fprintln(os.Stderr, "Usage: pk [globalopts] reindex-diskpacked [reindex-opts]")
-	fmt.Fprintln(os.Stderr, "       pk reindex-diskpacked [--overwrite] # dir from server config")
-	fmt.Fprintln(os.Stderr, "       pk reindex-diskpacked [--overwrite] /path/to/directory")
-}
-
-func (c *reindexdpCmd) RunCommand(args []string) error {
-	var path string
-	var indexConf jsonconfig.Obj
-
-	switch len(args) {
-	case 0:
-	case 1:
-		path = args[0]
-	default:
-		return errors.New("More than 1 argument not allowed")
+Options:
+`)
+		flags.PrintDefaults()
 	}
-	cfg, err := serverinit.LoadFile(osutil.UserServerConfigPath())
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if flags.NArg() > 1 {
+		fmt.Fprintln(stderr, "reindex-diskpacked accepts at most one path")
+		flags.Usage()
+		return 2
+	}
+	if err := reindexDiskpacked(flags.Arg(0), *overwrite, log.New(stderr, "", log.LstdFlags)); err != nil {
+		fmt.Fprintf(stderr, "perkeepd admin reindex-diskpacked: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func reindexDiskpacked(path string, overwrite bool, logger *log.Logger) error {
+	configFile := osutil.UserServerConfigPath()
+	var indexConf jsonconfig.Obj
+	cfg, err := serverinit.LoadFile(configFile)
 	if err != nil {
 		return err
 	}
 	low := cfg.LowLevelJSONConfig() //lint:ignore SA1019 we use it
 	prefixes, ok := low["prefixes"].(map[string]any)
 	if !ok {
-		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
+		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", configFile)
 	}
 	paths, confs := []string{}, []jsonconfig.Obj{}
 	for prefix, vei := range prefixes {
 		pmap, ok := vei.(map[string]any)
 		if !ok {
-			log.Printf("prefix %q value is a %T, not an object", prefix, vei)
+			logger.Printf("prefix %q value is a %T, not an object", prefix, vei)
 			continue
 		}
 		pconf := jsonconfig.Obj(pmap)
@@ -92,16 +91,16 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 		if handlerType != "storage-diskpacked" {
 			continue
 		}
-		log.Printf("handlerArgs of %q: %v", prefix, handlerArgs)
+		logger.Printf("handlerArgs of %q: %v", prefix, handlerArgs)
 		if handlerArgs == nil {
-			log.Printf("no handlerArgs for %q", prefix)
+			logger.Printf("no handlerArgs for %q", prefix)
 			continue
 		}
 		aconf := jsonconfig.Obj(handlerArgs)
 		apath := aconf.RequiredString("path")
 		// no aconv.Validate, as this is a recover tool
 		if apath == "" {
-			log.Printf("path is missing for %q", prefix)
+			logger.Printf("path is missing for %q", prefix)
 			continue
 		}
 		if path != "" && path != apath {
@@ -112,10 +111,10 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	}
 	if len(paths) == 0 {
 		return fmt.Errorf("server config file %s doesn't specify a disk-packed storage handler",
-			osutil.UserServerConfigPath())
+			configFile)
 	}
 	if len(paths) > 1 {
-		return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
+		return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", configFile, paths)
 	}
 	path = paths[0]
 	if path == "" {
@@ -127,10 +126,10 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 			indexConf = jsonconfig.Obj(mi)
 		}
 	}
-	log.Printf("indexConf: %v", indexConf)
+	logger.Printf("indexConf: %v", indexConf)
 
 	ctx := diskpacked.CtxSetVerbose(context.Background(), env.IsDebug())
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	return diskpacked.Reindex(ctx, path, c.overwrite, indexConf)
+	return diskpacked.Reindex(ctx, path, overwrite, indexConf)
 }

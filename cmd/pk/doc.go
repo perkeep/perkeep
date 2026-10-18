@@ -31,7 +31,7 @@ Modes:
 	describe: Ask the search system to describe one or more blobs.
 	ls-tree: Recursively list a directory, given its blobref or a permanode whose camliContent is one.
 	discovery: Perform configuration discovery against a server.
-	reindex-diskpacked: Rebuild the index of the diskpacked blob store
+
 	index: Synchronize blobs for all discovered blobs storage - indexer pairs.
 	sync: Synchronize blobs from a source to a destination.
 

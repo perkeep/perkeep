@@ -62,6 +62,22 @@ Like the other administrative commands, it exits with status 0 for success
 or help, 1 for an operation error, and 2 for invalid arguments. Both wrappers
 relay these statuses unchanged.
 
+`perkeepd admin reindex-diskpacked [--overwrite] [path]` replaces
+`pk reindex-diskpacked`. It reads the default server configuration and
+checks its diskpacked store's index, or rebuilds entries with `--overwrite`.
+An optional path must exactly match a configured diskpacked handler's path;
+it selects that handler rather than opening an arbitrary directory.
+Without a path, exactly one eligible handler must be configured.
+The handler's `metaIndex` configuration is preserved.
+
+Stop the server first. No unrelated handlers or applications are started,
+and missing configurations are not generated. The existing index backend
+is opened in both modes: opening can create or reset its index, even
+without `--overwrite`. This is not a filesystem-read-only check.
+High-level configuration expansion can also create cache directories.
+Rebuilding updates entries found in pack files; it does not clear stale
+index keys. Use `perkeepd admin reindex-diskpacked --help` for details.
+
 See also:
  - The storage interface is in <root>/pkg/blobserver
  - The storage implementations are under that e.g. <root>/pkg/blobserver/localdisk
