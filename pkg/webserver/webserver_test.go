@@ -25,9 +25,45 @@ import (
 	"testing"
 
 	"perkeep.org/internal/httputil"
+	"perkeep.org/pkg/auth"
 
 	"tailscale.com/net/memnet"
+	"tailscale.com/tsnet"
 )
+
+func TestTailscaleAuthContext(t *testing.T) {
+	for _, tailnet := range []bool{false, true} {
+		s := New()
+		if tailnet {
+			// Constructing the request context must not start a node.
+			s.tsnetServer = new(tsnet.Server)
+		}
+		ctx := s.httpServer().BaseContext(nil)
+		if got := TSNetCtxKey.Value(ctx); got != s.tsnetServer {
+			t.Errorf("TSNetCtxKey = %p; want %p", got, s.tsnetServer)
+		}
+		if got := TailscaleCtxKey.Value(ctx); got != tailnet {
+			t.Errorf("TailscaleCtxKey = %v; want %v", got, tailnet)
+		}
+		if got := auth.TailscaleWhoIsCtxKey.Value(ctx) != nil; got != tailnet {
+			t.Errorf("identity lookup present = %v; want %v", got, tailnet)
+		}
+		am, err := auth.FromConfig("tailscale:full-access-to-tailnet")
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+		// A public request cannot gain access by claiming a tailnet address.
+		req.RemoteAddr = "100.64.0.1:1234"
+		want := auth.Operation(0)
+		if tailnet {
+			want = auth.OpAll
+		}
+		if got := am.AllowedAccess(req); got != want {
+			t.Errorf("tailnet=%v: AllowedAccess = %v; want %v", tailnet, got, want)
+		}
+	}
+}
 
 // TestServeHTTP2 checks that a TLS server negotiates HTTP/2 with clients
 // that support it, and still serves HTTP/1.1 to those that don't.
