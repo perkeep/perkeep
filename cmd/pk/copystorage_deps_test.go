@@ -24,9 +24,8 @@ import (
 )
 
 func TestCLIBackendDeps(t *testing.T) {
-	// SQLite remains allowed for client features. Search/index/image
-	// implementations still arrive through shared client types; those
-	// dependency paths will be addressed separately.
+	// SQLite remains allowed for client features. TestDeps separately keeps
+	// search/index/image implementations out of the HTTP commands.
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},
 		{"linux/amd64", "linux", "amd64"},

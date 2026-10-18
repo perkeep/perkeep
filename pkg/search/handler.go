@@ -816,13 +816,5 @@ func (h *Handler) getNamed(ctx context.Context, name string) (string, error) {
 
 // NamedSearch returns a *SearchQuery to find the permanode of the search alias "name".
 func NamedSearch(name string) *SearchQuery {
-	return &SearchQuery{
-		Constraint: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr:  "camliNamedSearch",
-				Value: name,
-			},
-		},
-		Describe: &DescribeRequest{},
-	}
+	return searchtypes.NamedSearch(name)
 }

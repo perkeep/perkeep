@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"os"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/search"
 )
 
 type claimsCmd struct {

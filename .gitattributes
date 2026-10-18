@@ -1,0 +1,2 @@
+# Embedded help must match the generator's LF bytes on every platform.
+/internal/searchhelp/help.json text eol=lf

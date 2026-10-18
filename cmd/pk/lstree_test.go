@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 )
 

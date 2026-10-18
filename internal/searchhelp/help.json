@@ -1,0 +1,146 @@
+[
+  {
+    "Name": "after",
+    "Description": "date format is RFC3339, but can be shortened as required.\ni.e. 2011-01-01 is Jan 1 of year 2011 and \"2011\" means the same."
+  },
+  {
+    "Name": "before",
+    "Description": "date format is RFC3339, but can be shortened as required.\ni.e. 2011-01-01 is Jan 1 of year 2011 and \"2011\" means the same."
+  },
+  {
+    "Name": "attr",
+    "Description": "match on attribute. Use attr:foo:bar to match nodes having their foo\nattribute set to bar or attr:foo:~bar to do a substring\ncase-insensitive search for 'bar' in attribute foo"
+  },
+  {
+    "Name": "childrenof",
+    "Description": "Find child permanodes of a parent permanode (or prefix of a parent\npermanode): childrenof:sha1-527cf12 Only matches permanodes currently."
+  },
+  {
+    "Name": "parentof",
+    "Description": "Find parent permanodes of a child permanode (or prefix of a child\npermanode): parentof:sha1-527cf12 Only matches permanodes currently."
+  },
+  {
+    "Name": "format",
+    "Description": "file's format (or MIME-type) such as jpg, pdf, tiff."
+  },
+  {
+    "Name": "tag",
+    "Description": "match on a tag"
+  },
+  {
+    "Name": "title",
+    "Description": "match nodes containing substring in their title"
+  },
+  {
+    "Name": "ref",
+    "Description": "match nodes whose blobRef starts with the given substring"
+  },
+  {
+    "Name": "camera",
+    "Description": "Match EXIF camera make or model, case insensitively. Supports '*' at either end, or '~' for substring matching."
+  },
+  {
+    "Name": "is:image",
+    "Description": "object is an image"
+  },
+  {
+    "Name": "height",
+    "Description": "use height:min-max to match images having a height of at least min\nand at most max. Use height:min- to specify only an underbound and\nheight:-max to specify only an upperbound.\nExact matches should use height:480"
+  },
+  {
+    "Name": "is:landscape",
+    "Description": "the image has a landscape aspect"
+  },
+  {
+    "Name": "is:pano",
+    "Description": "the image's aspect ratio is over 2 - panorama picture."
+  },
+  {
+    "Name": "is:portrait",
+    "Description": "the image has a portrait aspect"
+  },
+  {
+    "Name": "width",
+    "Description": "use width:min-max to match images having a width of at least min\nand at most max. Use width:min- to specify only an underbound and\nwidth:-max to specify only an upperbound.\nExact matches should use width:640 "
+  },
+  {
+    "Name": "filename",
+    "Description": "Match filename, case sensitively. Supports optional '*' wildcard at beginning, end, or both."
+  },
+  {
+    "Name": "is:post",
+    "Description": "matches tweets, status updates, blog posts, etc"
+  },
+  {
+    "Name": "is:like",
+    "Description": "matches liked tweets"
+  },
+  {
+    "Name": "is:checkin",
+    "Description": "matches location check-ins (foursquare, etc)"
+  },
+  {
+    "Name": "is:bookmark",
+    "Description": "matches bookmarks (raindrop.io, pinboard, etc)"
+  },
+  {
+    "Name": "is:untagged",
+    "Description": "matches untagged permanodes"
+  },
+  {
+    "Name": "is:fitness",
+    "Description": "matches all fitnessActivity permanodes, including unknown sports and activities without GPS."
+  },
+  {
+    "Name": "is:run",
+    "Description": "matches fitness activities classified as run."
+  },
+  {
+    "Name": "is:hike",
+    "Description": "matches fitness activities classified as hike."
+  },
+  {
+    "Name": "is:ride",
+    "Description": "matches fitness activities classified as ride, including mountain, gravel, virtual, and electric cycling."
+  },
+  {
+    "Name": "is:bike",
+    "Description": "alias for is:ride; includes all cycling subtypes, including electric bikes."
+  },
+  {
+    "Name": "is:ebike",
+    "Description": "matches fitness rides whose Strava sport is EBikeRide or EMountainBikeRide; uses legacy stravaActivityType only when stravaSportType is absent or empty."
+  },
+  {
+    "Name": "miles",
+    "Description": "matches fitness activity distance in miles; use \u003e=5, \u003c=5, \u003e5, \u003c5, =5 or 5, and inclusive ranges 5-10, 5-, -10. Values must be nonnegative finite decimal numbers (scientific notation allowed); miles are 1609.344 meters."
+  },
+  {
+    "Name": "km",
+    "Description": "matches fitness activity distance in km; use \u003e=5, \u003c=5, \u003e5, \u003c5, =5 or 5, and inclusive ranges 5-10, 5-, -10. Values must be nonnegative finite decimal numbers (scientific notation allowed); miles are 1609.344 meters."
+  },
+  {
+    "Name": "kilometers",
+    "Description": "alias for km; matches fitness activity distance in kilometers; use \u003e=5, \u003c=5, \u003e5, \u003c5, =5 or 5, and inclusive ranges 5-10, 5-, -10. Values must be nonnegative finite decimal numbers (scientific notation allowed); miles are 1609.344 meters."
+  },
+  {
+    "Name": "meters",
+    "Description": "matches fitness activity distance in meters; use \u003e=5, \u003c=5, \u003e5, \u003c5, =5 or 5, and inclusive ranges 5-10, 5-, -10. Values must be nonnegative finite decimal numbers (scientific notation allowed); miles are 1609.344 meters."
+  },
+  {
+    "Name": "has:location",
+    "Description": "matches images and permanodes that have a location (GPSLatitude\nand GPSLongitude can be retrieved from the image's EXIF tags)."
+  },
+  {
+    "Name": "loc",
+    "Description": "matches images and permanodes having a location near\nthe specified location.  Locations are resolved using\nmaps.googleapis.com. For example: loc:\"new york, new york\" "
+  },
+  {
+    "Name": "locrect",
+    "Description": "matches images and permanodes having a location within\nthe specified location area. The area is defined by its\n North-West corner, followed and comma-separated by its\n South-East corner. Each corner is defined by its latitude,\n followed and comma-separated by its longitude."
+  },
+  {
+    "Name": "with",
+    "Description": "match people containing substring in their first or last name"
+  }
+]

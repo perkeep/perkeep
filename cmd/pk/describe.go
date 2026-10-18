@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"go4.org/types"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/search"
 )
 
 // blobrefArgHelp describes the forms of blobref that commands accept.

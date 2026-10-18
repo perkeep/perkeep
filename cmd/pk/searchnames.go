@@ -24,11 +24,11 @@ import (
 	"os"
 
 	"perkeep.org/internal/osutil"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 type searchNamesGetCmd struct{}

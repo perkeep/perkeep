@@ -34,10 +34,10 @@ import (
 
 	"go4.org/types"
 	"golang.org/x/sync/errgroup"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 type lsTreeCmd struct {
