@@ -31,9 +31,9 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"go4.org/types"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 // roDir is a read-only directory.

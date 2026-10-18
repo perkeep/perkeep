@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/search"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"

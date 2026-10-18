@@ -32,13 +32,13 @@ import (
 	"syscall"
 	"time"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/fs"
-	"perkeep.org/pkg/search"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"

@@ -28,8 +28,8 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"go4.org/syncutil"
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/search"
 )
 
 const versionsRefreshTime = 1 * time.Minute
