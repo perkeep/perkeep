@@ -57,7 +57,7 @@ func (c *mapHaveCache) NoteBlobExists(br blob.Ref, size uint32) {
 func newStatClient(t *testing.T, sto *memory.Storage) (*Client, *atomic.Int32) {
 	t.Helper()
 	var requests atomic.Int32
-	stat := handlers.CreateStatHandler(sto)
+	stat := handlers.CreateStatHandler(sto, nil)
 	ts := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bs/camli/stat" {
 			http.NotFound(w, r)
