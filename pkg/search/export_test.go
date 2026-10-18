@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/types/camtypes"
 )
@@ -29,7 +30,7 @@ import (
 // https://perkeep.org/issue/121.
 func SetTestHookBug121(wait bool) {
 	if wait {
-		testHookBug121 = func(dr *DescribeRequest) { dr.wg.Wait() }
+		testHookBug121 = func(dr *DescribeRequest) { searchtypes.DescribeRequestWait(dr) }
 	} else {
 		testHookBug121 = func(*DescribeRequest) {}
 	}
@@ -41,8 +42,8 @@ func ExportSetExpandLocationHook(val bool) { expandLocationHook = val }
 
 func ExportBufferedConst() int { return buffered }
 
-func (q *SearchQuery) ExportPlannedQuery() *SearchQuery {
-	return q.plannedQuery(nil)
+func ExportPlannedQuery(q *SearchQuery) *SearchQuery {
+	return searchQueryPlannedQuery(q, nil)
 }
 
 var SortName = sortName

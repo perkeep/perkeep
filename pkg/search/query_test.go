@@ -1878,7 +1878,7 @@ func TestPlannedQuery(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		got := tt.in.ExportPlannedQuery()
+		got := ExportPlannedQuery(tt.in)
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%d. for input:\n%s\ngot:\n%s\nwant:\n%s\n", i,
 				prettyJSON(tt.in), prettyJSON(got), prettyJSON(tt.want))

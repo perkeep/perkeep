@@ -17,7 +17,6 @@ limitations under the License.
 package search
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,16 +24,14 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"go4.org/jsonconfig"
 	"go4.org/types"
 	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
@@ -44,15 +41,11 @@ import (
 	"perkeep.org/pkg/types/serverconfig"
 )
 
-const buffered = 32     // arbitrary channel buffer size
-const maxResults = 1000 // arbitrary limit on the number of search results returned
-const defaultNumResults = 50
+const buffered = 32 // arbitrary channel buffer size
 
 // MaxImageSize is the maximum width or height in pixels that we will serve image
 // thumbnails at. It is used in the search result UI.
 const MaxImageSize = 2000
-
-var blobRefPattern = regexp.MustCompile(blob.Pattern)
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -79,14 +72,6 @@ type Handler struct {
 
 	// WebSocket hub
 	wsHub *wsHub
-}
-
-// GetRecentPermanoder is the interface containing the GetRecentPermanodes method.
-type GetRecentPermanoder interface {
-	// GetRecentPermanodes returns recently-modified permanodes.
-	// This is a higher-level query returning more metadata than the index.GetRecentPermanodes,
-	// which only scans the blobrefs but doesn't return anything about the permanodes.
-	GetRecentPermanodes(context.Context, *RecentRequest) (*RecentResponse, error)
 }
 
 var _ GetRecentPermanoder = (*Handler)(nil)
@@ -277,121 +262,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 // sanitizeNumResults takes n as a requested number of search results and sanitizes it.
-func sanitizeNumResults(n int) int {
-	if n <= 0 || n > maxResults {
-		return defaultNumResults
-	}
-	return n
-}
+func sanitizeNumResults(n int) int { return searchtypes.SanitizeNumResults(n) }
 
 // RecentRequest is a request to get a RecentResponse.
-type RecentRequest struct {
-	N      int       // if zero, default number of results
-	Before time.Time // if zero, now
-}
-
-func (r *RecentRequest) URLSuffix() string {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camli/search/recent?n=%d", r.n())
-	if !r.Before.IsZero() {
-		fmt.Fprintf(&buf, "&before=%s", types.Time3339(r.Before))
-	}
-	return buf.String()
-}
-
-// fromHTTP panics with an httputil value on failure
-func (r *RecentRequest) fromHTTP(req *http.Request) {
-	r.N, _ = strconv.Atoi(req.FormValue("n"))
-	if before := req.FormValue("before"); before != "" {
-		r.Before = time.Time(types.ParseTime3339OrZero(before))
-	}
-}
-
-// n returns the sanitized maximum number of search results.
-func (r *RecentRequest) n() int {
-	return sanitizeNumResults(r.N)
-}
+type RecentRequest = searchtypes.RecentRequest
 
 // WithAttrRequest is a request to get a WithAttrResponse.
-type WithAttrRequest struct {
-	N      int      // max number of results
-	Signer blob.Ref // if nil, will use the server's default owner (if configured)
-	// Requested attribute. If blank, all attributes are searched (for Value)
-	// as fulltext.
-	Attr string
-	// Value of the requested attribute. If blank, permanodes which have
-	// request.Attr as an attribute are searched.
-	Value string
-	Fuzzy bool // fulltext search (if supported).
-	// At, if non-zero, specifies that the attribute must have been set at
-	// the latest at At.
-	At time.Time
-}
-
-func (r *WithAttrRequest) URLSuffix() string {
-	s := fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v",
-		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N)
-	if !r.At.IsZero() {
-		s += fmt.Sprintf("&at=%s", types.Time3339(r.At))
-	}
-	return s
-}
-
-// fromHTTP panics with an httputil value on failure
-func (r *WithAttrRequest) fromHTTP(req *http.Request) {
-	r.Signer = blob.ParseOrZero(req.FormValue("signer"))
-	r.Value = req.FormValue("value")
-	fuzzy := req.FormValue("fuzzy") // exact match if empty
-	fuzzyMatch := false
-	if fuzzy != "" {
-		lowered := strings.ToLower(fuzzy)
-		if lowered == "true" || lowered == "t" {
-			fuzzyMatch = true
-		}
-	}
-	r.Attr = req.FormValue("attr") // all attributes if empty
-	if r.Attr == "" {              // and force fuzzy in that case.
-		fuzzyMatch = true
-	}
-	r.Fuzzy = fuzzyMatch
-	max := req.FormValue("max")
-	if max != "" {
-		maxR, err := strconv.Atoi(max)
-		if err != nil {
-			panic(httputil.InvalidParameterError("max"))
-		}
-		r.N = maxR
-	}
-	r.N = r.n()
-	if at := req.FormValue("at"); at != "" {
-		r.At = time.Time(types.ParseTime3339OrZero(at))
-	}
-}
-
-// n returns the sanitized maximum number of search results.
-func (r *WithAttrRequest) n() int {
-	return sanitizeNumResults(r.N)
-}
+type WithAttrRequest = searchtypes.WithAttrRequest
 
 // ClaimsRequest is a request to get a ClaimsResponse.
-type ClaimsRequest struct {
-	Permanode blob.Ref
-
-	// AttrFilter optionally filters claims about the given attribute.
-	// If empty, all claims for the given Permanode are returned.
-	AttrFilter string
-}
-
-func (r *ClaimsRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/claims?permanode=%v&attrFilter=%s",
-		r.Permanode, url.QueryEscape(r.AttrFilter))
-}
-
-// fromHTTP panics with an httputil value on failure
-func (r *ClaimsRequest) fromHTTP(req *http.Request) {
-	r.Permanode = httputil.MustGetBlobRef(req, "permanode")
-	r.AttrFilter = req.FormValue("attrFilter")
-}
+type ClaimsRequest = searchtypes.ClaimsRequest
 
 // SignerPathsRequest is a request to get a SignerPathsResponse.
 type SignerPathsRequest struct {
@@ -420,47 +300,13 @@ func (r *EdgesRequest) fromHTTP(req *http.Request) {
 // Same for WithAttrResponse. I suppose it doesn't matter much if we end up removing GetRecentPermanodes anyway...
 
 // RecentResponse is the JSON response from $searchRoot/camli/search/recent.
-type RecentResponse struct {
-	Recent []*RecentItem `json:"recent"`
-	Meta   MetaMap       `json:"meta"`
-
-	Error     string `json:"error,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-}
-
-func (r *RecentResponse) Err() error {
-	if r.Error != "" || r.ErrorType != "" {
-		if r.ErrorType != "" {
-			return fmt.Errorf("%s: %s", r.ErrorType, r.Error)
-		}
-		return errors.New(r.Error)
-	}
-	return nil
-}
+type RecentResponse = searchtypes.RecentResponse
 
 // WithAttrResponse is the JSON response from $searchRoot/camli/search/permanodeattr.
-type WithAttrResponse struct {
-	WithAttr []*WithAttrItem `json:"withAttr"`
-	Meta     MetaMap         `json:"meta"`
-
-	Error     string `json:"error,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-}
-
-func (r *WithAttrResponse) Err() error {
-	if r.Error != "" || r.ErrorType != "" {
-		if r.ErrorType != "" {
-			return fmt.Errorf("%s: %s", r.ErrorType, r.Error)
-		}
-		return errors.New(r.Error)
-	}
-	return nil
-}
+type WithAttrResponse = searchtypes.WithAttrResponse
 
 // ClaimsResponse is the JSON response from $searchRoot/camli/search/claims.
-type ClaimsResponse struct {
-	Claims []*ClaimsItem `json:"claims"`
-}
+type ClaimsResponse = searchtypes.ClaimsResponse
 
 // SignerPathsResponse is the JSON response from $searchRoot/camli/search/signerpaths.
 type SignerPathsResponse struct {
@@ -469,27 +315,13 @@ type SignerPathsResponse struct {
 }
 
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
-type RecentItem struct {
-	BlobRef blob.Ref       `json:"blobref"`
-	ModTime types.Time3339 `json:"modtime"`
-	Owner   blob.Ref       `json:"owner"`
-}
+type RecentItem = searchtypes.RecentItem
 
 // A WithAttrItem is an item returned from $searchRoot/camli/search/permanodeattr.
-type WithAttrItem struct {
-	Permanode blob.Ref `json:"permanode"`
-}
+type WithAttrItem = searchtypes.WithAttrItem
 
 // A ClaimsItem is an item returned from $searchRoot/camli/search/claims.
-type ClaimsItem struct {
-	BlobRef   blob.Ref       `json:"blobref"`
-	Signer    blob.Ref       `json:"signer"`
-	Permanode blob.Ref       `json:"permanode"`
-	Date      types.Time3339 `json:"date"`
-	Type      string         `json:"type"`
-	Attr      string         `json:"attr,omitempty"`
-	Value     string         `json:"value,omitempty"`
-}
+type ClaimsItem = searchtypes.ClaimsItem
 
 // A SignerPathsItem is an item returned from $searchRoot/camli/search/signerpaths.
 type SignerPathsItem struct {
@@ -526,7 +358,7 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 	go func() {
 		// TODO(mpl): change index funcs to take signer keyID. dont care for now, just
 		// fixing the essential search and describe ones.
-		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner.BlobRef(), req.n(), before)
+		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner.BlobRef(), sanitizeNumResults(req.N), before)
 	}()
 
 	dr := h.NewDescribeRequest()
@@ -546,7 +378,7 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 		return nil, err
 	}
 
-	metaMap, err := dr.metaMap()
+	metaMap, err := searchtypes.DescribeRequestMetaMap(dr)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +393,7 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 func (h *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var rr RecentRequest
-	rr.fromHTTP(req)
+	searchtypes.RecentRequestFromHTTP(&rr, req)
 	res, err := h.GetRecentPermanodes(req.Context(), &rr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -607,7 +439,7 @@ func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse
 		})
 	}
 
-	metaMap, err := dr.metaMap()
+	metaMap, err := searchtypes.DescribeRequestMetaMap(dr)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +462,7 @@ func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse
 func (h *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var wr WithAttrRequest
-	wr.fromHTTP(req)
+	searchtypes.WithAttrRequestFromHTTP(&wr, req)
 	res, err := h.GetPermanodesWithAttr(&wr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -681,7 +513,7 @@ func (h *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	defer h.index.RUnlock()
 
 	var cr ClaimsRequest
-	cr.fromHTTP(req)
+	searchtypes.ClaimsRequestFromHTTP(&cr, req)
 	res, err := h.GetClaims(&cr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -755,7 +587,7 @@ func (h *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request
 
 	dr := h.NewDescribeRequest()
 	dr.StartDescribe(ctx, pn, 2)
-	metaMap, err := dr.metaMap()
+	metaMap, err := searchtypes.DescribeRequestMetaMap(dr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -905,7 +737,7 @@ func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse,
 	for _, path := range paths {
 		dr.StartDescribe(ctx, path.Base, 2)
 	}
-	metaMap, err := dr.metaMap()
+	metaMap, err := searchtypes.DescribeRequestMetaMap(dr)
 	if err != nil {
 		return nil, err
 	}
@@ -994,5 +826,3 @@ func NamedSearch(name string) *SearchQuery {
 		Describe: &DescribeRequest{},
 	}
 }
-
-const camliTypePrefix = "application/json; camliType="

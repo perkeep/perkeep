@@ -17,135 +17,53 @@ limitations under the License.
 package search
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"math"
-	"net/http"
 	"os"
 	"reflect"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
+	"perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 
-	"context"
-
 	"go4.org/strutil"
-	"go4.org/types"
 	"tailscale.com/util/set"
 )
 
-type SortType int
+type SortType = searchtypes.SortType
 
 const (
-	UnspecifiedSort SortType = iota
-	Unsorted
-	LastModifiedDesc
-	LastModifiedAsc
-	CreatedDesc
-	CreatedAsc
-	BlobRefAsc
-	// MapSort requests that any limited search results are optimized
-	// for rendering on a map. If there are fewer matches than the
-	// requested limit, no results are pruned. When limiting results,
-	// MapSort prefers results spread around the map before clustering
-	// items too tightly.
-	MapSort
-	maxSortType
+	UnspecifiedSort  = searchtypes.UnspecifiedSort
+	Unsorted         = searchtypes.Unsorted
+	LastModifiedDesc = searchtypes.LastModifiedDesc
+	LastModifiedAsc  = searchtypes.LastModifiedAsc
+	CreatedDesc      = searchtypes.CreatedDesc
+	CreatedAsc       = searchtypes.CreatedAsc
+	BlobRefAsc       = searchtypes.BlobRefAsc
+	MapSort          = searchtypes.MapSort
+	maxSortType      = searchtypes.MaxSortType
 )
 
-var sortName = map[SortType][]byte{
-	Unsorted:         []byte(`"unsorted"`),
-	LastModifiedDesc: []byte(`"-mod"`),
-	LastModifiedAsc:  []byte(`"mod"`),
-	CreatedDesc:      []byte(`"-created"`),
-	CreatedAsc:       []byte(`"created"`),
-	BlobRefAsc:       []byte(`"blobref"`),
-	MapSort:          []byte(`"map"`),
-}
+var sortName = searchtypes.SortName
 
-func (t SortType) MarshalJSON() ([]byte, error) {
-	v, ok := sortName[t]
-	if !ok {
-		panic("unnamed SortType " + strconv.Itoa(int(t)))
-	}
-	return v, nil
-}
-
-func (t *SortType) UnmarshalJSON(v []byte) error {
-	for n, nv := range sortName {
-		if bytes.Equal(v, nv) {
-			*t = n
-			return nil
-		}
-	}
-	return fmt.Errorf("Bogus search sort type %q", v)
-}
-
-type SearchQuery struct {
-	// Exactly one of Expression or Constraint must be set.
-	// If an Expression is set, it's compiled to a Constraint.
-
-	// Expression is a textual search query in minimal form,
-	// e.g. "hawaii before:2008" or "tag:foo" or "foo" or "location:portland"
-	// See expr.go and expr_test.go for all the operators.
-	Expression string      `json:"expression,omitempty"`
-	Constraint *Constraint `json:"constraint,omitempty"`
-
-	// Limit is the maximum number of returned results. A negative value means no
-	// limit. If unspecified, a default (of 200) will be used.
-	Limit int `json:"limit,omitempty"`
-
-	// Sort specifies how the results will be sorted. It defaults to CreatedDesc when the
-	// query is about permanodes only.
-	Sort SortType `json:"sort,omitempty"`
-
-	// Around specifies that the results, after sorting, should be centered around
-	// this result. If Around is not found the returned results will be empty.
-	// If both Continue and Around are set, an error is returned.
-	Around blob.Ref `json:"around,omitempty"`
-
-	// Continue specifies the opaque token (as returned by a
-	// SearchResult) for where to continue fetching results when
-	// the Limit on a previous query was interrupted.
-	// Continue is only valid for the same query (Expression or Constraint),
-	// Limit, and Sort values.
-	// If empty, the top-most query results are returned, as given
-	// by Limit and Sort.
-	// Continue is not compatible with the Around option.
-	Continue string `json:"continue,omitempty"`
-
-	// If Describe is specified, the matched blobs are also described,
-	// as if the Describe.BlobRefs field was populated.
-	Describe *DescribeRequest `json:"describe,omitempty"`
-}
-
-func (q *SearchQuery) URLSuffix() string { return "camli/search/query" }
-
-func (q *SearchQuery) FromHTTP(req *http.Request) error {
-	dec := json.NewDecoder(io.LimitReader(req.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	return dec.Decode(q)
-}
+type SearchQuery = searchtypes.SearchQuery
 
 // exprQuery optionally specifies the *SearchQuery prototype that was generated
 // by parsing the search expression.
 //
 // If expr is non-nil, then its Contraint/Sort/Limit are used instead of q's in
 // the cloned result.
-func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
+func searchQueryPlannedQuery(q *SearchQuery, expr *SearchQuery) *SearchQuery {
 	pq := new(SearchQuery)
 	*pq = *q
 	if expr != nil {
@@ -158,14 +76,14 @@ func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 		}
 	}
 	if pq.Sort == UnspecifiedSort {
-		if pq.Constraint.onlyMatchesPermanode() {
+		if constraintOnlyMatchesPermanode(pq.Constraint) {
 			pq.Sort = CreatedDesc
 		}
 	}
 	if pq.Limit == 0 {
 		pq.Limit = 200 // arbitrary
 	}
-	if err := pq.addContinueConstraint(); err != nil {
+	if err := searchQueryAddContinueConstraint(pq); err != nil {
 		log.Printf("Ignoring continue token: %v", err)
 	}
 	pq.Constraint = optimizePlan(pq.Constraint)
@@ -200,12 +118,12 @@ func parsePermanodeContinueToken(v string) (t time.Time, br blob.Ref, ok bool) {
 
 // addContinueConstraint conditionally modifies q.Constraint to scroll
 // past the results as indicated by q.Continue.
-func (q *SearchQuery) addContinueConstraint() error {
+func searchQueryAddContinueConstraint(q *SearchQuery) error {
 	cont := q.Continue
 	if cont == "" {
 		return nil
 	}
-	if q.Constraint.onlyMatchesPermanode() {
+	if constraintOnlyMatchesPermanode(q.Constraint) {
 		tokent, lastbr, ok := parsePermanodeContinueToken(cont)
 		if !ok {
 			return errors.New("Unexpected continue token")
@@ -245,7 +163,7 @@ func (q *SearchQuery) addContinueConstraint() error {
 // If q is for an expression, it returns the compiled SearchQuery with a
 // Constraint populated. If q is already a Constraint-based query, it nil and
 // whether it's valid.
-func (q *SearchQuery) checkValid(ctx context.Context) (maybeConstraintQuery *SearchQuery, err error) {
+func searchQueryCheckValid(q *SearchQuery, ctx context.Context) (maybeConstraintQuery *SearchQuery, err error) {
 	if q.Sort >= maxSortType || q.Sort < 0 {
 		return nil, errors.New("invalid sort type")
 	}
@@ -259,96 +177,53 @@ func (q *SearchQuery) checkValid(ctx context.Context) (maybeConstraintQuery *Sea
 		return nil, errors.New("Constraint and Expression are mutually exclusive in a search query")
 	}
 	if q.Constraint != nil {
-		return nil, q.Constraint.checkValid()
+		return nil, constraintCheckValid(q.Constraint)
 	}
 	expr := q.Expression
 	sq, err := parseExpression(ctx, expr)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing search expression %q: %w", expr, err)
 	}
-	if err := sq.Constraint.checkValid(); err != nil {
+	if err := constraintCheckValid(sq.Constraint); err != nil {
 		return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %w", expr, err)
 	}
 	return sq, nil
 }
 
 // SearchResult is the result of the Search method for a given SearchQuery.
-type SearchResult struct {
-	Blobs    []*SearchResultBlob `json:"blobs"`
-	Describe *DescribeResponse   `json:"description"`
+type SearchResult = searchtypes.SearchResult
 
-	// LocationArea is non-nil if the search result mentioned any location terms. It
-	// is the bounds of the locations of the matched permanodes, for the permanodes
-	// with locations.
-	LocationArea *camtypes.LocationBounds
-
-	// Continue optionally specifies the continuation token to to
-	// continue fetching results in this result set, if interrupted
-	// by a Limit.
-	Continue string `json:"continue,omitempty"`
-}
-
-type SearchResultBlob struct {
-	Blob blob.Ref `json:"blob"`
-	// ... file info, permanode info, blob info ... ?
-}
-
-func (r *SearchResultBlob) String() string {
-	return fmt.Sprintf("[blob: %s]", r.Blob)
-}
+type SearchResultBlob = searchtypes.SearchResultBlob
 
 // Constraint specifies a blob matching constraint.
 // A blob matches if it matches all non-zero fields' predicates.
 // A zero constraint matches nothing.
-type Constraint struct {
-	// If Logical is non-nil, all other fields are ignored.
-	Logical *LogicalConstraint `json:"logical,omitempty"`
+type Constraint = searchtypes.Constraint
 
-	// Anything, if true, matches all blobs.
-	Anything bool `json:"anything,omitempty"`
-
-	CamliType     schema.CamliType `json:"camliType,omitempty"`    // camliType of the JSON blob
-	AnyCamliType  bool             `json:"anyCamliType,omitempty"` // if true, any camli JSON blob matches
-	BlobRefPrefix string           `json:"blobRefPrefix,omitempty"`
-
-	File *FileConstraint `json:"file,omitempty"`
-	Dir  *DirConstraint  `json:"dir,omitempty"`
-
-	Claim    *ClaimConstraint `json:"claim,omitempty"`
-	BlobSize *IntConstraint   `json:"blobSize,omitempty"`
-
-	Permanode *PermanodeConstraint `json:"permanode,omitempty"`
-
-	matcherOnce sync.Once
-	matcherFn   matchFn
-}
-
-func (c *Constraint) checkValid() error {
-	type checker interface {
-		checkValid() error
-	}
+func constraintCheckValid(c *Constraint) error {
 	if c.Claim != nil {
 		return errors.New("TODO: implement ClaimConstraint")
 	}
-	for _, cv := range []checker{
-		c.Logical,
-		c.File,
-		c.Dir,
-		c.BlobSize,
-		c.Permanode,
-	} {
-		if err := cv.checkValid(); err != nil {
-			return err
-		}
+	if err := logicalConstraintCheckValid(c.Logical); err != nil {
+		return err
 	}
-	return nil
+	if err := fileConstraintCheckValid(c.File); err != nil {
+		return err
+	}
+	if err := dirConstraintCheckValid(c.Dir); err != nil {
+		return err
+	}
+	if err := intConstraintCheckValid(c.BlobSize); err != nil {
+		return err
+	}
+	return permanodeConstraintCheckValid(c.Permanode)
 }
 
 // matchesPermanodeTypes returns a set of valid permanode types that a matching
 // permanode must have as its "camliNodeType" attribute.
 // It returns a zero-length slice if this constraint might include things other
 // things.
-func (c *Constraint) matchesPermanodeTypes() []string {
+func constraintMatchesPermanodeTypes(c *Constraint) []string {
 	if c == nil {
 		return nil
 	}
@@ -356,8 +231,8 @@ func (c *Constraint) matchesPermanodeTypes() []string {
 		return []string{pc.Value}
 	}
 	if lc := c.Logical; lc != nil {
-		sa := lc.A.matchesPermanodeTypes()
-		sb := lc.B.matchesPermanodeTypes()
+		sa := constraintMatchesPermanodeTypes(lc.A)
+		sb := constraintMatchesPermanodeTypes(lc.B)
 		switch lc.Op {
 		case "and":
 			if len(sa) != 0 {
@@ -376,7 +251,7 @@ func (c *Constraint) matchesPermanodeTypes() []string {
 // corpus can find without enumerating all blobs of some kind. If so, it
 // returns a superset of the blobs c matches, which may include blobs
 // that don't exist.
-func (c *Constraint) blobCandidates(corpus *index.Corpus) (cands set.Set[blob.Ref], ok bool) {
+func constraintBlobCandidates(c *Constraint, corpus *index.Corpus) (cands set.Set[blob.Ref], ok bool) {
 	if c == nil {
 		return nil, false
 	}
@@ -391,13 +266,13 @@ func (c *Constraint) blobCandidates(corpus *index.Corpus) (cands set.Set[blob.Re
 		return set.Of(corpus.AppendFilesOfWholeRef(nil, fc.WholeRef)...), true
 	}
 	if pc := c.Permanode; pc != nil {
-		if cands, ok := pc.permanodeCandidates(corpus); ok {
+		if cands, ok := permanodeConstraintPermanodeCandidates(pc, corpus); ok {
 			return cands, true
 		}
 	}
 	if lc := c.Logical; lc != nil {
-		a, aok := lc.A.blobCandidates(corpus)
-		b, bok := lc.B.blobCandidates(corpus)
+		a, aok := constraintBlobCandidates(lc.A, corpus)
+		b, bok := constraintBlobCandidates(lc.B, corpus)
 		switch lc.Op {
 		case "and":
 			if aok && (!bok || len(a) <= len(b)) {
@@ -420,7 +295,7 @@ func (c *Constraint) blobCandidates(corpus *index.Corpus) (cands set.Set[blob.Re
 // one of a set of blobs that blobCandidates can find. If so, it returns
 // the permanodes with a claim giving c.Attr one of those values, a
 // superset of the permanodes c matches.
-func (c *PermanodeConstraint) permanodeCandidates(corpus *index.Corpus) (set.Set[blob.Ref], bool) {
+func permanodeConstraintPermanodeCandidates(c *PermanodeConstraint, corpus *index.Corpus) (set.Set[blob.Ref], bool) {
 	if c.Attr == "" {
 		return nil, false
 	}
@@ -433,7 +308,7 @@ func (c *PermanodeConstraint) permanodeCandidates(corpus *index.Corpus) (set.Set
 		vals = set.Of(br)
 	} else if c.ValueInSet != nil {
 		var ok bool
-		if vals, ok = c.ValueInSet.blobCandidates(corpus); !ok {
+		if vals, ok = constraintBlobCandidates(c.ValueInSet, corpus); !ok {
 			return nil, false
 		}
 	} else {
@@ -451,13 +326,13 @@ func (c *PermanodeConstraint) permanodeCandidates(corpus *index.Corpus) (set.Set
 	return pns, true
 }
 
-func (c *Constraint) onlyMatchesPermanode() bool {
+func constraintOnlyMatchesPermanode(c *Constraint) bool {
 	if c.Permanode != nil || c.CamliType == schema.TypePermanode {
 		return true
 	}
 
 	if c.Logical != nil && c.Logical.Op == "and" {
-		if c.Logical.A.onlyMatchesPermanode() || c.Logical.B.onlyMatchesPermanode() {
+		if constraintOnlyMatchesPermanode(c.Logical.A) || constraintOnlyMatchesPermanode(c.Logical.B) {
 			return true
 		}
 	}
@@ -468,97 +343,20 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 	return false
 }
 
-type FileConstraint struct {
-	// (All non-zero fields must match)
+type FileConstraint = searchtypes.FileConstraint
 
-	FileSize *IntConstraint    `json:"fileSize,omitempty"`
-	FileName *StringConstraint `json:"fileName,omitempty"`
-	MIMEType *StringConstraint `json:"mimeType,omitempty"`
-	Time     *TimeConstraint   `json:"time,omitempty"`
-	ModTime  *TimeConstraint   `json:"modTime,omitempty"`
-
-	// WholeRef if non-zero only matches if the entire checksum of the
-	// file (the concatenation of all its blobs) is equal to the
-	// provided blobref. The index may not have every file's digest for
-	// every known hash algorithm.
-	WholeRef blob.Ref `json:"wholeRef,omitempty"`
-
-	// ParentDir, if non-nil, constrains the file match based on properties
-	// of its parent directory.
-	ParentDir *DirConstraint `json:"parentDir,omitempty"`
-
-	// For images:
-	IsImage  bool                `json:"isImage,omitempty"`
-	EXIF     *EXIFConstraint     `json:"exif,omitempty"` // TODO: implement
-	Width    *IntConstraint      `json:"width,omitempty"`
-	Height   *IntConstraint      `json:"height,omitempty"`
-	WHRatio  *FloatConstraint    `json:"widthHeightRation,omitempty"`
-	Location *LocationConstraint `json:"location,omitempty"`
-
-	// Camera matches either the EXIF make or model. Files without camera
-	// metadata do not match. Requires an in-memory corpus.
-	Camera *StringConstraint `json:"camera,omitempty"`
-
-	// MediaTag is for ID3 (and similar) embedded metadata in files.
-	MediaTag *MediaTagConstraint `json:"mediaTag,omitempty"`
-}
-
-type MediaTagConstraint struct {
-	// Tag is the tag to match.
-	// For ID3, this includes: title, artist, album, genre, musicbrainzalbumid, year, track, disc, mediaref, durationms.
-	Tag string `json:"tag"`
-
-	String *StringConstraint `json:"string,omitempty"`
-	Int    *IntConstraint    `json:"int,omitempty"`
-}
+type MediaTagConstraint = searchtypes.MediaTagConstraint
 
 // DirConstraint matches static directories.
-type DirConstraint struct {
-	// (All non-zero fields must match)
-
-	FileName      *StringConstraint `json:"fileName,omitempty"`
-	BlobRefPrefix string            `json:"blobRefPrefix,omitempty"`
-
-	// ParentDir, if non-nil, constrains the directory match based on properties
-	// of its parent directory.
-	ParentDir *DirConstraint `json:"parentDir,omitempty"`
-
-	// TODO: implement.
-	// FileCount *IntConstraint
-	// FileSize *IntConstraint
-
-	// TopFileCount, if non-nil, constrains the directory match with the directory's
-	// number of children (non-recursively).
-	TopFileCount *IntConstraint `json:"topFileCount,omitempty"`
-
-	// RecursiveContains, if non-nil, is like Contains, but applied to all
-	// the descendants of the directory. It is mutually exclusive with Contains.
-	RecursiveContains *Constraint `json:"recursiveContains,omitempty"`
-
-	// Contains, if non-nil, constrains the directory match to just those
-	// directories containing a file matched by Contains. Contains should have a
-	// BlobPrefix, or a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint
-	// combination of the aforementioned. It is only applied to the children of the
-	// directory, in a non-recursive manner. It is mutually exclusive with RecursiveContains.
-	Contains *Constraint `json:"contains,omitempty"`
-}
+type DirConstraint = searchtypes.DirConstraint
 
 // An IntConstraint specifies constraints on an integer.
-type IntConstraint struct {
-	// Min and Max are both optional and inclusive bounds.
-	// Zero means don't check.
-	Min     int64 `json:"min,omitempty"`
-	Max     int64 `json:"max,omitempty"`
-	ZeroMin bool  `json:"zeroMin,omitempty"` // if true, min is actually zero
-	ZeroMax bool  `json:"zeroMax,omitempty"` // if true, max is actually zero
+type IntConstraint = searchtypes.IntConstraint
 
-	Equals *int64 `json:"equals,omitempty"` // if non-nil, value must equal this
-}
+func intConstraintHasMin(c *IntConstraint) bool { return c.Min != 0 || c.ZeroMin }
+func intConstraintHasMax(c *IntConstraint) bool { return c.Max != 0 || c.ZeroMax }
 
-func (c *IntConstraint) hasMin() bool { return c.Min != 0 || c.ZeroMin }
-func (c *IntConstraint) hasMax() bool { return c.Max != 0 || c.ZeroMax }
-
-func (c *IntConstraint) checkValid() error {
+func intConstraintCheckValid(c *IntConstraint) error {
 	if c == nil {
 		return nil
 	}
@@ -568,39 +366,32 @@ func (c *IntConstraint) checkValid() error {
 	if c.ZeroMax && c.Max != 0 {
 		return errors.New("in IntConstraint, can't set both ZeroMax and Max")
 	}
-	if c.hasMax() && c.hasMin() && c.Min > c.Max {
+	if intConstraintHasMax(c) && intConstraintHasMin(c) && c.Min > c.Max {
 		return errors.New("in IntConstraint, min is greater than max")
 	}
 	return nil
 }
 
-func (c *IntConstraint) intMatches(v int64) bool {
+func intConstraintIntMatches(c *IntConstraint, v int64) bool {
 	if c.Equals != nil {
 		return v == *c.Equals
 	}
-	if c.hasMin() && v < c.Min {
+	if intConstraintHasMin(c) && v < c.Min {
 		return false
 	}
-	if c.hasMax() && v > c.Max {
+	if intConstraintHasMax(c) && v > c.Max {
 		return false
 	}
 	return true
 }
 
 // A FloatConstraint specifies constraints on a float.
-type FloatConstraint struct {
-	// Min and Max are both optional and inclusive bounds.
-	// Zero means don't check.
-	Min     float64 `json:"min,omitempty"`
-	Max     float64 `json:"max,omitempty"`
-	ZeroMin bool    `json:"zeroMin,omitempty"` // if true, min is actually zero
-	ZeroMax bool    `json:"zeroMax,omitempty"` // if true, max is actually zero
-}
+type FloatConstraint = searchtypes.FloatConstraint
 
-func (c *FloatConstraint) hasMin() bool { return c.Min != 0 || c.ZeroMin }
-func (c *FloatConstraint) hasMax() bool { return c.Max != 0 || c.ZeroMax }
+func floatConstraintHasMin(c *FloatConstraint) bool { return c.Min != 0 || c.ZeroMin }
+func floatConstraintHasMax(c *FloatConstraint) bool { return c.Max != 0 || c.ZeroMax }
 
-func (c *FloatConstraint) checkValid() error {
+func floatConstraintCheckValid(c *FloatConstraint) error {
 	if c == nil {
 		return nil
 	}
@@ -613,44 +404,30 @@ func (c *FloatConstraint) checkValid() error {
 	if c.ZeroMax && c.Max != 0 {
 		return errors.New("in FloatConstraint, can't set both ZeroMax and Max")
 	}
-	if c.hasMax() && c.hasMin() && c.Min > c.Max {
+	if floatConstraintHasMax(c) && floatConstraintHasMin(c) && c.Min > c.Max {
 		return errors.New("in FloatConstraint, min is greater than max")
 	}
 	return nil
 }
 
-func (c *FloatConstraint) floatMatches(v float64) bool {
+func floatConstraintFloatMatches(c *FloatConstraint, v float64) bool {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return false
 	}
-	if c.hasMin() && v < c.Min {
+	if floatConstraintHasMin(c) && v < c.Min {
 		return false
 	}
-	if c.hasMax() && v > c.Max {
+	if floatConstraintHasMax(c) && v > c.Max {
 		return false
 	}
 	return true
 }
 
-type EXIFConstraint struct {
-	// TODO.  need to put this in the index probably.
-	// Maybe: GPS *LocationConstraint
-	// ISO, Aperature, Camera Make/Model, etc.
-}
+type EXIFConstraint = searchtypes.EXIFConstraint
 
-type LocationConstraint struct {
-	// Any, if true, matches any photo with a known location.
-	Any bool
+type LocationConstraint = searchtypes.LocationConstraint
 
-	// North, West, East, and South define a region in which a photo
-	// must be in order to match.
-	North float64
-	West  float64
-	East  float64
-	South float64
-}
-
-func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
+func locationConstraintMatchesLatLong(c *LocationConstraint, lat, long float64) bool {
 	if c.Any {
 		return true
 	}
@@ -666,22 +443,7 @@ func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
 
 // A StringConstraint specifies constraints on a string.
 // All non-zero must match.
-type StringConstraint struct {
-	Empty           bool           `json:"empty,omitempty"` // matches empty string
-	Equals          string         `json:"equals,omitempty"`
-	Contains        string         `json:"contains,omitempty"`
-	HasPrefix       string         `json:"hasPrefix,omitempty"`
-	HasSuffix       string         `json:"hasSuffix,omitempty"`
-	ByteLength      *IntConstraint `json:"byteLength,omitempty"` // length in bytes (not chars)
-	CaseInsensitive bool           `json:"caseInsensitive,omitempty"`
-	// TODO: CharLength (assume UTF-8)
-
-	// Regexp, if non-empty, specifies a regular expression that the string must match.
-	// The syntax is as described by the regexp package.
-	Regexp string `json:"regexp,omitempty"`
-
-	regexp atomic.Pointer[regexp.Regexp] // lazily compiled version of Regexp
-}
+type StringConstraint = searchtypes.StringConstraint
 
 // stringCompareFunc contains a function to get a value from a StringConstraint and a second function to compare it
 // against the string s that's being matched.
@@ -706,23 +468,18 @@ var stringConstraintFuncsFold = []stringConstraintFunc{
 	{func(c *StringConstraint) string { return c.HasSuffix }, strutil.HasSuffixFold},
 }
 
-func (c *StringConstraint) stringMatches(s string) bool {
+func stringConstraintStringMatches(c *StringConstraint, s string) bool {
 	if c.Empty && len(s) > 0 {
 		return false
 	}
-	if c.ByteLength != nil && !c.ByteLength.intMatches(int64(len(s))) {
+	if c.ByteLength != nil && !intConstraintIntMatches(c.ByteLength, int64(len(s))) {
 		return false
 	}
 	if c.Regexp != "" {
-		re := c.regexp.Load()
-		if re == nil {
-			var err error
-			re, err = regexp.Compile(c.Regexp)
-			if err != nil {
-				log.Printf("Failed to parse regexp %q: %v", c.Regexp, err)
-				return false
-			}
-			c.regexp.Store(re)
+		re, err := searchtypes.StringRegexp(c)
+		if err != nil {
+			log.Printf("Failed to parse regexp %q: %v", c.Regexp, err)
+			return false
 		}
 		return re.MatchString(s)
 	}
@@ -739,154 +496,27 @@ func (c *StringConstraint) stringMatches(s string) bool {
 	return true
 }
 
-type TimeConstraint struct {
-	Before types.Time3339 `json:"before"` // <
-	After  types.Time3339 `json:"after"`  // >=
+type TimeConstraint = searchtypes.TimeConstraint
 
-	// TODO: this won't JSON-marshal/unmarshal well. Make a time.Duration marshal type?
-	// Likewise with time that supports omitempty?
-	InLast time.Duration `json:"inLast"` // >=
-}
+type ClaimConstraint = searchtypes.ClaimConstraint
 
-type ClaimConstraint struct {
-	SignedBy     string    `json:"signedBy"` // identity
-	SignedAfter  time.Time `json:"signedAfter"`
-	SignedBefore time.Time `json:"signedBefore"`
-}
-
-func (c *ClaimConstraint) checkValid() error {
-	return errors.New("TODO: implement blobMatches and checkValid on ClaimConstraint")
-}
-
-type LogicalConstraint struct {
-	Op string      `json:"op"` // "and", "or", "xor", "not"
-	A  *Constraint `json:"a"`
-	B  *Constraint `json:"b"` // only valid if Op != "not"
-}
+type LogicalConstraint = searchtypes.LogicalConstraint
 
 // PermanodeConstraint matches permanodes.
-type PermanodeConstraint struct {
-	// At specifies the time at which to pretend we're resolving attributes.
-	// Attribute claims after this point in time are ignored.
-	// If zero, the current time is used.
-	At time.Time `json:"at,omitempty"`
+type PermanodeConstraint = searchtypes.PermanodeConstraint
 
-	// ModTime optionally matches on the last modtime of the permanode.
-	ModTime *TimeConstraint `json:"modTime,omitempty"`
+type PermanodeContinueConstraint = searchtypes.PermanodeContinueConstraint
 
-	// Time optionally matches the permanode's time. A Permanode
-	// may not have a known time. If the permanode does not have a
-	// known time, one may be guessed if the top-level search
-	// parameters request so.
-	Time *TimeConstraint `json:"time,omitempty"`
-
-	// Attr optionally specifies the attribute to match.
-	// e.g. "camliContent", "camliMember", "tag"
-	// This is required if any of the items below are used.
-	Attr string `json:"attr,omitempty"`
-
-	// SkipHidden skips hidden or other boring files.
-	SkipHidden bool `json:"skipHidden,omitempty"`
-
-	// NumValue optionally tests the number of values this
-	// permanode has for Attr.
-	NumValue *IntConstraint `json:"numValue,omitempty"`
-
-	// ValueAll modifies the matching behavior when an attribute
-	// is multi-valued.  By default, when ValueAll is false, only
-	// one value of a multi-valued attribute needs to match. If
-	// ValueAll is true, all attributes must match.
-	ValueAll bool `json:"valueAllMatch,omitempty"`
-
-	// Value specifies an exact string to match.
-	// This is a convenience form for the simple case of exact
-	// equality. The same can be accomplished with ValueMatches.
-	Value string `json:"value,omitempty"` // if non-zero, absolute match
-
-	// ValueMatches optionally specifies a StringConstraint to
-	// match the value against.
-	ValueMatches *StringConstraint `json:"valueMatches,omitempty"`
-
-	// ValueMatchesInt optionally specifies an IntConstraint to match
-	// the value against. Non-integer values will not match.
-	ValueMatchesInt *IntConstraint `json:"valueMatchesInt,omitempty"`
-
-	// ValueMatchesFloat optionally specifies a FloatConstraint to match
-	// the value against. Non-float values will not match.
-	ValueMatchesFloat *FloatConstraint `json:"valueMatchesFloat,omitempty"`
-
-	// ValueInSet optionally specifies a sub-query which the value
-	// (which must be a blobref) must be a part of.
-	ValueInSet *Constraint `json:"valueInSet,omitempty"`
-
-	// Relation optionally specifies a constraint based on relations
-	// to other permanodes (e.g. camliMember or camliPath sets).
-	// You can use it to test the properties of a parent, ancestor,
-	// child, or progeny.
-	Relation *RelationConstraint `json:"relation,omitempty"`
-
-	// Location optionally restricts matches to permanodes having
-	// this location. This only affects permanodes with a known
-	// type to have an lat/long location.
-	Location *LocationConstraint `json:"location,omitempty"`
-
-	// Continue is for internal use.
-	Continue *PermanodeContinueConstraint `json:"-"`
-
-	// TODO:
-	// NumClaims *IntConstraint  // by owner
-	// Owner  blob.Ref // search for permanodes by an owner
-
-	// Note: When adding a field, update hasValueConstraint.
-}
-
-type PermanodeContinueConstraint struct {
-	// LastMod if non-zero is the modtime of the last item
-	// that was seen. One of this or LastCreated will be set.
-	LastMod time.Time
-
-	// LastCreated if non-zero is the creation time of the last
-	// item that was seen.
-	LastCreated time.Time
-
-	// Last is the last blobref that was shown at the time
-	// given in ModLessEqual or CreateLessEqual.
-	// This is used as a tie-breaker.
-	// If the time is equal, permanodes <= this are not matched.
-	// If the time is past this in the scroll position, then this
-	// field is ignored.
-	Last blob.Ref
-}
-
-func (pcc *PermanodeContinueConstraint) checkValid() error {
+func permanodeContinueConstraintCheckValid(pcc *PermanodeContinueConstraint) error {
 	if pcc.LastMod.IsZero() == pcc.LastCreated.IsZero() {
 		return errors.New("exactly one of PermanodeContinueConstraint LastMod or LastCreated must be defined")
 	}
 	return nil
 }
 
-type RelationConstraint struct {
-	// Relation must be one of:
-	//   * "child"
-	//   * "parent" (immediate parent only)
-	//   * "progeny" (any level down)
-	//   * "ancestor" (any level up)
-	Relation string
+type RelationConstraint = searchtypes.RelationConstraint
 
-	// EdgeType optionally specifies an edge type.
-	// By default it matches "camliMember" and "camliPath:*".
-	EdgeType string
-
-	// After finding all the nodes matching the Relation and
-	// EdgeType, either one or all (depending on whether Any or
-	// All is set) must then match for the RelationConstraint
-	// itself to match.
-	//
-	// It is an error to set both.
-	Any, All *Constraint
-}
-
-func (rc *RelationConstraint) checkValid() error {
+func relationConstraintCheckValid(rc *RelationConstraint) error {
 	if rc.Relation != "parent" && rc.Relation != "child" {
 		return errors.New("only RelationConstraint.Relation of \"parent\" or \"child\" is currently supported")
 	}
@@ -896,7 +526,7 @@ func (rc *RelationConstraint) checkValid() error {
 	return nil
 }
 
-func (rc *RelationConstraint) matchesAttr(attr string) bool {
+func relationConstraintMatchesAttr(rc *RelationConstraint, attr string) bool {
 	if rc.EdgeType != "" {
 		return attr == rc.EdgeType
 	}
@@ -904,7 +534,7 @@ func (rc *RelationConstraint) matchesAttr(attr string) bool {
 }
 
 // The PermanodeConstraint matching of RelationConstraint.
-func (rc *RelationConstraint) match(ctx context.Context, s *search, pn blob.Ref, at time.Time) (ok bool, err error) {
+func relationConstraintMatch(rc *RelationConstraint, ctx context.Context, s *search, pn blob.Ref, at time.Time) (ok bool, err error) {
 	corpus := s.h.corpus
 	if corpus == nil {
 		// TODO: care?
@@ -928,9 +558,9 @@ func (rc *RelationConstraint) match(ctx context.Context, s *search, pn blob.Ref,
 
 	var matcher matchFn
 	if rc.Any != nil {
-		matcher = rc.Any.matcher()
+		matcher = constraintMatcher(rc.Any)
 	} else {
-		matcher = rc.All.matcher()
+		matcher = constraintMatcher(rc.All)
 	}
 
 	var anyGood bool
@@ -938,7 +568,7 @@ func (rc *RelationConstraint) match(ctx context.Context, s *search, pn blob.Ref,
 	var lastChecked blob.Ref
 	var permanodesChecked map[blob.Ref]bool // lazily created to optimize for common case of 1 match
 	foreachClaim(pn, at, func(cl *camtypes.Claim) bool {
-		if !rc.matchesAttr(cl.Attr) {
+		if !relationConstraintMatchesAttr(rc, cl.Attr) {
 			return true // skip claim
 		}
 		if lastChecked.Valid() {
@@ -1077,11 +707,11 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 			}
 		}()
 	}
-	exprResult, err := rawq.checkValid(ctx)
+	exprResult, err := searchQueryCheckValid(rawq, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid SearchQuery: %w", err)
 	}
-	q := rawq.plannedQuery(exprResult)
+	q := searchQueryPlannedQuery(rawq, exprResult)
 	res := new(SearchResult)
 	s := &search{
 		h:   h,
@@ -1098,7 +728,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 
 	corpus := h.corpus
 
-	cands := q.pickCandidateSource(s)
+	cands := searchQueryPickCandidateSource(q, s)
 	if candSourceHook != nil {
 		candSourceHook(cands.name)
 	}
@@ -1111,7 +741,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 		// TODO(mpl): fail somewhere if MapSorted and wantAround at the same time.
 		wantAround = true
 	}
-	blobMatches := q.Constraint.matcher()
+	blobMatches := constraintMatcher(q.Constraint)
 
 	var enumErr error
 	sendErr := cands.send(ctx, s, func(meta camtypes.BlobMeta) bool {
@@ -1195,7 +825,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 			if corpus == nil {
 				return nil, errors.New("TODO: Sorting without a corpus unsupported")
 			}
-			if !q.Constraint.onlyMatchesPermanode() {
+			if !constraintOnlyMatchesPermanode(q.Constraint) {
 				return nil, errors.New("can only sort by ctime when all results are permanodes")
 			}
 			var err error
@@ -1247,7 +877,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	}
 	if corpus != nil {
 		if !wantAround {
-			q.setResultContinue(corpus, res)
+			searchQuerySetResultContinue(q, corpus, res)
 		}
 	}
 
@@ -1444,8 +1074,8 @@ func bestByLocation(res *SearchResult, locm map[blob.Ref]camtypes.Location, limi
 
 // setResultContinue sets res.Continue if q is suitable for having a continue token.
 // The corpus is locked for reads.
-func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult) {
-	if !q.Constraint.onlyMatchesPermanode() {
+func searchQuerySetResultContinue(q *SearchQuery, corpus *index.Corpus, res *SearchResult) {
+	if !constraintOnlyMatchesPermanode(q.Constraint) {
 		return
 	}
 	var pnTimeFunc func(blob.Ref) (t time.Time, ok bool)
@@ -1498,15 +1128,15 @@ type candidateSource struct {
 	send func(context.Context, *search, func(camtypes.BlobMeta) bool) error
 }
 
-func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
+func searchQueryPickCandidateSource(q *SearchQuery, s *search) (src candidateSource) {
 	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
-		if cands, ok := c.blobCandidates(corpus); ok {
+		if cands, ok := constraintBlobCandidates(c, corpus); ok {
 			src.name = "corpus_candidates"
 			brs := cands.Slice()
 			sort.Slice(brs, func(i, j int) bool { return brs[i].Less(brs[j]) })
-			if c.onlyMatchesPermanode() && (q.Sort == LastModifiedDesc || q.Sort == CreatedDesc) {
+			if constraintOnlyMatchesPermanode(c) && (q.Sort == LastModifiedDesc || q.Sort == CreatedDesc) {
 				// Sorted the same as the corpus_permanode sources
 				// below, so Limit, Continue and Around work the same.
 				src.sorted = true
@@ -1534,7 +1164,7 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 			}
 			return
 		}
-		if c.onlyMatchesPermanode() {
+		if constraintOnlyMatchesPermanode(c) {
 			src.sorted = true
 			switch q.Sort {
 			case LastModifiedDesc:
@@ -1553,7 +1183,7 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 				return
 			default:
 				src.sorted = false
-				if typs := c.matchesPermanodeTypes(); len(typs) != 0 {
+				if typs := constraintMatchesPermanodeTypes(c); len(typs) != 0 {
 					src.name = "corpus_permanode_types"
 					src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
 						corpus.EnumeratePermanodesByNodeTypes(fn, typs)
@@ -1592,16 +1222,11 @@ func (fns allMustMatch) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	return true, nil
 }
 
-func (c *Constraint) matcher() func(ctx context.Context, s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
-	c.matcherOnce.Do(c.initMatcherFn)
-	return c.matcherFn
+func constraintMatcher(c *Constraint) matchFn {
+	return searchtypes.CachedMatcher(c, func() any { return constraintGenMatcher(c) }).(matchFn)
 }
 
-func (c *Constraint) initMatcherFn() {
-	c.matcherFn = c.genMatcher()
-}
-
-func (c *Constraint) genMatcher() matchFn {
+func constraintGenMatcher(c *Constraint) matchFn {
 	var ncond int
 	var cond matchFn
 	var conds []matchFn
@@ -1616,7 +1241,7 @@ func (c *Constraint) genMatcher() matchFn {
 		conds = append(conds, fn)
 	}
 	if c.Logical != nil {
-		addCond(c.Logical.matcher())
+		addCond(logicalConstraintMatcher(c.Logical))
 	}
 	if c.Anything {
 		addCond(alwaysMatch)
@@ -1629,19 +1254,25 @@ func (c *Constraint) genMatcher() matchFn {
 	if c.AnyCamliType {
 		addCond(anyCamliType)
 	}
-	if c.Permanode != nil {
-		addCond(c.Permanode.blobMatches)
+	if pc := c.Permanode; pc != nil {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+			return permanodeConstraintBlobMatches(pc, ctx, s, br, bm)
+		})
 	}
 	// TODO: ClaimConstraint
-	if c.File != nil {
-		addCond(c.File.blobMatches)
+	if fc := c.File; fc != nil {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+			return fileConstraintBlobMatches(fc, ctx, s, br, bm)
+		})
 	}
-	if c.Dir != nil {
-		addCond(c.Dir.blobMatches)
+	if dc := c.Dir; dc != nil {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+			return dirConstraintBlobMatches(dc, ctx, s, br, bm)
+		})
 	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
-			return bs.intMatches(int64(bm.Size)), nil
+			return intConstraintIntMatches(bs, int64(bm.Size)), nil
 		})
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
@@ -1659,14 +1290,14 @@ func (c *Constraint) genMatcher() matchFn {
 	}
 }
 
-func (c *LogicalConstraint) checkValid() error {
+func logicalConstraintCheckValid(c *LogicalConstraint) error {
 	if c == nil {
 		return nil
 	}
 	if c.A == nil {
 		return errors.New("In LogicalConstraint, need to set A")
 	}
-	if err := c.A.checkValid(); err != nil {
+	if err := constraintCheckValid(c.A); err != nil {
 		return err
 	}
 	switch c.Op {
@@ -1674,7 +1305,7 @@ func (c *LogicalConstraint) checkValid() error {
 		if c.B == nil {
 			return errors.New("In LogicalConstraint, need both A and B set")
 		}
-		if err := c.B.checkValid(); err != nil {
+		if err := constraintCheckValid(c.B); err != nil {
 			return err
 		}
 	case "not":
@@ -1684,11 +1315,11 @@ func (c *LogicalConstraint) checkValid() error {
 	return nil
 }
 
-func (c *LogicalConstraint) matcher() matchFn {
-	amatches := c.A.matcher()
+func logicalConstraintMatcher(c *LogicalConstraint) matchFn {
+	amatches := constraintMatcher(c.A)
 	var bmatches matchFn
 	if c.Op != "not" {
-		bmatches = c.B.matcher()
+		bmatches = constraintMatcher(c.B)
 	}
 	return func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 
@@ -1732,19 +1363,19 @@ func (c *LogicalConstraint) matcher() matchFn {
 	}
 }
 
-func (c *PermanodeConstraint) checkValid() error {
+func permanodeConstraintCheckValid(c *PermanodeConstraint) error {
 	if c == nil {
 		return nil
 	}
 	if c.Attr != "" {
-		if c.NumValue == nil && !c.hasValueConstraint() {
+		if c.NumValue == nil && !permanodeConstraintHasValueConstraint(c) {
 			return errors.New("PermanodeConstraint with Attr requires also setting NumValue or a value-matching constraint")
 		}
 		if nv := c.NumValue; nv != nil {
 			if nv.ZeroMin {
 				return errors.New("NumValue with ZeroMin makes no sense; matches everything")
 			}
-			if nv.ZeroMax && c.hasValueConstraint() {
+			if nv.ZeroMax && permanodeConstraintHasValueConstraint(c) {
 				return errors.New("NumValue with ZeroMax makes no sense in conjunction with a value-matching constraint; matches nothing")
 			}
 			if nv.Min < 0 || nv.Max < 0 {
@@ -1753,12 +1384,12 @@ func (c *PermanodeConstraint) checkValid() error {
 		}
 	}
 	if rc := c.Relation; rc != nil {
-		if err := rc.checkValid(); err != nil {
+		if err := relationConstraintCheckValid(rc); err != nil {
 			return err
 		}
 	}
 	if pcc := c.Continue; pcc != nil {
-		if err := pcc.checkValid(); err != nil {
+		if err := permanodeContinueConstraintCheckValid(pcc); err != nil {
 			return err
 		}
 	}
@@ -1768,7 +1399,7 @@ func (c *PermanodeConstraint) checkValid() error {
 var numPermanodeFields = reflect.TypeOf(PermanodeConstraint{}).NumField()
 
 // hasValueConstraint returns true if one or more constraints that check an attribute's value are set.
-func (c *PermanodeConstraint) hasValueConstraint() bool {
+func permanodeConstraintHasValueConstraint(c *PermanodeConstraint) bool {
 	// If a field has been added or removed, update this after adding the new field to the return statement if necessary.
 	const expectedFields = 15
 	if numPermanodeFields != expectedFields {
@@ -1781,7 +1412,7 @@ func (c *PermanodeConstraint) hasValueConstraint() bool {
 		c.ValueInSet != nil
 }
 
-func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
+func permanodeConstraintBlobMatches(c *PermanodeConstraint, ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
 	if bm.CamliType != schema.TypePermanode {
 		return false, nil
 	}
@@ -1812,7 +1443,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 				s.ss[:0], br, c.Attr, c.At, s.h.owner.KeyID())
 			vals = s.ss
 		}
-		ok, err := c.permanodeMatchesAttrVals(ctx, s, vals)
+		ok, err := permanodeConstraintPermanodeMatchesAttrVals(c, ctx, s, vals)
 		if !ok || err != nil {
 			return false, err
 		}
@@ -1836,10 +1467,10 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 	if c.ModTime != nil {
 		if corpus != nil {
 			mt, ok := corpus.PermanodeModtime(br)
-			if !ok || !c.ModTime.timeMatches(mt) {
+			if !ok || !timeConstraintTimeMatches(c.ModTime, mt) {
 				return false, nil
 			}
-		} else if !c.ModTime.timeMatches(dp.ModTime) {
+		} else if !timeConstraintTimeMatches(c.ModTime, dp.ModTime) {
 			return false, nil
 		}
 	}
@@ -1847,7 +1478,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 	if c.Time != nil {
 		if corpus != nil {
 			t, ok := corpus.PermanodeAnyTime(br)
-			if !ok || !c.Time.timeMatches(t) {
+			if !ok || !timeConstraintTimeMatches(c.Time, t) {
 				return false, nil
 			}
 		} else {
@@ -1856,7 +1487,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 	}
 
 	if rc := c.Relation; rc != nil {
-		ok, err := rc.match(ctx, s, br, c.At)
+		ok, err := relationConstraintMatch(rc, ctx, s, br, c.At)
 		if !ok || err != nil {
 			return ok, err
 		}
@@ -1871,7 +1502,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 				}
 				return false, nil
 			}
-			if !c.Location.matchesLatLong(l.Latitude, l.Longitude) {
+			if !locationConstraintMatchesLatLong(c.Location, l.Latitude, l.Longitude) {
 				return false, nil
 			}
 		}
@@ -1922,14 +1553,14 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 // permanodeMatchesAttrVals checks that the values in vals - all of them, if c.ValueAll is set -
 // match the values for c.Attr.
 // vals are the current permanode values of c.Attr.
-func (c *PermanodeConstraint) permanodeMatchesAttrVals(ctx context.Context, s *search, vals []string) (bool, error) {
-	if c.NumValue != nil && !c.NumValue.intMatches(int64(len(vals))) {
+func permanodeConstraintPermanodeMatchesAttrVals(c *PermanodeConstraint, ctx context.Context, s *search, vals []string) (bool, error) {
+	if c.NumValue != nil && !intConstraintIntMatches(c.NumValue, int64(len(vals))) {
 		return false, nil
 	}
-	if c.hasValueConstraint() {
+	if permanodeConstraintHasValueConstraint(c) {
 		nmatch := 0
 		for _, val := range vals {
-			match, err := c.permanodeMatchesAttrVal(ctx, s, val)
+			match, err := permanodeConstraintPermanodeMatchesAttrVal(c, ctx, s, val)
 			if err != nil {
 				return false, err
 			}
@@ -1947,20 +1578,20 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVals(ctx context.Context, s *s
 	return true, nil
 }
 
-func (c *PermanodeConstraint) permanodeMatchesAttrVal(ctx context.Context, s *search, val string) (bool, error) {
+func permanodeConstraintPermanodeMatchesAttrVal(c *PermanodeConstraint, ctx context.Context, s *search, val string) (bool, error) {
 	if c.Value != "" && c.Value != val {
 		return false, nil
 	}
-	if c.ValueMatches != nil && !c.ValueMatches.stringMatches(val) {
+	if c.ValueMatches != nil && !stringConstraintStringMatches(c.ValueMatches, val) {
 		return false, nil
 	}
 	if c.ValueMatchesInt != nil {
-		if i, err := strconv.ParseInt(val, 10, 64); err != nil || !c.ValueMatchesInt.intMatches(i) {
+		if i, err := strconv.ParseInt(val, 10, 64); err != nil || !intConstraintIntMatches(c.ValueMatchesInt, i) {
 			return false, nil
 		}
 	}
 	if c.ValueMatchesFloat != nil {
-		if f, err := strconv.ParseFloat(val, 64); err != nil || !c.ValueMatchesFloat.floatMatches(f) {
+		if f, err := strconv.ParseFloat(val, 64); err != nil || !floatConstraintFloatMatches(c.ValueMatchesFloat, f) {
 			return false, nil
 		}
 	}
@@ -1976,16 +1607,16 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(ctx context.Context, s *se
 		if err != nil {
 			return false, err
 		}
-		return subc.matcher()(ctx, s, br, meta)
+		return constraintMatcher(subc)(ctx, s, br, meta)
 	}
 	return true, nil
 }
 
-func (c *FileConstraint) checkValid() error {
+func fileConstraintCheckValid(c *FileConstraint) error {
 	return nil
 }
 
-func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
+func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
 	if bm.CamliType != "file" {
 		return false, nil
 	}
@@ -1996,25 +1627,25 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 	if err != nil {
 		return false, err
 	}
-	if fs := c.FileSize; fs != nil && !fs.intMatches(fi.Size) {
+	if fs := c.FileSize; fs != nil && !intConstraintIntMatches(fs, fi.Size) {
 		return false, nil
 	}
 	if c.IsImage && !strings.HasPrefix(fi.MIMEType, "image/") {
 		return false, nil
 	}
-	if sc := c.FileName; sc != nil && !sc.stringMatches(fi.FileName) {
+	if sc := c.FileName; sc != nil && !stringConstraintStringMatches(sc, fi.FileName) {
 		return false, nil
 	}
-	if sc := c.MIMEType; sc != nil && !sc.stringMatches(fi.MIMEType) {
+	if sc := c.MIMEType; sc != nil && !stringConstraintStringMatches(sc, fi.MIMEType) {
 		return false, nil
 	}
 	if tc := c.Time; tc != nil {
-		if fi.Time == nil || !tc.timeMatches(fi.Time.Time()) {
+		if fi.Time == nil || !timeConstraintTimeMatches(tc, fi.Time.Time()) {
 			return false, nil
 		}
 	}
 	if tc := c.ModTime; tc != nil {
-		if fi.ModTime == nil || !tc.timeMatches(fi.ModTime.Time()) {
+		if fi.ModTime == nil || !timeConstraintTimeMatches(tc, fi.ModTime.Time()) {
 			return false, nil
 		}
 	}
@@ -2035,7 +1666,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 				}
 				return false, err
 			}
-			ok, err := pc.blobMatches(ctx, s, parent, meta)
+			ok, err := dirConstraintBlobMatches(pc, ctx, s, parent, meta)
 			if err != nil {
 				return false, err
 			}
@@ -2054,7 +1685,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, nil
 		}
 		make, model, found := corpus.FileCamera(br)
-		if !found || !((make != "" && sc.stringMatches(make)) || (model != "" && sc.stringMatches(model))) {
+		if !found || !((make != "" && stringConstraintStringMatches(sc, make)) || (model != "" && stringConstraintStringMatches(sc, model))) {
 			return false, nil
 		}
 	}
@@ -2082,13 +1713,13 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 		width = int64(imageInfo.Width)
 		height = int64(imageInfo.Height)
 	}
-	if c.Width != nil && !c.Width.intMatches(width) {
+	if c.Width != nil && !intConstraintIntMatches(c.Width, width) {
 		return false, nil
 	}
-	if c.Height != nil && !c.Height.intMatches(height) {
+	if c.Height != nil && !intConstraintIntMatches(c.Height, height) {
 		return false, nil
 	}
-	if c.WHRatio != nil && !c.WHRatio.floatMatches(float64(width)/float64(height)) {
+	if c.WHRatio != nil && !floatConstraintFloatMatches(c.WHRatio, float64(width)/float64(height)) {
 		return false, nil
 	}
 	if c.Location != nil {
@@ -2096,7 +1727,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, nil
 		}
 		lat, long, found := corpus.FileLatLong(br)
-		if !found || !c.Location.matchesLatLong(lat, long) {
+		if !found || !locationConstraintMatchesLatLong(c.Location, lat, long) {
 			return false, nil
 		}
 		// If location was successfully matched, add the
@@ -2130,11 +1761,11 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			tagValue = mediaTags[mt.Tag]
 		}
 		if mt.Int != nil {
-			if i, err := strconv.ParseInt(tagValue, 10, 64); err != nil || !mt.Int.intMatches(i) {
+			if i, err := strconv.ParseInt(tagValue, 10, 64); err != nil || !intConstraintIntMatches(mt.Int, i) {
 				return false, nil
 			}
 		}
-		if mt.String != nil && !mt.String.stringMatches(tagValue) {
+		if mt.String != nil && !stringConstraintStringMatches(mt.String, tagValue) {
 			return false, nil
 		}
 	}
@@ -2142,7 +1773,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 	return true, nil
 }
 
-func (c *TimeConstraint) timeMatches(t time.Time) bool {
+func timeConstraintTimeMatches(c *TimeConstraint, t time.Time) bool {
 	if t.IsZero() {
 		return false
 	}
@@ -2163,7 +1794,7 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 	return true
 }
 
-func (c *DirConstraint) checkValid() error {
+func dirConstraintCheckValid(c *DirConstraint) error {
 	if c == nil {
 		return nil
 	}
@@ -2173,30 +1804,30 @@ func (c *DirConstraint) checkValid() error {
 	return nil
 }
 
-func (c *Constraint) isFileOrDirConstraint() bool {
+func constraintIsFileOrDirConstraint(c *Constraint) bool {
 	if l := c.Logical; l != nil {
 		if l.Op == "not" {
-			return l.A.isFileOrDirConstraint() // l.B is nil
+			return constraintIsFileOrDirConstraint(l.A) // l.B is nil
 		}
-		return l.A.isFileOrDirConstraint() && l.B.isFileOrDirConstraint()
+		return constraintIsFileOrDirConstraint(l.A) && constraintIsFileOrDirConstraint(l.B)
 	}
 	return c.File != nil || c.Dir != nil
 }
 
-func (c *Constraint) fileOrDirOrLogicalMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func constraintFileOrDirOrLogicalMatches(c *Constraint, ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if cf := c.File; cf != nil {
-		return cf.blobMatches(ctx, s, br, bm)
+		return fileConstraintBlobMatches(cf, ctx, s, br, bm)
 	}
 	if cd := c.Dir; cd != nil {
-		return cd.blobMatches(ctx, s, br, bm)
+		return dirConstraintBlobMatches(cd, ctx, s, br, bm)
 	}
 	if l := c.Logical; l != nil {
-		return l.matcher()(ctx, s, br, bm)
+		return logicalConstraintMatcher(l)(ctx, s, br, bm)
 	}
 	return false, nil
 }
 
-func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func dirConstraintBlobMatches(c *DirConstraint, ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != schema.TypeDirectory {
 		return false, nil
 	}
@@ -2217,7 +1848,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	if err != nil {
 		return false, err
 	}
-	if sc := c.FileName; sc != nil && !sc.stringMatches(fi.FileName) {
+	if sc := c.FileName; sc != nil && !stringConstraintStringMatches(sc, fi.FileName) {
 		return false, nil
 	}
 	if pc := c.ParentDir; pc != nil {
@@ -2228,7 +1859,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 		if err != nil {
 			return false, err
 		}
-		isMatch, err := pc.hasMatchingParent(ctx, s, parents)
+		isMatch, err := dirConstraintHasMatchingParent(pc, ctx, s, parents)
 		if err != nil {
 			return false, err
 		}
@@ -2243,7 +1874,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	if err != nil && err != os.ErrNotExist {
 		return false, err
 	}
-	if fc := c.TopFileCount; fc != nil && !fc.intMatches(int64(len(children))) {
+	if fc := c.TopFileCount; fc != nil && !intConstraintIntMatches(fc, int64(len(children))) {
 		return false, nil
 	}
 	cc := c.Contains
@@ -2260,14 +1891,16 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	if cc != nil {
 		// Allow directly specifying the fileRef
 		if cc.BlobRefPrefix != "" {
-			containsMatch, err = c.hasMatchingChild(ctx, s, children, func(ctx context.Context, s *search, child blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+			containsMatch, err = dirConstraintHasMatchingChild(c, ctx, s, children, func(ctx context.Context, s *search, child blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 				return child.HasPrefix(cc.BlobRefPrefix), nil
 			})
 		} else {
-			if !cc.isFileOrDirConstraint() {
+			if !constraintIsFileOrDirConstraint(cc) {
 				return false, errors.New("[Recursive]Contains constraint should have a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint combination of the aforementioned.")
 			}
-			containsMatch, err = c.hasMatchingChild(ctx, s, children, cc.fileOrDirOrLogicalMatches)
+			containsMatch, err = dirConstraintHasMatchingChild(c, ctx, s, children, func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+				return constraintFileOrDirOrLogicalMatches(cc, ctx, s, br, bm)
+			})
 		}
 		if err != nil {
 			return false, err
@@ -2278,7 +1911,9 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 	}
 	// Then if needed recurse on the next generation descendants.
 	if !containsMatch && recursive {
-		match, err := c.hasMatchingChild(ctx, s, children, c.blobMatches)
+		match, err := dirConstraintHasMatchingChild(c, ctx, s, children, func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+			return dirConstraintBlobMatches(c, ctx, s, br, bm)
+		})
 		if err != nil {
 			return false, err
 		}
@@ -2294,7 +1929,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 
 // hasMatchingParent checks all parents against c and returns true as soon as one of
 // them matches, or returns false if none of them is a match.
-func (c *DirConstraint) hasMatchingParent(ctx context.Context, s *search, parents map[blob.Ref]struct{}) (bool, error) {
+func dirConstraintHasMatchingParent(c *DirConstraint, ctx context.Context, s *search, parents map[blob.Ref]struct{}) (bool, error) {
 	for parent := range parents {
 		meta, err := s.blobMeta(ctx, parent)
 		if err != nil {
@@ -2303,7 +1938,7 @@ func (c *DirConstraint) hasMatchingParent(ctx context.Context, s *search, parent
 			}
 			return false, err
 		}
-		ok, err := c.blobMatches(ctx, s, parent, meta)
+		ok, err := dirConstraintBlobMatches(c, ctx, s, parent, meta)
 		if err != nil {
 			return false, err
 		}
@@ -2316,7 +1951,7 @@ func (c *DirConstraint) hasMatchingParent(ctx context.Context, s *search, parent
 
 // hasMatchingChild runs matcher against each child and returns true as soon as
 // there is a match, of false if none of them is a match.
-func (c *DirConstraint) hasMatchingChild(ctx context.Context, s *search, children map[blob.Ref]struct{},
+func dirConstraintHasMatchingChild(c *DirConstraint, ctx context.Context, s *search, children map[blob.Ref]struct{},
 	matcher func(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error)) (bool, error) {
 	// TODO(mpl): See if we're guaranteed to be CPU-bound (i.e. all resources are in
 	// corpus), and if not, add some concurrency to spread costly index lookups.

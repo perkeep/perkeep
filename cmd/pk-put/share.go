@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"time"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 type shareCmd struct {
