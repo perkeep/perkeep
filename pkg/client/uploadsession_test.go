@@ -79,6 +79,8 @@ type sessionServer struct {
 	uploading  chan struct{} // if non-nil, closed when an upload has been handled
 	holdFlush  chan struct{} // if non-nil, flush responses wait for it to close
 	flushing   chan struct{} // if non-nil, closed when a flush has been handled
+	gate       chan struct{} // if non-nil, upload requests wait for it to close
+	uploads    int           // upload requests
 }
 
 // newSessionClient returns a client of a new sessionServer, which has
@@ -99,6 +101,13 @@ func newSessionClient(t *testing.T, withSessions bool) (*Client, *sessionServer)
 				w.Write([]byte(`{"blobRoot": "/bs/"}`))
 			}
 		case r.URL.Path == "/bs/camli/upload":
+			srv.mu.Lock()
+			srv.uploads++
+			gate := srv.gate
+			srv.mu.Unlock()
+			if gate != nil {
+				<-gate
+			}
 			rec := httptest.NewRecorder()
 			upload.ServeHTTP(rec, r)
 			srv.mu.Lock()
@@ -448,6 +457,67 @@ func TestWaitDurableSharesFlush(t *testing.T) {
 		}
 		if n := srv.flushCount(); n != 1 {
 			t.Errorf("%d flush requests; want 1", n)
+		}
+	})
+}
+
+// TestUploadSessionBatches checks that Upload calls waiting for an HTTP
+// request to be free send their blobs together, and that blobs the have
+// cache has aren't sent.
+func TestUploadSessionBatches(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c, srv := newSessionClient(t, true)
+		s := newSession(t, c)
+		srv.mu.Lock()
+		srv.gate = make(chan struct{})
+		srv.mu.Unlock()
+
+		var blobs []*test.Blob
+		for i := range 3 * s.maxSending {
+			blobs = append(blobs, &test.Blob{Contents: fmt.Sprintf("blob %d", i)})
+		}
+		errc := make(chan error, len(blobs))
+		upload := func(tb *test.Blob) {
+			go func() { errc <- s.Upload(context.Background(), NewUploadHandleFromString(tb.Contents)) }()
+		}
+		for _, tb := range blobs[:s.maxSending] {
+			upload(tb)
+		}
+		synctest.Wait() // each in its own request, held
+		for _, tb := range blobs[s.maxSending:] {
+			upload(tb)
+		}
+		synctest.Wait() // queued, for a free request
+		srv.mu.Lock()
+		close(srv.gate)
+		srv.gate = nil
+		srv.mu.Unlock()
+		for range blobs {
+			if err := <-errc; err != nil {
+				t.Fatal(err)
+			}
+		}
+		srv.mu.Lock()
+		uploads := srv.uploads
+		srv.mu.Unlock()
+		if uploads != s.maxSending+1 {
+			t.Errorf("%d upload requests for %d blobs; want %d: one each for the first %d, and one for the rest",
+				uploads, len(blobs), s.maxSending+1, s.maxSending)
+		}
+		durable, err := s.Flush(context.Background())
+		if err != nil || len(durable) != len(blobs) {
+			t.Errorf("Flush = %d blobs, %v; want %d", len(durable), err, len(blobs))
+		}
+
+		// Blobs the have cache has (as it now has these) aren't sent.
+		if err := s.Upload(context.Background(), NewUploadHandleFromString(blobs[0].Contents)); err != nil {
+			t.Fatal(err)
+		}
+		srv.mu.Lock()
+		again := srv.uploads
+		srv.mu.Unlock()
+		if again != uploads {
+			t.Errorf("uploading a blob in the have cache made %d requests; want none", again-uploads)
 		}
 	})
 }

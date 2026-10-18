@@ -47,6 +47,11 @@ type UploadSession struct {
 
 	flushing chan struct{} // a token, held by whoever is flushing
 
+	qmu        sync.Mutex
+	queue      []*queuedUpload // waiting to be sent
+	sending    int             // upload requests in flight
+	maxSending int             // how many upload requests may be in flight
+
 	mu sync.Mutex
 	// accepted are the blobs the server accepted, and hasn't reported
 	// durable or failed.
@@ -100,12 +105,13 @@ func (c *Client) NewUploadSession(ctx context.Context) (*UploadSession, error) {
 		return nil, errors.New("client: server opened upload session with no ID")
 	}
 	return &UploadSession{
-		c:        c,
-		id:       opened.Session,
-		flushing: make(chan struct{}, 1),
-		accepted: make(map[blob.Ref]uint32),
-		early:    make(map[blob.Ref]bool),
-		failed:   make(map[blob.Ref]error),
+		c:          c,
+		id:         opened.Session,
+		flushing:   make(chan struct{}, 1),
+		maxSending: httpGateSize(c.httpClient.Transport),
+		accepted:   make(map[blob.Ref]uint32),
+		early:      make(map[blob.Ref]bool),
+		failed:     make(map[blob.Ref]error),
 	}, nil
 }
 
@@ -128,6 +134,11 @@ func (s *UploadSession) sessionURL(op string) (string, error) {
 // durable yet: only a later Flush says that. Upload is safe to call
 // concurrently.
 //
+// It doesn't send blobs the client's have cache has. Blobs of concurrent
+// Upload calls that would wait for a free HTTP request go together, in
+// one request. If ctx is done first, Upload returns, but the blob may
+// still be sent.
+//
 // h.Vivify must be false; Upload returns an error otherwise. Vivifying
 // makes the server read the file's chunks back from storage, as soon as
 // it receives the file schema blob. In a session, those chunks may still
@@ -140,15 +151,86 @@ func (s *UploadSession) Upload(ctx context.Context, h *UploadHandle) error {
 		return errors.New("client: can't vivify in an upload session")
 	}
 	c := s.c
+	if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
+		return nil // durable already, as the have cache only has durable blobs
+	}
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
 	c.stats.UploadRequests.Bytes += int64(h.Size)
 	c.statsMutex.Unlock()
 
-	ures, err := c.postUpload(ctx, h, s.id)
-	if err != nil {
+	u := &queuedUpload{h: h, done: make(chan error, 1)}
+	s.qmu.Lock()
+	s.queue = append(s.queue, u)
+	s.sendLocked()
+	s.qmu.Unlock()
+	select {
+	case err := <-u.done:
 		return err
+	case <-ctx.Done():
+		// The blob may still be sent and accepted, and noted as such.
+		return ctx.Err()
 	}
+}
+
+// A queuedUpload is a blob an Upload call is waiting to send.
+type queuedUpload struct {
+	h    *UploadHandle
+	done chan error // of the Upload's result
+}
+
+// A session's upload requests have up to sendBlobs blobs, or about
+// sendBytes bytes.
+const (
+	sendBlobs = 256
+	sendBytes = 16 << 20
+)
+
+// sendLocked sends the queued uploads, in as many requests as can be in
+// flight, so that blobs queued while those are sent go together in the
+// next. The caller must hold s.qmu.
+func (s *UploadSession) sendLocked() {
+	for s.sending < s.maxSending && len(s.queue) > 0 {
+		var batch []*queuedUpload
+		var size int64
+		for len(s.queue) > 0 && len(batch) < sendBlobs && size < sendBytes {
+			batch = append(batch, s.queue[0])
+			size += int64(s.queue[0].h.Size)
+			s.queue[0] = nil
+			s.queue = s.queue[1:]
+		}
+		s.sending++
+		go func() {
+			s.send(batch)
+			s.qmu.Lock()
+			defer s.qmu.Unlock()
+			s.sending--
+			s.sendLocked()
+		}()
+	}
+}
+
+// send uploads batch in one request, telling each Upload its result.
+func (s *UploadSession) send(batch []*queuedUpload) {
+	hs := make([]*UploadHandle, len(batch))
+	for i, u := range batch {
+		hs[i] = u.h
+	}
+	// Not any one Upload's context: they share the request.
+	ures, err := s.c.postUploads(context.Background(), hs, s.id)
+	for _, u := range batch {
+		if err == nil {
+			u.done <- s.noteUploaded(u.h, ures)
+		} else {
+			u.done <- err
+		}
+	}
+}
+
+// noteUploaded records the result of uploading h's blob in a request to
+// which the server responded ures.
+func (s *UploadSession) noteUploaded(h *UploadHandle, ures *protocol.UploadResponse) error {
+	c := s.c
 	find := func(sbs []blob.SizedRef) (found bool, err error) {
 		for _, sb := range sbs {
 			if sb.Ref != h.BlobRef {
