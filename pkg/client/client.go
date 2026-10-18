@@ -74,6 +74,7 @@ type Client struct {
 	downloadHelper         string      // or "" if none
 	storageGen             string      // storage generation, or "" if not reported
 	hasLegacySHA1          bool        // Whether server has SHA-1 blobs indexed.
+	uploadSessions         bool        // Whether the blob root supports upload sessions.
 	syncHandlers           []*SyncInfo // "from" and "to" url prefix for each syncHandler
 	serverKeyID            string      // Server's GPG public key ID.
 	helpRoot               string      // Handler prefix, or "" if none
@@ -1088,6 +1089,7 @@ func (c *Client) doDiscovery() error {
 
 	c.storageGen = disco.StorageGeneration
 	c.hasLegacySHA1 = disco.HasLegacySHA1Index
+	c.uploadSessions = disco.UploadSessions
 
 	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {

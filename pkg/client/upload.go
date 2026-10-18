@@ -25,6 +25,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
+	"perkeep.org/pkg/blobserver/uploadsession"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/schema"
@@ -358,64 +360,9 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		}
 	}
 
-	blobrefStr := h.BlobRef.String()
-	pfx, err := c.prefix()
+	ures, err := c.postUpload(ctx, h, "")
 	if err != nil {
-		return nil, err
-	}
-
-	if env.DebugUploads() {
-		log.Printf("Uploading: %s (%d bytes)", blobrefStr, bodySize)
-	}
-
-	pipeReader, pipeWriter := io.Pipe()
-	multipartWriter := multipart.NewWriter(pipeWriter)
-
-	copyResult := make(chan error, 1)
-	go func() {
-		defer pipeWriter.Close()
-		part, err := multipartWriter.CreateFormFile(blobrefStr, blobrefStr)
-		if err != nil {
-			copyResult <- err
-			return
-		}
-		_, err = io.Copy(part, h.contents())
-		if err == nil {
-			err = multipartWriter.Close()
-		}
-		copyResult <- err
-	}()
-
-	uploadURL := fmt.Sprintf("%s/camli/upload", pfx)
-	req := c.newRequest(ctx, "POST", uploadURL)
-	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
-	if h.Vivify {
-		req.Header.Add("X-Camlistore-Vivify", "1")
-	}
-	req.Body = io.NopCloser(pipeReader)
-	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
-	resp, err := c.doReqGated(req)
-	if err != nil {
-		return errorf("upload http error: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// check error from earlier copy
-	if err := <-copyResult; err != nil {
-		return errorf("failed to copy contents into multipart writer: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return errorf("invalid http response %d in upload response", resp.StatusCode)
-	}
-
-	var ures protocol.UploadResponse
-	if err := httputil.DecodeJSON(resp, &ures); err != nil {
-		return errorf("error in upload response: %w", err)
-	}
-
-	if ures.ErrorText != "" {
-		c.printf("Blob server reports error: %s", ures.ErrorText)
+		return errorf("%w", err)
 	}
 
 	expectedSize := uint32(bodySize)
@@ -440,6 +387,77 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	}
 
 	return nil, errors.New("server didn't receive blob")
+}
+
+// postUpload uploads h's blob in a multipart request, into the upload
+// session with the given ID if it's not empty, returning the server's
+// response.
+func (c *Client) postUpload(ctx context.Context, h *UploadHandle, session string) (*protocol.UploadResponse, error) {
+	pfx, err := c.prefix()
+	if err != nil {
+		return nil, err
+	}
+	uploadURL := pfx + "/camli/upload"
+	if session != "" {
+		uploadURL += "?session=" + url.QueryEscape(session)
+	}
+	blobrefStr := h.BlobRef.String()
+	bodySize := int64(h.Size)
+	if env.DebugUploads() {
+		log.Printf("Uploading: %s (%d bytes)", blobrefStr, bodySize)
+	}
+
+	pipeReader, pipeWriter := io.Pipe()
+	multipartWriter := multipart.NewWriter(pipeWriter)
+
+	copyResult := make(chan error, 1)
+	go func() {
+		defer pipeWriter.Close()
+		part, err := multipartWriter.CreateFormFile(blobrefStr, blobrefStr)
+		if err != nil {
+			copyResult <- err
+			return
+		}
+		_, err = io.Copy(part, h.contents())
+		if err == nil {
+			err = multipartWriter.Close()
+		}
+		copyResult <- err
+	}()
+
+	req := c.newRequest(ctx, "POST", uploadURL)
+	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	if h.Vivify {
+		req.Header.Add("X-Camlistore-Vivify", "1")
+	}
+	req.Body = io.NopCloser(pipeReader)
+	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
+	resp, err := c.doReqGated(req)
+	if err != nil {
+		return nil, fmt.Errorf("upload http error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// check error from earlier copy
+	if err := <-copyResult; err != nil {
+		return nil, fmt.Errorf("failed to copy contents into multipart writer: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound && session != "" {
+		return nil, fmt.Errorf("upload: %w", uploadsession.ErrUnknownSession)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("invalid http response %d in upload response", resp.StatusCode)
+	}
+
+	ures := new(protocol.UploadResponse)
+	if err := httputil.DecodeJSON(resp, ures); err != nil {
+		return nil, fmt.Errorf("error in upload response: %w", err)
+	}
+	if ures.ErrorText != "" {
+		c.printf("Blob server reports error: %s", ures.ErrorText)
+	}
+	return ures, nil
 }
 
 // FileUploadOptions is optionally provided to UploadFile.
