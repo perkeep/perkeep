@@ -116,6 +116,13 @@ type Properties struct {
 	// For now, some importers (e.g. Flickr) don't yet support this.
 	SupportsIncremental bool
 
+	// ArchiveOnly marks importers whose only input is an uploaded archive.
+	// They must implement ArchiveImporter. Their accounts are resolved from
+	// archive identity, not created by OAuth setup, and never run periodically.
+	// ArchiveImporter alone does not imply ArchiveOnly: an API importer may
+	// also support optional archive inputs.
+	ArchiveOnly bool
+
 	// PermanodeImporterType optionally specifies the "importerType"
 	// permanode attribute value that should be stored for
 	// accounts of this type. By default, it is the string that it
@@ -257,11 +264,12 @@ func NewHost(hc HostConfig) (*Host, error) {
 		return nil, fmt.Errorf("importer: unsupported cacheType %q", hc.CacheType)
 	}
 	h := &Host{
-		baseURL:      hc.BaseURL,
-		importerBase: hc.BaseURL + hc.Prefix,
-		imp:          make(map[string]*importer),
-		cacheRoot:    hc.CacheRoot,
-		cacheType:    hc.CacheType,
+		baseURL:       hc.BaseURL,
+		importerBase:  hc.BaseURL + hc.Prefix,
+		discoveryRoot: "/",
+		imp:           make(map[string]*importer),
+		cacheRoot:     hc.CacheRoot,
+		cacheType:     hc.CacheType,
 	}
 	var err error
 	h.tmpl, err = tmpl.Clone()
@@ -283,6 +291,9 @@ func NewHost(hc HostConfig) (*Host, error) {
 			return nil, fmt.Errorf("Invalid static configuration for importer %q: clientSecret specified without clientId", k)
 		}
 		props := impl.Properties()
+		if _, ok := impl.(ArchiveImporter); props.ArchiveOnly && !ok {
+			return nil, fmt.Errorf("importer %q: ArchiveOnly requires ArchiveImporter", k)
+		}
 		imp := &importer{
 			host:         h,
 			name:         k,
@@ -485,17 +496,18 @@ func (rc *RunContext) RootNode() *Object { return rc.ia.root }
 // Host is the HTTP handler and state for managing all the importers
 // linked into the binary, even if they're not configured.
 type Host struct {
-	tmpl         *template.Template
-	importers    []string // sorted; e.g. dummy flickr foursquare picasa twitter
-	imp          map[string]*importer
-	baseURL      string
-	importerBase string
-	target       blobserver.StatReceiver
-	blobSource   blob.Fetcher // e.g. twitter reading zip file
-	search       search.QueryDescriber
-	signer       *schema.Signer
-	uiPrefix     string          // or empty if no UI handler
-	health       *health.Monitor // or nil; no runs start while it's read-only
+	tmpl          *template.Template
+	importers     []string // sorted; e.g. dummy flickr foursquare picasa twitter
+	imp           map[string]*importer
+	baseURL       string
+	importerBase  string
+	discoveryRoot string // root handler prefix, used for browser discovery
+	target        blobserver.StatReceiver
+	blobSource    blob.Fetcher // e.g. twitter reading zip file
+	search        search.QueryDescriber
+	signer        *schema.Signer
+	uiPrefix      string          // or empty if no UI handler
+	health        *health.Monitor // or nil; no runs start while it's read-only
 
 	cache     sorted.KeyValue // explicitly injected caller-owned backing; otherwise nil
 	cacheRoot string
@@ -645,11 +657,12 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		h.uiPrefix = prefix
 	}
 
-	_, handler, err := hl.FindHandlerByType("root")
+	rootPrefix, handler, err := hl.FindHandlerByType("root")
 	if err != nil || handler == nil {
 		return errors.New("importer requires a 'root' handler")
 	}
 	rh := handler.(*server.RootHandler)
+	h.discoveryRoot = rootPrefix
 	searchHandler, ok := rh.SearchHandler()
 	if !ok {
 		return errors.New("importer requires a 'root' handler with 'searchRoot' defined")
@@ -706,6 +719,10 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveArchive(w, r, imp)
 		return
 	}
+	if seg[1] == "archive.js" && len(seg) == 2 {
+		h.serveArchiveScript(w, r, imp)
+		return
+	}
 	acctRef, ok := blob.Parse(seg[1])
 	if !ok {
 		http.NotFound(w, r)
@@ -755,6 +772,7 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 			ShowSecureTransportWarning: !isTailscale && !isTLS,
 			Importer:                   imp,
 			SetupHelp:                  template.HTML(setup),
+			ArchiveUpload:              imp.archiveUpload(nil),
 		},
 	})
 }
@@ -792,6 +810,12 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 	default:
 		http.Error(w, "Unknown mode.", http.StatusBadRequest)
 	case "newacct":
+		if imp.props.ArchiveOnly {
+			// An archive supplies the identity used to find or create its
+			// account. Do not create an empty account before inspection.
+			http.Redirect(w, r, imp.URL(), http.StatusSeeOther)
+			return
+		}
 		ia, err := imp.newAccount()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -873,6 +897,9 @@ func (h *Host) startPeriodicImporters() {
 var disableImporters, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_IMPORTERS"))
 
 func (ia *importerAcct) maybeStart() {
+	if ia.im.ArchiveOnly() {
+		return
+	}
 	h := ia.im.host
 	if !h.beginWork() {
 		return
@@ -1001,6 +1028,8 @@ func (im *importer) TODOIssue() int {
 func (im *importer) Description() string {
 	return im.props.Description
 }
+
+func (im *importer) ArchiveOnly() bool { return im.props != nil && im.props.ArchiveOnly }
 
 // ImporterType returns the account permanode's attrImporterType
 // value. This is almost always the same as the Name, except in cases
@@ -1354,7 +1383,7 @@ func (ia *importerAcct) delete() error {
 
 func (ia *importerAcct) toggleAuto() error {
 	old := ia.acct.Attr(attrImportAuto)
-	if old == "" && !ia.im.props.SupportsIncremental {
+	if old == "" && (ia.im.props.ArchiveOnly || !ia.im.props.SupportsIncremental) {
 		return fmt.Errorf("Importer %q doesn't support automatic mode", ia.im.name)
 	}
 	var new string
@@ -1405,8 +1434,10 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	body := acctBody{
-		Acct:     ia,
-		AcctType: fmt.Sprintf("%T", ia.im.impl),
+		Acct:          ia,
+		AcctType:      fmt.Sprintf("%T", ia.im.impl),
+		ArchiveUpload: ia.im.archiveUpload(ia),
+		ArchiveOnly:   ia.im.props.ArchiveOnly,
 	}
 
 	if ia.im.props.HasSomePaidAPI {
@@ -1448,6 +1479,10 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 	case "stop":
 		ia.stop()
 	case "login":
+		if ia.im.props.ArchiveOnly {
+			http.Redirect(w, r, ia.im.URL(), http.StatusSeeOther)
+			return
+		}
 		ia.setup(w, r)
 		return
 	case "toggleauto":

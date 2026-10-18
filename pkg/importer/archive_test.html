@@ -1,0 +1,790 @@
+<!doctype html>
+<!--
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html lang="en">
+<meta charset="utf-8">
+<title>Archive importer browser tests</title>
+<style>
+body { font: 16px system-ui, sans-serif; margin: 2em; }
+.pass { color: #175b20; }
+.fail { color: #a00; white-space: pre-wrap; }
+</style>
+<h1>Archive importer browser tests</h1>
+<p>Serve the repository with a local static server and open <code>/pkg/importer/archive_test.html</code>.
+No dependencies, real uploads, identity storage, or importer server are used.</p>
+<p id="summary" role="status">Running…</p>
+<ol id="results"></ol>
+<div id="fixtures" hidden></div>
+<!-- No archive-import root id: loading archive.js must not auto-initialize a
+test fixture. Each test explicitly instantiates its own controller. -->
+<template id="widget">
+	<section data-discovery-url="/root/?existing=1" data-archive-url="/mounted/imports/provider/archive" data-account-base="/mounted/imports/provider/" data-account-ref="" data-file-ref="">
+		<form id="archive-upload-form">
+			<input id="archive-file" type="file" accept=".zip" required>
+			<button id="archive-upload" type="submit">Upload ZIP</button>
+			<button id="archive-cancel" type="button" hidden>Cancel upload</button>
+		</form>
+		<progress id="archive-progress" max="1" value="0" hidden></progress>
+		<p id="archive-message" role="status" aria-live="polite"></p>
+		<p id="archive-error" role="alert" hidden></p>
+		<p id="archive-file-info" hidden>Stored ZIP: <span id="archive-file-ref"></span></p>
+		<div id="archive-confirm" hidden>
+			<p id="archive-identity"></p>
+			<p id="archive-account-match"></p>
+			<button id="archive-start" type="button">Import archive</button>
+		</div>
+		<p id="archive-account-link-container" hidden><a id="archive-account-link">Account details</a></p>
+		<ul id="archive-warnings" hidden></ul>
+		<button id="archive-retry" type="button" hidden></button>
+	</section>
+</template>
+<script src="archive.js"></script>
+<script>
+(function() {
+	"use strict";
+	const fileRef = "sha224-" + "1".repeat(56);
+	const otherFile = "sha256-" + "2".repeat(64);
+	const accountRef = "sha224-" + "a".repeat(56);
+	const otherAccount = "sha1-" + "b".repeat(40);
+	const identity = {userName: "synthetic-user", email: "synthetic@example.test", name: "Synthetic User"};
+	const tests = [];
+	const live = [];
+	const summary = document.getElementById("summary");
+	const assert = (condition, message) => {
+		if (!condition) {
+			throw new Error(message || "Assertion failed");
+		}
+	};
+	const equal = (actual, expected, message) => assert(actual === expected, (message || "Values differ") + ": " + JSON.stringify(actual) + " !== " + JSON.stringify(expected));
+	const contains = (text, fragment) => assert(text.includes(fragment), "Missing " + JSON.stringify(fragment) + " in " + JSON.stringify(text));
+	const settle = async () => {
+		for (let i = 0; i < 30; i++) {
+			await Promise.resolve();
+		}
+	};
+	const test = (name, run) => tests.push({name, run});
+	const response = (body, status) => ({status: status || 200, text: async () => typeof body === "string" ? body : JSON.stringify(body)});
+	const status = (state, overrides) => Object.assign({
+		accountRef, fileRef, state: state || "running",
+		progress: {itemsTotal: 10, itemsDone: 2, itemsUnchanged: 1, warningCount: 0},
+	}, overrides);
+	const inspected = extra => Object.assign({identity}, extra);
+	const started = (state, overrides) => Object.assign({identity, accountRef, status: status(state)}, overrides);
+	const zip = () => {
+		const file = new File(["synthetic ZIP contents"], "renamed-export.zip", {type: "text/plain", lastModified: 1760000000000});
+		// A client-side attempt to read/hash/parse the File must fail this test.
+		for (const method of ["arrayBuffer", "text", "stream"]) {
+			Object.defineProperty(file, method, {value: () => { throw new Error("Do not read the ZIP in JavaScript"); }});
+		}
+		return file;
+	};
+
+	function fixture(options) {
+		options = options || {};
+		const root = document.getElementById("widget").content.firstElementChild.cloneNode(true);
+		if (options.account) {
+			root.dataset.accountRef = options.account;
+			root.dataset.fileRef = options.file === undefined ? fileRef : options.file;
+		}
+		Object.assign(root.dataset, options.dataset);
+		document.getElementById("fixtures").appendChild(root);
+		let pause;
+		if (options.pause) {
+			pause = document.createElement("button");
+			pause.id = "archive-pause";
+			root.insertAdjacentElement("afterend", pause);
+		}
+		const ctx = {
+			root, pause, calls: [], uploads: [], queue: [], timers: new Map(), navigations: [], reloads: 0,
+			nextTimer: 0,
+			enqueue(body, code) { this.queue.push(() => Promise.resolve(response(body, code))); },
+			hold(ignoreAbort) {
+				let resolve, reject;
+				const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+				this.queue.push(call => {
+					if (!ignoreAbort) {
+						call.options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), {once: true});
+					}
+					return promise;
+				});
+				return {resolve: body => resolve(response(body)), reject};
+			},
+			select(file) {
+				Object.defineProperty(this.controller.nodes.file, "files", {configurable: true, value: [file || zip()]});
+			},
+			async timer() {
+				equal(this.timers.size, 1, "One status timer");
+				const [id, entry] = this.timers.entries().next().value;
+				this.timers.delete(id);
+				equal(entry.delay, 1000, "Poll interval");
+				entry.fn();
+				await settle();
+			},
+			postActions() {
+				return this.calls.filter(call => call.options.method === "POST").map(call => JSON.parse(call.options.body).action);
+			},
+		};
+		class FakeXHR {
+			constructor() {
+				this.upload = {};
+				this.headers = {};
+				this.aborted = false;
+				ctx.uploads.push(this);
+			}
+			open(method, url) { this.method = method; this.url = url; }
+			setRequestHeader(name, value) { this.headers[name] = value; }
+			send(form) { this.form = form; }
+			abort() { this.aborted = true; if (this.onabort) { this.onabort(); } }
+			respond(body, code) {
+				this.status = code || 200;
+				this.responseURL = this.url;
+				this.responseText = typeof body === "string" ? body : JSON.stringify(body);
+				this.onload();
+			}
+		}
+		const config = options.config === undefined ? {authToken: "test-token", uploadHelper: "/mounted/blob-helper?upload=1"} : options.config;
+		if (options.holdConfig) {
+			ctx.configPending = ctx.hold(true);
+		} else {
+			ctx.enqueue(config);
+		}
+		if (options.account) {
+			if (options.holdStatus) {
+				ctx.statusPending = ctx.hold();
+			} else {
+				ctx.enqueue(options.status === undefined ? status() : options.status, options.statusCode);
+			}
+		}
+		ctx.controller = new window.PerkeepArchiveImport(root, {
+			location: "https://archive.example.test/mounted/imports/provider/",
+			fetch(url, requestOptions) {
+				const call = {url, options: requestOptions};
+				ctx.calls.push(call);
+				assert(ctx.queue.length > 0, "Unexpected fetch: " + url);
+				return ctx.queue.shift()(call);
+			},
+			createXHR: () => new FakeXHR(),
+			setTimeout(fn, delay) {
+				const id = ++ctx.nextTimer;
+				ctx.timers.set(id, {fn, delay});
+				return id;
+			},
+			clearTimeout: id => ctx.timers.delete(id),
+			navigate: url => ctx.navigations.push(url),
+			reload: () => ctx.reloads++,
+		});
+		live.push(ctx);
+		return ctx;
+	}
+
+	async function uploaded(ctx, inspection) {
+		ctx.select();
+		ctx.enqueue(inspection || inspected());
+		const pending = ctx.controller.upload();
+		await settle();
+		equal(ctx.uploads.length, 1, "One streaming upload");
+		ctx.uploads[0].respond({got: [{fileref: fileRef}]});
+		await pending;
+		return ctx;
+	}
+
+	function assertNoImport(ctx) {
+		assert(!ctx.postActions().includes("start"), "Inspection must not start an import");
+		equal(ctx.navigations.length, 0, "No premature navigation");
+	}
+
+	test("native multipart upload discovers custom helper; progress distinguishes transfer from storage", async () => {
+		const ctx = fixture();
+		const c = ctx.controller;
+		const file = zip();
+		ctx.select(file);
+		ctx.enqueue(inspected());
+		const pending = c.upload();
+		await settle();
+		equal(ctx.calls.length, 1);
+		const discovery = ctx.calls[0];
+		equal(new URL(discovery.url).searchParams.get("camli.mode"), "config");
+		equal(new URL(discovery.url).searchParams.get("existing"), "1");
+		equal(discovery.options.headers.Accept, "application/json");
+		equal(discovery.options.credentials, "same-origin");
+		equal(discovery.options.redirect, "error");
+		assert(!discovery.options.headers.Authorization, "Discovery uses ambient same-origin credentials");
+		const xhr = ctx.uploads[0];
+		equal(xhr.url, "https://archive.example.test/mounted/blob-helper?upload=1");
+		equal(xhr.method, "POST");
+		equal(xhr.headers.Authorization, "Token test-token");
+		assert(!xhr.headers["Content-Type"], "Browser supplies multipart boundary");
+		const fields = [...xhr.form.entries()];
+		equal(fields[0][0], "modtime");
+		equal(fields[0][1], new Date(file.lastModified).toISOString());
+		equal(fields[1][0], "ui-upload-file-helper-form");
+		equal(fields[1][1], file, "Original native File");
+		xhr.upload.onprogress({lengthComputable: false, loaded: 4, total: 0});
+		assert(!c.nodes.progress.hasAttribute("value"), "Unknown transfer length remains indeterminate");
+		xhr.upload.onprogress({lengthComputable: true, loaded: 5, total: 10});
+		equal(c.nodes.progress.value, 0.5);
+		xhr.upload.onprogress({lengthComputable: true, loaded: 10, total: 10});
+		equal(c.nodes.message.textContent, "Storing ZIP…");
+		equal(c.fileRef, "", "Transfer completion alone does not confirm storage");
+		assert(c.nodes.confirm.hidden);
+		xhr.upload.onload();
+		equal(c.nodes.message.textContent, "Storing ZIP…");
+		xhr.respond({got: [{fileref: fileRef}]});
+		await pending;
+		equal(c.fileRef, fileRef);
+		equal(ctx.postActions().join(","), "inspect");
+		equal(ctx.calls[1].options.headers.Authorization, "Token test-token");
+		equal(ctx.calls[1].options.headers["Content-Type"], "application/json");
+		equal(JSON.parse(ctx.calls[1].options.body).fileRef, fileRef);
+		assert(!c.nodes.confirm.hidden);
+		contains(c.nodes["account-match"].textContent, "create a new account");
+		assertNoImport(ctx);
+	});
+
+	test("inspection renders identity safely and reports existing account and previous status without starting", async () => {
+		const ctx = fixture();
+		const unsafe = "<img src=x onerror=alert(1)>";
+		await uploaded(ctx, inspected({identity: {userName: unsafe, email: "user@example.test", name: "<b>name</b>"}, accountRef, status: status("complete")}));
+		const c = ctx.controller;
+		contains(c.nodes.identity.textContent, unsafe);
+		assert(!c.nodes.identity.querySelector("img,b"), "Identity is text, not server HTML");
+		contains(c.nodes["account-match"].textContent, "reuse existing account " + accountRef);
+		contains(c.nodes.message.textContent, "Previous import: complete");
+		equal(c.nodes["account-link"].href, "https://archive.example.test/mounted/imports/provider/" + accountRef);
+		assertNoImport(ctx);
+		equal(ctx.timers.size, 0);
+	});
+
+	test("only explicit Import click starts, deduplicates rapid clicks and navigates to mounted account URL", async () => {
+		const ctx = await uploaded(fixture(), inspected({accountRef}));
+		const pending = ctx.hold();
+		ctx.controller.nodes.start.click();
+		ctx.controller.nodes.start.click();
+		await settle();
+		equal(ctx.postActions().join(","), "inspect,start");
+		assert(ctx.controller.nodes.cancel.hidden, "No false server-import cancellation control");
+		pending.resolve(started("running"));
+		await settle();
+		equal(ctx.navigations[0], "https://archive.example.test/mounted/imports/provider/" + accountRef);
+		equal(ctx.controller.phase, "accepted");
+		await ctx.controller.start();
+		equal(ctx.postActions().join(","), "inspect,start", "No duplicate accepted start");
+	});
+
+	test("OmitAuthToken omits Authorization on upload and API POST", async () => {
+		const ctx = fixture({config: {authToken: "OmitAuthToken", uploadHelper: "/uploads/"}});
+		await uploaded(ctx);
+		ctx.enqueue(started());
+		ctx.controller.nodes.start.click();
+		await settle();
+		assert(!ctx.uploads[0].headers.Authorization);
+		for (const call of ctx.calls) {
+			assert(!call.options.headers.Authorization, "Omission sentinel must never become a token");
+		}
+		equal(ctx.navigations.length, 1);
+	});
+
+	test("OmitAuthToken omits Authorization on status GET", async () => {
+		const ctx = fixture({account: accountRef, config: {authToken: "OmitAuthToken"}});
+		await ctx.controller.ready;
+		assert(!ctx.calls[1].options.headers.Authorization);
+		equal(ctx.calls[1].options.credentials, "same-origin");
+		equal(ctx.calls[1].options.redirect, "error");
+	});
+
+	for (const token of [undefined, null, "", 4, "bad\r\ntoken"]) {
+		test("missing or invalid discovery auth token is rejected: " + JSON.stringify(token), async () => {
+			const ctx = fixture({config: {authToken: token, uploadHelper: "/uploads/"}});
+			ctx.select();
+			await ctx.controller.upload();
+			equal(ctx.uploads.length, 0);
+			contains(ctx.controller.nodes.error.textContent, "authToken");
+			equal(ctx.controller.nodes.retry.textContent, "Retry upload");
+		});
+	}
+
+	for (const field of ["discoveryUrl", "archiveUrl", "accountBase"]) {
+		test("cross-origin configured " + field + " is rejected before any request", async () => {
+			const ctx = fixture({dataset: {[field]: "https://attacker.example/"}});
+			await ctx.controller.ready;
+			ctx.select();
+			await ctx.controller.upload();
+			equal(ctx.calls.length, 0);
+			equal(ctx.uploads.length, 0);
+			contains(ctx.controller.nodes.error.textContent, "same origin");
+		});
+	}
+
+	for (const helper of ["https://attacker.example/upload", "//attacker.example/upload", "https://user:pass@archive.example.test/upload", "javascript:alert(1)", undefined]) {
+		test("unsafe or missing discovered upload helper is rejected: " + helper, async () => {
+			const ctx = fixture({config: {authToken: "test-token", uploadHelper: helper}});
+			ctx.select();
+			await ctx.controller.upload();
+			equal(ctx.uploads.length, 0);
+			equal(ctx.calls.length, 1);
+			assert(!ctx.controller.nodes.error.hidden);
+		});
+	}
+
+	for (const size of [0, 32 * 1024 * 1024 * 1024 + 1]) {
+		test("local size " + size + " rejected before discovery/upload", async () => {
+			const ctx = fixture();
+			const file = zip();
+			Object.defineProperty(file, "size", {value: size});
+			ctx.select(file);
+			await ctx.controller.upload();
+			equal(ctx.calls.length, 0);
+			equal(ctx.uploads.length, 0);
+			contains(ctx.controller.nodes.error.textContent, "non-empty ZIP");
+		});
+	}
+
+	test("32 GiB boundary accepted and MIME type is not used to reject a ZIP", async () => {
+		const ctx = fixture();
+		const file = zip();
+		Object.defineProperty(file, "size", {value: 32 * 1024 * 1024 * 1024});
+		ctx.select(file);
+		const pending = ctx.controller.upload();
+		await settle();
+		equal(ctx.uploads.length, 1);
+		ctx.controller.cancel();
+		await pending;
+	});
+
+	for (const body of ["not JSON", null, {}, {got: []}, {got: [{fileref: fileRef}, {fileref: otherFile}]}, {got: [{}]}, {got: [{fileref: "javascript:bad"}]}, {got: [{fileref: "sha224-1234"}]}]) {
+		test("malformed upload response rejected: " + JSON.stringify(body), async () => {
+			const ctx = fixture();
+			ctx.select();
+			const pending = ctx.controller.upload();
+			await settle();
+			ctx.uploads[0].respond(body);
+			await pending;
+			equal(ctx.controller.fileRef, "");
+			equal(ctx.calls.length, 1, "Do not inspect an unconfirmed file reference");
+			equal(ctx.controller.nodes.retry.textContent, "Retry upload");
+		});
+	}
+
+	test("upload HTTP authentication failure preserves JSON details and retry rediscovers credentials", async () => {
+		const ctx = fixture();
+		ctx.select();
+		const pending = ctx.controller.upload();
+		await settle();
+		ctx.uploads[0].respond({error: "login expired"}, 401);
+		await pending;
+		contains(ctx.controller.nodes.error.textContent, "Upload failed: Authentication failed (401): login expired");
+		ctx.enqueue({authToken: "new-token", uploadHelper: "/uploads/"});
+		ctx.enqueue(inspected());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.uploads[1].headers.Authorization, "Token new-token");
+		ctx.uploads[1].respond({got: [{fileref: fileRef}]});
+		await settle();
+		equal(ctx.controller.phase, "confirm");
+	});
+
+	for (const event of ["onerror", "ontimeout"]) {
+		test("upload transport failure is explicit and retryable: " + event, async () => {
+			const ctx = fixture();
+			ctx.select();
+			const pending = ctx.controller.upload();
+			await settle();
+			ctx.uploads[0][event]();
+			await pending;
+			contains(ctx.controller.nodes.error.textContent, "Upload failed");
+			equal(ctx.controller.nodes.retry.textContent, "Retry upload");
+			assertNoImport(ctx);
+		});
+	}
+
+	test("cancel aborts upload, ignores late response, and never inspects or starts", async () => {
+		const ctx = fixture();
+		ctx.select();
+		const pending = ctx.controller.upload();
+		await settle();
+		ctx.controller.nodes.cancel.click();
+		assert(ctx.uploads[0].aborted);
+		ctx.uploads[0].respond({got: [{fileref: fileRef}]});
+		await pending;
+		equal(ctx.controller.fileRef, "");
+		equal(ctx.calls.length, 1);
+		contains(ctx.controller.nodes.message.textContent, "Upload canceled");
+	});
+
+	test("cancel during discovery prevents a late discovery response from sending the ZIP", async () => {
+		const ctx = fixture({holdConfig: true});
+		ctx.select();
+		const pending = ctx.controller.upload();
+		await settle();
+		ctx.controller.cancel();
+		ctx.configPending.resolve({authToken: "test-token", uploadHelper: "/uploads/"});
+		await pending;
+		equal(ctx.uploads.length, 0);
+		contains(ctx.controller.nodes.message.textContent, "Upload canceled");
+	});
+
+	test("inspection HTTP failure retains stored reference; explicit retry never reuploads", async () => {
+		const ctx = fixture();
+		ctx.select();
+		ctx.enqueue({error: "profile unavailable"}, 409);
+		const pending = ctx.controller.upload();
+		await settle();
+		ctx.uploads[0].respond({got: [{fileref: fileRef}]});
+		await pending;
+		equal(ctx.controller.fileRef, fileRef);
+		contains(ctx.controller.nodes.error.textContent, "Inspection failed: HTTP request failed (409): profile unavailable");
+		equal(ctx.controller.nodes.retry.textContent, "Retry inspection");
+		ctx.enqueue(inspected());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.uploads.length, 1);
+		equal(ctx.postActions().join(","), "inspect,inspect");
+		assertNoImport(ctx);
+	});
+
+	for (const inspection of [{}, {identity: {}}, {identity: {email: 5}}, inspected({accountRef: "../bad"}), inspected({accountRef, status: status("running", {fileRef: otherFile})})]) {
+		test("malformed inspection cannot expose Import: " + JSON.stringify(inspection), async () => {
+			const ctx = await uploaded(fixture(), inspection);
+			assert(ctx.controller.nodes.confirm.hidden);
+			equal(ctx.controller.nodes.retry.textContent, "Retry inspection");
+			equal(ctx.controller.fileRef, fileRef);
+			assertNoImport(ctx);
+		});
+	}
+
+	test("cancel inspection aborts only its request; retry uses retained reference", async () => {
+		const ctx = fixture();
+		ctx.select();
+		const inspection = ctx.hold();
+		const pending = ctx.controller.upload();
+		await settle();
+		ctx.uploads[0].respond({got: [{fileref: fileRef}]});
+		await settle();
+		equal(ctx.controller.nodes.cancel.textContent, "Cancel inspection");
+		ctx.controller.nodes.cancel.click();
+		await pending;
+		assert(ctx.calls[1].options.signal.aborted);
+		assert(!ctx.uploads[0].aborted, "Completed upload is not canceled");
+		equal(ctx.controller.fileRef, fileRef);
+		equal(ctx.controller.nodes.retry.textContent, "Retry inspection");
+		ctx.enqueue(inspected());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.uploads.length, 1);
+		equal(ctx.controller.phase, "confirm");
+		assertNoImport(ctx);
+	});
+
+	test("start failure never silently retries; explicit retry uses same confirmed file, not a new upload or inspection", async () => {
+		const ctx = await uploaded(fixture());
+		await ctx.controller.start();
+		equal(ctx.postActions().join(","), "inspect", "Calling start without confirmation is ignored");
+		ctx.enqueue({error: "account busy"}, 409);
+		ctx.controller.nodes.start.click();
+		await settle();
+		equal(ctx.controller.nodes.retry.textContent, "Retry start of stored ZIP");
+		contains(ctx.controller.nodes.error.textContent, "Starting import failed");
+		equal(ctx.timers.size, 0);
+		ctx.enqueue(started());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.uploads.length, 1);
+		equal(ctx.postActions().join(","), "inspect,start,start");
+		equal(ctx.navigations.length, 1);
+	});
+
+	for (const result of [{}, started("running", {accountRef: "bad"}), started("running", {status: null}), started("running", {status: status("unknown")}), started("running", {status: status("running", {fileRef: otherFile})}), started("running", {accountRef: otherAccount, status: status("running", {accountRef: otherAccount})})]) {
+		test("malformed or mismatched start result does not navigate: " + JSON.stringify(result), async () => {
+			const ctx = await uploaded(fixture(), inspected({accountRef}));
+			ctx.enqueue(result);
+			ctx.controller.nodes.start.click();
+			await settle();
+			equal(ctx.navigations.length, 0);
+			equal(ctx.controller.nodes.retry.textContent, "Retry start of stored ZIP");
+			equal(ctx.uploads.length, 1);
+		});
+	}
+
+	test("changing selected file clears prior reference and explicit confirmation", async () => {
+		const ctx = await uploaded(fixture(), inspected({accountRef}));
+		ctx.select(zip());
+		ctx.controller.nodes.file.dispatchEvent(new Event("change"));
+		equal(ctx.controller.fileRef, "");
+		assert(ctx.controller.nodes.confirm.hidden);
+		assert(ctx.controller.nodes["account-link-container"].hidden);
+		await ctx.controller.start();
+		assertNoImport(ctx);
+	});
+
+	test("durable status resumes without upload or start; polls once per second; terminal state stops", async () => {
+		const ctx = fixture({account: accountRef});
+		const pause = document.createElement("button");
+		pause.id = "archive-pause";
+		ctx.root.appendChild(pause);
+		ctx.controller.nodes.pause = pause;
+		await ctx.controller.ready;
+		const c = ctx.controller;
+		assert(c.nodes["upload-form"].hidden);
+		equal(ctx.calls.length, 2);
+		equal(new URL(ctx.calls[1].url).searchParams.get("account"), accountRef);
+		equal(ctx.calls[1].options.headers.Authorization, "Token test-token");
+		equal(ctx.calls[1].options.headers.Accept, "application/json");
+		equal(ctx.uploads.length, 0);
+		equal(ctx.postActions().length, 0);
+		contains(c.nodes.message.textContent, "2 / 10 items; 1 unchanged");
+		equal(c.nodes.progress.max, 10);
+		equal(c.nodes.progress.value, 2);
+		assert(!pause.disabled);
+		ctx.enqueue(status("complete", {progress: {itemsTotal: 10, itemsDone: 10, itemsUnchanged: 3, warningCount: 0}}));
+		await ctx.timer();
+		contains(c.nodes.message.textContent, "Import complete");
+		equal(c.nodes.retry.textContent, "Reimport ZIP");
+		equal(ctx.timers.size, 0);
+		assert(pause.disabled);
+	});
+
+	test("account without stored ZIP shows neutral upload guidance without discovery or status requests", async () => {
+		const ctx = fixture({account: accountRef, file: "", config: null, pause: true});
+		await ctx.controller.ready;
+		const c = ctx.controller;
+		equal(ctx.calls.length, 0, "No discovery or status GET for an account without archive input");
+		equal(ctx.uploads.length, 0);
+		equal(ctx.timers.size, 0);
+		assert(c.nodes["upload-form"].hidden);
+		assert(c.nodes.error.hidden, "No API error for a legacy/API-only account");
+		assert(c.nodes.retry.hidden);
+		assert(!c.nodes["account-link-container"].hidden);
+		assert(ctx.pause.disabled, "No stale running state");
+		contains(c.nodes.message.textContent, "No stored ZIP");
+		contains(c.nodes.message.textContent, "Upload another ZIP");
+		await c.pollStatus();
+		equal(ctx.calls.length, 0);
+	});
+
+	test("warnings and errors are bounded text, never server HTML", async () => {
+		const warning = "<img src=x onerror=alert(1)>" + "x".repeat(2000);
+		const warnings = Array(105).fill(warning);
+		const ctx = fixture({account: accountRef, status: status("error", {
+			error: "<b>server failure</b>" + "x".repeat(3000),
+			progress: {itemsTotal: 10, itemsDone: 2, itemsUnchanged: 1, warningCount: 105, warnings},
+		})});
+		await ctx.controller.ready;
+		const c = ctx.controller;
+		equal(c.nodes.warnings.children.length, 101, "100 bounded warnings plus count");
+		equal(c.nodes.warnings.firstElementChild.textContent.length, 1024);
+		equal(c.nodes.error.textContent.length, 2048);
+		assert(!c.nodes.warnings.querySelector("img"));
+		assert(!c.nodes.error.querySelector("b"));
+		contains(c.nodes.warnings.lastElementChild.textContent, "Additional warnings: 5");
+	});
+
+	test("initial status may select latest file; later new input stops monitoring with pinned ref and explicit Reload account", async () => {
+		const ctx = fixture({account: accountRef, status: status("running", {fileRef: otherFile}), pause: true});
+		await ctx.controller.ready;
+		equal(ctx.controller.fileRef, otherFile);
+		assert(!ctx.pause.disabled);
+		ctx.enqueue(status("running"));
+		await ctx.timer();
+		contains(ctx.controller.nodes.message.textContent, "A newer ZIP");
+		contains(ctx.controller.nodes.message.textContent, "Monitoring stopped");
+		assert(ctx.controller.nodes.error.hidden, "Valid newer input is not a malformed response");
+		equal(ctx.controller.fileRef, otherFile);
+		equal(ctx.controller.accountRef, accountRef);
+		equal(ctx.controller.lastStatus, null);
+		assert(ctx.pause.disabled);
+		assert(ctx.controller.nodes.progress.hidden);
+		equal(ctx.timers.size, 0);
+		equal(ctx.controller.nodes.retry.textContent, "Reload account");
+		const requests = ctx.calls.length;
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.reloads, 1);
+		equal(ctx.calls.length, requests, "Reload action does not issue another API request");
+		await ctx.controller.pollStatus();
+		equal(ctx.calls.length, requests, "Superseded monitoring cannot silently resume");
+		equal(ctx.timers.size, 0);
+		equal(ctx.postActions().length, 0);
+		equal(ctx.uploads.length, 0);
+	});
+
+	for (const failure of ["network", "malformed", "authentication"]) {
+		test("later " + failure + " status failure clears stale running state and disables Pause", async () => {
+			const ctx = fixture({account: accountRef, pause: true});
+			await ctx.controller.ready;
+			assert(!ctx.pause.disabled);
+			if (failure === "network") {
+				const pending = ctx.hold();
+				await ctx.timer();
+				pending.reject(new TypeError("Network unavailable"));
+				await settle();
+			} else {
+				ctx.enqueue(failure === "malformed" ? status("running", {fileRef: otherFile, progress: {}}) : {error: "session expired"}, failure === "authentication" ? 401 : 200);
+				await ctx.timer();
+			}
+			equal(ctx.controller.lastStatus, null);
+			assert(ctx.pause.disabled);
+			equal(ctx.controller.fileRef, fileRef);
+			equal(ctx.controller.accountRef, accountRef);
+			equal(ctx.timers.size, 0);
+			equal(ctx.controller.nodes.retry.textContent, "Retry status check");
+			assert(!ctx.controller.nodes.error.hidden);
+			equal(ctx.postActions().length, 0);
+			equal(ctx.uploads.length, 0);
+		});
+	}
+
+	for (const broken of [
+		null, {}, status("unknown"), status("running", {accountRef: otherAccount}),
+		status("running", {fileRef: "<bad>"}), status("running", {progress: {}}),
+		status("running", {progress: {itemsTotal: 10, itemsDone: "2", itemsUnchanged: 1, warningCount: 0}}),
+		status("running", {progress: {itemsTotal: 10, itemsDone: 2, itemsUnchanged: -1, warningCount: 0}}),
+		status("running", {progress: {itemsTotal: 10, itemsDone: 2, itemsUnchanged: 1, warningCount: 1, warnings: [5]}}),
+	]) {
+		test("invalid durable status stops polling and offers GET-only retry: " + JSON.stringify(broken), async () => {
+			const ctx = fixture({account: accountRef, status: broken});
+			await ctx.controller.ready;
+			equal(ctx.timers.size, 0);
+			equal(ctx.controller.nodes.retry.textContent, "Retry status check");
+			equal(ctx.controller.accountRef, accountRef);
+			equal(ctx.postActions().length, 0);
+			assert(!ctx.controller.nodes.error.hidden);
+		});
+	}
+
+	test("status auth failure stops, shows JSON error, then explicit retry rediscovers and resumes GET polling", async () => {
+		const ctx = fixture({account: accountRef, status: {error: "session expired"}, statusCode: 403});
+		await ctx.controller.ready;
+		contains(ctx.controller.nodes.error.textContent, "Status check failed: Authentication failed (403): session expired");
+		equal(ctx.timers.size, 0);
+		ctx.enqueue({authToken: "fresh-token"});
+		ctx.enqueue(status());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.calls.length, 4);
+		equal(ctx.calls[3].options.headers.Authorization, "Token fresh-token");
+		equal(ctx.postActions().length, 0);
+		equal(ctx.uploads.length, 0);
+		equal(ctx.timers.size, 1);
+	});
+
+	test("status network failure does not loop or start an import", async () => {
+		const ctx = fixture({account: accountRef, holdStatus: true});
+		await settle();
+		ctx.statusPending.reject(new TypeError("Network unavailable"));
+		await ctx.controller.ready;
+		contains(ctx.controller.nodes.error.textContent, "Status check failed: Network unavailable");
+		equal(ctx.timers.size, 0);
+		ctx.enqueue(status());
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.timers.size, 1);
+		equal(ctx.postActions().length, 0);
+	});
+
+	for (const state of ["complete", "error", "interrupted"]) {
+		test("account " + state + " is distinct and explicitly retries already stored ZIP", async () => {
+			const ctx = fixture({account: accountRef, status: status(state)});
+			await ctx.controller.ready;
+			const labels = {complete: "Import complete", error: "Import failed", interrupted: "Import interrupted"};
+			contains(ctx.controller.nodes.message.textContent, labels[state]);
+			equal(ctx.timers.size, 0);
+			equal(ctx.postActions().length, 0);
+			ctx.enqueue(started());
+			ctx.controller.nodes.retry.click();
+			ctx.controller.nodes.retry.click();
+			await settle();
+			equal(ctx.postActions().join(","), "start", "Explicit retry, no inspection or duplicate start");
+			equal(JSON.parse(ctx.calls[2].options.body).fileRef, fileRef);
+			equal(ctx.uploads.length, 0);
+			equal(ctx.navigations[0], "https://archive.example.test/mounted/imports/provider/" + accountRef);
+		});
+	}
+
+	test("resumed account cannot switch to another account on explicit retry", async () => {
+		const ctx = fixture({account: accountRef, status: status("interrupted")});
+		await ctx.controller.ready;
+		ctx.enqueue(started("running", {accountRef: otherAccount, status: status("running", {accountRef: otherAccount})}));
+		ctx.controller.nodes.retry.click();
+		await settle();
+		equal(ctx.controller.accountRef, accountRef);
+		equal(ctx.navigations.length, 0);
+		contains(ctx.controller.nodes.error.textContent, "started account reference does not match");
+	});
+
+	test("pagehide clears polling timer and disables further work", async () => {
+		const ctx = fixture({account: accountRef});
+		await ctx.controller.ready;
+		equal(ctx.timers.size, 1);
+		window.dispatchEvent(new Event("pagehide"));
+		equal(ctx.timers.size, 0);
+		assert(ctx.controller.disposed);
+		await ctx.controller.pollStatus();
+		equal(ctx.calls.length, 2);
+	});
+
+	test("pagehide aborts pending status without surfacing cancellation or scheduling another poll", async () => {
+		const ctx = fixture({account: accountRef, holdStatus: true});
+		await settle();
+		window.dispatchEvent(new Event("pagehide"));
+		await ctx.controller.ready;
+		assert(ctx.calls[1].options.signal.aborted);
+		equal(ctx.timers.size, 0);
+		assert(ctx.controller.nodes.error.hidden);
+	});
+
+	test("BFCache restoration reloads a disposed provider widget instead of leaving dead controls", async () => {
+		const ctx = await uploaded(fixture());
+		window.dispatchEvent(new Event("pagehide"));
+		assert(ctx.controller.disposed);
+		assert(ctx.controller.nodes.start.disabled);
+		window.dispatchEvent(new PageTransitionEvent("pageshow", {persisted: true}));
+		equal(ctx.reloads, 1);
+		equal(ctx.postActions().join(","), "inspect", "Restoration must not implicitly start or repeat a request");
+	});
+
+	async function run() {
+		let passed = 0;
+		const failures = [];
+		for (const entry of tests) {
+			const item = document.createElement("li");
+			document.getElementById("results").appendChild(item);
+			try {
+				await entry.run();
+				passed++;
+				item.className = "pass";
+				item.textContent = "PASS: " + entry.name;
+			} catch (error) {
+				failures.push({name: entry.name, error: error.stack || String(error)});
+				item.className = "fail";
+				item.textContent = "FAIL: " + entry.name + "\n" + (error.stack || error);
+			} finally {
+				for (const ctx of live.splice(0)) {
+					ctx.controller.dispose();
+					ctx.root.remove();
+					if (ctx.pause) {
+						ctx.pause.remove();
+					}
+				}
+			}
+		}
+		summary.className = failures.length ? "fail" : "pass";
+		summary.textContent = passed + " / " + tests.length + " tests passed" + (failures.length ? "; " + failures.length + " failed." : ".");
+		window.archiveTestResults = {passed, total: tests.length, failures};
+	}
+	run();
+})();
+</script>
+</html>

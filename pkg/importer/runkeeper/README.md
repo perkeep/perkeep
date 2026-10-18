@@ -1,7 +1,37 @@
 # Runkeeper archive importer
 
 Imports a Runkeeper account export ZIP locally, without API credentials or
-requests to Runkeeper. Upload and import use the shared archive service:
+requests to Runkeeper. Browser and command-line imports use the same archive
+service and account matching.
+
+## Browser
+
+Open **Importers** in the Web UI and select **Runkeeper**:
+
+1. Choose the account export ZIP and click **Upload ZIP**.
+2. Check the detected username/email and whether an existing account will be
+   reused, then click **Import archive**.
+3. The account page shows progress, unchanged counts, warnings, and errors.
+
+Reloading the account page resumes status monitoring, not the import itself.
+After an error or server interruption, **Retry import of stored ZIP** reuses
+the retained file. **Reimport ZIP** explicitly reconciles a completed input.
+**Upload another ZIP** returns to identity inspection; it does not blindly
+attach a different person's archive to the current account.
+
+The browser sends the native file through the discovered streaming upload
+helper, without reading the ZIP into JavaScript memory or parsing it locally.
+It does not perform the CLI's whole-file hash precheck or resume a partially
+transferred upload. Once uploading succeeds, inspection and import retries
+reuse the file-schema reference without another transfer.
+
+**Cancel upload** stops the browser transfer; **Cancel inspection** stops
+inspection while retaining an already uploaded ZIP. Neither cancels an
+accepted server import. Closing the page also leaves an accepted import
+running; use **Pause Import** on the account page to request cancellation.
+No OAuth login, empty-account setup, or automatic polling controls are needed.
+
+## Command line
 
 ```
 pk-import-runkeeper /path/to/runkeeper-data-export-1234-2026-10-15-141435.zip
@@ -12,7 +42,7 @@ pk-import-runkeeper -fileref=<file-schema-blobref>
 
 Build it with `go run make.go` or `go install ./cmd/pk-import-runkeeper`.
 The standalone command keeps archive-command code out of `pk`;
-the server importer and archive API remain shared for a future web upload UI.
+the server importer and archive API are shared with the browser upload UI.
 
 The CLI waits for completion and reports counts and warnings. The uploaded ZIP
 is retained in the account's archive history, so disconnecting the CLI does not

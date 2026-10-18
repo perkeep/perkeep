@@ -17,9 +17,7 @@ limitations under the License.
 package server
 
 import (
-	"errors"
 	"io"
-	"log"
 	"net/http"
 
 	"go4.org/types"
@@ -28,6 +26,8 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
 )
+
+const maxUploadHelperModTime = 1 << 10
 
 // uploadHelperResponse is the response from serveUploadHelper.
 type uploadHelperResponse struct {
@@ -58,18 +58,24 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	var modTime types.Time3339
 	for {
 		part, err := mr.NextPart()
-		if errors.Is(err, io.EOF) {
+		// NextPart wraps EOF when the multipart framing is truncated.
+		// Only the bare EOF means a normal end of parts.
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			httputil.ServeJSONError(rw, httputil.ServerError("reading body: "+err.Error()))
-			break
+			return
 		}
 		if part.FormName() == "modtime" {
-			payload, err := io.ReadAll(part)
+			payload, err := io.ReadAll(io.LimitReader(part, maxUploadHelperModTime+1))
 			if err != nil {
-				log.Printf("ui uploadhelper: unable to read part for modtime: %v", err)
-				continue
+				httputil.ServeJSONError(rw, httputil.ServerError("reading modtime: "+err.Error()))
+				return
+			}
+			if len(payload) > maxUploadHelperModTime {
+				httputil.ServeJSONError(rw, httputil.InvalidParameterError("modtime"))
+				return
 			}
 			modTime = types.ParseTime3339OrZero(string(payload))
 			continue
