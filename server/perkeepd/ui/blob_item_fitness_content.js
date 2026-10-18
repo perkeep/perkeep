@@ -183,10 +183,13 @@ cam.BlobItemFitnessContent.formatDistance = function(value, latitude, longitude)
 	return distance;
 };
 
-cam.BlobItemFitnessContent.formatDuration = function(moving, elapsed) {
+cam.BlobItemFitnessContent.formatDuration = function(moving, elapsed, recorded) {
 	var seconds = cam.BlobItemFitnessContent.nonnegativeNumber(moving);
 	if (seconds == null) {
 		seconds = cam.BlobItemFitnessContent.nonnegativeNumber(elapsed);
+	}
+	if (seconds == null) {
+		seconds = cam.BlobItemFitnessContent.nonnegativeNumber(recorded);
 	}
 	if (seconds == null) {
 		return '';
@@ -229,7 +232,7 @@ cam.BlobItemFitnessContent.getActivity = function(permanode) {
 	var track = attr('fitnessTrack');
 	track = typeof track == 'string' ? track : '';
 	var distance = cam.BlobItemFitnessContent.formatDistance(attr('fitnessDistance'), attr('latitude'), attr('longitude'));
-	var duration = cam.BlobItemFitnessContent.formatDuration(attr('fitnessMovingDuration'), attr('fitnessElapsedDuration'));
+	var duration = cam.BlobItemFitnessContent.formatDuration(attr('fitnessMovingDuration'), attr('fitnessElapsedDuration'), attr('fitnessRecordedDuration'));
 	var metrics = [distance, duration].filter(function(part) { return !!part; }).join(' \u00b7 ');
 	var date = cam.BlobItemFitnessContent.formatDate(attr('startDate'));
 	return {

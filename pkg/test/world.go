@@ -98,6 +98,7 @@ var worldTargets = []string{
 	"perkeep.org/server/perkeepd",
 	"perkeep.org/cmd/pk",
 	"perkeep.org/cmd/pk-get",
+	"perkeep.org/cmd/pk-import-runkeeper",
 	"perkeep.org/cmd/pk-put",
 	"perkeep.org/cmd/pk-mount",
 	"perkeep.org/app/webdav",
@@ -337,7 +338,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	}
 	var cmd *exec.Cmd
 	switch binary {
-	case "pk-get", "pk-put", "pk", "pk-mount":
+	case "pk-get", "pk-put", "pk", "pk-mount", "pk-import-runkeeper":
 		// TODO(mpl): lift the pk-put restriction when we have a unified logging mechanism
 		if binary == "pk-put" && !hasVerbose() {
 			// pk-put and pk are the only ones to have a -verbose flag through cmdmain

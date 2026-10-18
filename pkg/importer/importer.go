@@ -401,6 +401,7 @@ type RunContext struct {
 
 	mu           sync.Mutex // guards following
 	lastProgress *ProgressMessage
+	archiveJob   *camtypes.ArchiveImportStatus
 }
 
 // UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
@@ -701,6 +702,10 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveImporterAcctCallback(w, r, imp)
 		return
 	}
+	if seg[1] == "archive" && len(seg) == 2 {
+		h.serveArchive(w, r, imp)
+		return
+	}
 	acctRef, ok := blob.Parse(seg[1])
 	if !ok {
 		http.NotFound(w, r)
@@ -976,6 +981,8 @@ type importer struct {
 	acctmu    sync.Mutex
 	acct      map[blob.Ref]*importerAcct // key: account permanode
 	allLoaded bool
+
+	archiveMu sync.Mutex // serializes archive account resolution and creation
 }
 
 func (im *importer) Name() string { return im.name }
@@ -1127,7 +1134,10 @@ func (im *importer) account(nodeRef blob.Ref) (*importerAcct, error) {
 }
 
 func (im *importer) newAccount() (*importerAcct, error) {
+	return im.newAccountWithAttrs()
+}
 
+func (im *importer) newAccountWithAttrs(attrs ...string) (*importerAcct, error) {
 	acct, err := im.host.NewObject()
 	if err != nil {
 		return nil, err
@@ -1136,12 +1146,13 @@ func (im *importer) newAccount() (*importerAcct, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := acct.SetAttrs(
+	attrs = append([]string{
 		"title", fmt.Sprintf("%s account", im.name),
 		attrNodeType, nodeTypeImporterAccount,
 		attrImporterType, im.ImporterType(),
 		attrImportRoot, root.PermanodeRef().String(),
-	); err != nil {
+	}, attrs...)
+	if err := acct.SetAttrs(attrs...); err != nil {
 		return nil, err
 	}
 
@@ -1170,7 +1181,8 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 
 	if needQuery {
 		res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
-			Sort: search.Unsorted,
+			Sort:  search.Unsorted,
+			Limit: -1, // Account identity resolution must not stop at the default result limit.
 			Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
 				attrNodeType, nodeTypeImporterAccount,
 				attrImporterType, im.ImporterType(),
@@ -1313,6 +1325,7 @@ type importerAcct struct {
 	lastRunStart time.Time
 	lastRunDone  time.Time
 	usePaidAPI   bool // whether to use the paid API(s) when retrieving data
+	lastArchive  *camtypes.ArchiveImportStatus
 }
 
 func (ia *importerAcct) String() string {
@@ -1320,6 +1333,16 @@ func (ia *importerAcct) String() string {
 }
 
 func (ia *importerAcct) delete() error {
+	// Archive resolution, deletion and starting an account share this order:
+	// importer archiveMu, then account mu, then Object attribute locks.
+	ia.im.archiveMu.Lock()
+	defer ia.im.archiveMu.Unlock()
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
+	if ia.current != nil {
+		ia.current.cancel()
+		ia.stopped = true
+	}
 	if err := ia.acct.SetAttrs(
 		attrNodeType, nodeTypeImporterAccount+"-deleted",
 	); err != nil {
@@ -1464,25 +1487,41 @@ func (ia *importerAcct) setup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) start() {
-	h := ia.im.host
-	if !h.beginWork() {
-		return
-	}
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
-	if ia.current != nil {
-		h.work.Done()
-		return
-	}
-	if err := h.health.ReadOnlyError(); err != nil {
+	if err := ia.startLocked(blob.Ref{}); err != nil {
 		log.Printf("Not starting %v: %v", ia, err)
 		ia.lastRunErr = err
+	}
+}
+
+// startLocked starts the normal managed lifecycle, optionally selecting an
+// archive input. ia.mu protects input selection and the active run together.
+func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error {
+	h := ia.im.host
+	if _, ok := ia.im.impl.(ArchiveImporter); ok && ia.acct.Attr(attrNodeType) != nodeTypeImporterAccount {
+		return errors.New("archive importer account has been deleted or changed type")
+	}
+	if !h.beginWork() {
+		return errors.New("importer host is closed")
+	}
+	if ia.current != nil {
 		h.work.Done()
-		return
+		return nil
+	}
+	if err := h.health.ReadOnlyError(); err != nil {
+		h.work.Done()
+		return err
+	}
+	job, err := ia.prepareArchiveLocked(archiveRef, attrs...)
+	if err != nil {
+		h.work.Done()
+		return err
 	}
 	rc := &RunContext{
-		Host: ia.im.host,
-		ia:   ia,
+		Host:       ia.im.host,
+		ia:         ia,
+		archiveJob: job,
 	}
 	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
 	ia.current = rc
@@ -1492,7 +1531,11 @@ func (ia *importerAcct) start() {
 		defer h.work.Done()
 		defer rc.cancel()
 		log.Printf("Starting %v: %s", ia, ia.AccountLinkSummary())
-		err := ia.im.impl.Run(rc)
+		err := rc.runManaged()
+		if err == nil {
+			err = rc.Context().Err()
+		}
+		err = rc.finishArchive(err)
 		if err != nil {
 			log.Printf("%v error: %v", ia, err)
 		} else {
@@ -1500,12 +1543,19 @@ func (ia *importerAcct) start() {
 		}
 		ia.mu.Lock()
 		defer ia.mu.Unlock()
+		rc.mu.Lock()
+		if rc.archiveJob != nil {
+			status := *rc.archiveJob
+			ia.lastArchive = &status
+		}
+		rc.mu.Unlock()
 		ia.current = nil
 		ia.stopped = false
 		ia.lastRunDone = time.Now()
 		ia.lastRunErr = err
 		go ia.maybeStart()
 	}()
+	return nil
 }
 
 // TODO(mpl): review this code more carefully. mostly copied from start().

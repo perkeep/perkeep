@@ -38,6 +38,8 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 * [Prior Art](/doc/prior-art.md): other projects with similar goals or strategies
 * [Contributing](/code#contributing): how to help
 * [Style guide](/doc/web-ui-styleguide.md) for the Web UI
+* [Runkeeper importer plan](/doc/runkeeper-importer.md): shared archive uploads
+  and incremental fitness imports
 
 
 ### Technical Docs

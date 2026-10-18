@@ -71,6 +71,7 @@ type Client struct {
 
 	discoOnce              syncutil.Once
 	searchRoot             string      // Handler prefix, or "" if none
+	importerRoot           string      // Handler prefix, or "" if none
 	downloadHelper         string      // or "" if none
 	storageGen             string      // storage generation, or "" if not reported
 	hasLegacySHA1          bool        // Whether server has SHA-1 blobs indexed.
@@ -1072,6 +1073,14 @@ func (c *Client) doDiscovery() error {
 			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
 		}
 		c.searchRoot = u.String()
+	}
+
+	if disco.ImporterRoot != "" {
+		u, err := root.Parse(disco.ImporterRoot)
+		if err != nil {
+			return fmt.Errorf("client: invalid importerRoot %q: %w", disco.ImporterRoot, err)
+		}
+		c.importerRoot = u.String()
 	}
 
 	u, err := root.Parse(disco.HelpRoot)

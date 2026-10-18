@@ -24,6 +24,7 @@ inferred from a user's locale or source-service preferences.
 | `fitnessDistance` | Distance traveled, in meters. |
 | `fitnessMovingDuration` | Moving duration, in seconds. |
 | `fitnessElapsedDuration` | Total elapsed duration, in seconds, including stops. |
+| `fitnessRecordedDuration` | Provider-reported duration in seconds, when its pause/moving-time semantics are unknown. |
 | `fitnessElevationGain` | Total elevation gained, in meters. |
 | `fitnessAverageHeartRate` | Average heart rate, in beats per minute. |
 | `fitnessMaxHeartRate` | Maximum heart rate, in beats per minute. |
@@ -106,8 +107,11 @@ one decimal place when the activity's start coordinates fall inside the rough
 contiguous-US rectangle **24–50 degrees north, 125–66 degrees west**. This is
 an intentionally approximate display heuristic, not a country-boundary test:
 it excludes Alaska and Hawaii and includes some neighbouring territory.
-Moving duration is preferred, with elapsed duration used when moving duration
-is unavailable. Display units do not change the SI values stored in claims.
+Moving duration is preferred, then elapsed duration, then the provider's recorded
+duration when neither precise interpretation is available. Do not copy an
+unclassified source timer into moving or elapsed duration: for example,
+Runkeeper's exported `Duration` can differ from the GPX timestamp span. Display
+units do not change the SI values stored in claims.
 
 The default preview is route-only. An administrator can explicitly enable an
 OSM-derived raster basemap with `PERKEEP_FITNESS_TILE_URL`, for example:

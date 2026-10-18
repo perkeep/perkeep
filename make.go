@@ -89,6 +89,7 @@ func main() {
 	targs := []string{
 		"perkeep.org/dev/devcam",
 		"perkeep.org/cmd/pk-get",
+		"perkeep.org/cmd/pk-import-runkeeper",
 		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
 		"perkeep.org/server/perkeepd",

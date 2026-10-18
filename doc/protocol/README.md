@@ -9,3 +9,4 @@
   * [Upload Resume](blob-upload-resume.md)
 * [JSON signing & verification](jsonsign.md)
 * [Indexed EXIF](search-exif.md)
+* [Archive imports](archive-import.md)

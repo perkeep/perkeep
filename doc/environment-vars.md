@@ -235,10 +235,17 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   the admin command tests; it has no effect on the production perkeepd binary.
 
 `PERKEEP_TEST_BIN_DIR` (string)
-: Directory of prebuilt perkeepd, pk, pk-get, pk-put, and pk-mount binaries
+: Directory of prebuilt perkeepd, pk, pk-get, pk-put, pk-import-runkeeper,
+  pk-mount, and webdav binaries
   for tests that start a test World (pkg/test) to use, instead of building
   their own. `devcam test` sets it, building the binaries once for all test
   packages, when testing the whole tree.
+
+`PERKEEP_RUNKEEPER_TEST_ARCHIVE` (string)
+: Path to a private Runkeeper export ZIP used by the opt-in importer and
+  standalone CLI integration tests. If unset, those tests are skipped.
+  The tests import into isolated temporary storage; do not add personal
+  archives to the repository.
 
 `PERKEEP_TEST_MYSQL_HOST` (string)
 : host[:port] of a MySQL server for the MySQL tests to use (user "root",
