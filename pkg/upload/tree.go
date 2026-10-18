@@ -32,7 +32,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
 )
@@ -385,22 +384,13 @@ func (t *Tree) uploadDir(ctx context.Context, s *client.UploadSession, n *treeNo
 	return nil
 }
 
-// uploadBlobs uploads those of blobs the server lacks, into s if
-// non-nil, returning the refs of those uploaded into s.
+// uploadBlobs uploads blobs, small schema blobs, into s if non-nil,
+// returning the refs of those uploaded into s. It doesn't ask the server
+// whether it has them first, which would take as long as uploading
+// them; uploads skip those the have cache has.
 func (t *Tree) uploadBlobs(ctx context.Context, s *client.UploadSession, blobs []*schema.Blob) ([]blob.Ref, error) {
-	refs := make([]blob.Ref, len(blobs))
-	for i, b := range blobs {
-		refs[i] = b.BlobRef()
-	}
-	have, err := blobserver.StatBlobs(ctx, t.c, refs)
-	if err != nil {
-		return nil, err
-	}
 	var pending []blob.Ref
 	for _, b := range blobs {
-		if _, ok := have[b.BlobRef()]; ok {
-			continue
-		}
 		h := &client.UploadHandle{BlobRef: b.BlobRef(), Size: uint32(len(b.JSON())), Contents: strings.NewReader(b.JSON())}
 		if s == nil {
 			if _, err := t.c.Upload(ctx, h); err != nil {
