@@ -42,6 +42,7 @@ import (
 	_ "go4.org/media/heif"
 	"go4.org/readerutil"
 	"go4.org/types"
+	"perkeep.org/internal/blobsniffer"
 	"perkeep.org/internal/images"
 	"perkeep.org/internal/magic"
 	"perkeep.org/internal/media"
@@ -300,12 +301,10 @@ type preparedBlob struct {
 // prepareBlob reads blobRef's contents from source, and builds its rows,
 // fetching the blobs that takes. It doesn't hold ix.mu (Issue 878).
 func (ix *Index) prepareBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (preparedBlob, error) {
-	sniffer := NewBlobSniffer(blobRef)
-	buf := getSnifferBuffer()
-	sniffer.contents = (*buf)[:0]
+	sniffer := blobsniffer.Get(blobRef)
 	// SchemaBlob parsing owns its decoded data and JSON. Nothing in the
 	// mutation map or corpus retains this private sniffer's backing array.
-	defer func() { putSnifferBuffer(buf, sniffer.contents) }()
+	defer blobsniffer.Put(sniffer)
 	written, err := copyWithBuffer(sniffer, source)
 	if err != nil {
 		return preparedBlob{}, err

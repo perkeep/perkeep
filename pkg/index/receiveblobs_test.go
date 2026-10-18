@@ -74,6 +74,11 @@ func indexRows(t *testing.T, ix *index.Index) map[string]string {
 func receiveBlobsTestBlobs(t *testing.T) []*test.Blob {
 	signer := indextest.NewIndexDeps(index.NewMemoryIndex())
 	signer.Fataler = t
+	t.Cleanup(func() {
+		if err := signer.Index.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	now := test.ClockOrigin
 	claim := func(m *schema.Builder) *test.Blob {
 		now = now.Add(time.Second)
@@ -172,6 +177,97 @@ func TestReceiveBlobsOneCommit(t *testing.T) {
 	for _, b := range blobs {
 		if v := id.Get("have:" + b.Ref().String()); v == "" {
 			t.Errorf("%v not indexed", b.Ref())
+		}
+	}
+}
+
+// TestReceiveBlobsCorpusRetention exercises multiple preparation-worker waves
+// and later uploads while the corpus retains the original blobs' metadata.
+func TestReceiveBlobsCorpusRetention(t *testing.T) {
+	ctx := context.Background()
+	tbs := receiveBlobsTestBlobs(t)
+	deleter, tag, file, pn := tbs[0].BlobRef(), tbs[3].BlobRef(), tbs[4].BlobRef(), tbs[6].BlobRef()
+	oneAtATime := indextest.NewIndexDeps(index.NewMemoryIndex())
+	ix, _ := newCountingIndex(t)
+	together := indextest.NewIndexDeps(ix)
+	for _, id := range []*indextest.IndexDeps{oneAtATime, together} {
+		id.Fataler = t
+		t.Cleanup(func() {
+			id.Index.Exp_AwaitAsyncIndexing(t)
+			if err := id.Index.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	corpus, err := ix.KeepInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addFiles := func(blobs []*test.Blob, prefix string) []*test.Blob {
+		for i := range 5 {
+			raw := &test.Blob{Contents: strings.Repeat(fmt.Sprintf("%s contents %d\n", prefix, i), 256)}
+			fm := schema.NewFileMap(fmt.Sprintf("%s-%d.txt", prefix, i))
+			if err := fm.PopulateParts(int64(len(raw.Contents)), []schema.BytesPart{{Size: uint64(len(raw.Contents)), BlobRef: raw.BlobRef()}}); err != nil {
+				t.Fatal(err)
+			}
+			blobs = append(blobs, &test.Blob{Contents: fm.Blob().JSON()}, raw)
+		}
+		return blobs
+	}
+	otherPN := together.Sign(schema.NewPlannedPermanode("receive-blobs-followup"))
+	otherTitle := together.Sign(schema.NewSetAttributeClaim(otherPN.BlobRef(), "title", "a different, longer title").
+		SetClaimDate(test.ClockOrigin))
+	batches := [][]*test.Blob{
+		addFiles(tbs, "initial"),
+		addFiles([]*test.Blob{otherTitle, otherPN}, "followup"),
+	}
+	for batch, tbs := range batches {
+		// Each batch has more than eight mixed schema/raw blobs, so workers
+		// can reuse sniffers before all prepared mutations are committed.
+		var blobs []*blob.Blob
+		for _, tb := range tbs {
+			oneAtATime.BlobSource.AddBlob(tb)
+			together.BlobSource.AddBlob(tb)
+			blobs = append(blobs, tb.Blob())
+		}
+		for _, tb := range slices.Backward(tbs) {
+			if _, err := oneAtATime.Index.ReceiveBlob(ctx, tb.BlobRef(), tb.Reader()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		oneAtATime.Index.Exp_AwaitAsyncIndexing(t)
+		if err := blobserver.ReceiveBlobs(ctx, ix, blobs); err != nil {
+			t.Fatal(err)
+		}
+		ix.Exp_AwaitAsyncIndexing(t)
+
+		want, got := indexRows(t, oneAtATime.Index), indexRows(t, ix)
+		for k, v := range want {
+			if gotValue, ok := got[k]; !ok || gotValue != v {
+				t.Errorf("batch %d: row %q = %q; want %q", batch, k, got[k], v)
+			}
+		}
+		for k := range got {
+			if _, ok := want[k]; !ok {
+				t.Errorf("batch %d: extra row %q", batch, k)
+			}
+		}
+		fi, err := corpus.GetFileInfo(ctx, file)
+		if err != nil || fi.FileName != "file.txt" {
+			t.Errorf("batch %d: original file = %v, %v; want file.txt", batch, fi, err)
+		}
+		for attr, want := range map[string]string{"title": "a title", "camliContent": file.String()} {
+			if got := corpus.PermanodeAttrValue(pn, attr, time.Time{}, indextest.KeyID); got != want {
+				t.Errorf("batch %d: original %s = %q; want %q", batch, attr, got, want)
+			}
+		}
+		if got := corpus.AppendPermanodeAttrValues(nil, pn, "tag", time.Time{}, indextest.KeyID); len(got) != 0 {
+			t.Errorf("batch %d: deleted tag values = %v", batch, got)
+		}
+		if !ix.IsDeleted(tag) || !corpus.IsDeleted(tag) || ix.IsDeleted(deleter) || corpus.IsDeleted(deleter) ||
+			ix.IsDeleted(pn) || corpus.IsDeleted(pn) {
+			t.Errorf("batch %d: original tag/delete/permanode deletion state changed", batch)
 		}
 	}
 }

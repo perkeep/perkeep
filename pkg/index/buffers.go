@@ -19,8 +19,6 @@ package index
 import (
 	"io"
 	"sync"
-
-	"perkeep.org/pkg/schema"
 )
 
 var copyBufferPool = sync.Pool{
@@ -40,27 +38,4 @@ func copyWithBuffer(dst io.Writer, src io.Reader) (int64, error) {
 	buf := copyBufferPool.Get().(*[32 << 10]byte)
 	defer copyBufferPool.Put(buf)
 	return io.CopyBuffer(dst, src, buf[:])
-}
-
-// Only ReceiveBlob borrows these buffers. Exported BlobSniffers must continue
-// to own their buffers, since Body exposes the backing slice to callers.
-// Grow lazily so cold pools don't allocate 1 MiB for every small upload.
-var snifferBufferPool = sync.Pool{
-	New: func() any { return new([]byte) },
-}
-
-// Allow bounded slice-growth slack beyond the retained schema prefix.
-const maxPooledSnifferCapacity = 2 * schema.MaxSchemaBlobSize
-
-func getSnifferBuffer() *[]byte {
-	return snifferBufferPool.Get().(*[]byte)
-}
-
-func putSnifferBuffer(buf *[]byte, contents []byte) {
-	if cap(contents) > maxPooledSnifferCapacity {
-		*buf = nil
-	} else {
-		*buf = contents[:0]
-	}
-	snifferBufferPool.Put(buf)
 }

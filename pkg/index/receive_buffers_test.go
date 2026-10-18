@@ -23,9 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"reflect"
 	"testing"
-	"time"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -111,119 +109,6 @@ func TestCopyWithBufferFastPaths(t *testing.T) {
 			n, err := copyWithBuffer(dst, r)
 			if n != 17 || err != wantErr || src.called != writerTo || dst.called == writerTo {
 				t.Fatalf("copy = %d, %v; WriterTo/ReaderFrom called = %v/%v", n, err, src.called, dst.called)
-			}
-		})
-	}
-}
-
-func TestBlobSnifferRetention(t *testing.T) {
-	data := bytes.Repeat([]byte("x"), schema.MaxSchemaBlobSize+1)
-	for _, private := range []bool{false, true} {
-		for _, size := range []int{schema.MaxSchemaBlobSize - 1, schema.MaxSchemaBlobSize, schema.MaxSchemaBlobSize + 1} {
-			t.Run(fmt.Sprintf("private=%v/size=%d", private, size), func(t *testing.T) {
-				sn := NewBlobSniffer(blob.RefFromBytes(data[:size]))
-				if private {
-					holder := getSnifferBuffer()
-					sn.contents = (*holder)[:0]
-					defer func() { putSnifferBuffer(holder, sn.contents) }()
-				}
-				for _, p := range [][]byte{data[:7], nil, data[7:size]} {
-					if n, err := sn.Write(p); n != len(p) || err != nil {
-						t.Fatalf("Write = %d, %v; want %d, nil", n, err, len(p))
-					}
-				}
-				truncated := size > schema.MaxSchemaBlobSize
-				if sn.Size() != int64(size) || sn.IsTruncated() != truncated ||
-					!bytes.Equal(sn.contents, data[:min(size, schema.MaxSchemaBlobSize)]) {
-					t.Fatal("incorrect retained prefix, size, or truncation")
-				}
-				body, err := sn.Body()
-				if truncated {
-					if body != nil || err == nil {
-						t.Fatal("Body of truncated sniffer must fail")
-					}
-				} else if err != nil || !bytes.Equal(body, data[:size]) {
-					t.Fatalf("Body = %d bytes, %v; want %d bytes, nil", len(body), err, size)
-				}
-			})
-		}
-	}
-}
-
-func TestPublicBlobSnifferBodyOwnership(t *testing.T) {
-	data := []byte("public body remains caller-owned")
-	public := NewBlobSniffer(blob.RefFromBytes(data))
-	public.Write(data)
-	body, err := public.Body()
-	if err != nil {
-		t.Fatal(err)
-	}
-	private := NewBlobSniffer(blob.RefFromBytes(data))
-	holder := getSnifferBuffer()
-	private.contents = (*holder)[:0]
-	defer func() { putSnifferBuffer(holder, private.contents) }()
-	private.Write(data)
-	clear(private.contents) // Poison while borrowed, never after returning to the pool.
-	if !bytes.Equal(body, data) {
-		t.Fatal("private sniffer overwrote public Body")
-	}
-	body[0] = 'P'
-	again, err := public.Body()
-	if err != nil || again[0] != 'P' {
-		t.Fatal("Body must continue to expose the public sniffer's owned slice")
-	}
-}
-
-func TestSnifferBufferPoolBounds(t *testing.T) {
-	for _, capacity := range []int{0, maxPooledSnifferCapacity, maxPooledSnifferCapacity + 1} {
-		// Supply final grown contents, not the holder's original empty slice.
-		holder := getSnifferBuffer()
-		putSnifferBuffer(holder, make([]byte, min(1, capacity), capacity))
-		borrowed := getSnifferBuffer()
-		// A pool may discard entries: assert invariants, not identity or reuse.
-		length, capacity := len(*borrowed), cap(*borrowed)
-		putSnifferBuffer(borrowed, *borrowed)
-		if length != 0 || capacity > maxPooledSnifferCapacity {
-			t.Fatalf("borrowed len/cap = %d/%d; want len 0, cap <= %d", length, capacity, maxPooledSnifferCapacity)
-		}
-	}
-}
-
-func TestParsedSchemaOwnsSnifferData(t *testing.T) {
-	ref := blob.RefFromString("schema dependency")
-	file := schema.NewFileMap("owned.txt")
-	if err := file.PopulateParts(3, []schema.BytesPart{{BlobRef: ref, Size: 3}}); err != nil {
-		t.Fatal(err)
-	}
-	claim := schema.NewSetAttributeClaim(ref, "title", "owned value").
-		SetClaimDate(time.Unix(1700000000, 0).UTC()).SetSigner(ref).
-		SetRawStringField("camliSig", "owned signature")
-	for _, original := range []*schema.Blob{file.Blob(), claim.Blob()} {
-		t.Run(string(original.Type()), func(t *testing.T) {
-			sn := NewBlobSniffer(original.BlobRef())
-			holder := getSnifferBuffer()
-			sn.contents = (*holder)[:0]
-			defer func() { putSnifferBuffer(holder, sn.contents) }()
-			sn.Write([]byte(original.JSON()))
-			sn.Parse()
-			parsed, ok := sn.SchemaBlob()
-			if !ok {
-				t.Fatal("schema not recognized")
-			}
-			c, isClaim := parsed.AsClaim()
-			for i := range sn.contents {
-				sn.contents[i] = '!' // Deterministic reuse simulation while still owned.
-			}
-			if parsed.JSON() != original.JSON() || parsed.Type() != original.Type() ||
-				parsed.FileName() != original.FileName() || !reflect.DeepEqual(parsed.ByteParts(), original.ByteParts()) {
-				t.Fatal("parsed schema retained sniffer backing")
-			}
-			if original.Type() == schema.TypeClaim {
-				if !isClaim || c.ClaimType() != schema.SetAttributeClaim || c.Attribute() != "title" ||
-					c.Value() != "owned value" || c.Signature() != "owned signature" ||
-					c.Signer() != ref || c.ModifiedPermanode() != ref || c.ClaimDateString() != "2023-11-14T22:13:20Z" {
-					t.Fatal("parsed claim retained sniffer backing")
-				}
 			}
 		})
 	}
