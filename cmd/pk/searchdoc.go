@@ -24,8 +24,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"perkeep.org/internal/searchhelp"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/search"
 )
 
 type searchDocCmd struct{}
@@ -54,7 +54,7 @@ func (c *searchDocCmd) RunCommand(args []string) error {
 }
 
 func formattedSearchHelp() {
-	s := search.SearchHelp()
+	s := searchhelp.SearchHelp()
 	type help struct{ Name, Description string }
 	h := []help{}
 	err := json.Unmarshal([]byte(s), &h)

@@ -23,10 +23,10 @@ import (
 	"os"
 	"strings"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/search"
 )
 
 type makeStaticCmd struct {

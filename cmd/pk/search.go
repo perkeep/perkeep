@@ -25,8 +25,8 @@ import (
 	"os"
 	"strings"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/search"
 
 	"go4.org/errorutil"
 	"go4.org/strutil"

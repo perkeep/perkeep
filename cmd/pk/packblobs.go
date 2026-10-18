@@ -25,8 +25,8 @@ import (
 	"log"
 	"os"
 
+	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/search"
 )
 
 type packBlobsCmd struct {
