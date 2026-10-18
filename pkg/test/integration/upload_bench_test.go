@@ -44,7 +44,9 @@ var benchBlobSeq atomic.Uint64
 // receives new 64KB blobs, uploaded one per request from several
 // concurrent requests, as clients do today, or many per request. It
 // measures until each blob's upload request is answered, not until the
-// index has caught up.
+// index has caught up. With session, the blobs are uploaded into an
+// upload session, and it measures until a flush of the session reports
+// them all durable.
 //
 // Storage syncs to disk, so for meaningful numbers, run it with TMPDIR on
 // a real disk, not a tmpfs. Each run starts a new server, so set
@@ -56,18 +58,25 @@ var benchBlobSeq atomic.Uint64
 func BenchmarkUpload(b *testing.B) {
 	for _, bc := range []struct {
 		perRequest, concurrency int
+		session                 bool
 	}{
-		{1, 5},   // a client's HTTP/1.1 concurrency
-		{1, 50},  // a client's HTTP/2 concurrency
-		{256, 1}, // one request at a time, each of many blobs
+		{1, 5, false},   // a client's HTTP/1.1 concurrency
+		{1, 50, false},  // a client's HTTP/2 concurrency
+		{256, 1, false}, // one request at a time, each of many blobs
+		{1, 5, true},
+		{1, 50, true},
 	} {
-		b.Run(fmt.Sprintf("perRequest=%d/concurrency=%d", bc.perRequest, bc.concurrency), func(b *testing.B) {
-			benchmarkUpload(b, bc.perRequest, bc.concurrency)
+		name := fmt.Sprintf("perRequest=%d/concurrency=%d", bc.perRequest, bc.concurrency)
+		if bc.session {
+			name += "/session"
+		}
+		b.Run(name, func(b *testing.B) {
+			benchmarkUpload(b, bc.perRequest, bc.concurrency, bc.session)
 		})
 	}
 }
 
-func benchmarkUpload(b *testing.B, perRequest, concurrency int) {
+func benchmarkUpload(b *testing.B, perRequest, concurrency int, session bool) {
 	w, err := test.WorldFromConfig("bench-upload-server-config.json")
 	if err != nil {
 		b.Fatal(err)
@@ -76,7 +85,37 @@ func benchmarkUpload(b *testing.B, perRequest, concurrency int) {
 		b.Fatal(err)
 	}
 	defer w.Stop()
-	uploadURL := w.ServerBaseURL() + "/bs-and-maybe-also-index/camli/upload"
+	blobRoot := w.ServerBaseURL() + "/bs-and-maybe-also-index/camli/"
+	uploadURL := blobRoot + "upload"
+
+	post := func(url, contentType string, body []byte, v any) error {
+		req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		req.SetBasicAuth("testuser", "passTestWorld")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return fmt.Errorf("POST %s: %v", url, res.Status)
+		}
+		return json.NewDecoder(res.Body).Decode(v)
+	}
+	var sessionID string
+	if session {
+		var opened protocol.SessionOpenResponse
+		if err := post(blobRoot+"session", "", nil, &opened); err != nil {
+			b.Fatal(err)
+		}
+		sessionID = opened.Session
+		uploadURL += "?session=" + sessionID
+	}
 
 	// Build the request bodies first, so only uploading is timed.
 	type body struct {
@@ -106,26 +145,16 @@ func benchmarkUpload(b *testing.B, perRequest, concurrency int) {
 	}
 
 	upload := func(bd body) error {
-		req, err := http.NewRequest("POST", uploadURL, bytes.NewReader(bd.data))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", bd.contentType)
-		req.SetBasicAuth("testuser", "passTestWorld")
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			return fmt.Errorf("upload: %v", res.Status)
-		}
 		var ur protocol.UploadResponse
-		if err := json.NewDecoder(res.Body).Decode(&ur); err != nil {
+		if err := post(uploadURL, bd.contentType, bd.data, &ur); err != nil {
 			return err
 		}
-		if len(ur.Received) != len(bd.refs) {
-			return fmt.Errorf("server received %d of %d blobs: %s", len(ur.Received), len(bd.refs), ur.ErrorText)
+		got := ur.Received
+		if session {
+			got = ur.Accepted
+		}
+		if len(got) != len(bd.refs) {
+			return fmt.Errorf("server took %d of %d blobs: %s", len(got), len(bd.refs), ur.ErrorText)
 		}
 		return nil
 	}
@@ -149,6 +178,16 @@ func benchmarkUpload(b *testing.B, perRequest, concurrency int) {
 	}
 	close(work)
 	wg.Wait()
+	if session && firstErr.Load() == nil {
+		var st protocol.SessionStatusResponse
+		err := post(blobRoot+"session/"+sessionID+"/flush", "", nil, &st)
+		if err == nil && (len(st.Durable) != b.N || len(st.Failed) > 0) {
+			err = fmt.Errorf("flush reported %d of %d blobs durable, %d failed", len(st.Durable), b.N, len(st.Failed))
+		}
+		if err != nil {
+			firstErr.CompareAndSwap(nil, &err)
+		}
+	}
 	b.StopTimer()
 	if errp := firstErr.Load(); errp != nil {
 		b.Fatal(*errp)
