@@ -229,6 +229,11 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `RUN_BROKEN_TESTS` (bool)
 : Run known-broken tests.
 
+`PERKEEPD_ADMIN_TEST_MAIN` (string)
+: Internal subprocess-test switch. When set to `1`, the perkeepd test binary
+  runs the normal CLI entry point instead of the Go test runner. Set only by
+  the admin command tests; it has no effect on the production perkeepd binary.
+
 `PERKEEP_TEST_BIN_DIR` (string)
 : Directory of prebuilt perkeepd, pk, pk-get, pk-put, and pk-mount binaries
   for tests that start a test World (pkg/test) to use, instead of building
