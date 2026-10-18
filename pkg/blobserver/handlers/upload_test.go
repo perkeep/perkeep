@@ -51,8 +51,6 @@ func (s *uploadStorage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) er
 	return blobserver.ReceiveBlobsUnchecked(ctx, s.Fetcher, blobs)
 }
 
-func (s *uploadStorage) Config() *blobserver.Config { return &blobserver.Config{} }
-
 // uploadPart is a part of a multipart upload: a blob ref and contents.
 type uploadPart struct {
 	name     string
@@ -65,7 +63,7 @@ func blobPart(s string) uploadPart {
 
 // upload sends parts to the multipart upload handler, returning its
 // response.
-func upload(t *testing.T, sto blobserver.BlobReceiveConfiger, parts []uploadPart) *protocol.UploadResponse {
+func upload(t *testing.T, sto blobserver.BlobReceiver, parts []uploadPart) *protocol.UploadResponse {
 	t.Helper()
 	return uploadURL(t, sto, nil, "/bs/camli/upload", parts)
 }
@@ -89,10 +87,10 @@ func uploadRequest(t *testing.T, url string, parts []uploadPart) *http.Request {
 }
 
 // uploadURL is like upload, with upload sessions, to url.
-func uploadURL(t *testing.T, sto blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager, url string, parts []uploadPart) *protocol.UploadResponse {
+func uploadURL(t *testing.T, sto blobserver.BlobReceiver, sessions *uploadsession.Manager, url string, parts []uploadPart) *protocol.UploadResponse {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	CreateBatchUploadHandler(sto, sessions).ServeHTTP(rec, uploadRequest(t, url, parts))
+	CreateBatchUploadHandler(sto, nil, sessions).ServeHTTP(rec, uploadRequest(t, url, parts))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("upload status %d: %s", rec.Code, rec.Body)
 	}

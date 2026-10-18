@@ -45,7 +45,6 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
 	"perkeep.org/pkg/blobserver/uploadsession"
@@ -95,11 +94,6 @@ type HandlerInstaller interface {
 	Handle(path string, h http.Handler)
 }
 
-type storageAndConfig struct {
-	blobserver.Storage
-	config *blobserver.Config
-}
-
 // parseCamliPath looks for "/camli/" in the path and returns
 // what follows it (the action).
 func parseCamliPath(path string) (action string, err error) {
@@ -115,27 +109,15 @@ func unsupportedHandler(rw http.ResponseWriter, req *http.Request) {
 	httputil.BadRequestError(rw, "Unsupported Perkeep path or method.")
 }
 
-func (s *storageAndConfig) Config() *blobserver.Config {
-	return s.config
-}
-
-// ReceiveBlobs implements blobserver.BlobsReceiver, using the storage's
-// own ReceiveBlobs if it has one, which the embedded blobserver.Storage
-// would hide.
-func (s *storageAndConfig) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
-	return blobserver.ReceiveBlobsUnchecked(ctx, s.Storage, blobs)
-}
-
-// GetStorage returns the unwrapped blobserver.Storage interface value for
-// callers to type-assert optional interface implementations on. (e.g. EnumeratorConfig)
-func (s *storageAndConfig) GetStorage() blobserver.Storage {
-	return s.Storage
-}
-
 // action is the part following "/camli/" in the URL. It's either a
 // string like "enumerate-blobs", "stat", "upload", "session/ID/flush",
-// or a blobref. sessions are the upload sessions receiving into storage.
-func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger, sessions *uploadsession.Manager) (http.Handler, auth.Operation) {
+// or a blobref. config is how storage is served, and sessions are the
+// upload sessions receiving into storage.
+//
+// The handlers get storage itself rather than a wrapper of it, as receiving
+// blobs notifies the blob hub of the storage they're received into, and
+// the receive hooks (like the index's and sync handlers') are on storage's.
+func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.Storage, config *blobserver.Config, sessions *uploadsession.Manager) (http.Handler, auth.Operation) {
 	var handler http.Handler
 	op := auth.OpAll
 	if isSessionAction(action) && (req.Method == "POST" || req.Method == "DELETE") {
@@ -148,7 +130,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 			handler = handlers.CreateEnumerateHandler(storage)
 			op = auth.OpGet
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage, config)
 		case "ws":
 			handler = nil         // TODO: handlers.CreateSocketHandler(storage)
 			op = auth.OpDiscovery // rest of operation auth checks done in handler
@@ -159,13 +141,13 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	case "POST":
 		switch action {
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage, config)
 			op = auth.OpStat
 		case "upload":
-			handler = handlers.CreateBatchUploadHandler(storage, sessions)
+			handler = handlers.CreateBatchUploadHandler(storage, config, sessions)
 			op = auth.OpUpload
 		case "remove":
-			handler = handlers.CreateRemoveHandler(storage)
+			handler = handlers.CreateRemoveHandler(storage, config)
 		}
 	case "PUT":
 		handler = handlers.CreatePutUploadHandler(storage)
@@ -208,24 +190,20 @@ func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.S
 	if !strings.HasSuffix(prefix, "/") {
 		panic("expected prefix to end in slash")
 	}
-	getStorageConfig := sync.OnceValue(func() *storageAndConfig {
-		return &storageAndConfig{
-			storage,
-			&blobserver.Config{
-				Writable:      true,
-				Readable:      true,
-				Deletable:     false,
-				URLBase:       strings.TrimRight(baseURL(), "/") + prefix[:len(prefix)-1],
-				CanLongPoll:   true,
-				HandlerFinder: hf,
-			},
+	getConfig := sync.OnceValue(func() *blobserver.Config {
+		return &blobserver.Config{
+			Writable:      true,
+			Readable:      true,
+			Deletable:     false,
+			URLBase:       strings.TrimRight(baseURL(), "/") + prefix[:len(prefix)-1],
+			CanLongPoll:   true,
+			HandlerFinder: hf,
 		}
 	})
 	getSessions := sync.OnceValue(func() *uploadsession.Manager {
-		return uploadsession.NewManager(getStorageConfig(), uploadsession.Limits{})
+		return uploadsession.NewManager(storage, uploadsession.Limits{})
 	})
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		storageConfig := getStorageConfig()
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
 			log.Printf("Invalid request for method %q, path %q",
@@ -233,7 +211,7 @@ func makeCamliHandler(prefix string, baseURL func() string, storage blobserver.S
 			unsupportedHandler(rw, req)
 			return
 		}
-		handler, op := camliHandlerUsingStorage(req, action, storageConfig, getSessions())
+		handler, op := camliHandlerUsingStorage(req, action, storage, getConfig(), getSessions())
 		if isBlobWrite(req.Method, action) {
 			// Checked after auth, as the reason can name blobs and paths.
 			if err := mon.ReadOnlyError(); err != nil {

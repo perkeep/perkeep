@@ -43,9 +43,12 @@ import (
 // An upload with a "session" query parameter adds its blobs to that
 // upload session, from sessions, rather than receiving them into storage. See
 // doc/protocol/blob-upload-session.md.
-func CreateBatchUploadHandler(storage blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager) http.Handler {
+//
+// config's HandlerFinder finds the signing handler to vivify uploaded
+// files with; config may be nil, for no vivifying.
+func CreateBatchUploadHandler(storage blobserver.BlobReceiver, config *blobserver.Config, sessions *uploadsession.Manager) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(rw, req, storage, sessions)
+		handleMultiPartUpload(rw, req, storage, config, sessions)
 	})
 }
 
@@ -93,7 +96,7 @@ func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
 // vivify verifies that all the chunks for the file described by fileblob are on the blobserver.
 // It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
 // on that permanode for fileblob, signs it, and uploads it to the blobserver.
-func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef) error {
+func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiver, config *blobserver.Config, fileblob blob.SizedRef) error {
 	sf, ok := blobReceiver.(blob.Fetcher)
 	if !ok {
 		return fmt.Errorf("BlobReceiver is not a Fetcher")
@@ -113,15 +116,10 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
 	}
 
-	config := blobReceiver.Config()
-	if config == nil {
-		return errors.New("blobReceiver has no config")
-	}
-	hf := config.HandlerFinder
-	if hf == nil {
+	if config == nil || config.HandlerFinder == nil {
 		return errors.New("blobReceiver config has no HandlerFinder")
 	}
-	JSONSignRoot, sh, err := hf.FindHandlerByType("jsonsign")
+	JSONSignRoot, sh, err := config.HandlerFinder.FindHandlerByType("jsonsign")
 	if err != nil || sh == nil {
 		return errors.New("jsonsign handler not found")
 	}
@@ -179,7 +177,7 @@ const (
 	uploadGroupBytes = 32 << 20
 )
 
-func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger, sessions *uploadsession.Manager) {
+func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, config *blobserver.Config, sessions *uploadsession.Manager) {
 	ctx := req.Context()
 	res := new(protocol.UploadResponse)
 
@@ -330,7 +328,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		// Or I suppose we could document that a file schema blob that
 		// wants to be vivified should always be sent alone.
 		for _, got := range receivedBlobs {
-			err := vivify(ctx, blobReceiver, got)
+			err := vivify(ctx, blobReceiver, config, got)
 			if err != nil {
 				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.Ref.String(), err))
 			} else {
