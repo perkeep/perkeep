@@ -20,10 +20,12 @@ package client // import "perkeep.org/pkg/client"
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"net"
@@ -654,6 +656,21 @@ func (c *Client) HasLegacySHA1() (bool, error) {
 		return false, err
 	}
 	return c.hasLegacySHA1, nil
+}
+
+// WholeRefHashes returns constructors of the hash functions whose
+// whole-file refs the server can find files by, for finding whether it
+// already has a file's contents: the current default (blob.NewHash) and
+// any others its discovery reports it has indexed.
+func (c *Client) WholeRefHashes() ([]func() hash.Hash, error) {
+	if err := c.condDiscovery(); err != nil {
+		return nil, err
+	}
+	hashes := []func() hash.Hash{blob.NewHash}
+	if c.hasLegacySHA1 {
+		hashes = append(hashes, sha1.New)
+	}
+	return hashes, nil
 }
 
 // SyncInfo holds the data that were acquired with a discovery
