@@ -81,7 +81,9 @@ test fixture. Each test explicitly instantiates its own controller. -->
 		accountRef, fileRef, state: state || "running",
 		progress: {itemsTotal: 10, itemsDone: 2, itemsUnchanged: 1, warningCount: 0},
 	}, overrides);
-	const inspected = extra => Object.assign({identity}, extra);
+	// Older servers encode an unmatched blob.Ref as null despite omitempty.
+	// Use that wire response by default, not just an omitted accountRef.
+	const inspected = extra => Object.assign({identity, accountRef: null}, extra);
 	const started = (state, overrides) => Object.assign({identity, accountRef, status: status(state)}, overrides);
 	const zip = () => {
 		const file = new File(["synthetic ZIP contents"], "renamed-export.zip", {type: "text/plain", lastModified: 1760000000000});
@@ -284,6 +286,23 @@ test fixture. Each test explicitly instantiates its own controller. -->
 		equal(ctx.postActions().join(","), "inspect,start", "No duplicate accepted start");
 	});
 
+	for (const unmatched of [undefined, null, ""]) {
+		test("first import accepts an unmatched account reference: " + String(unmatched), async () => {
+			const ctx = await uploaded(fixture(), inspected({accountRef: unmatched}));
+			const c = ctx.controller;
+			equal(c.phase, "confirm");
+			assert(c.nodes.error.hidden);
+			contains(c.nodes["account-match"].textContent, "create a new account");
+			assertNoImport(ctx);
+			ctx.enqueue(started("running"));
+			c.nodes.start.click();
+			await settle();
+			equal(ctx.postActions().join(","), "inspect,start");
+			equal(ctx.uploads.length, 1, "Starting reuses the stored ZIP");
+			equal(ctx.navigations[0], "https://archive.example.test/mounted/imports/provider/" + accountRef);
+		});
+	}
+
 	test("OmitAuthToken omits Authorization on upload and API POST", async () => {
 		const ctx = fixture({config: {authToken: "OmitAuthToken", uploadHelper: "/uploads/"}});
 		await uploaded(ctx);
@@ -455,7 +474,7 @@ test fixture. Each test explicitly instantiates its own controller. -->
 		assertNoImport(ctx);
 	});
 
-	for (const inspection of [{}, {identity: {}}, {identity: {email: 5}}, inspected({accountRef: "../bad"}), inspected({accountRef, status: status("running", {fileRef: otherFile})})]) {
+	for (const inspection of [{}, {identity: {}}, {identity: {email: 5}}, ...[false, 0, [], {}, "../bad"].map(accountRef => inspected({accountRef})), inspected({accountRef, status: status("running", {fileRef: otherFile})})]) {
 		test("malformed inspection cannot expose Import: " + JSON.stringify(inspection), async () => {
 			const ctx = await uploaded(fixture(), inspection);
 			assert(ctx.controller.nodes.confirm.hidden);

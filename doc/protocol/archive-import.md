@@ -70,7 +70,8 @@ The result has:
 
 - `identity`: `userName`, `email`, `name`, and optional advisory `filenameUserID`.
 - `accountRef`: the existing or newly created importer-account permanode,
-  omitted when inspection finds no account.
+  omitted when inspection finds no account. Older servers encode an unmatched
+  reference as `null`; clients should also accept that as no matching account.
 - `created`: true if this request created an account.
 - `status`: current or previous status for this input, when available.
 

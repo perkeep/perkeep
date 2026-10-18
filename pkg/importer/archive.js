@@ -377,7 +377,7 @@ limitations under the License.
 			this.nodes.message.textContent = "Inspecting stored ZIP…";
 			await this.perform("inspect", signal => this.api("inspect", signal), result => {
 				validateIdentity(result.identity);
-				requireField(result.accountRef === undefined || result.accountRef === "" || validRef(result.accountRef), "invalid matched account reference");
+				requireField(result.accountRef === undefined || result.accountRef === null || result.accountRef === "" || validRef(result.accountRef), "invalid matched account reference");
 				const account = result.accountRef || "";
 				if (result.status !== undefined && result.status !== null) {
 					validateStatus(result.status, account, this.fileRef);
