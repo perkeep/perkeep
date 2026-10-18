@@ -53,8 +53,8 @@ import (
 )
 
 // requestCounter is an http.RoundTripper counting a client's blob and
-// upload session requests, by kind: "stat", "upload", "open", "flush",
-// and "close".
+// upload session requests, by kind: "stat", "upload", "open", "flush", "close",
+// and "search" (for files by their contents).
 type requestCounter struct {
 	http.RoundTripper
 
@@ -76,6 +76,8 @@ func (rc *requestCounter) RoundTrip(req *http.Request) (*http.Response, error) {
 		kind = "stat"
 	case strings.HasSuffix(p, "/camli/upload"):
 		kind = "upload"
+	case strings.HasSuffix(p, "/camli/search/files"):
+		kind = "search"
 	}
 	rc.mu.Lock()
 	if kind != "" && !rc.paused {
@@ -273,7 +275,7 @@ func TestUploadRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	blobs += len(bytesBlobs)
-	want := map[string]int{"open": 1, "stat": 1, "upload": blobs, "flush": 2, "close": 1}
+	want := map[string]int{"search": 1, "open": 1, "stat": 1, "upload": blobs, "flush": 2, "close": 1}
 	if got := rc.take(); !maps.Equal(got, want) {
 		t.Errorf("requests %v; want %v", got, want)
 	}
