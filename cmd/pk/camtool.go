@@ -21,8 +21,10 @@ import (
 	"log"
 	"slices"
 
-	// Register cloud config hooks for client configuration.
-	_ "perkeep.org/internal/osutil/gce"
+	// Register the GCE config-directory hook and instance-metadata JSON macro.
+	_ "perkeep.org/internal/osutil/gceconfig"
+	// Register the /gcs/ filesystem for reading client configuration from GCS.
+	_ "perkeep.org/internal/wkfs/gcs"
 
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"

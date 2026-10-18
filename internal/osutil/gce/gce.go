@@ -24,7 +24,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,42 +33,16 @@ import (
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
-	"perkeep.org/internal/osutil"
+
+	// Register the GCE config-directory hook and instance-metadata JSON macro.
+	_ "perkeep.org/internal/osutil/gceconfig"
 	"perkeep.org/pkg/env"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
-	"go4.org/jsonconfig"
 	"go4.org/types"
 	_ "go4.org/wkfs/gcs"
 )
-
-func init() {
-	if !env.OnGCE() {
-		return
-	}
-	osutil.RegisterConfigDirFunc(func() string {
-		v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
-		if v == "" {
-			return v
-		}
-		return path.Clean("/gcs/" + strings.TrimPrefix(v, "gs://"))
-	})
-	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []any) (any, error) {
-		if len(v) != 1 {
-			return nil, errors.New("only 1 argument supported after _gce_instance_meta")
-		}
-		attr, ok := v[0].(string)
-		if !ok {
-			return nil, errors.New("expected argument after _gce_instance_meta to be a string")
-		}
-		val, err := metadata.InstanceAttributeValue(attr)
-		if err != nil {
-			return nil, fmt.Errorf("error reading GCE instance attribute %q: %w", attr, err)
-		}
-		return val, nil
-	})
-}
 
 type writer struct {
 	severity logging.Severity
