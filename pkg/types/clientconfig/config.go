@@ -65,6 +65,11 @@ func (conf *Config) Alias(server string) string {
 
 // GenerateClientConfig returns a client configuration which can be used to
 // access a server defined by the provided low-level server configuration.
+//
+// Authentication is copied verbatim: @file references and @@ escapes are not
+// resolved, and credential files are never read or embedded in the result.
+// Like IdentitySecretRing, these file references name local files and may need
+// to be changed when using the configuration on another machine.
 func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 	missingConfig := func(param string) (*Config, error) {
 		return nil, fmt.Errorf("required value for %q not found", param)

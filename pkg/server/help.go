@@ -53,6 +53,11 @@ const helpHTML string = `<html>
 			<p>You will need to use the following <a href='https://perkeep.org/doc/client-config'>client configuration</a> in order to access this server using the command line tools.</p>
 			<pre>{{ .ClientConfigJSON }}</pre>
 
+			<p>If an auth password uses <code>@path</code>, that credential file
+			must also exist on the client. Copy the credential to a private local
+			file and update the path as needed. Credential file contents are not
+			included in this download.</p>
+
                         {{ .SecringDownloadHint }}
 
 			<h3>Anything Else?</h3>

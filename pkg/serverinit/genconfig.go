@@ -31,6 +31,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"perkeep.org/internal/osutil"
+	"perkeep.org/internal/secret"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
@@ -419,6 +420,19 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
+// resolveCredentials expands file references in already-parsed credential
+// fields, so delimiters in file contents are not parsed as config syntax.
+func resolveCredentials(field string, values ...*string) error {
+	for _, v := range values {
+		resolved, err := secret.Resolve(*v)
+		if err != nil {
+			return fmt.Errorf("%s credential: %w", field, err)
+		}
+		*v = resolved
+	}
+	return nil
+}
+
 func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (map[string]any, error) {
 	dbName := b.dbName(sortedType)
 	if dbName == "" {
@@ -427,6 +441,9 @@ func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (m
 	user, host, password, ok := parseUserHostPass(confStr)
 	if !ok {
 		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
+	}
+	if err := resolveCredentials(rdbms, &password); err != nil {
+		return nil, err
 	}
 	return map[string]any{
 		"type":     rdbms,
@@ -528,6 +545,9 @@ func (b *lowBuilder) addS3Config(s3 string, vendor string) error {
 		return errors.New(m)
 	}
 	accessKey, secret, bucket := f[0], f[1], f[2]
+	if err := resolveCredentials(vendor, &accessKey, &secret); err != nil {
+		return err
+	}
 	var hostname string
 	if len(f) == 4 {
 		hostname = f[3]
@@ -614,6 +634,9 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 		return errors.New(`genconfig: expected "googledrive" field to be of form "client_id:client_secret:refresh_token:parent_id"`)
 	}
 	clientId, secret, refreshToken, parentId := f[0], f[1], f[2], f[3]
+	if err := resolveCredentials("googledrive", &clientId, &secret, &refreshToken); err != nil {
+		return err
+	}
 
 	isPrimary := !b.hasPrefix("/bs/")
 	prefix := ""
@@ -663,6 +686,9 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		return errGCSUsage
 	case 4:
 		clientID, secret, refreshToken, bucket = f[0], f[1], f[2], f[3]
+		if err := resolveCredentials("googlecloudstorage", &clientID, &secret, &refreshToken); err != nil {
+			return err
+		}
 	case 2:
 		if f[0] != "" {
 			return errGCSUsage
@@ -843,19 +869,20 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		importerArgs["cacheRoot"] = filepath.Join(b.high.BlobPath, "importer-cache")
 		importerArgs["cacheType"] = b.kvFileType()
 	}
-	if b.high.Flickr != "" {
-		importerArgs["flickr"] = map[string]any{
-			"clientSecret": b.high.Flickr,
+	for _, importer := range []struct{ name, clientSecret string }{
+		{"flickr", b.high.Flickr},
+		{"picasa", b.high.Picasa},
+		{"instapaper", b.high.Instapaper},
+	} {
+		if importer.clientSecret == "" {
+			continue
 		}
-	}
-	if b.high.Picasa != "" {
-		importerArgs["picasa"] = map[string]any{
-			"clientSecret": b.high.Picasa,
+		value := importer.clientSecret
+		if err := resolveCredentials(importer.name, &value); err != nil {
+			return err
 		}
-	}
-	if b.high.Instapaper != "" {
-		importerArgs["instapaper"] = map[string]any{
-			"clientSecret": b.high.Instapaper,
+		importerArgs[importer.name] = map[string]any{
+			"clientSecret": value,
 		}
 	}
 	if b.runIndex() {
@@ -881,8 +908,15 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			}
 		}
 		if conf.Email != "" {
+			password := conf.Password
+			if err := resolveCredentials("immich.password", &password); err != nil {
+				return err
+			}
+			if password == "" {
+				return errors.New("immich requires both email and password, or neither")
+			}
 			a["email"] = conf.Email
-			a["password"] = conf.Password
+			a["password"] = password
 		}
 		if conf.MaxUploadBytes != 0 {
 			// jsonconfig numbers must be float64, as with decoded JSON.

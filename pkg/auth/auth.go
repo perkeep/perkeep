@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 
 	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/secret"
 )
 
 // Operation represents a bitmask of operations. See the OpX constants.
@@ -124,6 +125,10 @@ func newLocalhostAuth(string) (AuthMode, error) {
 }
 
 func newDevAuth(pw string) (AuthMode, error) {
+	pw, err := secret.Resolve(pw)
+	if err != nil {
+		return nil, fmt.Errorf("devauth password: %w", err)
+	}
 	// the vivify mode password is automatically set to "vivi" + Password
 	vp := "vivi" + pw
 	return &DevAuth{
@@ -138,7 +143,10 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 		return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"user:password\"")
 	}
 	username := pieces[0]
-	password := pieces[1]
+	password, err := secret.Resolve(pieces[1])
+	if err != nil {
+		return nil, fmt.Errorf("userpass password: %w", err)
+	}
 	mode := &UserPass{Username: username, Password: password}
 	for _, opt := range pieces[2:] {
 		switch {
@@ -146,7 +154,10 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 			mode.OrLocalhost = true
 		case strings.HasPrefix(opt, "vivify="):
 			// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
-			vp := strings.Replace(opt, "vivify=", "", -1)
+			vp, err := secret.Resolve(strings.TrimPrefix(opt, "vivify="))
+			if err != nil {
+				return nil, fmt.Errorf("userpass vivify password: %w", err)
+			}
 			mode.VivifyPass = &vp
 		default:
 			return nil, fmt.Errorf("Unknown userpass option %q", opt)
@@ -160,11 +171,16 @@ func newBasicAuth(arg string) (AuthMode, error) {
 	if len(pieces) != 2 {
 		return nil, fmt.Errorf("invalid basic auth syntax. got %q, want \"username:password\"", arg)
 	}
-	return NewBasicAuth(pieces[0], pieces[1]), nil
+	password, err := secret.Resolve(pieces[1])
+	if err != nil {
+		return nil, fmt.Errorf("basic password: %w", err)
+	}
+	return NewBasicAuth(pieces[0], password), nil
 }
 
 // NewBasicAuth returns a UserPass Authmode, adequate to support HTTP
-// basic authentication.
+// basic authentication. The username and password are used literally,
+// without resolving file references.
 func NewBasicAuth(username, password string) AuthMode {
 	return &UserPass{
 		Username: username,
@@ -185,6 +201,11 @@ var ErrNoAuth = errors.New("auth: no configured authentication")
 // that will be used for all upcoming authentication exchanges. The
 // supported modes are UserPass and DevAuth. UserPass requires an authConfig
 // of the kind "userpass:joe:ponies".
+//
+// Passwords in userpass (including vivify), basic, and devauth modes accept
+// @path to read a file with surrounding whitespace trimmed, or @@ to escape a
+// literal leading @. Relative paths use the current working directory.
+// Usernames remain literal. See [secret.Resolve] for details.
 //
 // If the input string is empty, the error will be ErrNoAuth.
 func FromConfig(authConfig string) (AuthMode, error) {
