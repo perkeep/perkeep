@@ -54,6 +54,12 @@ import (
 // cutting and asking about the chunks costs about as much.
 const dupCheckThreshold = 256 << 10
 
+// sessionThreshold is the size above which a File without the caller's
+// session opens its own. Files no bigger are cut into one chunk, so a
+// session would have nothing to commit together, and would only add
+// requests: opening it, flushing it twice, and closing it.
+const sessionThreshold = 256 << 10
+
 // A File's chunks are asked about in batches of up to statBatchChunks
 // chunks or about statBatchBytes bytes, and uploaded by uploadWorkers
 // goroutines.
@@ -101,8 +107,9 @@ func NewLimiter(limits Limits) *Limiter {
 // Options are the options of a File.
 type Options struct {
 	// Session is the upload session to upload into. If nil, the File
-	// opens its own, if the server supports them, and flushes and closes
-	// it before Run returns.
+	// opens its own, if the server supports them and the file is over
+	// 256 KB (smaller ones are one chunk, with nothing to commit
+	// together), and flushes and closes it before Run returns.
 	Session *client.UploadSession
 
 	// Limiter is the Limiter of the File's resources. If nil, the File
@@ -260,28 +267,29 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 	}
 
 	f.setPhase(PhaseUploading)
-	fc, uploaded, err := f.uploadChunks(ctx, sk)
+	var handles []*client.UploadHandle // of the bytes schema blobs
+	var fileHandle *client.UploadHandle
+	uploaded, missing, err := f.uploadChunks(ctx, sk, func(fc *schema.FileCut) ([]blob.Ref, error) {
+		bytesBlobs, err := fc.Populate(file)
+		if err != nil {
+			return nil, err
+		}
+		var refs []blob.Ref
+		for _, b := range bytesBlobs {
+			handles = append(handles, stringHandle(b.BlobRef(), b.JSON()))
+			refs = append(refs, b.BlobRef())
+		}
+		fileJSON := file.Blob().JSON()
+		fileHandle = stringHandle(blob.RefFromString(fileJSON), fileJSON)
+		return append(refs, fileHandle.BlobRef), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	bytesBlobs, err := fc.Populate(file)
-	if err != nil {
-		return nil, err
-	}
-	var handles []*client.UploadHandle
-	for _, b := range bytesBlobs {
-		handles = append(handles, stringHandle(b.BlobRef(), b.JSON()))
-	}
-	fileJSON := file.Blob().JSON()
-	fileHandle := stringHandle(blob.RefFromString(fileJSON), fileJSON)
 	res.FileRef, res.FileSchemaSize = fileHandle.BlobRef, fileHandle.Size
 
 	// Upload the bytes blobs the server lacks, then, once they and the
 	// chunks are durable, the file schema blob, if it lacks it.
-	missing, err := f.missing(ctx, append(handles, fileHandle))
-	if err != nil {
-		return nil, err
-	}
 	for _, h := range handles {
 		if missing[h.BlobRef] {
 			if err := sk.upload(ctx, h); err != nil {
@@ -413,9 +421,20 @@ type chunk struct {
 	data []byte
 }
 
+// A batch is of chunks to ask the server about, and then upload those it
+// lacks. The last batch of a file also has tail: the refs of blobs to
+// only ask about.
+type batch struct {
+	chunks []chunk
+	tail   []blob.Ref
+}
+
 // uploadChunks cuts the contents into chunks, and uploads those the
-// server lacks, returning the cut and the refs of the chunks it uploaded.
-func (f *File) uploadChunks(ctx context.Context, sk *sink) (*schema.FileCut, []blob.Ref, error) {
+// server lacks, returning the refs of the chunks it uploaded. Once the
+// contents are cut, it calls tail with the cut, and asks the server about
+// the blobs whose refs tail returns along with the last chunks, returning
+// which of those the server lacks.
+func (f *File) uploadChunks(ctx context.Context, sk *sink, tail func(*schema.FileCut) ([]blob.Ref, error)) (uploaded []blob.Ref, tailMissing map[blob.Ref]bool, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -438,18 +457,19 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink) (*schema.FileCut, []b
 	}()
 
 	g, gctx := errgroup.WithContext(ctx)
-	batches := make(chan []chunk, 1)
+	batches := make(chan batch, 1)
 	toUpload := make(chan chunk)
 	var uploadedMu sync.Mutex
-	var uploaded []blob.Ref
+	tailMissing = make(map[blob.Ref]bool) // only by the stat goroutine, until g.Wait
 
 	g.Go(func() error {
 		defer close(toUpload)
-		for batch := range batches {
-			refs := make([]blob.Ref, len(batch))
-			for i, ch := range batch {
-				refs[i] = ch.br
+		for b := range batches {
+			refs := make([]blob.Ref, 0, len(b.chunks)+len(b.tail))
+			for _, ch := range b.chunks {
+				refs = append(refs, ch.br)
 			}
+			refs = append(refs, b.tail...)
 			have := make(map[blob.Ref]bool)
 			err := f.c.StatBlobs(gctx, refs, func(sb blob.SizedRef) error {
 				have[sb.Ref] = true
@@ -458,7 +478,12 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink) (*schema.FileCut, []b
 			if err != nil {
 				return err
 			}
-			for _, ch := range batch {
+			for _, br := range b.tail {
+				if !have[br] {
+					tailMissing[br] = true
+				}
+			}
+			for _, ch := range b.chunks {
 				if have[ch.br] {
 					release(int64(len(ch.data)))
 					f.update(func(p *Progress) { p.ChunksPresent++ })
@@ -497,7 +522,7 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink) (*schema.FileCut, []b
 		})
 	}
 
-	fc, cutErr := f.cut(gctx, batches, func(n int64) {
+	cutErr := f.cut(gctx, batches, tail, func(n int64) {
 		heldMu.Lock()
 		defer heldMu.Unlock()
 		held += n
@@ -512,16 +537,16 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink) (*schema.FileCut, []b
 	if cutErr != nil {
 		return nil, nil, cutErr
 	}
-	return fc, uploaded, nil
+	return uploaded, tailMissing, nil
 }
 
 // cut cuts the contents into chunks, sending batches of those new to the
-// file to batches. It acquires the bytes of each chunk from the Limiter,
-// calling held with their number, for the receiver to release. It holds a
-// hashing core while it cuts.
-func (f *File) cut(ctx context.Context, batches chan<- []chunk, held func(n int64)) (*schema.FileCut, error) {
+// file to batches, the last with the refs tail returns. It acquires the
+// bytes of each chunk from the Limiter, calling held with their number,
+// for the receiver to release. It holds a hashing core while it cuts.
+func (f *File) cut(ctx context.Context, batches chan<- batch, tail func(*schema.FileCut) ([]blob.Ref, error), held func(n int64)) error {
 	if err := f.lim.cores.Acquire(ctx, 1); err != nil {
-		return nil, err
+		return err
 	}
 	haveCore := true
 	defer func() {
@@ -530,15 +555,15 @@ func (f *File) cut(ctx context.Context, batches chan<- []chunk, held func(n int6
 		}
 	}()
 	seen := make(map[blob.Ref]bool)
-	var batch []chunk
+	var next batch
 	var batchBytes int
 	send := func() error {
 		select {
-		case batches <- batch:
+		case batches <- next:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		batch, batchBytes = nil, 0
+		next, batchBytes = batch{}, 0
 		return nil
 	}
 	acquire := func(n int64) error {
@@ -548,7 +573,7 @@ func (f *File) cut(ctx context.Context, batches chan<- []chunk, held func(n int6
 		}
 		// The bytes to wait for may be those of the chunks batched so far,
 		// so send them, to be uploaded and released, before waiting.
-		if len(batch) > 0 {
+		if len(next.chunks) > 0 {
 			if err := send(); err != nil {
 				return err
 			}
@@ -579,37 +604,20 @@ func (f *File) cut(ctx context.Context, batches chan<- []chunk, held func(n int6
 		if err := acquire(int64(len(data))); err != nil {
 			return err
 		}
-		batch = append(batch, chunk{br, data})
+		next.chunks = append(next.chunks, chunk{br, data})
 		batchBytes += len(data)
-		if len(batch) >= statBatchChunks || batchBytes >= statBatchBytes {
+		if len(next.chunks) >= statBatchChunks || batchBytes >= statBatchBytes {
 			return send()
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if len(batch) > 0 {
-		if err := send(); err != nil {
-			return nil, err
-		}
+	if next.tail, err = tail(fc); err != nil {
+		return err
 	}
-	return fc, nil
-}
-
-// missing returns which of the blobs of handles the server lacks.
-func (f *File) missing(ctx context.Context, handles []*client.UploadHandle) (map[blob.Ref]bool, error) {
-	missing := make(map[blob.Ref]bool, len(handles))
-	refs := make([]blob.Ref, len(handles))
-	for i, h := range handles {
-		refs[i] = h.BlobRef
-		missing[h.BlobRef] = true
-	}
-	err := f.c.StatBlobs(ctx, refs, func(sb blob.SizedRef) error {
-		delete(missing, sb.Ref)
-		return nil
-	})
-	return missing, err
+	return send()
 }
 
 func stringHandle(br blob.Ref, s string) *client.UploadHandle {
@@ -627,6 +635,9 @@ type sink struct {
 func (f *File) newSink(ctx context.Context) (*sink, error) {
 	if f.opts.Session != nil {
 		return &sink{c: f.c, s: f.opts.Session}, nil
+	}
+	if f.fi.Size() <= sessionThreshold {
+		return &sink{c: f.c}, nil
 	}
 	s, err := f.c.NewUploadSession(ctx)
 	if errors.Is(err, errors.ErrUnsupported) {

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"maps"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,18 +52,56 @@ import (
 	_ "perkeep.org/pkg/server"
 )
 
-// flushCounter is an http.RoundTripper counting upload session flushes.
-type flushCounter struct {
+// requestCounter is an http.RoundTripper counting a client's blob and
+// upload session requests, by kind: "stat", "upload", "open", "flush",
+// and "close".
+type requestCounter struct {
 	http.RoundTripper
-	flushes atomic.Int32
+
+	mu     sync.Mutex
+	paused bool
+	n      map[string]int
 }
 
-func (fc *flushCounter) RoundTrip(req *http.Request) (*http.Response, error) {
-	if strings.HasSuffix(req.URL.Path, "/flush") {
-		fc.flushes.Add(1)
+func (rc *requestCounter) RoundTrip(req *http.Request) (*http.Response, error) {
+	var kind string
+	switch p := req.URL.Path; {
+	case req.Method == "DELETE":
+		kind = "close"
+	case strings.HasSuffix(p, "/flush"):
+		kind = "flush"
+	case strings.HasSuffix(p, "/camli/session"):
+		kind = "open"
+	case strings.HasSuffix(p, "/camli/stat"):
+		kind = "stat"
+	case strings.HasSuffix(p, "/camli/upload"):
+		kind = "upload"
 	}
-	return fc.RoundTripper.RoundTrip(req)
+	rc.mu.Lock()
+	if kind != "" && !rc.paused {
+		rc.n[kind]++
+	}
+	rc.mu.Unlock()
+	return rc.RoundTripper.RoundTrip(req)
 }
+
+// take returns the counts since the last take.
+func (rc *requestCounter) take() map[string]int {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	n := rc.n
+	rc.n = make(map[string]int)
+	return n
+}
+
+func (rc *requestCounter) setPaused(paused bool) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.paused = paused
+}
+
+// counters are the requestCounters of the clients of newTestClient.
+var counters sync.Map // *client.Client => *requestCounter
 
 // newTestClient returns a client of a new in-memory server with the
 // default config: storage, index, search, and upload sessions.
@@ -73,9 +111,9 @@ func newTestClient(t *testing.T) *client.Client {
 	return c
 }
 
-// newCountingClient is like newTestClient, also returning a count of the
-// client's flushes.
-func newCountingClient(t *testing.T) (*client.Client, *flushCounter) {
+// newCountingClient is like newTestClient, also returning the client's
+// requestCounter, which doesn't count the checks of uploadFile.
+func newCountingClient(t *testing.T) (*client.Client, *requestCounter) {
 	t.Helper()
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
@@ -111,10 +149,12 @@ func newCountingClient(t *testing.T) (*client.Client, *flushCounter) {
 		t.Fatal(err)
 	}
 	hc := ts.Client()
-	fc := &flushCounter{RoundTripper: hc.Transport}
-	hc.Transport = fc
+	rc := &requestCounter{RoundTripper: hc.Transport, n: make(map[string]int)}
+	hc.Transport = rc
 	c.SetHTTPClient(hc)
-	return c, fc
+	counters.Store(c, rc)
+	t.Cleanup(func() { counters.Delete(c) })
+	return c, rc
 }
 
 // fileInfo is a regular file's fs.FileInfo.
@@ -151,6 +191,10 @@ func uploadFile(t *testing.T, c *client.Client, name string, contents []byte, op
 	if err != nil {
 		t.Fatalf("uploading %s: %v", name, err)
 	}
+	if rc, ok := counters.Load(c); ok {
+		rc.(*requestCounter).setPaused(true)
+		defer rc.(*requestCounter).setPaused(false)
+	}
 	if res.Size != int64(len(contents)) {
 		t.Errorf("Result.Size = %d; want %d", res.Size, len(contents))
 	}
@@ -185,8 +229,10 @@ func checkContents(t *testing.T, fetcher blob.Fetcher, fileRef blob.Ref, content
 	}
 }
 
+// TestUploadSmall checks that a file of one chunk is uploaded without a
+// session: one stat of its blobs, and an upload of each.
 func TestUploadSmall(t *testing.T) {
-	c, fc := newCountingClient(t)
+	c, rc := newCountingClient(t)
 	res, p := uploadFile(t, c, "small.txt", []byte("hello"), nil)
 	if !res.Durable || res.Dup || len(res.WholeRefs) != 0 {
 		t.Errorf("Result = %+v; want durable, not a dup, no whole-file hashing", res)
@@ -194,10 +240,42 @@ func TestUploadSmall(t *testing.T) {
 	if p.ChunksUploaded != 1 || p.BytesHashed != 0 {
 		t.Errorf("Progress = %+v; want 1 chunk uploaded, nothing hashed", p)
 	}
-	// One flush for the chunk to be durable before the file schema blob is
-	// uploaded, and one for the file schema blob.
-	if n := fc.flushes.Load(); n != 2 {
-		t.Errorf("%d flushes; want 2", n)
+	if got, want := rc.take(), map[string]int{"stat": 1, "upload": 2}; !maps.Equal(got, want) {
+		t.Errorf("requests %v; want %v", got, want)
+	}
+
+	// The same file again: just the stat.
+	uploadFile(t, c, "small.txt", []byte("hello"), nil)
+	if got, want := rc.take(), map[string]int{"stat": 1}; !maps.Equal(got, want) {
+		t.Errorf("uploading again, requests %v; want %v", got, want)
+	}
+}
+
+// TestUploadRequests checks the requests of a file of many chunks: its
+// own session, one stat of all its blobs, and a flush before and after
+// the file schema blob's upload.
+func TestUploadRequests(t *testing.T) {
+	c, rc := newCountingClient(t)
+	contents := randBytes(7, 3<<20)
+	uploadFile(t, c, "a.bin", contents, &Options{WholeRefs: []blob.Ref{blob.RefFromBytes(contents)}})
+
+	// Every blob is new: the chunks, the bytes blobs, and the file schema.
+	blobs := 1
+	fc, err := schema.CutFile(bytes.NewReader(contents), func(blob.Ref, []byte) error {
+		blobs++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytesBlobs, err := fc.Populate(schema.NewFileMap("a.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blobs += len(bytesBlobs)
+	want := map[string]int{"open": 1, "stat": 1, "upload": blobs, "flush": 2, "close": 1}
+	if got := rc.take(); !maps.Equal(got, want) {
+		t.Errorf("requests %v; want %v", got, want)
 	}
 }
 
@@ -256,12 +334,13 @@ func TestUploadSharedChunks(t *testing.T) {
 // TestUploadCallerSession checks that a File uploading into the caller's
 // session leaves the caller's Flush to report its file schema durable.
 func TestUploadCallerSession(t *testing.T) {
-	c, fc := newCountingClient(t)
+	c, rc := newCountingClient(t)
 	s, err := c.NewUploadSession(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close(context.Background())
+	rc.take()
 	contents := randBytes(4, 1<<20)
 	res, _ := uploadFile(t, c, "a.bin", contents, &Options{Session: s})
 	if res.Durable {
@@ -269,7 +348,7 @@ func TestUploadCallerSession(t *testing.T) {
 	}
 	// The chunks were made durable before the file schema blob was
 	// uploaded, which the caller's Flush is left to make durable.
-	if n := fc.flushes.Load(); n != 1 {
+	if n := rc.take()["flush"]; n != 1 {
 		t.Errorf("%d flushes during Run; want 1", n)
 	}
 	durable, err := s.Flush(context.Background())
