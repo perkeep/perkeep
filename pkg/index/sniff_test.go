@@ -1,0 +1,51 @@
+/*
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package index_test
+
+import (
+	"io"
+	"testing"
+
+	"perkeep.org/internal/blobsniffer"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/schema"
+)
+
+// Preserve the type identity and constructor signature, not just the methods.
+var _ *index.BlobSniffer = (*blobsniffer.BlobSniffer)(nil)
+var _ func(blob.Ref) *blobsniffer.BlobSniffer = index.NewBlobSniffer
+var _ io.Writer = (*index.BlobSniffer)(nil)
+
+func TestBlobSnifferAlias(t *testing.T) {
+	original := schema.NewFileMap("compatibility.txt").Blob()
+	sn := index.NewBlobSniffer(original.BlobRef())
+	if n, err := io.WriteString(sn, original.JSON()); err != nil || n != len(original.JSON()) {
+		t.Fatalf("WriteString = %d, %v", n, err)
+	}
+	sn.Parse()
+	parsed, ok := sn.SchemaBlob()
+	if !ok || parsed.FileName() != original.FileName() || parsed.BlobRef() != original.BlobRef() {
+		t.Fatal("NewBlobSniffer did not preserve schema parsing")
+	}
+	if sn.CamliType() != schema.TypeFile || sn.MIMEType() != "application/json; camliType=file" {
+		t.Fatal("NewBlobSniffer did not preserve schema types")
+	}
+	if body, err := sn.Body(); err != nil || string(body) != original.JSON() || sn.IsTruncated() || sn.Size() != int64(len(body)) {
+		t.Fatal("NewBlobSniffer did not preserve the body")
+	}
+}

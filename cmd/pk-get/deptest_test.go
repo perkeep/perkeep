@@ -43,6 +43,13 @@ func TestDeps(t *testing.T) {
 				BadDeps: map[string]string{
 					"tailscale.com/tsnet": "clients use HTTP and do not run a tailnet node",
 				},
+				OnImport: func(imp string) {
+					// Guard pk-get's own sniffing dependency, not the
+					// client -> search -> index path left for a later change.
+					if imp == "perkeep.org/pkg/index" {
+						t.Errorf("package %q is not allowed as a direct import: use internal/blobsniffer for blob sniffing", imp)
+					}
+				},
 				OnDep: func(dep string) {
 					if strings.HasPrefix(dep, "tailscale.com/tsnet/") || strings.HasPrefix(dep, "gvisor.dev/") {
 						t.Errorf("package %q is not allowed as a dependency: clients must not embed a tailnet node or userspace network stack", dep)

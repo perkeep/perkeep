@@ -29,13 +29,13 @@ import (
 
 	"go4.org/types"
 
+	"perkeep.org/internal/blobsniffer"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 )
 
@@ -212,7 +212,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 	rcc := types.NewOnceCloser(rc)
 	defer rcc.Close()
 
-	sniffer := index.NewBlobSniffer(br)
+	sniffer := blobsniffer.New(br)
 	_, err = io.CopyN(sniffer, rc, sniffSize)
 	if err != nil && err != io.EOF {
 		return err

@@ -24,8 +24,8 @@ import (
 	"strings"
 	"sync"
 
+	"perkeep.org/internal/blobsniffer"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 )
 
@@ -77,7 +77,7 @@ func (n *node) load() {
 	rc, err := fetch(context.Background(), n.g.src, n.br)
 	check(err)
 	defer rc.Close()
-	sniff := index.NewBlobSniffer(n.br)
+	sniff := blobsniffer.New(n.br)
 	n.size, err = io.Copy(sniff, rc)
 	check(err)
 	sniff.Parse()
