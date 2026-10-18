@@ -518,7 +518,11 @@ func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
 		MapClustering:   mapClustering,
 		ImportShare:     path.Join(ui.prefix, "importshare") + "/",
 	}
-	addFitnessMapDiscovery(uiDisco)
+	var owner blob.Ref
+	if ui.search != nil {
+		owner = ui.search.Owner()
+	}
+	addFitnessMapDiscovery(uiDisco, owner)
 	return uiDisco
 }
 

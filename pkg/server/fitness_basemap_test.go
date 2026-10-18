@@ -31,6 +31,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"golang.org/x/image/font"
@@ -59,12 +60,12 @@ func fitnessBasemapEnvSource(t *testing.T, handler http.HandlerFunc) (*fitnessTi
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", srv.URL+"/{z}/{x}/{y}.png")
 	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", t.TempDir())
 	t.Setenv("PERKEEP_FITNESS_TILE_USER_AGENT", "Perkeep synthetic map tests")
-	source, err := fitnessTileSourceFromEnv()
+	source, err := fitnessTileSourceFromEnv(blob.Ref{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Only this unique source is accelerated, never the global production limiter.
-	source.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 2)}
+	// Isolate provider cooldowns without changing the global production limiter.
+	source.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 16)}
 	source.now = clock.now
 	return source, clock
 }
@@ -111,7 +112,7 @@ func TestFitnessBasemapDefaultReplacesRouteOnlyCache(t *testing.T) {
 	}
 
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", "")
-	source, err := fitnessTileSourceFromEnv()
+	source, err := fitnessTileSourceFromEnv(blob.Ref{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +126,7 @@ func TestFitnessBasemapDefaultReplacesRouteOnlyCache(t *testing.T) {
 		z, x, y := fitnessBasemapCoords(t, r)
 		return fitnessTileTestResponse(200, http.Header{"Cache-Control": {"max-age=3600"}}, fitnessBasemapTilePNG(t, z, x, y, 0)), nil
 	})
-	source.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 2)}
+	source.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 16)}
 
 	// Neither the old server-side PNG nor its browser validator may hide maps.
 	mapped := fitnessRequest(ih, dp, "GET", "", routeOnly.Header().Get("ETag"))
@@ -231,6 +232,216 @@ func TestFitnessBasemapProjectionAndViewport(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func fitnessBasemapTestSixteenTilePlan() fitnessProjection {
+	return fitnessProjection{
+		width: 1024, height: 1024,
+		scalePixelsPerRad: math.Ldexp(256, 8) / (2 * math.Pi),
+	}
+}
+
+func TestFitnessBasemapConcurrentTiles(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		plan := fitnessBasemapTestSixteenTilePlan()
+		vp := fitnessBasemapViewport(plan)
+		if (vp.maxX-vp.minX+1)*(vp.maxY-vp.minY+1) != 16 {
+			t.Fatalf("test viewport is not sixteen tiles: %+v", vp)
+		}
+		data := fitnessTileTestPNG(t, 256, 256)
+		started, release := make(chan image.Point, 16), make(chan struct{})
+		source, _ := fitnessTileTestSource(t, func(req *http.Request) (*http.Response, error) {
+			_, x, y := fitnessBasemapCoords(t, req)
+			started <- image.Pt(x, y)
+			select {
+			case <-release:
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+			policy := fmt.Sprintf("max-age=%d", 10+10*(x-vp.minX))
+			if x == vp.minX && y == vp.minY {
+				policy += ", no-cache"
+			}
+			return fitnessTileTestResponse(200, http.Header{"Cache-Control": {policy}}, data), nil
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		type mapResult struct {
+			img       *image.RGBA
+			expires   time.Time
+			cacheable bool
+			err       error
+		}
+		done := make(chan mapResult, 1)
+		start := time.Now()
+		go func() {
+			img, expires, cacheable, err := fitnessDrawBasemap(ctx, plan, source, "")
+			done <- mapResult{img, expires, cacheable, err}
+		}()
+		synctest.Wait()
+		if len(started) != 16 || !time.Now().Equal(start) {
+			t.Fatalf("thumbnail started %d tiles after %v; want sixteen without spacing", len(started), time.Since(start))
+		}
+		requested := make(map[image.Point]bool)
+		for range 16 {
+			coord := <-started
+			if requested[coord] || coord.X < vp.minX || coord.X > vp.maxX || coord.Y < vp.minY || coord.Y > vp.maxY {
+				t.Fatalf("duplicate or prefetched tile: %v", coord)
+			}
+			requested[coord] = true
+		}
+		if len(done) != 0 {
+			t.Fatal("thumbnail completed before tiles arrived")
+		}
+		close(release)
+		got := <-done
+		if got.err != nil || got.img == nil || got.img.Bounds() != image.Rect(0, 0, plan.width, plan.height) {
+			t.Fatalf("concurrent render = %+v", got)
+		}
+		if got.cacheable || !got.expires.Equal(source.now()) {
+			t.Fatalf("aggregated cacheability/expiry = %v, %v", got.cacheable, got.expires)
+		}
+		// All fresh tiles are reused; only the no-cache tile is revalidated.
+		if _, _, cacheable, err := fitnessDrawBasemap(ctx, plan, source, ""); err != nil || cacheable {
+			t.Fatalf("second render = cacheable %v, error %v", cacheable, err)
+		}
+		if len(started) != 1 || <-started != image.Pt(vp.minX, vp.minY) {
+			t.Fatal("concurrent fetch lost raw-tile cache semantics")
+		}
+	})
+}
+
+func TestFitnessBasemapConcurrentThumbnailsGlobalLimit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := fitnessTileTestPNG(t, 256, 256)
+		var active, peak, calls atomic.Int32
+		release := make(chan struct{})
+		// A bubble-local channel makes queued acquisition durably block for
+		// synctest.Wait; check production wiring before injecting it.
+		limiter := &fitnessTileLimiter{slots: make(chan struct{}, 16)}
+		transport := fitnessTileTestTransport(func(req *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			n := active.Add(1)
+			defer active.Add(-1)
+			for old := peak.Load(); n > old && !peak.CompareAndSwap(old, n); old = peak.Load() {
+			}
+			select {
+			case <-release:
+				return fitnessTileTestResponse(200, nil, data), nil
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 2)
+		for i := range 2 {
+			source, err := newFitnessTileSource(fmt.Sprintf("https://maps%d.invalid/{z}/{x}/{y}.png", i), t.TempDir(), "", &http.Client{Transport: transport}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if source.limiter != fitnessTilesLimiter || cap(source.limiter.slots) != 16 {
+				t.Fatal("thumbnail provider does not use the global sixteen-request limiter")
+			}
+			source.limiter = limiter
+			go func() {
+				_, _, _, err := fitnessDrawBasemap(ctx, fitnessBasemapTestSixteenTilePlan(), source, "")
+				done <- err
+			}()
+		}
+		synctest.Wait()
+		if calls.Load() != 16 || active.Load() != 16 {
+			t.Fatalf("concurrent thumbnails started %d requests with %d active, want sixteen", calls.Load(), active.Load())
+		}
+		close(release)
+		for range 2 {
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		}
+		synctest.Wait()
+		if calls.Load() != 32 || peak.Load() != 16 || len(limiter.slots) != 0 {
+			t.Fatalf("total=%d peak=%d outstanding=%d, want 32/16/0", calls.Load(), peak.Load(), len(limiter.slots))
+		}
+	})
+}
+
+func TestFitnessBasemapConcurrentFailureCancellation(t *testing.T) {
+	for _, mode := range []string{"upstream", "canceled"} {
+		t.Run(mode, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var calls, canceled atomic.Int32
+				fail := make(chan struct{})
+				source, _ := fitnessTileTestSource(t, func(req *http.Request) (*http.Response, error) {
+					if calls.Add(1) == 1 {
+						select {
+						case <-fail:
+							return fitnessTileTestResponse(404, nil, nil), nil
+						case <-req.Context().Done():
+						}
+					} else {
+						<-req.Context().Done()
+					}
+					canceled.Add(1)
+					return nil, req.Context().Err()
+				})
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := make(chan error, 1)
+				go func() {
+					img, _, cacheable, err := fitnessDrawBasemap(ctx, fitnessBasemapTestSixteenTilePlan(), source, "")
+					if img != nil || cacheable {
+						t.Error("failed render returned a partial/cacheable basemap")
+					}
+					done <- err
+				}()
+				synctest.Wait()
+				if calls.Load() != 16 {
+					t.Fatalf("started %d requests, want sixteen", calls.Load())
+				}
+				wantErr, wantCanceled := error(errFitnessTileUpstream), int32(15)
+				if mode == "canceled" {
+					cancel()
+					wantErr, wantCanceled = context.Canceled, 16
+				} else {
+					close(fail)
+				}
+				if err := <-done; !errors.Is(err, wantErr) {
+					t.Fatalf("failed render = %v, want %v", err, wantErr)
+				}
+				synctest.Wait()
+				source.mu.Lock()
+				flights := len(source.flights)
+				source.mu.Unlock()
+				if canceled.Load() != wantCanceled || len(source.limiter.slots) != 0 || flights != 0 {
+					t.Fatalf("canceled=%d permits=%d flights=%d; want %d/0/0", canceled.Load(), len(source.limiter.slots), flights, wantCanceled)
+				}
+			})
+		})
+	}
+}
+
+func TestFitnessBasemapConcurrentWrappedTileDeduplication(t *testing.T) {
+	data := fitnessTileTestPNG(t, 256, 256)
+	var calls atomic.Int32
+	source, _ := fitnessTileTestSource(t, func(req *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		if req.URL.Path != "/0/0/0.png" {
+			t.Errorf("wrapped world tile = %q", req.URL.Path)
+		}
+		return fitnessTileTestResponse(200, nil, data), nil
+	})
+	plan := fitnessProjection{width: 1024, height: 256, scalePixelsPerRad: 256 / (2 * math.Pi)}
+	vp := fitnessBasemapViewport(plan)
+	if vp.maxX-vp.minX < 2 || vp.zoom != 0 {
+		t.Fatalf("test viewport does not repeat a wrapped tile: %+v", vp)
+	}
+	if _, _, _, err := fitnessDrawBasemap(context.Background(), plan, source, ""); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("wrapped viewport fetched %d tiles, want one", calls.Load())
 	}
 }
 
@@ -483,7 +694,7 @@ func fitnessProjectionInput(t *testing.T) [][]fitnessPoint {
 }
 
 func TestFitnessBasemapCancellationDoesNotCache(t *testing.T) {
-	entered := make(chan struct{}, 1)
+	entered := make(chan struct{}, fitnessMaxBasemapTiles)
 	source, _ := fitnessBasemapEnvSource(t, func(w http.ResponseWriter, r *http.Request) {
 		entered <- struct{}{}
 		<-r.Context().Done()

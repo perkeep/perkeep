@@ -90,8 +90,10 @@ or
 
 `PERKEEP_FITNESS_TILE_USER_AGENT` (string)
 : Stable application identification sent to the configured tile provider.
-  Defaults to `Perkeep/fitness-thumbnails (+https://perkeep.org/)`. Do not use
-  anonymous library defaults or impersonate another application.
+  Defaults to `Perkeep/<version> (+https://perkeep.org/)`, with a signer-derived
+  `operator-id` for OpenStreetMap only; see [fitness previews](schema/fitness.md#web-ui-rendering).
+  An explicit value replaces the whole header, including the operator ID.
+  Do not use anonymous library defaults or impersonate another application.
 
 `PERKEEP_FITNESS_TILE_ATTRIBUTION` (string)
 and

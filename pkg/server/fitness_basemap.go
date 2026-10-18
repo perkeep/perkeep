@@ -269,33 +269,52 @@ func fitnessDrawBasemap(ctx context.Context, plan fitnessProjection, source *fit
 	}
 	// Duplicate wrapped tiles (a world-scale route) need only one network request.
 	fetched := make(map[image.Point]fitnessTile, int(count))
-	var expires time.Time
-	cacheable := true
 	n := 1 << vp.zoom
 	for y := vp.minY; y <= vp.maxY; y++ {
 		for x := vp.minX; x <= vp.maxX; x++ {
-			if err := ctx.Err(); err != nil {
-				return nil, time.Time{}, false, err
-			}
 			wrappedX := ((x % n) + n) % n
-			coord := image.Pt(wrappedX, y)
-			tile, ok := fetched[coord]
-			if !ok {
-				var err error
-				tile, err = source.tile(ctx, vp.zoom, wrappedX, y, referer, true)
-				if err != nil {
-					return nil, time.Time{}, false, err
-				}
-				if tile.Image == nil || tile.Image.Bounds().Dx() != 256 || tile.Image.Bounds().Dy() != 256 {
-					return nil, time.Time{}, false, errFitnessMapFallback
-				}
-				fetched[coord] = tile
-			}
-			if expires.IsZero() || tile.Expires.Before(expires) {
-				expires = tile.Expires
-			}
-			cacheable = cacheable && tile.Cacheable
+			fetched[image.Pt(wrappedX, y)] = fitnessTile{}
 		}
+	}
+	// Fan out only the exact, bounded viewport. Workers do not touch the map;
+	// the caller aggregates results and cancels remaining work on any failure.
+	fetchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type tileResult struct {
+		coord image.Point
+		tile  fitnessTile
+		err   error
+	}
+	results := make(chan tileResult, len(fetched))
+	for coord := range fetched {
+		go func() {
+			tile, err := source.tile(fetchCtx, vp.zoom, coord.X, coord.Y, referer, true)
+			results <- tileResult{coord, tile, err}
+		}()
+	}
+	var expires time.Time
+	cacheable := true
+	var fetchErr error
+	for range len(fetched) {
+		result := <-results
+		if result.err == nil && (result.tile.Image == nil || result.tile.Image.Bounds().Dx() != 256 || result.tile.Image.Bounds().Dy() != 256) {
+			result.err = errFitnessMapFallback
+		}
+		if result.err != nil {
+			if fetchErr == nil {
+				fetchErr = result.err
+				cancel()
+			}
+			continue
+		}
+		fetched[result.coord] = result.tile
+		if expires.IsZero() || result.tile.Expires.Before(expires) {
+			expires = result.tile.Expires
+		}
+		cacheable = cacheable && result.tile.Cacheable
+	}
+	if fetchErr != nil {
+		return nil, time.Time{}, false, fetchErr
 	}
 	img := image.NewRGBA(image.Rect(0, 0, plan.width, plan.height))
 	// Areas beyond the Web Mercator polar limit have no fabricated geographic map.

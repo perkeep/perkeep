@@ -132,10 +132,28 @@ PERKEEP_FITNESS_TILE_CACHE_DIR=/private/path/to/fitness-map-cache
 
 Only viewed thumbnail GET requests fetch tiles. Importing, indexing, thumbnail
 HEAD requests, and background jobs do not prefetch maps. Tile coordinates are
-limited to the displayed viewport, with bounded requests and conservative
-upstream throttling. The GPX stays local: the provider receives only map-area
-tile coordinates and an origin-only browser Referer, never the track, activity
-name, account identifier, cookies, or Strava credentials.
+limited to the displayed viewport, with at most 16 tiles per thumbnail and
+16 outstanding upstream requests across the entire perkeepd process, including
+all users and providers. Tiles are fetched concurrently without fixed spacing
+between request starts. This is Perkeep's concurrency limit, not an OSM quota;
+separate perkeepd processes do not coordinate it. Upstream 429 and 503 responses
+pause new requests according to `Retry-After`, defaulting to one minute if absent
+or invalid, with a minimum one-second pause. Provider failures show a route-only
+preview rather than retrying immediately.
+
+The default User-Agent identifies the Perkeep version and project URL. For OSM,
+it also includes `operator-id`, the first 16 bytes of
+`SHA-256("osm\x00" + signerBlobref.String())`, encoded as 32 hexadecimal digits.
+Here `\x00` is a NUL byte in the hash input, not in the HTTP header. This stable,
+OSM-specific pseudonym distinguishes signing identities, not necessarily
+installations or people. It is not anonymization: someone who knows a candidate
+public key blobref can compute the same ID. No operator ID is added for custom
+providers or when the signer is unavailable. `PERKEEP_FITNESS_TILE_USER_AGENT`
+can override the entire header, for example to provide operator contact details.
+
+The GPX stays local: the provider receives map-area tile coordinates and an
+origin-only browser Referer, never the track, activity name, raw signing key
+blobref, provider account identifier, cookies, or Strava credentials.
 
 Tiles are stored in a private, administrator-managed filesystem cache, separate
 from the archived blob store. Upstream HTTP cache directives and validators are

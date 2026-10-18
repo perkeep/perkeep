@@ -21,11 +21,12 @@ import (
 	"os"
 	"strings"
 
+	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/types/camtypes"
 )
 
-func addFitnessMapDiscovery(discovery *camtypes.UIDiscovery) {
-	source, err := fitnessTileSourceFromEnv()
+func addFitnessMapDiscovery(discovery *camtypes.UIDiscovery, owner blob.Ref) {
+	source, err := fitnessTileSourceFromEnv(owner)
 	if err != nil || source == nil {
 		return
 	}

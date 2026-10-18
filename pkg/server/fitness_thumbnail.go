@@ -108,7 +108,11 @@ func (ih *ImageHandler) serveFitnessThumbnail(rw http.ResponseWriter, req *http.
 	// Maps have a separate, expiring filesystem cache.
 	// In particular, never let the legacy input-key ETag or permanent ThumbMeta
 	// cache hide a changed upstream map after its tile freshness expires.
-	source, sourceErr := fitnessTileSourceFromEnv()
+	var owner blob.Ref
+	if ih.Search != nil {
+		owner = ih.Search.Owner()
+	}
+	source, sourceErr := fitnessTileSourceFromEnv(owner)
 	if source != nil || sourceErr != nil {
 		ih.serveFitnessBasemap(rw, req, track, sport, w, h, source, sourceErr)
 		return

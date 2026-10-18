@@ -41,6 +41,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"perkeep.org/pkg/blob"
 )
 
 // Tests use private temporary directories and fake transports/local httptest
@@ -82,9 +84,8 @@ func fitnessTileTestSource(t *testing.T, transport fitnessTileTestTransport) (*f
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Most tests avoid wall-clock waits; global production spacing is tested
-	// separately. This never changes the process-global application limiter.
-	s.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 2)}
+	// Isolate cooldowns without changing the process-global application limiter.
+	s.limiter = &fitnessTileLimiter{slots: make(chan struct{}, 16)}
 	return s, clock
 }
 
@@ -120,7 +121,7 @@ func TestFitnessTileEnvironment(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			source, err := fitnessTileSourceFromEnv()
+			source, err := fitnessTileSourceFromEnv(blob.Ref{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,7 +142,7 @@ func TestFitnessTileEnvironment(t *testing.T) {
 func TestFitnessTileDisabledAndTemplate(t *testing.T) {
 	t.Setenv("PERKEEP_FITNESS_TILE_URL", "off")
 	t.Setenv("PERKEEP_FITNESS_TILE_CACHE_DIR", filepath.Join(t.TempDir(), "must-not-create"))
-	if s, err := fitnessTileSourceFromEnv(); s != nil || err != nil {
+	if s, err := fitnessTileSourceFromEnv(blob.Ref{}); s != nil || err != nil {
 		t.Fatalf("disabled = %v, %v", s, err)
 	}
 	if _, err := os.Stat(os.Getenv("PERKEEP_FITNESS_TILE_CACHE_DIR")); !os.IsNotExist(err) {
@@ -667,38 +668,198 @@ func testFitnessTileConcurrentCoalescingAndCancellation(t *testing.T) {
 	}
 }
 
-func TestFitnessTileLimiterSpacingConcurrencyAndCancel(t *testing.T) {
-	if cap(fitnessTilesLimiter.slots) != 2 || fitnessTilesLimiter.interval != time.Second {
-		t.Fatal("production limits changed")
-	}
-	l := &fitnessTileLimiter{slots: make(chan struct{}, 2), interval: 35 * time.Millisecond}
-	first, err := l.acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	start := time.Now()
-	second, err := l.acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if time.Since(start) < 30*time.Millisecond {
-		t.Fatal("burst permitted")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if _, err := l.acquire(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("slot cancellation = %v", err)
-	}
-	first()
-	second()
-	l.last = time.Now()
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Millisecond)
-	defer cancel2()
-	if _, err := l.acquire(ctx2); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("spacing cancellation = %v", err)
-	}
-	if len(l.slots) != 0 {
-		t.Fatal("cancellation leaked slot")
+func TestFitnessTileGlobalConcurrency(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		if cap(fitnessTilesLimiter.slots) != 16 {
+			t.Fatal("production limiter must allow sixteen outstanding requests")
+		}
+		// Blocking on a package-initialized channel is not a durable block in a
+		// synctest bubble. Verify production wiring, then share a bubble-local one.
+		limiter := &fitnessTileLimiter{slots: make(chan struct{}, 16)}
+		data := fitnessTileTestPNG(t, 256, 256)
+		started, release := make(chan struct{}, 17), make(chan struct{})
+		transport := fitnessTileTestTransport(func(req *http.Request) (*http.Response, error) {
+			started <- struct{}{}
+			select {
+			case <-release:
+				return fitnessTileTestResponse(200, nil, data), nil
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+		})
+		var sources [2]*fitnessTileSource
+		for i := range sources {
+			var err error
+			sources[i], err = newFitnessTileSource(fmt.Sprintf("https://provider%d.invalid/{z}/{x}/{y}.png", i), t.TempDir(), "", &http.Client{Transport: transport}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sources[i].limiter != fitnessTilesLimiter {
+				t.Fatal("provider does not use the process-wide limiter")
+			}
+			sources[i].limiter = limiter
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 17)
+		fetch := func(i int) {
+			_, err := sources[i%len(sources)].tile(ctx, 5, i, 0, "", true)
+			done <- err
+		}
+		start := time.Now()
+		for i := range 16 {
+			go fetch(i)
+		}
+		synctest.Wait()
+		if len(started) != 16 || !time.Now().Equal(start) {
+			t.Fatalf("started %d requests after %v; want sixteen without spacing", len(started), time.Since(start))
+		}
+		go fetch(16)
+		synctest.Wait()
+		if len(started) != 16 || len(limiter.slots) != 16 {
+			t.Fatal("seventeenth request bypassed the global limit")
+		}
+		release <- struct{}{}
+		synctest.Wait()
+		if len(started) != 17 || len(limiter.slots) != 16 {
+			t.Fatal("queued request did not start when one slot was released")
+		}
+		close(release)
+		for range 17 {
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		}
+		synctest.Wait()
+		if len(limiter.slots) != 0 {
+			t.Fatal("completed requests leaked global permits")
+		}
+	})
+}
+
+func TestFitnessTileLimiterCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		l := &fitnessTileLimiter{slots: make(chan struct{}, 16)}
+		releases := make([]func(), 16)
+		for i := range releases {
+			var err error
+			releases[i], err = l.acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() {
+			release, err := l.acquire(ctx)
+			if err == nil {
+				release()
+			}
+			done <- err
+		}()
+		synctest.Wait()
+		if len(done) != 0 {
+			t.Fatal("queued acquire did not block")
+		}
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatalf("queued cancellation = %v", err)
+		}
+		if len(l.slots) != 16 {
+			t.Fatal("queued cancellation released another request's permit")
+		}
+		for _, release := range releases {
+			release()
+		}
+		// Even when a canceled context wins a ready slot, it must give it back.
+		if release, err := l.acquire(ctx); !errors.Is(err, context.Canceled) {
+			if release != nil {
+				release()
+			}
+			t.Fatalf("already-canceled acquire = %v", err)
+		}
+		if len(l.slots) != 0 {
+			t.Fatal("cancellation leaked a permit")
+		}
+	})
+}
+
+func TestFitnessTileQueuedRequestsObserveCooldown(t *testing.T) {
+	for _, status := range []int{429, 503} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := fitnessTileTestPNG(t, 256, 256)
+				var calls atomic.Int32
+				backoff, release := make(chan struct{}), make(chan struct{})
+				source, _ := fitnessTileTestSource(t, func(req *http.Request) (*http.Response, error) {
+					calls.Add(1)
+					wait := release
+					if req.URL.Path == "/5/0/0.png" {
+						wait = backoff
+					}
+					select {
+					case <-wait:
+					case <-req.Context().Done():
+						return nil, req.Context().Err()
+					}
+					if wait == backoff {
+						return fitnessTileTestResponse(status, http.Header{"Retry-After": {"120"}}, nil), nil
+					}
+					return fitnessTileTestResponse(200, nil, data), nil
+				})
+				other, _ := fitnessTileTestSource(t, func(*http.Request) (*http.Response, error) {
+					calls.Add(1)
+					return fitnessTileTestResponse(200, nil, data), nil
+				})
+				other.limiter = source.limiter
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := make(chan error, 16)
+				for i := range 16 {
+					go func() {
+						_, err := source.tile(ctx, 5, i, 0, "", true)
+						done <- err
+					}()
+				}
+				synctest.Wait()
+				if calls.Load() != 16 {
+					t.Fatalf("started %d requests, want sixteen", calls.Load())
+				}
+				queued := make(chan error, 1)
+				go func() {
+					_, err := other.tile(ctx, 5, 16, 0, "", true)
+					queued <- err
+				}()
+				synctest.Wait()
+				if len(queued) != 0 {
+					t.Fatal("request did not queue behind occupied permits")
+				}
+				close(backoff)
+				if err := <-done; !errors.Is(err, errFitnessTileCooldown) {
+					t.Fatalf("upstream backoff = %v", err)
+				}
+				if err := <-queued; !errors.Is(err, errFitnessTileCooldown) {
+					t.Fatalf("queued request ignored shared cooldown: %v", err)
+				}
+				if calls.Load() != 16 {
+					t.Fatal("queued request contacted upstream during cooldown")
+				}
+				close(release)
+				for range 15 {
+					if err := <-done; err != nil {
+						t.Fatal(err)
+					}
+				}
+				synctest.Wait()
+				if len(source.limiter.slots) != 0 {
+					t.Fatal("cooldown leaked permits")
+				}
+				time.Sleep(121 * time.Second)
+				if _, err := other.tile(ctx, 5, 16, 0, "", true); err != nil {
+					t.Fatalf("request after Retry-After = %v", err)
+				}
+			})
+		})
 	}
 }
 
