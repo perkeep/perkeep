@@ -11,7 +11,8 @@ pk-import-runkeeper -fileref=<file-schema-blobref>
 ```
 
 This standalone command keeps archive-command code out of `pk`.
-The server-side importer and archive API remain shared with future web clients.
+The server-side importer and archive API are shared with the browser workflow
+on the importer's landing page (**Importers → Runkeeper**).
 
 ## Upload first, import by reference
 
@@ -24,6 +25,15 @@ hashers, queries for already stored whole-file content, and reuses existing
 parts on a verified hit. A miss rewinds the file for chunked upload. Neither
 path buffers the whole archive. The filename remains advisory metadata;
 renaming an already stored archive can require only another small file schema.
+
+The browser streams a native `File` in multipart `FormData` to the discovered
+`uploadHelper`, preserving filename and modification time. It does not load the
+ZIP into JavaScript memory or perform the CLI's hash precheck. The returned
+file-schema reference is inspected before the user confirms import. Once
+accepted, the account URL is the durable place to follow progress, reload, or
+retry the stored input; a partial browser upload itself is not resumable.
+Discovery, upload, and archive calls use normal same-origin authentication.
+Clients must not send the discovery token to a cross-origin helper or endpoint.
 
 The server opens the file with `schema.FileReader` and `archive/zip` random
 access. Large selected members are decoded incrementally. Retrying import or
@@ -93,6 +103,15 @@ Run status and archive history are stored on the account, not solely in a
 scratch cache. A stored running status without an active process is reported
 as interrupted. Retry by submitting its file ref again. This is a single active
 run per account, not a durable queue or automatic resume scheduler.
+Because this GET follows the account's latest input, a client monitoring a
+particular ZIP must check both returned account and file refs rather than
+mistaking a newer input's completion for its own.
+
+The browser account page shows counts and bounded warnings and restores
+monitoring from the account's retained input on reload. A status-fetch retry
+only repeats GET; restarting an interrupted/failed run or replaying a completed
+input requires an explicit user action. Cancellation of an upload or inspection
+does not cancel an already accepted managed run.
 
 `pk-import-runkeeper` waits by default and exits nonzero on failure. `-detach`
 returns after the server accepts the run. Interrupting the CLI stops waiting,

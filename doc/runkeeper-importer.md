@@ -1,7 +1,7 @@
 # Runkeeper archive importer plan
 
-The CLI-first implementation follows this plan; the browser upload workflow
-and Twitter adaptation remain future work. See the
+The CLI and browser upload implementations follow this plan; Twitter
+adaptation remains future work. See the
 [Runkeeper importer instructions](/pkg/importer/runkeeper/README.md) and
 [archive import protocol](protocol/archive-import.md) for the implemented
 interface. Runkeeper account exports are imported without Runkeeper API
@@ -107,7 +107,7 @@ selection and authentication. Keep this archive command separate from `pk`
 while its client dependencies are being slimmed.
 
 The CLI is a thin authenticated client of the shared archive-import service,
-which a future web UI can also use, not a second implementation that directly
+also used by the web UI, not a second implementation that directly
 creates permanodes. Keep the service's parser, identity resolution, incremental
 writes, and run orchestration independent of HTTP and HTML. The shared
 layering is:

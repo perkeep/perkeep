@@ -51,11 +51,15 @@ func archiveWorld(t *testing.T) *test.World {
 	if err := json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
+	// Browser requests must authenticate even on localhost: otherwise a bad
+	// discovery token could accidentally pass through the local-user bypass.
+	config["auth"] = "userpass:testuser:passTestWorld"
 	prefixes := config["prefixes"].(map[string]any)
 	// Archive tests need only perkeepd and pk-import-runkeeper, not the
 	// unrelated WebDAV app.
 	delete(prefixes, "/webdav/")
 	prefixes["/manual-imports/"] = map[string]any{"handler": "importer", "handlerArgs": map[string]any{}}
+	prefixes["/browser-files/"] = map[string]any{"handler": "ui", "handlerArgs": map[string]any{}}
 	data, err = json.Marshal(config)
 	if err != nil {
 		t.Fatal(err)

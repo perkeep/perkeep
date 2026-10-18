@@ -40,7 +40,7 @@ var _ importer.ArchiveImporter = imp{}
 
 func init() { importer.Register("runkeeper", imp{}) }
 func (imp) Properties() importer.Properties {
-	return importer.Properties{Title: "Runkeeper", Description: "import your Runkeeper account ZIP archives", SupportsIncremental: true}
+	return importer.Properties{Title: "Runkeeper", Description: "import your Runkeeper account ZIP archives", SupportsIncremental: true, ArchiveOnly: true}
 }
 func (imp) IsAccountReady(acct *importer.Object) (bool, error) {
 	return acct.Attr(importer.AcctAttrUserName) != "" || acct.Attr(importer.AcctAttrEmail) != "", nil
@@ -53,7 +53,7 @@ func (imp) SummarizeAccount(acct *importer.Object) string {
 	return "Runkeeper account " + name
 }
 
-var errArchiveOnly = errors.New("runkeeper: archive-only importer; use pk-import-runkeeper <archive.zip>")
+var errArchiveOnly = errors.New("runkeeper: archive-only importer; upload a ZIP on the importer page or use pk-import-runkeeper <archive.zip>")
 
 func (imp) Run(*importer.RunContext) error { return errArchiveOnly }
 func (imp) ServeSetup(http.ResponseWriter, *http.Request, *importer.SetupContext) error {
