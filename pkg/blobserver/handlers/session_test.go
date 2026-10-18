@@ -114,7 +114,7 @@ func TestSessionHTTP(t *testing.T) {
 			}
 		}
 		rec := httptest.NewRecorder()
-		CreateBatchUploadHandler(sto, sessions).ServeHTTP(rec,
+		CreateBatchUploadHandler(sto, nil, sessions).ServeHTTP(rec,
 			uploadRequest(t, "/bs/camli/upload?session="+opened.Session, []uploadPart{a}))
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("upload to a closed session: status %d; want %d", rec.Code, http.StatusNotFound)
@@ -134,7 +134,7 @@ func TestSessionUploadVivify(t *testing.T) {
 	req := uploadRequest(t, "/bs/camli/upload?session="+s.ID(), []uploadPart{blobPart("a")})
 	req.Header.Set("X-Camlistore-Vivify", "1")
 	rec := httptest.NewRecorder()
-	CreateBatchUploadHandler(sto, sessions).ServeHTTP(rec, req)
+	CreateBatchUploadHandler(sto, nil, sessions).ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("vivify in a session: status %d; want %d", rec.Code, http.StatusBadRequest)
 	}

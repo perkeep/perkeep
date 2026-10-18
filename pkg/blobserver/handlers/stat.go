@@ -29,21 +29,21 @@ import (
 	"perkeep.org/pkg/blobserver/protocol"
 )
 
-func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {
+// CreateStatHandler returns the handler that stats blobs in storage.
+// config says whether it may long-poll for blobs to arrive; it may be
+// nil, for the defaults.
+func CreateStatHandler(storage blobserver.BlobStatter, config *blobserver.Config) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handleStat(rw, req, storage)
+		handleStat(rw, req, storage, config)
 	})
 }
 
 const maxStatBlobs = 1000
 
-func handleStat(rw http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
+func handleStat(rw http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter, config *blobserver.Config) {
 	res := new(protocol.StatResponse)
-
-	if configer, ok := storage.(blobserver.Configer); ok {
-		if conf := configer.Config(); conf != nil {
-			res.CanLongPoll = conf.CanLongPoll
-		}
+	if config != nil {
+		res.CanLongPoll = config.CanLongPoll
 	}
 
 	needStat := map[blob.Ref]bool{}
