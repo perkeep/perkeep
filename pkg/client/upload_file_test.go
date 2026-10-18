@@ -95,7 +95,7 @@ func newUploadFileTestClient(t *testing.T) (*Client, *uploadFileTestServer) {
 		}
 	})
 	mux.Handle("/bs/camli/stat", handlers.CreateStatHandler(&s.storage))
-	upload := handlers.CreateBatchUploadHandler(&s.storage)
+	upload := handlers.CreateBatchUploadHandler(&s.storage, nil)
 	mux.HandleFunc("/bs/camli/upload", func(w http.ResponseWriter, r *http.Request) {
 		s.uploads.Add(1)
 		upload.ServeHTTP(w, r)
