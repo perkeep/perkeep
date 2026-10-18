@@ -34,6 +34,7 @@ import (
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/upload"
 
 	"go4.org/syncutil"
 )
@@ -191,10 +192,11 @@ func newUploader() *Uploader {
 	}
 
 	return &Uploader{
-		Client: cc,
-		stats:  httpStats,
-		pwd:    pwd,
-		fdGate: syncutil.NewGate(100), // gate things that waste fds, assuming a low system limit
+		Client:  cc,
+		stats:   httpStats,
+		pwd:     pwd,
+		fdGate:  syncutil.NewGate(100), // gate things that waste fds, assuming a low system limit
+		limiter: upload.NewLimiter(upload.Limits{}),
 	}
 }
 

@@ -37,6 +37,7 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
@@ -155,6 +156,10 @@ func uploadFile(t *testing.T, c *client.Client, name string, contents []byte, op
 	}
 	if res.Durable {
 		checkContents(t, c, res.FileRef, contents)
+		sb, err := blobserver.StatBlob(context.Background(), c, res.FileRef)
+		if err != nil || sb.Size != res.FileSchemaSize {
+			t.Errorf("file schema blob stat = %v, %v; want size %d", sb, err, res.FileSchemaSize)
+		}
 	}
 	p := f.Progress()
 	if p.Phase != PhaseDone {
