@@ -17,9 +17,6 @@ limitations under the License.
 package main
 
 import (
+	// SQLite remains available for client-side databases.
 	_ "modernc.org/sqlite"
 )
-
-func init() {
-	WithSQLite = true
-}

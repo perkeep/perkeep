@@ -46,6 +46,7 @@ func runAdmin(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 Commands:
   copy-storage  Copy blobs between storage defined by server configs.
+  dbinit        Set up the database for the indexer.
   dumpconfig    Dump the low-level server config from its simple config.
   googinit      Init Google Drive or Google Cloud Storage.
 
@@ -78,6 +79,8 @@ Run "perkeepd admin <command> -help" for command-specific help.
 	switch args[0] {
 	case "copy-storage":
 		return runAdminCopyStorage(args[1:], stdout, stderr)
+	case "dbinit":
+		return runAdminDBInit(args[1:], stdout, stderr)
 	case "dumpconfig":
 		return runAdminDumpConfig(args[1:], stdout, stderr)
 	case "googinit":

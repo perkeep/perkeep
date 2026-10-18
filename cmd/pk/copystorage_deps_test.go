@@ -24,8 +24,8 @@ import (
 )
 
 func TestCopyStorageDeps(t *testing.T) {
-	// Other admin commands still need server configuration and SQL drivers.
-	// SQLite is also allowed for future client features.
+	// Diskpacked recovery still needs server configuration.
+	// SQLite remains allowed for client features.
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},
 		{"linux/amd64", "linux", "amd64"},
@@ -45,6 +45,10 @@ func TestCopyStorageDeps(t *testing.T) {
 					"perkeep.org/pkg/blobserver/s3":           "storage migration backends belong in perkeepd admin copy-storage",
 					"perkeep.org/pkg/blobserver/google/drive": "storage migration backends belong in perkeepd admin copy-storage",
 					"perkeep.org/pkg/blobserver/blobpacked":   "packed storage migration belongs in perkeepd admin copy-storage",
+					"perkeep.org/pkg/sorted/mysql":            "database setup belongs in perkeepd admin dbinit",
+					"perkeep.org/pkg/sorted/postgres":         "database setup belongs in perkeepd admin dbinit",
+					"github.com/go-sql-driver/mysql":          "database setup belongs in perkeepd admin dbinit",
+					"github.com/jackc/pgx/v5/stdlib":          "database setup belongs in perkeepd admin dbinit",
 				},
 				OnDep: func(dep string) {
 					for _, prefix := range []string{

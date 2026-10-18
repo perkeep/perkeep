@@ -24,6 +24,19 @@ output without starting the daemon or writing a server configuration.
 Protect this output: it contains the client secret and refresh token.
 Use `perkeepd admin googinit --help` for details.
 
+`perkeepd admin dbinit` replaces `pk dbinit` for offline index-database
+setup. Select `--dbtype=mysql` (the default), `--dbtype=postgres`, or
+`--dbtype=sqlite`, and supply `--dbname=NAME` (a filename for SQLite).
+MySQL/PostgreSQL connection options remain `--user`, `--password`, `--host`,
+and PostgreSQL's `--sslmode`. This command does not read or generate a
+server configuration or start the daemon.
+
+Stop the server before using `--wipe`: it destroys the existing index
+database and recreates its schema. Without `--wipe`, an existing database
+is refused. With `--ignoreexists`, an existing database is left unchanged,
+even if `--wipe` is also specified. Explicit SQLite filenames resolve from
+the working directory. Use `perkeepd admin dbinit --help` for details.
+
 `perkeepd admin copy-storage --dst-config=FILE PREFIX` copies blobs missing
 from the destination storage, using storage definitions from server
 configurations. `--src-config=FILE` selects the source configuration (the
