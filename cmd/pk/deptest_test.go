@@ -25,19 +25,24 @@ import (
 
 func TestDeps(t *testing.T) {
 	// Check the production dependency closure, including shared protocol helpers.
-	// SQLite, localdisk, and the existing GCE/GCS SDK registration remain allowed;
-	// do not ban cloud SDKs or their shared gRPC/protobuf dependencies wholesale.
+	// SQLite, localdisk, GCE metadata and OAuth2 remain allowed.
+	// Config hooks must not bring back server-only Google SDKs.
 	badDeps := map[string]string{
-		"perkeep.org/pkg/server":        "clients must not depend on server handlers",
-		"perkeep.org/pkg/serverinit":    "clients must not assemble a server",
-		"perkeep.org/pkg/search":        "clients must use internal/searchtypes instead of the search implementation",
-		"perkeep.org/pkg/index":         "clients must not depend on the index",
-		"perkeep.org/pkg/webserver":     "client authentication must not depend on the HTTP server implementation",
-		"perkeep.org/internal/images":   "clients must not decode or transform images",
-		"tailscale.com/tsnet":           "clients use HTTP and do not run a tailnet node",
-		"github.com/tetratelabs/wazero": "clients must not embed a WebAssembly runtime",
-		"github.com/gen2brain/avif":     "clients must not embed an AVIF decoder",
-		"github.com/gen2brain/heic":     "clients must not embed a HEIC decoder",
+		"perkeep.org/internal/osutil/gce": "clients must use lightweight GCE config hooks",
+		"go4.org/wkfs/gcs":                "client config files must use the lightweight GCS filesystem",
+		"cloud.google.com/go/storage":     "client config files must not link the Storage SDK",
+		"cloud.google.com/go/logging":     "clients must not link the server Logging SDK",
+		"google.golang.org/api":           "clients must not link generated Google API clients",
+		"perkeep.org/pkg/server":          "clients must not depend on server handlers",
+		"perkeep.org/pkg/serverinit":      "clients must not assemble a server",
+		"perkeep.org/pkg/search":          "clients must use internal/searchtypes instead of the search implementation",
+		"perkeep.org/pkg/index":           "clients must not depend on the index",
+		"perkeep.org/pkg/webserver":       "client authentication must not depend on the HTTP server implementation",
+		"perkeep.org/internal/images":     "clients must not decode or transform images",
+		"tailscale.com/tsnet":             "clients use HTTP and do not run a tailnet node",
+		"github.com/tetratelabs/wazero":   "clients must not embed a WebAssembly runtime",
+		"github.com/gen2brain/avif":       "clients must not embed an AVIF decoder",
+		"github.com/gen2brain/heic":       "clients must not embed a HEIC decoder",
 	}
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},
