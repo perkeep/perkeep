@@ -23,8 +23,18 @@ import (
 	"net/http"
 	"strings"
 
-	"perkeep.org/pkg/webserver"
+	"tailscale.com/util/ctxkey"
 )
+
+// TailscaleWhoIsCtxKey holds the identity lookup for requests accepted by a
+// Tailscale listener. Only trusted server code should set a non-nil function;
+// its presence establishes that the request came over Tailscale. The function
+// returns the login name of the user at the given request RemoteAddr (IP:port).
+// Full-tailnet access uses its presence without calling the function.
+//
+// Keeping the lookup abstract lets clients use package auth without linking a
+// Tailscale node.
+var TailscaleWhoIsCtxKey = ctxkey.New("tailscale-whois", (func(ctx context.Context, remoteAddr string) (loginName string, err error))(nil))
 
 func newTailscaleAuth(arg string) (AuthMode, error) {
 	if arg == "full-access-to-tailnet" {
@@ -44,36 +54,26 @@ type tailscaleAuth struct {
 }
 
 func (ta *tailscaleAuth) AllowedAccess(req *http.Request) Operation {
-
-	tsSrv := webserver.TSNetCtxKey.Value(req.Context())
-	if tsSrv == nil {
+	whoIs := TailscaleWhoIsCtxKey.Value(req.Context())
+	if whoIs == nil {
 		return 0
 	}
 
-	// AddAuthHeader inserts in req the credentials needed
-	// for a client to authenticate.
-	// TODO: eventially use req.RemoteAddr to talk to Tailscale LocalAPI WhoIs method
-	// and check caps.
 	if ta.any {
 		return OpAll
 	}
 	if ta.anyForUser != "" {
-		lc, err := tsSrv.LocalClient()
-		if err != nil {
-			log.Printf("tailscale: LocalClient = %v", err)
-			return 0
-		}
-		res, err := lc.WhoIs(req.Context(), req.RemoteAddr)
+		loginName, err := whoIs(req.Context(), req.RemoteAddr)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				log.Printf("tailscale: WhoIs(%q) = %v", req.RemoteAddr, err)
 			}
 			return 0
 		}
-		if res.UserProfile.LoginName == ta.anyForUser {
+		if loginName == ta.anyForUser {
 			return OpAll
 		}
-		log.Printf("access denied to Tailscale user %q; only %q is allowed", res.UserProfile.LoginName, ta.anyForUser)
+		log.Printf("access denied to Tailscale user %q; only %q is allowed", loginName, ta.anyForUser)
 		return 0
 	}
 	return 0

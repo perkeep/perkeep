@@ -39,6 +39,7 @@ import (
 
 	"go4.org/net/throttle"
 	"go4.org/wkfs"
+	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/webserver/listen"
 	"tailscale.com/tsnet"
 	"tailscale.com/util/ctxkey"
@@ -49,6 +50,7 @@ const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
 // Context keys
 var (
 	// TSNetCtxKey is the context key for the Tailscale tsnet.Server.
+	// For authentication, see [auth.TailscaleWhoIsCtxKey].
 	TSNetCtxKey = ctxkey.New("tsnet", (*tsnet.Server)(nil))
 
 	// TailscaleCtxKey is the context key for whether the server is running in
@@ -391,10 +393,23 @@ func (s *Server) httpServer() *http.Server {
 			if s.tsnetServer != nil {
 				ctx = TailscaleCtxKey.WithValue(ctx, true)
 				ctx = TSNetCtxKey.WithValue(ctx, s.tsnetServer)
+				ctx = auth.TailscaleWhoIsCtxKey.WithValue(ctx, s.tailscaleWhoIs)
 			}
 			return ctx
 		},
 	}
+}
+
+func (s *Server) tailscaleWhoIs(ctx context.Context, remoteAddr string) (string, error) {
+	lc, err := s.tsnetServer.LocalClient()
+	if err != nil {
+		return "", fmt.Errorf("LocalClient: %w", err)
+	}
+	res, err := lc.WhoIs(ctx, remoteAddr)
+	if err != nil {
+		return "", err
+	}
+	return res.UserProfile.LoginName, nil
 }
 
 // loadX509KeyPair is a copy of tls.LoadX509KeyPair but using wkfs.

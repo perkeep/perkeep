@@ -41,6 +41,7 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/localdisk"
@@ -48,9 +49,6 @@ import (
 	"perkeep.org/pkg/serverinit"
 	_ "perkeep.org/pkg/sorted/leveldb" // Register the native index backend, as perkeepd does.
 	"perkeep.org/pkg/types/serverconfig"
-	"perkeep.org/pkg/webserver"
-
-	"tailscale.com/tsnet"
 )
 
 type immichHTTPTestClient struct {
@@ -282,7 +280,10 @@ func TestImmichInstalledHTTP(t *testing.T) {
 				if trustedTSNet.Load() {
 					// Simulate the trusted listener's context without starting
 					// a daemon. No client-controlled header can set this gate.
-					r = r.WithContext(webserver.TSNetCtxKey.WithValue(r.Context(), new(tsnet.Server)))
+					r = r.WithContext(auth.TailscaleWhoIsCtxKey.WithValue(r.Context(), func(context.Context, string) (string, error) {
+						t.Error("full-tailnet auth should not invoke WhoIs")
+						return "", nil
+					}))
 				}
 				mux.ServeHTTP(w, r)
 			}))
