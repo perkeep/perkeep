@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -61,6 +62,68 @@ func TestReceive(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Error("timeout waiting on blobhub")
+	}
+}
+
+// receiveOnly is a BlobReceiver that can't be read from.
+type receiveOnly struct{ sto *test.Fetcher }
+
+func (r receiveOnly) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (blob.SizedRef, error) {
+	return r.sto.ReceiveBlob(ctx, br, src)
+}
+
+// hookOnReceive is storage that adds a contents hook to its hub when it
+// receives a blob.
+type hookOnReceive struct {
+	*test.Fetcher
+	hook func(context.Context, []*blob.Blob) error
+}
+
+func (s *hookOnReceive) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (blob.SizedRef, error) {
+	blobserver.GetHub(s).AddReceiveContentsHook(s.hook)
+	return s.Fetcher.ReceiveBlob(ctx, br, src)
+}
+
+// TestReceiveContentsHook checks that Receive gives a contents hook the
+// blob it received, from memory, without reading it back from storage, and
+// that it reads it back for a hook that's added late.
+func TestReceiveContentsHook(t *testing.T) {
+	type ctxKey struct{}
+	ctx := context.WithValue(ctxbg, ctxKey{}, "the receive's")
+	var got []string
+	contentsHook := func(ctx context.Context, blobs []*blob.Blob) error {
+		if v := ctx.Value(ctxKey{}); v != "the receive's" {
+			t.Errorf("hook's context value = %v; want the receive's", v)
+		}
+		for _, b := range blobs {
+			r, err := b.ReadAll(ctx)
+			if err != nil {
+				return err
+			}
+			all, _ := io.ReadAll(r) // a bytes.Reader can't fail
+			got = append(got, string(all))
+		}
+		return nil
+	}
+
+	dst := receiveOnly{new(test.Fetcher)}
+	blobserver.GetHub(dst).AddReceiveContentsHook(contentsHook)
+	if _, err := blobserver.ReceiveString(ctx, dst, "kept"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"kept"}) {
+		t.Errorf("hook read %q; want %q", got, "kept")
+	}
+
+	// A storage that can be read from is read from if Receive didn't
+	// keep the blob, as when the hook was added mid-receive.
+	got = nil
+	sto := &hookOnReceive{Fetcher: new(test.Fetcher), hook: contentsHook}
+	if _, err := blobserver.ReceiveString(ctx, sto, "read back"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"read back"}) {
+		t.Errorf("hook read %q; want %q", got, "read back")
 	}
 }
 
