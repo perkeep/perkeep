@@ -17,7 +17,9 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"errors"
+	"io"
 	"slices"
 	"sync"
 	"testing"
@@ -104,10 +106,10 @@ func TestHubRegistration(t *testing.T) {
 func TestHubNotifyBlobs(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		hub := &memHub{}
-		sbs := []blob.SizedRef{
-			{Ref: blob.RefFromString("a"), Size: 1},
-			{Ref: blob.RefFromString("b"), Size: 1},
-			{Ref: blob.RefFromString("c"), Size: 1},
+		blobs := []*blob.Blob{memBlob("a"), memBlob("b"), memBlob("c")}
+		var sbs []blob.SizedRef
+		for _, b := range blobs {
+			sbs = append(sbs, b.SizedRef())
 		}
 		errB, errC := errors.New("b failed"), errors.New("c failed")
 
@@ -137,10 +139,32 @@ func TestHubNotifyBlobs(t *testing.T) {
 			mu.Unlock()
 			return be.OrNil()
 		})
+		type ctxKey struct{}
+		ctx := context.WithValue(context.Background(), ctxKey{}, "the receive's")
+		var contents []string
+		hub.AddReceiveContentsHook(func(ctx context.Context, got []*blob.Blob) error {
+			if v := ctx.Value(ctxKey{}); v != "the receive's" {
+				t.Errorf("contents hook's context value = %v; want the receive's", v)
+			}
+			for _, b := range got {
+				r, err := b.ReadAll(ctx)
+				if err != nil {
+					return err
+				}
+				mu.Lock()
+				all, _ := io.ReadAll(r) // a bytes.Reader can't fail
+				contents = append(contents, string(all))
+				mu.Unlock()
+			}
+			return nil
+		})
+		if !hub.wantsContents() {
+			t.Error("wantsContents = false with a contents hook")
+		}
 		ch := make(chan blob.Ref, len(sbs))
 		hub.RegisterListener(ch)
 
-		err := hub.NotifyBlobsReceived(sbs)
+		err := hub.NotifyBlobsReceived(ctx, blobs)
 		for i, want := range []error{nil, errB, errC} {
 			if got := BlobErr(err, sbs[i].Ref); got != want {
 				t.Errorf("BlobErr(blob %d) = %v; want %v", i, got, want)
@@ -153,15 +177,18 @@ func TestHubNotifyBlobs(t *testing.T) {
 		if want := [][]blob.Ref{refs}; !slices.EqualFunc(groups, want, slices.Equal) {
 			t.Errorf("group hook called with %v; want %v", groups, want)
 		}
+		if want := []string{"a", "b", "c"}; !slices.Equal(contents, want) {
+			t.Errorf("contents hook read %q; want %q", contents, want)
+		}
 		// Only the blob whose hooks succeeded is announced.
 		synctest.Wait()
 		if len(ch) != 1 || <-ch != sbs[0].Ref {
 			t.Errorf("listener notified of %d blobs; want only %v", len(ch)+1, sbs[0].Ref)
 		}
 
-		// NotifyBlobReceived returns a hook's error for its blob as is.
-		if err := hub.NotifyBlobReceived(sbs[1]); err != errB {
-			t.Errorf("NotifyBlobReceived = %v; want %v", err, errB)
+		// BlobErr gets a hook's error for its blob as is.
+		if err := BlobErr(hub.NotifyBlobsReceived(ctx, blobs[1:2]), sbs[1].Ref); err != errB {
+			t.Errorf("BlobErr(NotifyBlobsReceived(blob 1)) = %v; want %v", err, errB)
 		}
 	})
 }
@@ -173,12 +200,13 @@ func TestHubFiring(t *testing.T) {
 	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	blobsame := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 
-	hub.NotifyBlobReceived(blob.SizedRef{Ref: blob1, Size: 123}) // no-op
+	ctx := context.Background()
+	hub.NotifyBlobsReceived(ctx, []*blob.Blob{blob.NewBlob(blob1, 123, nil)}) // no-op
 
 	hub.RegisterListener(ch)
 	hub.RegisterBlobListener(blob1, bch)
 
-	hub.NotifyBlobReceived(blob.SizedRef{Ref: blobsame, Size: 456})
+	hub.NotifyBlobsReceived(ctx, []*blob.Blob{blob.NewBlob(blobsame, 456, nil)})
 
 	tmr1 := time.NewTimer(1 * time.Second)
 	select {
@@ -199,4 +227,11 @@ func TestHubFiring(t *testing.T) {
 		}
 	}
 	tmr1.Stop()
+}
+
+// memBlob returns a blob of s, in memory.
+func memBlob(s string) *blob.Blob {
+	return blob.NewBlob(blob.RefFromString(s), uint32(len(s)), func(context.Context) ([]byte, error) {
+		return []byte(s), nil
+	})
 }

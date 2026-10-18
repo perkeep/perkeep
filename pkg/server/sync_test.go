@@ -172,8 +172,11 @@ func TestEnqueueBlobs(t *testing.T) {
 	sh := newSyncHandler("source", "destination", src, new(test.Fetcher), kv)
 	blobserver.GetHub(src).AddReceiveBlobsHook(sh.enqueueBlobs)
 	var sbs []blob.SizedRef
+	var blobs []*blob.Blob
 	for i := range 4 {
-		sbs = append(sbs, blob.SizedRef{Ref: blob.RefFromString(fmt.Sprint(i)), Size: 1})
+		b := (&test.Blob{Contents: fmt.Sprint(i)}).Blob()
+		blobs = append(blobs, b)
+		sbs = append(sbs, b.SizedRef())
 	}
 	if err := sh.enqueue(sbs[0]); err != nil {
 		t.Fatal(err)
@@ -182,7 +185,7 @@ func TestEnqueueBlobs(t *testing.T) {
 
 	// One fails to be written: none of the new ones are pending.
 	kv.fail = true
-	err := blobserver.GetHub(src).NotifyBlobsReceived(sbs)
+	err := blobserver.GetHub(src).NotifyBlobsReceived(context.Background(), blobs)
 	if got := blobserver.BlobErr(err, sbs[0].Ref); got != nil {
 		t.Errorf("already pending blob's error = %v; want nil", got)
 	}
@@ -196,7 +199,7 @@ func TestEnqueueBlobs(t *testing.T) {
 	}
 
 	kv.fail, kv.commits = false, 0
-	if err := blobserver.GetHub(src).NotifyBlobsReceived(sbs); err != nil {
+	if err := blobserver.GetHub(src).NotifyBlobsReceived(context.Background(), blobs); err != nil {
 		t.Fatal(err)
 	}
 	if kv.commits != 1 || kv.sets != 0 {
