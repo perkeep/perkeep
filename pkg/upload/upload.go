@@ -133,14 +133,29 @@ type Options struct {
 	WholeRefs []blob.Ref
 }
 
+// ErrChanged is the error of a File whose contents changed while it ran:
+// they no longer matched the whole-file refs from its first read of them
+// (or given in Options.WholeRefs), or, if they have a Stat method like
+// *os.File's, their size, mode or modification time changed. The file
+// schema blob is then not uploaded.
+var ErrChanged = errors.New("upload: file changed during upload")
+
 // A File is an upload of one regular file's contents and its file schema
-// blob. Make one with NewFile.
+// blob. Make one with NewFile or NewFileFromReader.
 type File struct {
 	c        *client.Client
-	fi       fs.FileInfo
-	contents io.ReaderAt
+	name     string
+	fi       fs.FileInfo // or nil, from NewFileFromReader
+	contents io.ReaderAt // or nil, while reading from stream
+	stream   io.Reader   // from NewFileFromReader, if contents is nil
+	size     int64       // of the contents, or -1 if not yet known
 	opts     Options
 	lim      *Limiter
+
+	// stat, if non-nil, is the contents' Stat method, to check the
+	// contents haven't changed since before, its result when Run started.
+	stat   func() (fs.FileInfo, error)
+	before fs.FileInfo
 
 	mu       sync.Mutex
 	progress Progress
@@ -148,8 +163,36 @@ type File struct {
 
 // NewFile returns an upload of the regular file described by fi, with
 // contents, to c. opts may be nil.
+//
+// If contents has a Stat method, like *os.File's, and it reports a
+// regular file, the File fails with ErrChanged if the file's size, mode
+// or modification time change while it runs.
 func NewFile(c *client.Client, fi fs.FileInfo, contents io.ReaderAt, opts *Options) *File {
-	f := &File{c: c, fi: fi, contents: contents}
+	f := newFile(c, fi.Name(), opts)
+	f.fi, f.contents, f.size = fi, contents, fi.Size()
+	if s, ok := contents.(interface{ Stat() (fs.FileInfo, error) }); ok {
+		f.stat = s.Stat
+	}
+	return f
+}
+
+// NewFileFromReader returns an upload of a file named name, with contents
+// read once from r, for contents that can't be read twice or whose size
+// isn't known, such as a file in a form. Its file schema blob records
+// only the name (and Options.ModTime, if set). opts may be nil.
+//
+// It can't ask the server whether it has the contents before reading
+// them, unless Options.WholeRefs gives their refs, but it still doesn't
+// upload the chunks the server has. Run fails with ErrChanged if the
+// contents don't match Options.WholeRefs.
+func NewFileFromReader(c *client.Client, name string, r io.Reader, opts *Options) *File {
+	f := newFile(c, name, opts)
+	f.stream, f.size = r, -1
+	return f
+}
+
+func newFile(c *client.Client, name string, opts *Options) *File {
+	f := &File{c: c, name: name}
 	if opts != nil {
 		f.opts = *opts
 	}
@@ -242,16 +285,20 @@ type Result struct {
 // it refers to are durable either way.
 func (f *File) Run(ctx context.Context) (*Result, error) {
 	defer f.setPhase(PhaseDone)
-	sk, err := f.newSink(ctx)
-	if err != nil {
-		return nil, err
+	if f.stat != nil {
+		fi, err := f.stat()
+		if err != nil {
+			return nil, err
+		}
+		if fi.Mode().IsRegular() { // pipes and devices change as they're read
+			f.before = fi
+		}
 	}
-	defer sk.close()
-
-	res := &Result{Size: f.fi.Size(), WholeRefs: f.opts.WholeRefs, Durable: sk.durableOnReturn()}
+	res := &Result{Size: f.size, WholeRefs: f.opts.WholeRefs}
 	file := f.newFileMap()
 
-	if len(res.WholeRefs) == 0 && res.Size > dupCheckThreshold {
+	var err error
+	if len(res.WholeRefs) == 0 && f.stream == nil && f.size > dupCheckThreshold {
 		res.WholeRefs, err = f.hashWhole(ctx)
 		if err != nil {
 			return nil, err
@@ -261,15 +308,64 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 		f.setPhase(PhaseCheckingServer)
 		dupRef, err := f.c.SearchExistingFileSchema(ctx, res.WholeRefs...)
 		if err == nil && dupRef.Valid() {
-			return f.finishDup(ctx, sk, res, file, dupRef)
+			return f.finishDup(ctx, res, file, dupRef)
 		}
 		// Without a dup, or a working search, the contents get uploaded.
+	}
+
+	if f.stream != nil {
+		if err := f.readAhead(ctx); err != nil {
+			return nil, err
+		}
+		res.Size = f.size
+	}
+	sk, err := f.newSink(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer sk.close()
+	res.Durable = sk.durableOnReturn()
+
+	// Hash the contents as they're cut too: to check they're what the
+	// whole-file refs say, and, for contents from a reader without any,
+	// to find their default one.
+	var hashes []hash.Hash
+	verify := res.WholeRefs
+	for _, br := range verify {
+		hashes = append(hashes, br.Hash()) // nil for an unsupported hash
+	}
+	var defaultHash hash.Hash
+	if f.fi == nil && len(verify) == 0 { // from NewFileFromReader
+		defaultHash = blob.NewHash()
+		hashes = append(hashes, defaultHash)
+	}
+	var writers []io.Writer
+	for _, h := range hashes {
+		if h != nil {
+			writers = append(writers, h)
+		}
+	}
+	r := f.reader(ctx)
+	if len(writers) > 0 {
+		r = io.TeeReader(r, io.MultiWriter(writers...))
 	}
 
 	f.setPhase(PhaseUploading)
 	var handles []*client.UploadHandle // of the bytes schema blobs
 	var fileHandle *client.UploadHandle
-	uploaded, missing, err := f.uploadChunks(ctx, sk, func(fc *schema.FileCut) ([]blob.Ref, error) {
+	uploaded, missing, err := f.uploadChunks(ctx, sk, r, func(fc *schema.FileCut) ([]blob.Ref, error) {
+		res.Size = fc.Size()
+		for i, br := range verify {
+			if hashes[i] != nil && !br.HashMatches(hashes[i]) {
+				return nil, fmt.Errorf("%w: contents don't match whole-file ref %v", ErrChanged, br)
+			}
+		}
+		if err := f.unchanged(); err != nil {
+			return nil, err
+		}
+		if defaultHash != nil {
+			res.WholeRefs = []blob.Ref{blob.RefFromHash(defaultHash)}
+		}
 		bytesBlobs, err := fc.Populate(file)
 		if err != nil {
 			return nil, err
@@ -306,6 +402,9 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 		res.Durable = true
 		return res, nil
 	}
+	if err := f.unchanged(); err != nil {
+		return nil, err
+	}
 	f.setPhase(PhaseUploading)
 	if err := sk.upload(ctx, fileHandle); err != nil {
 		return nil, err
@@ -322,8 +421,13 @@ func (f *File) newFileMap() *schema.Builder {
 	if f.opts.ContentsOnly {
 		return schema.NewFileMap("")
 	}
-	file := schema.NewCommonFileMap(f.fi.Name(), f.fi)
-	file.SetType(schema.TypeFile)
+	var file *schema.Builder
+	if f.fi == nil {
+		file = schema.NewFileMap(f.name)
+	} else {
+		file = schema.NewCommonFileMap(f.name, f.fi)
+		file.SetType(schema.TypeFile)
+	}
 	if !f.opts.ModTime.IsZero() {
 		file.SetModTime(f.opts.ModTime)
 	}
@@ -331,6 +435,61 @@ func (f *File) newFileMap() *schema.Builder {
 		file.CapCreationTime()
 	}
 	return file
+}
+
+// readAhead reads the start of a stream: if it ends there, within
+// sessionThreshold bytes, the File has its contents, of a known size,
+// just as from NewFile.
+func (f *File) readAhead(ctx context.Context) error {
+	buf := make([]byte, sessionThreshold+1)
+	n, err := io.ReadFull(ctxReader{ctx, f.stream}, buf)
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		f.contents, f.size, f.stream = bytes.NewReader(buf[:n]), int64(n), nil
+		return nil
+	case err != nil:
+		return err
+	}
+	f.stream = io.MultiReader(bytes.NewReader(buf), f.stream)
+	return nil
+}
+
+// reader returns a reader of the contents, to cut them, that stops once
+// ctx is done.
+func (f *File) reader(ctx context.Context) io.Reader {
+	if f.stream != nil {
+		return ctxReader{ctx, f.stream}
+	}
+	return ctxReader{ctx, io.NewSectionReader(f.contents, 0, f.size)}
+}
+
+// unchanged returns an error matching ErrChanged if the contents' Stat
+// reports a change since Run started.
+func (f *File) unchanged() error {
+	if f.before == nil {
+		return nil
+	}
+	after, err := f.stat()
+	if err != nil {
+		return err
+	}
+	if after.Size() != f.before.Size() || after.Mode() != f.before.Mode() || !after.ModTime().Equal(f.before.ModTime()) {
+		return fmt.Errorf("%w: %s", ErrChanged, f.name)
+	}
+	return nil
+}
+
+// ctxReader is a reader of r that fails once ctx is done.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r ctxReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
 }
 
 // hashWhole returns the contents' whole-file refs, of each hash function
@@ -353,7 +512,7 @@ func (f *File) hashWhole(ctx context.Context) ([]blob.Ref, error) {
 	}
 	defer f.lim.cores.Release(cores)
 
-	r := io.NewSectionReader(f.contents, 0, f.fi.Size())
+	r := io.NewSectionReader(f.contents, 0, f.size)
 	buf := make([]byte, 1<<20)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -388,8 +547,14 @@ func (f *File) hashWhole(ctx context.Context) ([]blob.Ref, error) {
 
 // finishDup finishes the upload of a file whose contents the server has,
 // in the file of schema blob dupRef.
-func (f *File) finishDup(ctx context.Context, sk *sink, res *Result, file *schema.Builder, dupRef blob.Ref) (*Result, error) {
+//
+// It uploads the one blob there is to upload, the file schema blob, into
+// the caller's session if there is one, and otherwise plainly, with no
+// session of its own to open and flush.
+func (f *File) finishDup(ctx context.Context, res *Result, file *schema.Builder, dupRef blob.Ref) (*Result, error) {
 	res.Dup = true
+	sk := &sink{c: f.c, s: f.opts.Session}
+	res.Durable = sk.durableOnReturn()
 	dup, err := f.c.FetchSchemaBlob(ctx, dupRef)
 	if err != nil {
 		return nil, fmt.Errorf("upload: fetching file schema %v with the same contents: %w", dupRef, err)
@@ -400,6 +565,9 @@ func (f *File) finishDup(ctx context.Context, sk *sink, res *Result, file *schem
 	json := file.Blob().JSON()
 	h := stringHandle(blob.RefFromString(json), json)
 	res.FileRef, res.FileSchemaSize = h.BlobRef, h.Size
+	if err := f.unchanged(); err != nil {
+		return nil, err
+	}
 	if h.BlobRef == dupRef {
 		// The same file: same name, times, and so on.
 		res.Durable = true
@@ -434,7 +602,7 @@ type batch struct {
 // contents are cut, it calls tail with the cut, and asks the server about
 // the blobs whose refs tail returns along with the last chunks, returning
 // which of those the server lacks.
-func (f *File) uploadChunks(ctx context.Context, sk *sink, tail func(*schema.FileCut) ([]blob.Ref, error)) (uploaded []blob.Ref, tailMissing map[blob.Ref]bool, err error) {
+func (f *File) uploadChunks(ctx context.Context, sk *sink, r io.Reader, tail func(*schema.FileCut) ([]blob.Ref, error)) (uploaded []blob.Ref, tailMissing map[blob.Ref]bool, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -522,7 +690,7 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink, tail func(*schema.Fil
 		})
 	}
 
-	cutErr := f.cut(gctx, batches, tail, func(n int64) {
+	cutErr := f.cut(gctx, batches, r, tail, func(n int64) {
 		heldMu.Lock()
 		defer heldMu.Unlock()
 		held += n
@@ -544,7 +712,7 @@ func (f *File) uploadChunks(ctx context.Context, sk *sink, tail func(*schema.Fil
 // file to batches, the last with the refs tail returns. It acquires the
 // bytes of each chunk from the Limiter, calling held with their number,
 // for the receiver to release. It holds a hashing core while it cuts.
-func (f *File) cut(ctx context.Context, batches chan<- batch, tail func(*schema.FileCut) ([]blob.Ref, error), held func(n int64)) error {
+func (f *File) cut(ctx context.Context, batches chan<- batch, r io.Reader, tail func(*schema.FileCut) ([]blob.Ref, error), held func(n int64)) error {
 	if err := f.lim.cores.Acquire(ctx, 1); err != nil {
 		return err
 	}
@@ -592,7 +760,7 @@ func (f *File) cut(ctx context.Context, batches chan<- batch, tail func(*schema.
 		haveCore = true
 		return nil
 	}
-	fc, err := schema.CutFile(io.NewSectionReader(f.contents, 0, f.fi.Size()), func(br blob.Ref, data []byte) error {
+	fc, err := schema.CutFile(r, func(br blob.Ref, data []byte) error {
 		f.update(func(p *Progress) {
 			p.Chunks++
 			p.BytesCut += int64(len(data))
@@ -636,7 +804,7 @@ func (f *File) newSink(ctx context.Context) (*sink, error) {
 	if f.opts.Session != nil {
 		return &sink{c: f.c, s: f.opts.Session}, nil
 	}
-	if f.fi.Size() <= sessionThreshold {
+	if f.size >= 0 && f.size <= sessionThreshold {
 		return &sink{c: f.c}, nil
 	}
 	s, err := f.c.NewUploadSession(ctx)
