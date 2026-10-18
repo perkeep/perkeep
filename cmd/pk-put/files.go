@@ -42,6 +42,7 @@ import (
 	"perkeep.org/pkg/client/android"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/upload"
 )
 
 type fileCmd struct {
@@ -554,7 +555,82 @@ func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.Stat
 	return pr, true
 }
 
+// uploadNodeRegularFile uploads a regular file, with package upload, and
+// its permanode, if wanted.
 func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client.PutResult, error) {
+	if up.fileOpts.wantVivify() || up.altStatReceiver != nil || android.IsChild() {
+		return up.uploadNodeRegularFileViaStatReceiver(ctx, n)
+	}
+
+	up.fdGate.Start()
+	defer up.fdGate.Done()
+
+	file, err := up.open(n.fullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	opts := &upload.Options{Limiter: up.limiter}
+	if up.fileOpts != nil && up.fileOpts.contentsOnly {
+		opts.ContentsOnly = true
+	} else {
+		if up.fileOpts != nil && up.fileOpts.exifTime {
+			modtime, err := schema.FileTime(file)
+			if err != nil {
+				cmdmain.Logf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
+			} else {
+				opts.ModTime = modtime
+			}
+		}
+		opts.CapCtime = up.fileOpts.wantCapCtime()
+	}
+	res, err := upload.NewFile(up.Client, n.fi, file, opts).Run(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(res.WholeRefs) > 0 {
+		atomic.AddInt64(&atomicDigestOps, 1)
+	}
+
+	// The work for those planned permanodes (and the claims) is redone
+	// everytime we get here (i.e past the stat cache). However, they're
+	// caught by the have cache, so they won't be reuploaded for nothing
+	// at least.
+	if up.fileOpts.wantFilePermanode() {
+		var wholeRef blob.Ref
+		if len(res.WholeRefs) > 0 {
+			wholeRef = res.WholeRefs[0]
+		} else {
+			h := blob.NewHash()
+			if _, err := io.Copy(h, io.NewSectionReader(file, 0, n.fi.Size())); err != nil {
+				return nil, err
+			}
+			wholeRef = blob.RefFromHash(h)
+		}
+		// claimTime is both the time of the "claimDate" in the
+		// JSON claim, as well as the date in the OpenPGP
+		// header. It's the modtime as the file schema blob has it.
+		filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
+		if !opts.ModTime.IsZero() {
+			filebb.SetModTime(opts.ModTime)
+		}
+		claimTime, ok := filebb.ModTime()
+		if !ok {
+			return nil, fmt.Errorf("couldn't get modtime for file %v", n.fullPath)
+		}
+		if err := up.uploadFilePermanode(ctx, wholeRef.String(), res.FileRef, claimTime); err != nil {
+			return nil, fmt.Errorf("Error uploading permanode for node %v: %w", n, err)
+		}
+	}
+	return &client.PutResult{BlobRef: res.FileRef, Size: res.FileSchemaSize}, nil
+}
+
+// uploadNodeRegularFileViaStatReceiver uploads a regular file through
+// up.statReceiver, for the modes package upload doesn't do: vivifying,
+// counting blobs instead of uploading them (-memstats), and reporting each
+// file's progress to the Android app.
+func (up *Uploader) uploadNodeRegularFileViaStatReceiver(ctx context.Context, n *node) (*client.PutResult, error) {
 	var filebb *schema.Builder
 	if up.fileOpts.contentsOnly {
 		filebb = schema.NewFileMap("")

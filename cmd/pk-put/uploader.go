@@ -23,6 +23,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/upload"
 
 	"go4.org/syncutil"
 )
@@ -39,6 +40,10 @@ type Uploader struct {
 
 	// fdGate guards gates the creation of file descriptors.
 	fdGate *syncutil.Gate
+
+	// limiter is the budget of hashing and memory that all files'
+	// uploads share.
+	limiter *upload.Limiter
 
 	fileOpts *fileOptions // per-file options; may be nil
 

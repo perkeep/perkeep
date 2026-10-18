@@ -214,9 +214,10 @@ func (f *File) setPhase(p Phase) { f.update(func(pr *Progress) { pr.Phase = p })
 
 // Result is the result of a File's upload.
 type Result struct {
-	FileRef   blob.Ref   // of the file schema blob
-	WholeRefs []blob.Ref // of the contents, of each hash function computed
-	Size      int64      // of the contents
+	FileRef        blob.Ref   // of the file schema blob
+	FileSchemaSize uint32     // of the file schema blob
+	WholeRefs      []blob.Ref // of the contents, of each hash function computed
+	Size           int64      // of the contents
 
 	// Dup is whether the server already had the contents, so that only
 	// the file schema blob was uploaded, if it wasn't there either.
@@ -273,7 +274,7 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 	}
 	fileJSON := file.Blob().JSON()
 	fileHandle := stringHandle(blob.RefFromString(fileJSON), fileJSON)
-	res.FileRef = fileHandle.BlobRef
+	res.FileRef, res.FileSchemaSize = fileHandle.BlobRef, fileHandle.Size
 
 	// Upload the bytes blobs the server lacks, then, once they and the
 	// chunks are durable, the file schema blob, if it lacks it.
@@ -390,7 +391,7 @@ func (f *File) finishDup(ctx context.Context, sk *sink, res *Result, file *schem
 	}
 	json := file.Blob().JSON()
 	h := stringHandle(blob.RefFromString(json), json)
-	res.FileRef = h.BlobRef
+	res.FileRef, res.FileSchemaSize = h.BlobRef, h.Size
 	if h.BlobRef == dupRef {
 		// The same file: same name, times, and so on.
 		res.Durable = true
