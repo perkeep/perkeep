@@ -35,6 +35,11 @@ import (
 // TreeUpload, for tests comparing it with upload.Tree.
 var testHookNoUploadTree bool
 
+// testHookFilesViaStatReceiver, if set, makes regular files be uploaded
+// through the stat receiver, rather than with package upload, for tests
+// comparing them.
+var testHookFilesViaStatReceiver bool
+
 // canUploadTree reports whether directories can be uploaded with
 // upload.Tree, rather than TreeUpload, which does what it doesn't: file
 // permanodes, EXIF times, counting blobs instead of uploading them
