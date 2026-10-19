@@ -32,7 +32,8 @@ import (
 // Version 6: EXIF tags keyed by directory and tag number; no Interoperability tags
 // Version 7: ordered multi-claim children and collision-free secondary keys.
 // Reindexing is required because earlier versions silently ignored multi claims.
-const requiredSchemaVersion = 7
+// Version 8: media tags from Apple MakerNotes and QuickTime metadata; video locations
+const requiredSchemaVersion = 8
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
