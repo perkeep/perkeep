@@ -275,7 +275,7 @@ cam.IndexPage = React.createClass({
 				this.childSearchSession_,
 			),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
-			cam.EXIFDetail.getAspect.bind(null, this.props.serverConnection, this.getCameraSearchURL_),
+			cam.EXIFDetail.getAspect.bind(null, this.props.serverConnection, this.getCameraSearchURL_, this.getSearchURL_),
 		];
 
 		return specificAspects
@@ -1250,11 +1250,18 @@ cam.IndexPage = React.createClass({
 	},
 
 	navigateLeftRight_: function(isRight) {
-		var blobs = this.targetSearchSession_.getCurrentResults().blobs;
 		var target = this.getTargetBlobref_();
-		var idx = goog.array.findIndex(blobs, function(item) {
+		var findTarget = function(item) {
 			return item.blob == target;
-		});
+		};
+		// Skip the Live Photo videos shown with their stills, unless
+		// one is being viewed.
+		var blobs = this.targetSearchSession_.getVisibleBlobs();
+		var idx = goog.array.findIndex(blobs, findTarget);
+		if (idx < 0) {
+			blobs = this.targetSearchSession_.getCurrentResults().blobs;
+			idx = goog.array.findIndex(blobs, findTarget);
+		}
 
 		if (isRight) {
 			if (idx >= (blobs.length - 1)) {
@@ -1303,7 +1310,11 @@ cam.IndexPage = React.createClass({
 	},
 
 	getCameraSearchURL_: function(value) {
-		return this.baseURL_.clone().setParameterValue('q', cam.EXIFDetail.getCameraQuery(value)).toString();
+		return this.getSearchURL_(cam.EXIFDetail.getCameraQuery(value));
+	},
+
+	getSearchURL_: function(query) {
+		return this.baseURL_.clone().setParameterValue('q', query).toString();
 	},
 
 	setSearch_: function(query) {

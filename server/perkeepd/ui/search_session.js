@@ -137,6 +137,39 @@ cam.SearchSession.prototype.getCurrentResults = function() {
 	return this.data_;
 };
 
+// Returns the current result blobs, like getCurrentResults().blobs, but
+// without the videos of Live Photos whose still images are also
+// results, since the stills show their videos.
+cam.SearchSession.prototype.getVisibleBlobs = function() {
+	var blobs = this.data_.blobs;
+	if (this.visibleBlobsOf_ === blobs) {
+		return this.visibleBlobs_;
+	}
+	var shownVideos = {};
+	blobs.forEach(function(b) {
+		var rm = this.getResolvedMeta(b.blob);
+		if (this.getLivePhotoVideoMeta(rm)) {
+			shownVideos[rm.livePhoto.video] = true;
+		}
+	}, this);
+	this.visibleBlobs_ = blobs.filter(function(b) {
+		var rm = this.getResolvedMeta(b.blob);
+		return !(rm && shownVideos[rm.blobRef]);
+	}, this);
+	this.visibleBlobsOf_ = blobs;
+	return this.visibleBlobs_;
+};
+
+// Returns the description of the video of the Live Photo whose still
+// image's file description is rm, or null. Apple Live Photos are a still
+// image and a short video, indexed as two files sharing a content
+// identifier. The server describes each file's other half too.
+cam.SearchSession.prototype.getLivePhotoVideoMeta = function(rm) {
+	var video = rm && rm.livePhoto && rm.livePhoto.video;
+	var vm = video && this.getMeta(video);
+	return (vm && vm.file) ? vm : null;
+};
+
 cam.SearchSession.prototype.hasSocketError = function() {
 	return this.hasSocketError_;
 };
