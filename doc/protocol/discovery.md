@@ -24,7 +24,7 @@ The response is a JSON document with a [Discovery value](https://perkeep.org/pkg
       "blobHashFuncs": [
         "sha1"
       ],
-      "blobRoot": "/bs-and-maybe-also-index/",
+      "blobRoot": "/bs/",
       "directoryHelper": "/ui/tree/",
       "downloadHelper": "/ui/download/",
       "helpRoot": "/help/",

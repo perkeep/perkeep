@@ -8,30 +8,13 @@
 		"/": {
 			"handler": "root",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
+				"blobRoot": "/bs/",
 				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
 		"/status/": {
 			"handler": "status"
-		},
-		"/bs-and-index/": {
-			"handler": "storage-replica",
-			"handlerArgs": {
-				"backends": ["/bs/", "/index/"]
-			}
-		},
-		"/bs-and-maybe-also-index/": {
-			"handler": "storage-cond",
-			"handlerArgs": {
-				"read": "/bs/",
-				"write": {
-					"if": "isSchema",
-					"then": "/bs-and-index/",
-					"else": "/bs/"
-				}
-			}
 		},
 		"/bs/": {
 			"handler": "storage-filesystem",
