@@ -17,9 +17,15 @@ limitations under the License.
 package serverinit
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 
+	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/test"
@@ -36,19 +42,49 @@ func (r *blobsRecorder) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) er
 	return blobserver.ReceiveBlobsUnchecked(ctx, r.Fetcher, blobs)
 }
 
-// TestStorageAndConfigReceiveBlobs checks that storageAndConfig passes
-// ReceiveBlobs through to the storage it wraps.
-func TestStorageAndConfigReceiveBlobs(t *testing.T) {
+// TestCamliHandlerReceivesIntoStorage checks that the blob handlers
+// receive uploads into the storage itself: with its own ReceiveBlobs, and
+// notifying its blob hub, where receive hooks are added.
+func TestCamliHandlerReceivesIntoStorage(t *testing.T) {
+	auth.SetMode(auth.None{})
 	rec := &blobsRecorder{Fetcher: new(test.Fetcher)}
-	sto := &storageAndConfig{Storage: rec}
-	blobs := []*blob.Blob{(&test.Blob{Contents: "a"}).Blob(), (&test.Blob{Contents: "b"}).Blob()}
-	if err := blobserver.ReceiveBlobs(context.Background(), sto, blobs); err != nil {
-		t.Fatal(err)
+	var hooked []blob.Ref
+	blobserver.GetHub(rec).AddReceiveBlobsHook(func(sbs []blob.SizedRef) error {
+		for _, sb := range sbs {
+			hooked = append(hooked, sb.Ref)
+		}
+		return nil
+	})
+	h := makeCamliHandler("/bs/", func() string { return "http://example.com" }, rec, nil, nil)
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	var want []blob.Ref
+	for _, s := range []string{"a", "b"} {
+		br := blob.RefFromString(s)
+		want = append(want, br)
+		w, err := mw.CreateFormFile(br.String(), br.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(s))
 	}
+	mw.Close()
+	req := httptest.NewRequest("POST", "/bs/camli/upload", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("upload = %d: %s", res.Code, res.Body)
+	}
+
 	if rec.calls != 1 {
-		t.Errorf("wrapped ReceiveBlobs called %d times; want 1", rec.calls)
+		t.Errorf("storage's ReceiveBlobs called %d times; want 1", rec.calls)
 	}
 	if rec.NumBlobs() != 2 {
 		t.Errorf("stored %d blobs; want 2", rec.NumBlobs())
+	}
+	if !slices.Equal(hooked, want) {
+		t.Errorf("storage's receive hook got %v; want %v", hooked, want)
 	}
 }

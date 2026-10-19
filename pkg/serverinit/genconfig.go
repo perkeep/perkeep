@@ -830,12 +830,10 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]any, error) {
 }
 
 func (b *lowBuilder) genLowLevelPrefixes() error {
+	// Blobs are written to /bs/ directly. The index, if any, indexes the
+	// schema blobs received into it before the write returns (with a
+	// receive hook on it), and the sync handler to the index the rest.
 	root := "/bs/"
-	pubKeyDest := root
-	if b.runIndex() {
-		root = "/bs-and-maybe-also-index/"
-		pubKeyDest = "/bs-and-index/"
-	}
 
 	rootArgs := map[string]any{
 		"stealth":      false,
@@ -892,7 +890,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	b.addPrefix("/sighelper/", "jsonsign", args{
 		"secretRing":    b.high.IdentitySecretRing,
 		"keyId":         b.high.Identity,
-		"publicKeyDest": pubKeyDest,
+		"publicKeyDest": root,
 	})
 
 	if conf := b.high.Immich; conf != nil {
@@ -984,19 +982,6 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			return err
 		}
 		b.addPrefix("/sync/", "sync", syncArgs)
-
-		b.addPrefix("/bs-and-index/", "storage-replica", args{
-			"backends": []any{"/bs/", "/index/"},
-		})
-
-		b.addPrefix("/bs-and-maybe-also-index/", "storage-cond", args{
-			"write": map[string]any{
-				"if":   "isSchema",
-				"then": "/bs-and-index/",
-				"else": "/bs/",
-			},
-			"read": "/bs/",
-		})
 
 		owner, err := b.searchOwner()
 		if err != nil {

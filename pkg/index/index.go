@@ -81,6 +81,14 @@ type Index struct {
 
 	corpus *Corpus // or nil, if not being kept in memory
 
+	// receiving maps each blob being received by ReceiveBlob or
+	// ReceiveBlobs to a channel closed once it's done, so that a blob
+	// received again meanwhile, as when both the index's receive hook
+	// and a sync to the index get it, waits rather than being indexed
+	// twice at once. See claimReceive.
+	receivingMu sync.Mutex
+	receiving   map[blob.Ref]chan struct{}
+
 	mu sync.RWMutex // guards following
 	//mu syncdebug.RWMutexTracker  // (when debugging)
 
@@ -433,6 +441,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	ix.keepGoing = keepGoing
 	ix.reindex = reindex
 	ix.InitBlobSource(sto)
+	ix.hookBlobSource(sto)
 
 	if !reindex {
 		ix.startIntegrityCheck(3*time.Second, ld.Health().Register(health.ID("index.integrity", prefix), "index: blobs are indexed"))

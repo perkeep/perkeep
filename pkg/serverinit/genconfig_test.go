@@ -73,11 +73,9 @@ func TestImmichConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(*serverconfig.Config)
-		blobRoot  string
 	}{
 		{
-			name:     "memory with corpus",
-			blobRoot: "/bs-and-maybe-also-index/",
+			name: "memory with corpus",
 		},
 		{
 			name: "memory without corpus",
@@ -86,7 +84,6 @@ func TestImmichConfig(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "explicit runIndex",
@@ -95,7 +92,6 @@ func TestImmichConfig(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "normal Perkeep auth",
@@ -103,7 +99,6 @@ func TestImmichConfig(t *testing.T) {
 				c.Immich.Email = ""
 				c.Immich.Password = ""
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "normal Tailscale auth",
@@ -112,7 +107,6 @@ func TestImmichConfig(t *testing.T) {
 				c.Immich.Email = ""
 				c.Immich.Password = ""
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "no auth",
@@ -121,28 +115,24 @@ func TestImmichConfig(t *testing.T) {
 				c.Immich.Email = ""
 				c.Immich.Password = ""
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "empty object",
 			configure: func(c *serverconfig.Config) {
 				c.Immich = &serverconfig.Immich{}
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "deprecated legacy import",
 			configure: func(c *serverconfig.Config) {
 				c.Immich.MetadataFile = filepath.Join(t.TempDir(), "legacy-immich.leveldb")
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "upload limit",
 			configure: func(c *serverconfig.Config) {
 				c.Immich.MaxUploadBytes = 5 << 30
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "local storage",
@@ -150,7 +140,6 @@ func TestImmichConfig(t *testing.T) {
 				c.MemoryStorage = false
 				c.BlobPath = t.TempDir()
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "remote storage",
@@ -158,7 +147,6 @@ func TestImmichConfig(t *testing.T) {
 				c.MemoryStorage = false
 				c.S3 = "access:secret:photos"
 			},
-			blobRoot: "/bs-and-maybe-also-index/",
 		},
 		{
 			name: "disabled",
@@ -207,7 +195,7 @@ func TestImmichConfig(t *testing.T) {
 			}
 			got := prefix["handlerArgs"].(map[string]any)
 			want := map[string]any{
-				"blobRoot":     tt.blobRoot,
+				"blobRoot":     "/bs/",
 				"jsonSignRoot": "/sighelper/",
 				"searchRoot":   "/my-search/",
 			}
@@ -391,7 +379,7 @@ func TestLoadImmichEmptyConfig(t *testing.T) {
 	}
 	args := low.jconf["prefixes"].(map[string]any)["/immich/api/"].(map[string]any)["handlerArgs"].(map[string]any)
 	want := map[string]any{
-		"blobRoot":     "/bs-and-maybe-also-index/",
+		"blobRoot":     "/bs/",
 		"jsonSignRoot": "/sighelper/",
 		"searchRoot":   "/my-search/",
 	}

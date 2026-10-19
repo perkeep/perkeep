@@ -33,7 +33,6 @@ import (
 	"go4.org/syncutil"
 
 	"perkeep.org/pkg/auth"
-	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/blobserver/uploadsession"
@@ -65,20 +64,16 @@ type latencyServer struct {
 	n  map[string]int
 }
 
-type latencyStorage struct{ memory.Storage }
-
-func (*latencyStorage) Config() *blobserver.Config { return &blobserver.Config{} }
-
 func newLatencyServer(model latencyModel) *latencyServer {
-	sto := new(latencyStorage)
+	sto := new(memory.Storage)
 	sessions := uploadsession.NewManager(sto, uploadsession.Limits{})
 	ls := &latencyServer{model: model, mux: http.NewServeMux(), n: make(map[string]int)}
 	ls.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript")
 		w.Write([]byte(`{"blobRoot": "/bs/", "uploadSessions": true}`))
 	})
-	ls.mux.Handle("/bs/camli/stat", handlers.CreateStatHandler(sto))
-	ls.mux.Handle("/bs/camli/upload", handlers.CreateBatchUploadHandler(sto, sessions))
+	ls.mux.Handle("/bs/camli/stat", handlers.CreateStatHandler(sto, nil))
+	ls.mux.Handle("/bs/camli/upload", handlers.CreateBatchUploadHandler(sto, nil, sessions))
 	ls.mux.Handle("/bs/camli/session", handlers.CreateSessionHandler(sessions))
 	ls.mux.Handle("/bs/camli/session/", handlers.CreateSessionHandler(sessions))
 	return ls

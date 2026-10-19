@@ -65,8 +65,6 @@ func (s *sessionStorage) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) e
 	return be.OrNil()
 }
 
-func (s *sessionStorage) Config() *blobserver.Config { return &blobserver.Config{} }
-
 // sessionServer is an in-memory server with upload sessions.
 type sessionServer struct {
 	sto      *sessionStorage
@@ -89,7 +87,7 @@ func newSessionClient(t *testing.T, withSessions bool) (*Client, *sessionServer)
 	t.Helper()
 	srv := &sessionServer{sto: &sessionStorage{Fetcher: new(test.Fetcher)}}
 	srv.sessions = uploadsession.NewManager(srv.sto, uploadsession.Limits{})
-	upload := handlers.CreateBatchUploadHandler(srv.sto, srv.sessions)
+	upload := handlers.CreateBatchUploadHandler(srv.sto, nil, srv.sessions)
 	session := handlers.CreateSessionHandler(srv.sessions)
 	ts := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {

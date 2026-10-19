@@ -29,6 +29,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -369,7 +370,58 @@ func (ix *Index) prepareBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	return p, nil
 }
 
+// claimReceive waits until none of refs is being received by another
+// ReceiveBlob or ReceiveBlobs call, and then claims them for the caller,
+// until it calls release. A blob received twice at once is then indexed
+// once, and its second receive skips it as already indexed (see
+// prepareBlob). It returns ctx's error if ctx is done first.
+//
+// The caller mustn't claim more blobs, or wait for a call that might,
+// before calling release.
+func (ix *Index) claimReceive(ctx context.Context, refs []blob.Ref) (release func(), err error) {
+	for {
+		ix.receivingMu.Lock()
+		var busy chan struct{}
+		for _, br := range refs {
+			if ch, ok := ix.receiving[br]; ok {
+				busy = ch
+				break
+			}
+		}
+		if busy == nil {
+			if ix.receiving == nil {
+				ix.receiving = make(map[blob.Ref]chan struct{})
+			}
+			done := make(chan struct{})
+			for _, br := range refs {
+				ix.receiving[br] = done
+			}
+			ix.receivingMu.Unlock()
+			return func() {
+				ix.receivingMu.Lock()
+				for _, br := range refs {
+					delete(ix.receiving, br)
+				}
+				ix.receivingMu.Unlock()
+				close(done)
+			}, nil
+		}
+		ix.receivingMu.Unlock()
+		select {
+		case <-busy:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	release, err := ix.claimReceive(ctx, []blob.Ref{blobRef})
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
+	defer release()
+
 	// Remember completions during the source read too. A replica may index a
 	// dependency before publishing its raw write; a later fetch can still miss it.
 	op := ix.beginIndexOp()
@@ -481,6 +533,16 @@ func (ix *Index) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
 		return be.OrNil()
 	}
 
+	refs := make([]blob.Ref, len(blobs))
+	for i, b := range blobs {
+		refs[i] = b.Ref()
+	}
+	release, err := ix.claimReceive(ctx, refs)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	op := ix.beginIndexOp()
 	defer ix.endIndexOp(op)
 
@@ -538,6 +600,50 @@ func (ix *Index) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
 				be.Add(p.sbr.Ref, fmt.Errorf("%w; and recording its missing dependencies failed: %w", p.missingErr, err))
 			}
 		}
+	}
+	return be.OrNil()
+}
+
+// hookBlobSource adds a receive hook to the blob hub of sto, the
+// index's blob source, to index the blobs received into it; see
+// indexReceived.
+func (ix *Index) hookBlobSource(sto blobserver.Storage) {
+	// Hubs are by storage, so it must be comparable, as a pointer is.
+	if reflect.ValueOf(sto).Comparable() {
+		blobserver.GetHub(sto).AddReceiveContentsHook(ix.indexReceived)
+	}
+}
+
+// indexReceived is the index's receive hook on its blob source. It
+// indexes the blobs received that are likely schema blobs before the
+// receive returns, so that a search right after an upload finds what it
+// uploaded. The others, like files' contents, are left to a sync to the
+// index, which also catches up on blobs received while the server wasn't
+// running this hook.
+func (ix *Index) indexReceived(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "index"}
+	var todo []*blob.Blob
+	var refs []blob.Ref
+	for _, b := range blobs {
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			be.Add(b.Ref(), err)
+			continue
+		}
+		// Check the first byte before copying the blob to check the
+		// rest, as most blobs aren't JSON.
+		if c, err := r.ReadByte(); err != nil || c != '{' {
+			continue
+		}
+		r.Seek(0, io.SeekStart)
+		contents, _ := io.ReadAll(r) // a bytes.Reader can't fail
+		if schema.LikelySchemaBlob(contents) {
+			todo = append(todo, b)
+			refs = append(refs, b.Ref())
+		}
+	}
+	if len(todo) > 0 {
+		be.AddResult(refs, ix.ReceiveBlobs(ctx, todo))
 	}
 	return be.OrNil()
 }

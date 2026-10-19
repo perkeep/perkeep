@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -28,34 +29,38 @@ type BlobHub interface {
 	// a concrete type instead? also, maybe remove all the async listener stuff, or
 	// audit its users and remove anything that is now unnecessary.
 
-	// NotifyBlobReceived notes that a storage target has successfully received
-	// a blob and asynchronously notifies registered listeners.
+	// NotifyBlobsReceived notes that a storage target has successfully
+	// received blobs, runs the synchronous receive hooks, and then
+	// asynchronously notifies registered listeners.
 	//
-	// If any synchronous receive hooks are registered, they're run before
-	// NotifyBlobReceived returns and their error is returned.
-	NotifyBlobReceived(blob.SizedRef) error
-
-	// NotifyBlobsReceived is like NotifyBlobReceived for several blobs.
-	// It runs each receive hook once for all of them: a hook added with
-	// AddReceiveBlobsHook is called with all the blobs, and one added with
-	// AddReceiveHook is called for each blob in turn. It returns nil, or a
-	// *BlobsError listing the blobs whose hooks failed. Listeners are only
-	// notified of the other blobs.
-	NotifyBlobsReceived([]blob.SizedRef) error
+	// It runs each receive hook once for all of the blobs: a hook added
+	// with AddReceiveBlobsHook or AddReceiveContentsHook is called with all
+	// of them, and one added with AddReceiveHook is called for each blob in
+	// turn. ctx is passed to the hooks added with AddReceiveContentsHook.
+	// It returns nil, or a *BlobsError listing the blobs whose hooks
+	// failed. Listeners are only notified of the other blobs.
+	NotifyBlobsReceived(ctx context.Context, blobs []*blob.Blob) error
 
 	// AddReceiveHook adds a hook that is synchronously run
 	// whenever blobs are received.  All registered hooks are run
-	// on each blob upload but if more than one returns an error,
-	// NotifyBlobReceived will only return one of the errors.
+	// on each blob upload but if more than one returns an error for a
+	// blob, NotifyBlobsReceived will only return one of the errors.
 	AddReceiveHook(func(blob.SizedRef) error)
 
 	// AddReceiveBlobsHook is like AddReceiveHook, but its hook is called
-	// once for all the blobs passed to NotifyBlobsReceived (or with the one
-	// passed to NotifyBlobReceived), so it can share work among them. The
+	// once for all the blobs passed to NotifyBlobsReceived, so it can share
+	// work among them. The
 	// hook returns an error as described by BlobsReceiver: nil, a
 	// *BlobsError listing the blobs it failed for, or another error if it
 	// failed for all of them.
 	AddReceiveBlobsHook(func([]blob.SizedRef) error)
+
+	// AddReceiveContentsHook is like AddReceiveBlobsHook, but its hook is
+	// called with the blobs themselves, to read their contents, and with
+	// the context of the receive. While a storage's hub has such a hook,
+	// Receive keeps each blob it receives into the storage in memory for
+	// it, rather than the hook having to fetch it back.
+	AddReceiveContentsHook(func(context.Context, []*blob.Blob) error)
 
 	RegisterListener(ch chan<- blob.Ref)
 	UnregisterListener(ch chan<- blob.Ref)
@@ -120,24 +125,23 @@ type memHub struct {
 
 	hooks         []func(blob.SizedRef) error
 	blobsHooks    []func([]blob.SizedRef) error
+	contentsHooks []func(context.Context, []*blob.Blob) error
 	listeners     map[chan<- blob.Ref]bool
 	blobListeners map[blob.Ref]map[chan<- blob.Ref]bool
 }
 
-func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
-	return BlobErr(h.NotifyBlobsReceived([]blob.SizedRef{sb}), sb.Ref)
-}
-
-func (h *memHub) NotifyBlobsReceived(sbs []blob.SizedRef) error {
-	if len(sbs) == 0 {
+func (h *memHub) NotifyBlobsReceived(ctx context.Context, blobs []*blob.Blob) error {
+	if len(blobs) == 0 {
 		return nil
 	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	refs := make([]blob.Ref, len(sbs))
-	for i, sb := range sbs {
-		refs[i] = sb.Ref
+	refs := make([]blob.Ref, len(blobs))
+	sbs := make([]blob.SizedRef, len(blobs))
+	for i, b := range blobs {
+		refs[i] = b.Ref()
+		sbs[i] = b.SizedRef()
 	}
 
 	// Synchronous hooks, each in its own goroutine. A blob whose
@@ -161,6 +165,14 @@ func (h *memHub) NotifyBlobsReceived(sbs []blob.SizedRef) error {
 	for _, hook := range h.blobsHooks {
 		wg.Go(func() {
 			err := hook(sbs)
+			mu.Lock()
+			be.AddResult(refs, err)
+			mu.Unlock()
+		})
+	}
+	for _, hook := range h.contentsHooks {
+		wg.Go(func() {
+			err := hook(ctx, blobs)
 			mu.Lock()
 			be.AddResult(refs, err)
 			mu.Unlock()
@@ -241,4 +253,18 @@ func (h *memHub) AddReceiveBlobsHook(hook func([]blob.SizedRef) error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.blobsHooks = append(h.blobsHooks, hook)
+}
+
+func (h *memHub) AddReceiveContentsHook(hook func(context.Context, []*blob.Blob) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.contentsHooks = append(h.contentsHooks, hook)
+}
+
+// wantsContents reports whether h has hooks added with
+// AddReceiveContentsHook.
+func (h *memHub) wantsContents() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.contentsHooks) > 0
 }
