@@ -369,7 +369,58 @@ func (ix *Index) prepareBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	return p, nil
 }
 
+// claimReceive waits until none of refs is being received by another
+// ReceiveBlob or ReceiveBlobs call, and then claims them for the caller,
+// until it calls release. A blob received twice at once is then indexed
+// once, and its second receive skips it as already indexed (see
+// prepareBlob). It returns ctx's error if ctx is done first.
+//
+// The caller mustn't claim more blobs, or wait for a call that might,
+// before calling release.
+func (ix *Index) claimReceive(ctx context.Context, refs []blob.Ref) (release func(), err error) {
+	for {
+		ix.receivingMu.Lock()
+		var busy chan struct{}
+		for _, br := range refs {
+			if ch, ok := ix.receiving[br]; ok {
+				busy = ch
+				break
+			}
+		}
+		if busy == nil {
+			if ix.receiving == nil {
+				ix.receiving = make(map[blob.Ref]chan struct{})
+			}
+			done := make(chan struct{})
+			for _, br := range refs {
+				ix.receiving[br] = done
+			}
+			ix.receivingMu.Unlock()
+			return func() {
+				ix.receivingMu.Lock()
+				for _, br := range refs {
+					delete(ix.receiving, br)
+				}
+				ix.receivingMu.Unlock()
+				close(done)
+			}, nil
+		}
+		ix.receivingMu.Unlock()
+		select {
+		case <-busy:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	release, err := ix.claimReceive(ctx, []blob.Ref{blobRef})
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
+	defer release()
+
 	// Remember completions during the source read too. A replica may index a
 	// dependency before publishing its raw write; a later fetch can still miss it.
 	op := ix.beginIndexOp()
@@ -480,6 +531,16 @@ func (ix *Index) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
 		}
 		return be.OrNil()
 	}
+
+	refs := make([]blob.Ref, len(blobs))
+	for i, b := range blobs {
+		refs[i] = b.Ref()
+	}
+	release, err := ix.claimReceive(ctx, refs)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	op := ix.beginIndexOp()
 	defer ix.endIndexOp(op)

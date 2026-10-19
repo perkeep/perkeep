@@ -142,6 +142,7 @@ var (
 		"receive_exif_test.go",
 		"receive_media_test.go",
 		"receiveblobs_test.go",
+		"receiving_test.go",
 		"reindex_session_test.go",
 		"sniff_test.go",
 		"upgrade_media_test.go",
