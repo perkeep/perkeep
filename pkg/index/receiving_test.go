@@ -24,6 +24,7 @@ import (
 	"testing/synctest"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 )
@@ -131,5 +132,40 @@ func TestClaimReceiveContext(t *testing.T) {
 		t.Errorf("claimReceive of an unclaimed blob = %v; want nil", err)
 	} else {
 		release2()
+	}
+}
+
+// TestIndexReceived checks that the index indexes the schema blobs
+// received into its blob source, and only those, both when they're
+// received alone and together.
+func TestIndexReceived(t *testing.T) {
+	ix := NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
+	src := new(test.Fetcher)
+	ix.InitBlobSource(src)
+	ix.hookBlobSource(src)
+	indexed := func(br blob.Ref) bool {
+		v, err := ix.s.Get("have:" + br.String())
+		return err == nil && strings.HasSuffix(v, "|indexed")
+	}
+
+	alone := &test.Blob{Contents: `{"camliVersion": 1, "camliType": "static-set", "members": []}`}
+	data := &test.Blob{Contents: "not a schema blob"}
+	if _, err := blobserver.Receive(context.Background(), src, alone.BlobRef(), alone.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	if !indexed(alone.BlobRef()) {
+		t.Error("schema blob received alone isn't indexed")
+	}
+
+	together := &test.Blob{Contents: `{"camliVersion": 1, "camliType": "static-set", "members": [], "x": 1}`}
+	if err := blobserver.ReceiveBlobs(context.Background(), src, []*blob.Blob{together.Blob(), data.Blob()}); err != nil {
+		t.Fatal(err)
+	}
+	if !indexed(together.BlobRef()) {
+		t.Error("schema blob received with another isn't indexed")
+	}
+	if indexed(data.BlobRef()) {
+		t.Error("blob that isn't a schema blob was indexed; want it left to the sync to the index")
 	}
 }

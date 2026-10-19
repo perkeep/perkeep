@@ -449,6 +449,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	ix.keepGoing = keepGoing
 	ix.reindex = reindex
 	ix.InitBlobSource(sto)
+	ix.hookBlobSource(sto)
 
 	if !reindex {
 		ix.startIntegrityCheck(3*time.Second, ld.Health().Register(health.ID("index.integrity", prefix), "index: blobs are indexed"))
