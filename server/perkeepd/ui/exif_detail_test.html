@@ -65,8 +65,9 @@ limitations under the License.
 					return sc;
 				}
 				function searchURL(value) { return '/ui/?q=' + encodeURIComponent(cam.EXIFDetail.getCameraQuery(value)); }
+				function querySearchURL(query) { return '/ui/?q=' + encodeURIComponent(query); }
 				function aspect(sc, value) {
-					return cam.EXIFDetail.getAspect(sc, searchURL, 'target', {getResolvedMeta: function(ref) {
+					return cam.EXIFDetail.getAspect(sc, searchURL, querySearchURL, 'target', {getResolvedMeta: function(ref) {
 						equal('target', ref);
 						return value;
 					}});
@@ -75,7 +76,7 @@ limitations under the License.
 					var root = document.createElement('div');
 					document.body.appendChild(root);
 					function render(value) {
-						return ReactDOM.render(React.createElement(cam.EXIFDetail, {meta: value, serverConnection: sc, getCameraSearchURL: searchURL}), root);
+						return ReactDOM.render(React.createElement(cam.EXIFDetail, {meta: value, serverConnection: sc, getCameraSearchURL: searchURL, getSearchURL: querySearchURL}), root);
 					}
 					try { render(meta()); fn(root, render); }
 					finally { ReactDOM.unmountComponentAtNode(root); root.remove(); }
@@ -106,7 +107,7 @@ limitations under the License.
 					[null, {camliType: 'directory'}, {camliType: 'permanode'}, {camliType: 'file'}].forEach(function(m) {
 						equal(null, aspect(connection(), m));
 					});
-					equal(null, cam.EXIFDetail.getAspect(connection(), searchURL, null, null));
+					equal(null, cam.EXIFDetail.getAspect(connection(), searchURL, querySearchURL, null, null));
 				});
 				test('direct file pages fall back to an exact reference when not in the search', function() {
 					var target = 'file-only';

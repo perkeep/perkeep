@@ -27,6 +27,7 @@ cam.EXIFDetail = React.createClass({
 		meta: React.PropTypes.object.isRequired,
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
 		getCameraSearchURL: React.PropTypes.func.isRequired,
+		getSearchURL: React.PropTypes.func.isRequired,
 	},
 
 	getInitialState: function() {
@@ -76,9 +77,53 @@ cam.EXIFDetail = React.createClass({
 				),
 				React.DOM.span({className: 'cam-exif-readonly'}, 'Read-only')
 			),
+			this.renderMediaTags_(),
 			this.state.error ? this.renderError_() : !data ?
 				React.DOM.p({className: 'cam-exif-status', role: 'status'}, 'Loading EXIF metadata…') :
 				tags.length ? this.renderTags_(tags) : this.renderEmpty_()
+		);
+	},
+
+	// Media tags are indexed from embedded metadata other than EXIF tags,
+	// such as ID3 tags, Apple MakerNotes, and QuickTime metadata. They're
+	// part of the file's description, so they don't need loading.
+	renderMediaTags_: function() {
+		var tags = this.props.meta.mediaTags || {};
+		var names = Object.keys(tags).sort();
+		var lp = this.props.meta.livePhoto;
+		if (!names.length && !lp) {
+			return null;
+		}
+		var labels = {
+			burstuuid: 'Burst UUID',
+			contentidentifier: 'Content identifier',
+			creationdate: 'Creation date',
+			durationms: 'Duration (ms)',
+			livephotoauto: 'Live Photo auto',
+			livephotovitalityscore: 'Live Photo vitality score',
+			mediaref: 'Media ref',
+			musicbrainzalbumid: 'MusicBrainz album ID',
+			photoidentifier: 'Photo identifier',
+		};
+		return React.DOM.section({className: 'cam-exif-group'},
+			React.DOM.h2(null, 'Media metadata', React.DOM.span(null, names.length + (names.length == 1 ? ' tag' : ' tags'))),
+			lp ? React.DOM.p({className: 'cam-exif-note'},
+				'This is the ' + (lp.video ? 'still image' : 'video') + ' of a Live Photo. ',
+				React.DOM.a({href: this.props.getSearchURL('livephoto:' + lp.contentIdentifier)}, 'Show its still image and video')
+			) : null,
+			React.DOM.table(null,
+				React.DOM.thead(null, React.DOM.tr(null,
+					React.DOM.th({scope: 'col'}, 'Tag'),
+					React.DOM.th({scope: 'col'}, 'Value')
+				)),
+				React.DOM.tbody(null, names.map(function(name) {
+					var label = labels[name] || name.charAt(0).toUpperCase() + name.slice(1);
+					return React.DOM.tr({key: name},
+						React.DOM.th({scope: 'row'}, label, React.DOM.code(null, name)),
+						React.DOM.td(null, React.DOM.span({className: 'cam-exif-value'}, tags[name]))
+					);
+				}))
+			)
 		);
 	},
 
@@ -193,7 +238,7 @@ cam.EXIFDetail.getCameraQuery = function(value) {
 	});
 };
 
-cam.EXIFDetail.getAspect = function(serverConnection, getCameraSearchURL, blobref, searchSession) {
+cam.EXIFDetail.getAspect = function(serverConnection, getCameraSearchURL, getSearchURL, blobref, searchSession) {
 	if (!blobref) {
 		return null;
 	}
@@ -210,6 +255,7 @@ cam.EXIFDetail.getAspect = function(serverConnection, getCameraSearchURL, blobre
 				meta: meta,
 				serverConnection: serverConnection,
 				getCameraSearchURL: getCameraSearchURL,
+				getSearchURL: getSearchURL,
 			});
 		},
 	};

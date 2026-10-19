@@ -17,6 +17,7 @@ limitations under the License.
 goog.provide('cam.ImageDetail');
 
 goog.require('cam.BlobItemVideoContent');
+goog.require('cam.LivePhoto');
 goog.require('cam.Thumber');
 
 // Renders the guts of the detail view for images.
@@ -30,6 +31,8 @@ cam.ImageDetail = React.createClass({
 	propTypes: {
 		backwardPiggy: React.PropTypes.bool.isRequired,
 		height: React.PropTypes.number.isRequired,
+		// The video of the Live Photo the image is the still of, if any.
+		livePhotoVideoSrc: React.PropTypes.string,
 		nextMeta: React.PropTypes.object,
 		permanodeMeta: React.PropTypes.object,
 		prevMeta: React.PropTypes.object,
@@ -60,6 +63,7 @@ cam.ImageDetail = React.createClass({
 		this.imgSize_ = this.getImgSize_();
 		return React.DOM.div({className:'detail-view', style: this.getStyle_()},
 			this.getImg_(),
+			this.getLivePhoto_(),
 			this.getPiggy_(),
 			this.getPreloadImages_()
 		);
@@ -113,6 +117,17 @@ cam.ImageDetail = React.createClass({
 			);
 		}
 		return transition;
+	},
+
+	getLivePhoto_: function() {
+		if (!this.props.livePhotoVideoSrc || !this.isImage_() || !this.imgSize_ || !this.state.imgHasLoaded) {
+			return null;
+		}
+		var style = this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height);
+		style.position = 'absolute';
+		return React.DOM.div({key: 'livephoto' + this.props.resolvedMeta.blobRef, style: style},
+			React.createElement(cam.LivePhoto.Overlay, {fit: 'contain', videoSrc: this.props.livePhotoVideoSrc})
+		);
 	},
 
 	getPiggy_: function() {
@@ -189,7 +204,7 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 		// Find adjacent blobrefs for preloading
 		var prevMeta = null;
 		var nextMeta = null;
-		var blobs = searchSession.getCurrentResults().blobs;
+		var blobs = searchSession.getVisibleBlobs();
 		var idx = goog.array.findIndex(blobs, function(item) {
 			return item.blob == blobref;
 		});
@@ -200,6 +215,7 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 			nextMeta = searchSession.getResolvedMeta(blobs[idx + 1].blob);
 		}
 
+		var videoMeta = searchSession.getLivePhotoVideoMeta(rm);
 		return {
 			fragment: 'image',
 			title: 'Image',
@@ -208,6 +224,7 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 					backwardPiggy: backwardPiggy,
 					key: 'image',
 					height: size.height,
+					livePhotoVideoSrc: videoMeta ? cam.LivePhoto.getVideoSrc(videoMeta) : null,
 					nextMeta: nextMeta,
 					permanodeMeta: pm,
 					prevMeta: prevMeta,

@@ -55,7 +55,7 @@ cam.BlobItemContainerReact = React.createClass({
 			get: React.PropTypes.func.isRequired,
 			set: React.PropTypes.func.isRequired,
 		}).isRequired,
-		searchSession: React.PropTypes.shape({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
+		searchSession: React.PropTypes.shape({getCurrentResults:React.PropTypes.func.isRequired, getVisibleBlobs:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,
@@ -171,8 +171,9 @@ cam.BlobItemContainerReact = React.createClass({
 
 		this.childItems_ = [];
 
-		var results = this.props.searchSession.getCurrentResults();
-		var items = results.blobs.map(function(blob) {
+		// Live Photo videos are shown by their still images' items.
+		var blobs = this.props.searchSession.getVisibleBlobs();
+		var items = blobs.map(function(blob) {
 			var blobref = blob.blob;
 			var self = this;
 			var href = self.props.detailURL(blobref).toString();
@@ -189,7 +190,7 @@ cam.BlobItemContainerReact = React.createClass({
 		var currentTop = this.BLOB_ITEM_MARGIN_;
 		var currentWidth = this.BLOB_ITEM_MARGIN_;
 		var rowStart = 0;
-		var lastItem = results.blobs.length - 1;
+		var lastItem = blobs.length - 1;
 
 		for (var i = rowStart; i <= lastItem; i++) {
 			var item = items[i];
@@ -333,7 +334,7 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleCheckClick_: function(blobref, e) {
-		var blobs = this.props.searchSession.getCurrentResults().blobs;
+		var blobs = this.props.searchSession.getVisibleBlobs();
 		var index = goog.array.findIndex(blobs, function(b) { return b.blob == blobref });
 		var newSelection = cam.object.extend(this.props.selection, {});
 
