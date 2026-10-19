@@ -85,7 +85,7 @@ func benchmarkUpload(b *testing.B, perRequest, concurrency int, session bool) {
 		b.Fatal(err)
 	}
 	defer w.Stop()
-	blobRoot := w.ServerBaseURL() + "/bs-and-maybe-also-index/camli/"
+	blobRoot := w.ServerBaseURL() + "/bs/camli/"
 	uploadURL := blobRoot + "upload"
 
 	post := func(url, contentType string, body []byte, v any) error {
