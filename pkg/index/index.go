@@ -81,6 +81,14 @@ type Index struct {
 
 	corpus *Corpus // or nil, if not being kept in memory
 
+	// receiving maps each blob being received by ReceiveBlob or
+	// ReceiveBlobs to a channel closed once it's done, so that a blob
+	// received again meanwhile, as when both the index's receive hook
+	// and a sync to the index get it, waits rather than being indexed
+	// twice at once. See claimReceive.
+	receivingMu sync.Mutex
+	receiving   map[blob.Ref]chan struct{}
+
 	mu sync.RWMutex // guards following
 	//mu syncdebug.RWMutexTracker  // (when debugging)
 

@@ -140,6 +140,7 @@ var (
 		"receive_buffers_test.go",
 		"receive_exif_test.go",
 		"receiveblobs_test.go",
+		"receiving_test.go",
 		"reindex_session_test.go",
 		"sniff_test.go",
 		"util_test.go",
