@@ -29,6 +29,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -599,6 +600,50 @@ func (ix *Index) ReceiveBlobs(ctx context.Context, blobs []*blob.Blob) error {
 				be.Add(p.sbr.Ref, fmt.Errorf("%w; and recording its missing dependencies failed: %w", p.missingErr, err))
 			}
 		}
+	}
+	return be.OrNil()
+}
+
+// hookBlobSource adds a receive hook to the blob hub of sto, the
+// index's blob source, to index the blobs received into it; see
+// indexReceived.
+func (ix *Index) hookBlobSource(sto blobserver.Storage) {
+	// Hubs are by storage, so it must be comparable, as a pointer is.
+	if reflect.ValueOf(sto).Comparable() {
+		blobserver.GetHub(sto).AddReceiveContentsHook(ix.indexReceived)
+	}
+}
+
+// indexReceived is the index's receive hook on its blob source. It
+// indexes the blobs received that are likely schema blobs before the
+// receive returns, so that a search right after an upload finds what it
+// uploaded. The others, like files' contents, are left to a sync to the
+// index, which also catches up on blobs received while the server wasn't
+// running this hook.
+func (ix *Index) indexReceived(ctx context.Context, blobs []*blob.Blob) error {
+	be := &blobserver.BlobsError{Op: "index"}
+	var todo []*blob.Blob
+	var refs []blob.Ref
+	for _, b := range blobs {
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			be.Add(b.Ref(), err)
+			continue
+		}
+		// Check the first byte before copying the blob to check the
+		// rest, as most blobs aren't JSON.
+		if c, err := r.ReadByte(); err != nil || c != '{' {
+			continue
+		}
+		r.Seek(0, io.SeekStart)
+		contents, _ := io.ReadAll(r) // a bytes.Reader can't fail
+		if schema.LikelySchemaBlob(contents) {
+			todo = append(todo, b)
+			refs = append(refs, b.Ref())
+		}
+	}
+	if len(todo) > 0 {
+		be.AddResult(refs, ix.ReceiveBlobs(ctx, todo))
 	}
 	return be.OrNil()
 }
