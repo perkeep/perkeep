@@ -279,8 +279,32 @@ type DescribedBlob struct {
 	// the first source yielding a valid result is returned.
 	Location *camtypes.Location `json:"location,omitempty"`
 
+	// LivePhoto is set if camliType is "file" and the file is half of
+	// an Apple Live Photo whose other half is indexed. The other half
+	// is also described.
+	LivePhoto *DescribedLivePhoto `json:"livePhoto,omitempty"`
+
 	// Stub is set if this is not loaded, but referenced.
 	Stub bool `json:"-"`
+}
+
+// DescribedLivePhoto pairs the still image and video files of an Apple
+// Live Photo, which share a content identifier.
+type DescribedLivePhoto struct {
+	ContentIdentifier string `json:"contentIdentifier"`
+
+	// Video is the video file, if the described file is the still image.
+	Video blob.Ref `json:"video,omitzero"`
+	// Still is the still image file, if the described file is the video.
+	Still blob.Ref `json:"still,omitzero"`
+}
+
+// LivePhotoIndex is implemented by a DescribeIndex that can pair the
+// still images and videos of Apple Live Photos.
+type LivePhotoIndex interface {
+	// LivePhotoPartners returns the content identifier of fileRef, if
+	// any, and the other files with that identifier, by kind and sorted.
+	LivePhotoPartners(fileRef blob.Ref) (contentID string, stills, videos []blob.Ref)
 }
 
 func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
@@ -790,6 +814,18 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if mediaTags, err := dr.sh.index.GetMediaTags(ctx, br); err == nil {
 			des.MediaTags = mediaTags
 		}
+		if lpi, ok := dr.sh.index.(LivePhotoIndex); ok {
+			if lp := describeLivePhoto(lpi, br, des.File.MIMEType); lp != nil {
+				des.LivePhoto = lp
+				// Describe the other half too, for clients to show
+				// it. Depth 1 suffices for a file, as for rule matches.
+				for _, other := range []blob.Ref{lp.Video, lp.Still} {
+					if other.Valid() {
+						dr.StartDescribe(ctx, other, 1)
+					}
+				}
+			}
+		}
 		if loc, err := dr.sh.index.GetFileLocation(ctx, br); err == nil {
 			des.Location = &loc
 		} else {
@@ -917,4 +953,19 @@ func (b *DescribedBlob) setMIMEType(mime string) {
 	if after0, ok := strings.CutPrefix(mime, camliTypePrefix); ok {
 		b.CamliType = schema.CamliType(after0)
 	}
+}
+
+// describeLivePhoto returns the Live Photo pairing of the file br of
+// the given MIME type, or nil if it has no other half.
+func describeLivePhoto(lpi LivePhotoIndex, br blob.Ref, mimeType string) *DescribedLivePhoto {
+	id, stills, videos := lpi.LivePhotoPartners(br)
+	switch {
+	case id == "":
+		return nil
+	case strings.HasPrefix(mimeType, "image/") && len(videos) > 0:
+		return &DescribedLivePhoto{ContentIdentifier: id, Video: videos[0]}
+	case strings.HasPrefix(mimeType, "video/") && len(stills) > 0:
+		return &DescribedLivePhoto{ContentIdentifier: id, Still: stills[0]}
+	}
+	return nil
 }

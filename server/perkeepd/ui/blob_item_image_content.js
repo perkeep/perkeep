@@ -18,6 +18,7 @@ goog.provide('cam.BlobItemImageContent');
 
 goog.require('goog.math.Size');
 
+goog.require('cam.LivePhoto');
 goog.require('cam.math');
 goog.require('cam.permanodeUtils');
 goog.require('cam.PyramidThrobber');
@@ -36,7 +37,12 @@ cam.BlobItemImageContent = React.createClass({
 		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
 		src: React.PropTypes.string.isRequired,
 		title: React.PropTypes.string,
+		// The video of the Live Photo this image is the still of, if any.
+		videoSrc: React.PropTypes.string,
 	},
+
+	// Thumbnails narrower than this don't have room for the Live Photo badge.
+	MIN_LIVE_PHOTO_WIDTH: 90,
 
 	getInitialState: function() {
 		return {
@@ -61,7 +67,8 @@ cam.BlobItemImageContent = React.createClass({
 		return React.DOM.a({href:this.props.href},
 			React.DOM.div({className:this.getThumbClipClassName_(), style:thumbClipSize},
 				this.getThrobber_(thumbClipSize),
-				this.getThumb_(thumbClipSize)
+				this.getThumb_(thumbClipSize),
+				this.getLivePhoto_()
 			)
 		);
 	},
@@ -84,6 +91,13 @@ cam.BlobItemImageContent = React.createClass({
 		return React.createElement(cam.PyramidThrobber,{
 			pos: cam.math.center(cam.PyramidThrobber.SIZE, thumbClipSize)
 		});
+	},
+
+	getLivePhoto_: function() {
+		if (!this.props.videoSrc || !this.state.loaded || this.props.size.width < this.MIN_LIVE_PHOTO_WIDTH) {
+			return null;
+		}
+		return React.createElement(cam.LivePhoto.Overlay, {fit: 'cover', videoSrc: this.props.videoSrc});
 	},
 
 	getThumb_: function(thumbClipSize) {
@@ -109,7 +123,7 @@ cam.BlobItemImageContent = React.createClass({
 cam.BlobItemImageContent.getHandler = function(blobref, searchSession, href) {
 	var rm = searchSession.getResolvedMeta(blobref);
 	if (rm && rm.image) {
-		return new cam.BlobItemImageContent.Handler(rm, href, searchSession.getTitle(blobref));
+		return new cam.BlobItemImageContent.Handler(rm, href, searchSession.getTitle(blobref), searchSession.getLivePhotoVideoMeta(rm));
 	}
 
 	var m = searchSession.getMeta(blobref);
@@ -133,8 +147,10 @@ cam.BlobItemImageContent.getHandler = function(blobref, searchSession, href) {
 	return null;
 };
 
-cam.BlobItemImageContent.Handler = function(imageMeta, href, title) {
+// videoMeta, if non-null, describes the video file of the Live Photo whose still is imageMeta.
+cam.BlobItemImageContent.Handler = function(imageMeta, href, title, videoMeta) {
 	this.imageMeta_ = imageMeta;
+	this.videoMeta_ = videoMeta;
 	this.href_ = href;
 	this.title_ = title;
 	this.thumber_ = cam.Thumber.fromImageMeta(imageMeta);
@@ -151,5 +167,6 @@ cam.BlobItemImageContent.Handler.prototype.createContent = function(size) {
 		size: size,
 		src: this.thumber_.getSrc(size.height),
 		title: this.title_,
+		videoSrc: this.videoMeta_ ? cam.LivePhoto.getVideoSrc(this.videoMeta_) : null,
 	});
 };

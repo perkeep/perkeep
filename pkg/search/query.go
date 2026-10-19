@@ -1613,6 +1613,14 @@ func permanodeConstraintPermanodeMatchesAttrVal(c *PermanodeConstraint, ctx cont
 }
 
 func fileConstraintCheckValid(c *FileConstraint) error {
+	if c == nil {
+		return nil
+	}
+	switch c.LivePhoto {
+	case "", "still", "video", "any":
+	default:
+		return fmt.Errorf("invalid livePhoto value %q; want still, video, or any", c.LivePhoto)
+	}
 	return nil
 }
 
@@ -1680,6 +1688,31 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 		}
 	}
 	corpus := s.h.corpus
+	if c.LivePhoto != "" {
+		if corpus == nil {
+			return false, nil
+		}
+		_, stills, videos := corpus.LivePhotoPartners(br)
+		isStill := len(videos) > 0 && strings.HasPrefix(fi.MIMEType, "image/")
+		isVideo := len(stills) > 0 && strings.HasPrefix(fi.MIMEType, "video/")
+		switch c.LivePhoto {
+		case "still":
+			if !isStill {
+				return false, nil
+			}
+		case "video":
+			if !isVideo {
+				return false, nil
+			}
+		case "any":
+			if !isStill && !isVideo {
+				return false, nil
+			}
+		default:
+			// Not caught by fileConstraintCheckValid if nested.
+			return false, fmt.Errorf("invalid livePhoto value %q", c.LivePhoto)
+		}
+	}
 	if sc := c.Camera; sc != nil {
 		if corpus == nil {
 			return false, nil

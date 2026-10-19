@@ -177,11 +177,20 @@ type FileConstraint struct {
 
 	// MediaTag is for ID3 (and similar) embedded metadata in files.
 	MediaTag *MediaTagConstraint `json:"mediaTag,omitempty"`
+
+	// LivePhoto, if non-empty, matches files that are half of an Apple
+	// Live Photo whose other half is indexed: "still" matches the still
+	// image, "video" the video, and "any" either. Requires an in-memory
+	// corpus.
+	LivePhoto string `json:"livePhoto,omitempty"`
 }
 
 type MediaTagConstraint struct {
 	// Tag is the tag to match.
 	// For ID3, this includes: title, artist, album, genre, musicbrainzalbumid, year, track, disc, mediaref, durationms.
+	// For Apple photos and QuickTime videos, this includes: contentidentifier (shared by a Live Photo's
+	// still image and video), burstuuid and photoidentifier (photos), and durationms, make, model,
+	// software, creationdate, livephotoauto, and livephotovitalityscore (videos).
 	Tag string `json:"tag"`
 
 	String *StringConstraint `json:"string,omitempty"`

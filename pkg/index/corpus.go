@@ -119,6 +119,10 @@ type Corpus struct {
 
 	mediaTags map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
 
+	// livePhotos maps an Apple content identifier media tag to the
+	// wholeRefs having it: a Live Photo's still image and video.
+	livePhotos map[string][]blob.Ref
+
 	permanodesByTime    *lazySortedPermanodes // cache of permanodes sorted by creation time.
 	permanodesByModtime *lazySortedPermanodes // cache of permanodes sorted by modtime.
 
@@ -356,6 +360,7 @@ func newCorpus() *Corpus {
 		gps:                     make(map[blob.Ref]latLong),
 		camera:                  make(map[blob.Ref]cameraInfo),
 		mediaTags:               make(map[blob.Ref]map[string]string),
+		livePhotos:              make(map[string][]blob.Ref),
 		deletes:                 make(map[blob.Ref][]deletion),
 		claimBack:               make(map[blob.Ref][]*camtypes.Claim),
 		permanodesSetByNodeType: make(map[string]set.Set[blob.Ref]),
@@ -965,7 +970,11 @@ func (c *Corpus) mergeMediaTag(k, v []byte) error {
 		tm = make(map[string]string)
 		c.mediaTags[wholeRef] = tm
 	}
-	tm[c.str(f[2])] = c.str(urld(string(v)))
+	tag, val := c.str(f[2]), c.str(urld(string(v)))
+	tm[tag] = val
+	if tag == MediaTagContentIdentifier && !slices.Contains(c.livePhotos[val], wholeRef) {
+		c.livePhotos[val] = append(c.livePhotos[val], wholeRef)
+	}
 	return nil
 }
 
@@ -1699,15 +1708,52 @@ func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {
 	return ll.lat, ll.long, true
 }
 
-// FileCamera returns the EXIF camera make and model of fileRef.
+// FileCamera returns the camera make and model of fileRef, from its
+// EXIF data or, for videos, its QuickTime metadata.
 // It reports ok if at least one of make or model is nonempty.
 func (c *Corpus) FileCamera(fileRef blob.Ref) (make, model string, ok bool) {
 	wholeRef, ok := c.fileWholeRef[fileRef]
 	if !ok {
 		return "", "", false
 	}
-	info, ok := c.camera[wholeRef]
-	return info.make, info.model, ok
+	if info, ok := c.camera[wholeRef]; ok {
+		return info.make, info.model, true
+	}
+	tags := c.mediaTags[wholeRef]
+	make, model = tags[MediaTagMake], tags[MediaTagModel]
+	return make, model, make != "" || model != ""
+}
+
+// LivePhotoPartners returns the Apple content identifier of fileRef, if
+// any, and the other files with that identifier, sorted, by kind: for
+// the still image of a Live Photo, its video, and vice versa. Files
+// with the same contents as fileRef are not included.
+func (c *Corpus) LivePhotoPartners(fileRef blob.Ref) (contentID string, stills, videos []blob.Ref) {
+	wholeRef, ok := c.fileWholeRef[fileRef]
+	if !ok {
+		return "", nil, nil
+	}
+	contentID = c.mediaTags[wholeRef][MediaTagContentIdentifier]
+	if contentID == "" {
+		return "", nil, nil
+	}
+	var files []blob.Ref
+	for _, wr := range c.livePhotos[contentID] {
+		if wr != wholeRef {
+			files = c.AppendFilesOfWholeRef(files, wr)
+		}
+	}
+	for _, f := range files {
+		switch mime := c.files[f].MIMEType; {
+		case strings.HasPrefix(mime, "image/"):
+			stills = append(stills, f)
+		case strings.HasPrefix(mime, "video/"):
+			videos = append(videos, f)
+		}
+	}
+	sort.Sort(blob.ByRef(stills))
+	sort.Sort(blob.ByRef(videos))
+	return contentID, stills, videos
 }
 
 // ForeachClaim calls fn for each claim of permaNode.
