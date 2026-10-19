@@ -31,6 +31,7 @@ import (
 
 	"go4.org/types"
 	"perkeep.org/internal/geocode"
+	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
@@ -116,6 +117,9 @@ func init() {
 	// Image predicates
 	registerKeyword(newCamera())
 	registerKeyword(newIsImage())
+	registerKeyword(newIsLivePhoto())
+	registerKeyword(newIsLivePhotoVideo())
+	registerKeyword(newLivePhotoID())
 	registerKeyword(newHeight())
 	registerKeyword(newIsLandscape())
 	registerKeyword(newIsPano())
@@ -1011,6 +1015,53 @@ func (camera) Predicate(ctx context.Context, args []string) (*Constraint, error)
 		}
 	}
 	return permOfFile(&FileConstraint{Camera: sc}), nil
+}
+
+// isLivePhoto matches one half of Apple Live Photos.
+type isLivePhoto struct {
+	matchEqual
+	part string // FileConstraint.LivePhoto value
+}
+
+func newIsLivePhoto() keyword {
+	return isLivePhoto{"is:livephoto", "still"}
+}
+
+func newIsLivePhotoVideo() keyword {
+	return isLivePhoto{"is:livephotovideo", "video"}
+}
+
+func (k isLivePhoto) Description() string {
+	if k.part == "video" {
+		return "object is the video of a Live Photo whose still image is indexed"
+	}
+	return "object is the still image of a Live Photo whose video is indexed"
+}
+
+func (k isLivePhoto) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return permOfFile(&FileConstraint{LivePhoto: k.part}), nil
+}
+
+type livePhotoID struct {
+	matchPrefix
+}
+
+func newLivePhotoID() keyword {
+	return livePhotoID{newMatchPrefix("livephoto")}
+}
+
+func (livePhotoID) Description() string {
+	return "Match both halves of the Live Photo with the given Apple content identifier, case insensitively."
+}
+
+func (livePhotoID) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	if args[0] == "" {
+		return nil, errors.New("empty livephoto search predicate")
+	}
+	return permOfFile(&FileConstraint{MediaTag: &MediaTagConstraint{
+		Tag:    index.MediaTagContentIdentifier,
+		String: &StringConstraint{Equals: args[0], CaseInsensitive: true},
+	}}), nil
 }
 
 type filename struct {

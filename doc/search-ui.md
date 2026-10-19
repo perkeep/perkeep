@@ -45,6 +45,7 @@ escaping.  For example:
 
 **<a name="camera"></a>camera**
 : search for permanodes of files by EXIF camera make or model, ignoring case.
+  Videos match by the make and model in their QuickTime metadata.
   `camera:"Galaxy Nexus"` matches an exact model, and `camera:Samsung` matches
   an exact make. Use `camera:~nexus` or `camera:*nexus*` for a substring,
   `camera:Galaxy*` for a prefix, and `camera:*Nexus` for a suffix.
@@ -134,6 +135,22 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 
 **<a name="like"></a>is:like**
 : the object is a liked tweet
+
+**<a name="livephoto"></a>is:livephoto**
+: the image is the still image of an Apple Live Photo whose video is also
+  indexed. The two files share a content identifier, recorded in the image's
+  Apple EXIF MakerNote and the video's QuickTime metadata. Use
+  `is:livephotovideo` to match the videos instead, and
+  `-is:livephotovideo` to leave them out. Requires the in-memory index.
+
+**<a name="livephotovideo"></a>is:livephotovideo**
+: the object is the video of an Apple Live Photo whose still image is also
+  indexed. Requires the in-memory index.
+
+**<a name="livephotoid"></a>livephoto**
+: search for both halves of the Live Photo with the given Apple content
+  identifier, ignoring case: `livephoto:7C16BD72-9110-4AB6-80F6-6BF098D5F43E`.
+  Requires the in-memory index.
 
 **<a name="pano"></a>is:pano**
 : the image is panoramic: its width to height ratio is greater than or equal to 2.0.

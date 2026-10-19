@@ -124,6 +124,7 @@ var (
 		"corpus_bench_test.go",
 		"corpus_blobmeta_test.go",
 		"corpus_camera_test.go",
+		"corpus_livephoto_test.go",
 		"corpus_meta_test.go",
 		"corpus_parse_test.go",
 		"corpus_test.go",

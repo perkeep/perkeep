@@ -250,6 +250,9 @@ func TestScanFromStorageParallel(t *testing.T) {
 		if i%50 == 0 {
 			set(fmt.Sprintf("mediatag|%s|album", whole), urle(fmt.Sprintf("album %d", i)))
 		}
+		if i%40 == 0 { // pairs of files with the same Live Photo content identifier
+			set(fmt.Sprintf("mediatag|%s|contentidentifier", whole), urle(fmt.Sprintf("id-%d", i/80)))
+		}
 		dir := ref("dir", i/10)
 		set(fmt.Sprintf("dirchild|%s|%s", dir, file), "1")
 	}
@@ -273,6 +276,7 @@ func TestScanFromStorageParallel(t *testing.T) {
 	check("gps", got.gps, want.gps)
 	check("camera", got.camera, want.camera)
 	check("mediaTags", got.mediaTags, want.mediaTags)
+	check("livePhotos", got.livePhotos, want.livePhotos)
 	check("dirChildren", got.dirChildren, want.dirChildren)
 	check("fileParents", got.fileParents, want.fileParents)
 	check("permanodesSetByNodeType", got.permanodesSetByNodeType, want.permanodesSetByNodeType)
