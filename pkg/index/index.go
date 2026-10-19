@@ -1736,6 +1736,17 @@ func (x *Index) GetMediaTags(ctx context.Context, fileRef blob.Ref) (tags map[st
 	return tags, nil
 }
 
+// LivePhotoPartners returns the Apple content identifier of fileRef, if
+// any, and the other files with that identifier, by kind and sorted:
+// for the still image of a Live Photo, its video, and vice versa.
+// It requires a corpus, and returns nothing without one.
+func (x *Index) LivePhotoPartners(fileRef blob.Ref) (contentID string, stills, videos []blob.Ref) {
+	if x.corpus == nil {
+		return "", nil, nil
+	}
+	return x.corpus.LivePhotoPartners(fileRef)
+}
+
 func (x *Index) GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes.Location, error) {
 	if x.corpus != nil {
 		lat, long, ok := x.corpus.FileLatLong(fileRef)
