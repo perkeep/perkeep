@@ -332,7 +332,7 @@ configuration above:
 "/immich/api/": {
     "handler": "immich",
     "handlerArgs": {
-        "blobRoot": "/bs-and-maybe-also-index/",
+        "blobRoot": "/bs/",
         "jsonSignRoot": "/sighelper/",
         "searchRoot": "/my-search/"
     }

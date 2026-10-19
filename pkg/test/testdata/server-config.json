@@ -8,7 +8,7 @@
          "handler": "root",
          "handlerArgs": {
              "ownerName": "test",
-             "blobRoot": "/bs-and-maybe-also-index/",
+             "blobRoot": "/bs/",
              "helpRoot": "/help/",
              "statusRoot": "/status/",
              "searchRoot": "/my-search/",
@@ -16,13 +16,6 @@
              "stealth": false
          }
      },
-
-      "/bs-and-index/": {
-          "handler": "storage-replica",
-          "handlerArgs": {
-              "backends": ["/bs/", "/index-mem/"]
-          }
-      },
 
       "/no-http-storage/": {
           "internal": true,
@@ -35,18 +28,6 @@
       "/no-http-handler/": {
           "internal": true,
           "handler": "status"
-      },
-
-      "/bs-and-maybe-also-index/": {
-          "handler": "storage-cond",
-          "handlerArgs": {
-              "write": {
-                  "if": "isSchema",
-                  "then": "/bs-and-index/",
-                  "else": "/bs/"
-              },
-              "read": "/bs/"
-          }
       },
 
      "/bs/": {
