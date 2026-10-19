@@ -903,6 +903,9 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	if strings.HasPrefix(mimeType, "audio/") {
 		ix.indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
 	}
+	if isQuickTimeMIME(mimeType) {
+		ix.indexQuickTime(fr, fr.Size(), wholeRef, mm)
+	}
 
 	return nil
 }
@@ -1001,6 +1004,7 @@ func (ix *Index) indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err
 	if err != nil {
 		return err
 	}
+	ix.indexAppleMakerNote(wholeRef, ex, mm)
 
 	if exif.IsGPSError(tiffErr) {
 		ix.printf("Invalid EXIF GPS data: %v", tiffErr)
@@ -1136,7 +1140,7 @@ func (ix *Index) indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mu
 	}
 
 	// Note: if you add to this map, please update
-	// pkg/search/query.go's MediaTagConstraint Tag docs.
+	// internal/searchtypes/query.go's MediaTagConstraint Tag docs.
 	tags := map[string]string{
 		"title":              tag.Title(),
 		"artist":             tag.Artist(),
@@ -1147,7 +1151,7 @@ func (ix *Index) indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mu
 		"track":              trackStr,
 		"disc":               discStr,
 		"mediaref":           mediaRef.String(),
-		"durationms":         durationStr,
+		MediaTagDurationMS:   durationStr,
 	}
 
 	for tag, value := range tags {
