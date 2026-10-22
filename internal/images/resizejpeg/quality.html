@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>resizejpeg · Visual quality report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10151d;
+      --panel: #19212c;
+      --panel-light: #202c3a;
+      --line: #354253;
+      --text: #edf2f7;
+      --muted: #abb8c9;
+      --accent: #85e3c3;
+      --accent-dark: #173f37;
+      --amber: #f3ca88;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.55; }
+    main { max-width: 1560px; margin: auto; padding: 36px 28px 56px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.15; letter-spacing: -.04em; margin: 9px 0 12px; }
+    h2 { font-size: 1.15rem; letter-spacing: -.015em; }
+    h3 { font-size: .94rem; }
+    a { color: var(--accent); text-underline-offset: .2em; overflow-wrap: anywhere; }
+    button, select { font: inherit; }
+    button, select, .download {
+      min-height: 40px; border: 1px solid var(--line); border-radius: 7px;
+      background: var(--panel-light); color: var(--text); padding: 8px 12px;
+    }
+    button, select { cursor: pointer; }
+    button:hover, .download:hover { border-color: var(--accent); }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    select { width: 100%; }
+    option { background: var(--panel); }
+    [hidden] { display: none !important; }
+    .eyebrow { color: var(--accent); font-size: .74rem; font-weight: 750; letter-spacing: .17em; text-transform: uppercase; }
+    .intro { max-width: 850px; color: var(--muted); }
+    .topline { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+    .report-badge { border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; white-space: nowrap; color: var(--muted); font-size: .78rem; }
+    .counts { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 22px 0; color: var(--muted); font-size: .88rem; }
+    .counts strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .controls { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 16px; }
+    .field-label { display: block; font-size: .75rem; font-weight: 650; color: var(--muted); margin-bottom: 7px; letter-spacing: .025em; }
+    .source-info { padding: 16px 3px 21px; display: flex; justify-content: space-between; align-items: start; gap: 20px; font-size: .83rem; color: var(--muted); }
+    .source-info strong { color: var(--text); font-weight: 600; }
+    .source-line + .source-line { margin-top: 4px; }
+    .source-info .download { white-space: nowrap; text-decoration: none; font-size: .8rem; }
+    .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin: 12px 0; }
+    .toolbar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .segmented { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); gap: 3px; }
+    .segmented button { min-height: 34px; background: none; border-color: transparent; padding: 5px 12px; font-size: .83rem; }
+    .segmented button[aria-pressed="true"] { background: var(--accent-dark); color: var(--accent); border-color: #376d5d; }
+    .zoom-label { font-size: .8rem; color: var(--muted); }
+    #zoom-select { width: auto; font-size: .83rem; min-width: 153px; }
+    .small-button { min-height: 36px; padding: 5px 10px; font-size: .8rem; }
+    .view-help { color: var(--muted); font-size: .8rem; margin: 0 0 15px; }
+    .view-help strong { color: var(--accent); font-weight: 600; }
+    .comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .comparison.blink-mode { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .image-card { min-width: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+    .image-heading { min-height: 88px; padding: 13px 15px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+    .image-heading .caption { color: var(--muted); font-size: .77rem; overflow-wrap: anywhere; }
+    .letter { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: .75rem; }
+    .viewport {
+      height: 390px; overflow: auto; overscroll-behavior: contain; background: #090c11;
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      scrollbar-color: #516074 #10151d; touch-action: pan-x pan-y;
+    }
+    .viewport.can-pan { cursor: grab; }
+    .viewport.dragging { cursor: grabbing; user-select: none; }
+    .surface { width: max-content; min-width: 100%; min-height: 100%; padding: 12px; display: grid; place-items: center; }
+    .image-stage { position: relative; flex: none; overflow: hidden; background: #090c11; }
+    .image-stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; max-width: none; user-select: none; }
+    .nearest .image-stage img { image-rendering: pixelated; }
+    .image-footer { min-height: 41px; padding: 10px 14px; font-size: .73rem; color: var(--muted); display: flex; gap: 8px; justify-content: space-between; }
+    .image-footer a { white-space: nowrap; }
+    .blink-controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; align-items: center; }
+    #blink-state { color: var(--accent); font-size: .83rem; margin-right: 5px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .metric { border: 1px solid var(--line); border-radius: 9px; padding: 13px 16px; background: var(--panel); }
+    .metric dt { color: var(--muted); font-size: .73rem; letter-spacing: .05em; text-transform: uppercase; }
+    .metric dd { margin: 3px 0 0; font-size: 1.5rem; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+    .metric dd small { font-size: .75rem; margin-left: 4px; color: var(--muted); letter-spacing: normal; }
+    .agreement-note { margin-top: 14px; color: var(--muted); font-size: .84rem; max-width: 1050px; }
+    .agreement-note strong { color: var(--amber); font-weight: 600; }
+    .section { margin-top: 34px; }
+    .section-heading { display: flex; gap: 20px; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+    .section-heading p { color: var(--muted); font-size: .8rem; }
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+    table { border-collapse: collapse; width: 100%; font-size: .8rem; white-space: nowrap; }
+    th { background: var(--panel-light); color: var(--muted); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 650; }
+    th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid #293442; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #1b2933; }
+    tr.selected { background: var(--accent-dark); }
+    .numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    .row-link { font-weight: 600; }
+    .table-source { max-width: 220px; white-space: normal; min-width: 130px; }
+    .table-candidate { white-space: normal; min-width: 220px; }
+    details { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 16px 20px; }
+    summary { cursor: pointer; font-weight: 600; font-size: .95rem; }
+    .method-body { color: var(--muted); font-size: .86rem; max-width: 1050px; padding-top: 12px; }
+    .method-body p + p { margin-top: 12px; }
+    .method-body strong { color: var(--text); font-weight: 600; }
+    .method-body ul { padding-left: 22px; margin-bottom: 0; }
+    .method-body li + li { margin-top: 5px; }
+    .status { margin-top: 26px; border: 1px solid var(--line); border-radius: 10px; padding: 22px; color: var(--muted); background: var(--panel); }
+    .status.error { border-color: #a67545; color: var(--amber); }
+    .status p + p { margin-top: 10px; }
+    footer { color: #8393a7; font-size: .75rem; margin-top: 30px; border-top: 1px solid var(--line); padding-top: 16px; }
+    @media (min-width: 1200px) { .viewport { height: 440px; } }
+    @media (max-width: 900px) {
+      main { padding: 26px 18px 40px; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .controls label:last-child { grid-column: 1 / -1; }
+      .comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #diff-card { grid-column: 1 / -1; }
+      .comparison.blink-mode #diff-card { grid-column: auto; }
+      .image-heading { min-height: 88px; }
+      .viewport { height: 340px; }
+    }
+    @media (max-width: 580px) {
+      main { padding: 22px 12px 32px; }
+      .topline { display: block; }
+      .report-badge { display: inline-block; margin-top: 18px; }
+      .counts { gap: 7px 18px; }
+      .controls { grid-template-columns: 1fr; padding: 15px; gap: 13px; }
+      .controls label:last-child { grid-column: auto; }
+      .source-info { flex-direction: column; gap: 12px; }
+      .comparison, .comparison.blink-mode { grid-template-columns: 1fr; }
+      #diff-card { grid-column: auto; }
+      .viewport { height: 310px; }
+      .image-heading { min-height: 76px; }
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .metric dd { font-size: 1.3rem; }
+      .section-heading { display: block; }
+      .section-heading p { margin-top: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="topline">
+        <div>
+          <p class="eyebrow">Perkeep / resizejpeg</p>
+          <h1>JPEG resizing. A closer look.</h1>
+          <p class="intro">Compare pure-Go thumbnail headroom and filter options, fixed-factor reduced IDCT, and streaming full-IDCT resizing with a full-resolution Lanczos3 reference.
+            The default remains 4× headroom with Lanczos3. Inspect actual pixels before choosing a lower-work option.</p>
+        </div>
+        <span class="report-badge">Visual quality report · pure Go</span>
+      </div>
+      <div class="counts" id="counts" hidden></div>
+    </header>
+
+    <div id="status" class="status" role="status">
+      Loading <code>report.json</code>…
+    </div>
+    <noscript><div class="status error">Enable JavaScript to load the report and compare images.</div></noscript>
+
+    <div id="report" hidden>
+      <section aria-label="Choose a comparison">
+        <div class="controls">
+          <label><span class="field-label">01 · Source image</span><select id="source-select"></select></label>
+          <label><span class="field-label">02 · Output size / operation</span><select id="row-select"></select></label>
+          <label><span class="field-label">03 · Candidate method</span><select id="candidate-select"></select></label>
+        </div>
+        <div class="source-info">
+          <div>
+            <p class="source-line" id="source-description"></p>
+            <p class="source-line" id="source-credit"></p>
+            <p class="source-line" id="source-origin"></p>
+          </div>
+          <a class="download" id="jpeg-link" target="_blank" rel="noopener">Open input JPEG ↗</a>
+        </div>
+      </section>
+
+      <section id="inspector" aria-label="Image comparison">
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <div class="segmented" role="group" aria-label="Comparison mode">
+              <button id="paired-button" type="button" aria-pressed="true">Side by side</button>
+              <button id="blink-button" type="button" aria-pressed="false">A/B blink</button>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <label class="zoom-label" for="zoom-select">Display scale</label>
+            <select id="zoom-select">
+              <option value="1" selected>1× · actual pixels</option>
+              <option value="2">2× · nearest</option>
+              <option value="4">4× · nearest</option>
+              <option value="fit">Fit · may downscale</option>
+            </select>
+            <button class="small-button" id="center-button" type="button">Center views</button>
+          </div>
+        </div>
+        <p class="view-help"><strong id="scale-description"></strong>
+          Pan by dragging or scrolling; all views stay in sync. At 1×, one output pixel occupies one CSS pixel.</p>
+
+        <div class="comparison" id="comparison">
+          <article class="image-card" id="reference-card">
+            <div class="image-heading">
+              <h3><span class="letter">A</span>Reference</h3>
+              <p class="caption">Full standard decode → Lanczos3</p>
+            </div>
+            <div class="viewport" tabindex="0" aria-label="Reference image; scroll to pan">
+              <div class="surface"><div class="image-stage"><img id="reference-image" alt="Full-decode reference" draggable="false"></div></div>
+            </div>
+            <div class="image-footer"><span class="output-size"></span><a id="reference-link" target="_blank" rel="noopener">Open PNG ↗</a></div>
+          </article>
+
+          <article class="image-card" id="candidate-card">
+            <div class="image-heading">
+              <h3><span class="letter">B</span>Candidate</h3>
+              <p class="caption" id="candidate-caption"></p>
+            </div>
+            <div class="viewport" tabindex="0" aria-label="Candidate image; scroll to pan">
+              <div class="surface"><div class="image-stage"><img id="candidate-image" alt="Reduced-decode candidate" draggable="false"></div></div>
+            </div>
+            <div class="image-footer"><span class="output-size"></span><a id="candidate-link" target="_blank" rel="noopener">Open PNG ↗</a></div>
+          </article>
+
+          <article class="image-card" id="blink-card" hidden>
+            <div class="image-heading">
+              <h3>A/B · Same-position comparison</h3>
+              <p class="caption" id="blink-caption"></p>
+            </div>
+            <div class="viewport" tabindex="0" aria-label="A/B comparison image; scroll to pan">
+              <div class="surface"><div class="image-stage">
+                <img id="blink-reference" alt="A: full-decode reference" draggable="false">
+                <img id="blink-candidate" alt="B: reduced-decode candidate" draggable="false" hidden>
+              </div></div>
+            </div>
+            <div class="image-footer"><span class="output-size"></span><span>A = reference · B = candidate</span></div>
+          </article>
+
+          <article class="image-card" id="diff-card">
+            <div class="image-heading">
+              <h3><span class="letter">Δ</span>Absolute RGB difference · 8×</h3>
+              <p class="caption">Black = identical · amplified, not natural appearance</p>
+            </div>
+            <div class="viewport" tabindex="0" aria-label="Amplified difference image; scroll to pan">
+              <div class="surface"><div class="image-stage"><img id="diff-image" alt="Absolute RGB difference amplified eight times" draggable="false"></div></div>
+            </div>
+            <div class="image-footer"><span>8 × |A − B|, clipped to 255</span><a id="diff-link" target="_blank" rel="noopener">Open PNG ↗</a></div>
+          </article>
+        </div>
+
+        <div class="blink-controls" id="blink-controls" hidden>
+          <span id="blink-state">Showing A · Reference</span>
+          <button class="small-button" id="swap-button" type="button">Show B · Candidate</button>
+          <button class="small-button" id="auto-button" type="button" aria-pressed="false">Start auto blink</button>
+          <span class="zoom-label">Auto: switch every 700 ms. Manual switching is the default.</span>
+        </div>
+
+        <dl class="metric-grid" aria-label="Selected candidate metrics">
+          <div class="metric"><dt>MAE ↓</dt><dd id="metric-mae"></dd></div>
+          <div class="metric"><dt>RMSE ↓</dt><dd id="metric-rmse"></dd></div>
+          <div class="metric"><dt>PSNR ↑</dt><dd id="metric-psnr"></dd></div>
+          <div class="metric"><dt>Max channel error ↓</dt><dd id="metric-max"></dd></div>
+        </dl>
+        <p class="agreement-note"><strong>Agreement is not ground truth.</strong>
+          Metrics compare this candidate with the full-decode + Lanczos3 reference, not the original scene or a perceptual ideal.
+          Reduced IDCT and full-resolution resampling can differ in frequency response, sampling phase, clipping, and rounding.
+          Judge the images at actual pixels as well as the numbers.</p>
+      </section>
+
+      <section class="section" aria-labelledby="summary-title">
+        <div class="section-heading">
+          <h2 id="summary-title">Every comparison</h2>
+          <p>All sources and candidates · select an output to inspect it above</p>
+        </div>
+        <div class="table-wrap" tabindex="0" aria-label="All comparison metrics; scroll horizontally if needed">
+          <table>
+            <thead><tr>
+              <th scope="col">Source</th><th scope="col">Output</th><th scope="col">Pixels</th><th scope="col">Candidate</th>
+              <th scope="col" class="numeric">MAE ↓</th><th scope="col" class="numeric">RMSE ↓</th>
+              <th scope="col" class="numeric">PSNR ↑ (dB)</th><th scope="col" class="numeric">Max ↓</th>
+            </tr></thead>
+            <tbody id="summary-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <details open>
+          <summary>How to read this report</summary>
+          <div class="method-body">
+            <p><strong>Reference A:</strong> decode the JPEG at full resolution with Go’s standard JPEG decoder,
+              then resize with Lanczos3 to the exact output dimensions listed. These PNGs avoid a second lossy JPEG encode.</p>
+            <p><strong>Candidate B:</strong> fixed-factor candidates in direct rows use reduced IDCT at the stated factor without a subsequent resize.
+              Original thumbnail candidates use reduced decoding followed by Lanczos3. The aggressive strategy chooses a larger reduction;
+              the 2×-headroom strategy retains more pixels before the final resize. If both strategies choose the same factor,
+              a duplicate candidate may be omitted. The selector shows the actual factor used.</p>
+            <p><strong>Default · 4× headroom + Lanczos3:</strong> every row also includes pure-Go reduced IDCT plus Lanczos3,
+              selecting a power-of-two factor that retains at least 4× the target in both axes where the source permits.
+              This commonly leaves 4–8× headroom, with phase-aware filtering for odd source dimensions.
+              It does less work when reduced decoding is selected, but is not pixel-equivalent to full decode plus Lanczos3.
+              Source-limited headroom and buffered progressive/scan handling are labeled.</p>
+            <p><strong>Options · headroom versus filter:</strong> thumbnail rows append 2× Lanczos3 to isolate the headroom change,
+              4× CatmullRom and 4× Bilinear to isolate the filter change, and 2× Bilinear to combine them.
+              All three filters widen their footprint when downsampling. Less headroom can discard more detail; the shorter
+              filters can change sharpness and ringing. Different-filter errors are still measured against Lanczos3, not against
+              a same-filter reference. The selector shows each actual IDCT factor and whether headroom is source-limited.</p>
+            <p><strong>When 2× means fewer pixels:</strong> moving from 4× to 2× headroom quarters the intermediate pixel count
+              only when the selected IDCT factor doubles in both axes. The factor-8 cap and source dimensions can prevent that;
+              identical factors do not save reconstruction work. This report does not measure CPU time: use the separate
+              options benchmark to evaluate the quality/CPU trade-off.</p>
+            <p><strong>Inspecting pixels:</strong> 1× does not fit the image into the panel; large outputs intentionally overflow.
+              Drag or scroll to inspect synchronized crops. 2× and 4× enlarge with nearest-neighbor rendering to expose individual
+              output pixels. Fit only shrinks when necessary and can hide small differences. CSS pixels are affected by your
+              browser zoom and display scale. The PNG links also allow independent inspection.</p>
+            <p><strong>Reading the numbers:</strong> MAE is mean absolute channel error, RMSE is root mean square channel error,
+              and max is the largest channel error, on the 0–255 RGB scale. Smaller errors and higher PSNR indicate closer
+              agreement with the reference. A PSNR of +∞ means identical pixels. Metrics use the unamplified images;
+              the difference preview multiplies absolute per-channel differences by eight and clips them at 255.</p>
+            <p><strong>Scope:</strong> this is a visual comparison, not a speed benchmark or a comprehensive perceptual test.
+              Progressive checks include nondefault Bilinear and CatmullRom outputs from both APIs; full-IDCT results are
+              also checked against independent same-filter references. They count decoder checks, not human quality ratings. Source attribution below the
+              selectors describes the selected input; input dimensions distinguish the original source from the JPEG used here.</p>
+            <div id="generator-notes" hidden><p style="margin-top: 14px"><strong>Generator notes</strong></p><ul id="notes-list"></ul></div>
+          </div>
+        </details>
+      </section>
+      <footer>Generated artifacts · no third-party scripts, fonts, or image services · metrics describe reference agreement only</footer>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+    (() => {
+      const $ = id => document.getElementById(id);
+      const state = { report: null, row: null, candidate: 0, mode: "paired", zoom: "1", showB: false, timer: null };
+      const sourceSelect = $("source-select");
+      const rowSelect = $("row-select");
+      const candidateSelect = $("candidate-select");
+      const viewports = [...document.querySelectorAll(".viewport")];
+      let syncing = false;
+      let centerFrame = 0;
+      let tableEntries = [];
+
+      function node(tag, text, className) {
+        const element = document.createElement(tag);
+        if (text !== undefined) element.textContent = text;
+        if (className) element.className = className;
+        return element;
+      }
+
+      function dimensions(width, height) { return `${width} × ${height}`; }
+      function number(value, digits = 3) {
+        return typeof value === "number" && Number.isFinite(value)
+          ? value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+          : "—";
+      }
+      function psnr(value) { return value === null ? "+∞" : number(value, 2); }
+      function sourceFor(row) { return state.report.sources.find(source => source.id === row.source_id); }
+      function visibleViews() { return viewports.filter(view => !view.closest("[hidden]")); }
+      function rowHash(row, candidate) {
+        return "#" + new URLSearchParams({ row: row.id, candidate: String(candidate) }).toString();
+      }
+
+      // Generated assets must stay alongside this viewer, not trigger remote fetches.
+      function assetURL(filename) {
+        if (typeof filename !== "string" || !filename) throw new Error("Missing generated image filename.");
+        const base = new URL(".", location.href);
+        const url = new URL(filename, base);
+        if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) ||
+            (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "file:")) {
+          throw new Error("Generated image path is outside the report directory.");
+        }
+        return url.href;
+      }
+
+      function setImage(id, filename) { $(id).src = assetURL(filename); }
+      function setLink(id, filename) { $(id).href = assetURL(filename); }
+
+      function fillSelect(select, entries) {
+        select.replaceChildren(...entries.map(([value, label]) => {
+          const option = node("option", label);
+          option.value = value;
+          return option;
+        }));
+      }
+
+      function updateProvenance(source) {
+        const description = $("source-description");
+        description.replaceChildren(node("strong", source.name));
+        description.append(document.createTextNode(
+          ` · original ${dimensions(source.original_width, source.original_height)} → input JPEG ${dimensions(source.width, source.height)}`
+        ));
+        $("source-credit").textContent = `Creator: ${source.creator || "Not specified"} · License: ${source.license || "Not specified"}`;
+        const origin = $("source-origin");
+        origin.replaceChildren(document.createTextNode("Source: "));
+        let url;
+        try { url = new URL(source.source); } catch (_) { /* Plain-text provenance is also allowed. */ }
+        if (url && (url.protocol === "http:" || url.protocol === "https:")) {
+          const link = node("a", source.source);
+          link.href = url.href;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          origin.append(link);
+        } else {
+          origin.append(document.createTextNode(source.source || "Not specified"));
+        }
+        $("jpeg-link").hidden = !source.jpeg;
+        if (source.jpeg) setLink("jpeg-link", source.jpeg);
+      }
+
+      function stopBlink() {
+        clearInterval(state.timer);
+        state.timer = null;
+        $("auto-button").textContent = "Start auto blink";
+        $("auto-button").setAttribute("aria-pressed", "false");
+      }
+
+      function showBlink(showB) {
+        state.showB = showB;
+        $("blink-candidate").hidden = !showB;
+        // Keep only the visible image in the accessibility tree as well.
+        $("blink-reference").style.visibility = showB ? "hidden" : "visible";
+        $("blink-state").textContent = showB ? "Showing B · Candidate" : "Showing A · Reference";
+        $("swap-button").textContent = showB ? "Show A · Reference" : "Show B · Candidate";
+      }
+
+      function updateMetrics(metrics) {
+        $("metric-mae").textContent = number(metrics.mae);
+        $("metric-rmse").textContent = number(metrics.rmse);
+        $("metric-psnr").replaceChildren(document.createTextNode(psnr(metrics.psnr)), node("small", "dB"));
+        $("metric-max").textContent = number(metrics.max_error, 0);
+      }
+
+      function selectRow(row, candidate = 0, writeHash = true) {
+        if (!row || !row.variants.length) return;
+        const source = sourceFor(row);
+        if (!source) throw new Error(`No source found for row ${row.id}.`);
+        stopBlink();
+        state.row = row;
+        state.candidate = Math.max(0, Math.min(row.variants.length - 1, Math.trunc(Number(candidate)) || 0));
+        const variant = row.variants[state.candidate];
+        sourceSelect.value = source.id;
+        fillSelect(rowSelect, state.report.rows.filter(item => item.source_id === source.id)
+          .map(item => [item.id, `${item.label} · ${dimensions(item.width, item.height)}`]));
+        rowSelect.value = row.id;
+        fillSelect(candidateSelect, row.variants.map((item, index) => [String(index), item.name]));
+        candidateSelect.value = String(state.candidate);
+        updateProvenance(source);
+        $("candidate-caption").textContent = variant.name;
+        $("blink-caption").textContent = variant.name;
+        document.querySelectorAll(".output-size").forEach(element => {
+          element.textContent = `${dimensions(row.width, row.height)} output pixels`;
+        });
+        setImage("reference-image", row.reference);
+        setImage("blink-reference", row.reference);
+        setImage("candidate-image", variant.image);
+        setImage("blink-candidate", variant.image);
+        setImage("diff-image", variant.diff);
+        setLink("reference-link", row.reference);
+        setLink("candidate-link", variant.image);
+        setLink("diff-link", variant.diff);
+        showBlink(false);
+        updateMetrics(variant.metrics);
+        tableEntries.forEach(entry => {
+          const selected = entry.row === row && entry.candidate === state.candidate;
+          entry.element.classList.toggle("selected", selected);
+          if (selected) entry.link.setAttribute("aria-current", "true");
+          else entry.link.removeAttribute("aria-current");
+        });
+        if (writeHash) {
+          // replaceState can be unavailable when a downloaded report is opened as file://.
+          try { history.replaceState(null, "", rowHash(row, state.candidate)); } catch (_) { /* Selection still works. */ }
+        }
+        updateScale(true);
+      }
+
+      function centerViews() {
+        visibleViews().forEach(view => {
+          view.scrollLeft = Math.max(0, (view.scrollWidth - view.clientWidth) / 2);
+          view.scrollTop = Math.max(0, (view.scrollHeight - view.clientHeight) / 2);
+        });
+      }
+
+      function updateScale(center = false) {
+        if (!state.row) return;
+        const { width, height } = state.row;
+        const views = visibleViews();
+        const scale = state.zoom === "fit"
+          ? Math.max(.001, Math.min(1, ...views.map(view =>
+            Math.min((view.clientWidth - 24) / width, (view.clientHeight - 24) / height))))
+          : Number(state.zoom);
+        document.querySelectorAll(".image-stage").forEach(stage => {
+          stage.style.width = `${width * scale}px`;
+          stage.style.height = `${height * scale}px`;
+        });
+        $("comparison").classList.toggle("nearest", state.zoom === "2" || state.zoom === "4");
+        $("scale-description").textContent = state.zoom === "fit"
+          ? `Fit: ${number(scale * 100, 1)}% · ${scale < 1 ? "downscaled preview, not actual pixels." : "no downscaling needed."}`
+          : `${state.zoom}× · ${state.zoom === "1" ? "actual output pixels." : "nearest-neighbor enlargement."}`;
+        views.forEach(view => {
+          view.classList.toggle("can-pan", view.scrollWidth > view.clientWidth || view.scrollHeight > view.clientHeight);
+        });
+        if (center) {
+          cancelAnimationFrame(centerFrame);
+          centerFrame = requestAnimationFrame(centerViews);
+        }
+      }
+
+      function setMode(mode) {
+        stopBlink();
+        state.mode = mode;
+        const blink = mode === "blink";
+        $("paired-button").setAttribute("aria-pressed", String(!blink));
+        $("blink-button").setAttribute("aria-pressed", String(blink));
+        $("reference-card").hidden = blink;
+        $("candidate-card").hidden = blink;
+        $("blink-card").hidden = !blink;
+        $("blink-controls").hidden = !blink;
+        $("comparison").classList.toggle("blink-mode", blink);
+        showBlink(false);
+        updateScale(true);
+      }
+
+      function buildSummary() {
+        const body = $("summary-body");
+        const fragment = document.createDocumentFragment();
+        tableEntries = [];
+        state.report.rows.forEach(row => {
+          const source = sourceFor(row);
+          row.variants.forEach((variant, candidate) => {
+            const tr = node("tr");
+            tr.append(node("td", source ? source.name : row.source_id, "table-source"));
+            const output = node("td");
+            const link = node("a", row.label, "row-link");
+            link.href = rowHash(row, candidate);
+            link.setAttribute("aria-label", `Inspect ${source ? source.name : row.source_id}, ${row.label}, ${variant.name}`);
+            link.addEventListener("click", event => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              selectRow(row, candidate);
+              $("inspector").scrollIntoView({ block: "start" });
+            });
+            output.append(link);
+            tr.append(output, node("td", dimensions(row.width, row.height)), node("td", variant.name, "table-candidate"));
+            const metrics = variant.metrics;
+            [number(metrics.mae), number(metrics.rmse), psnr(metrics.psnr), number(metrics.max_error, 0)]
+              .forEach(value => tr.append(node("td", value, "numeric")));
+            fragment.append(tr);
+            tableEntries.push({ element: tr, link, row, candidate });
+          });
+        });
+        body.replaceChildren(fragment);
+      }
+
+      function selectFromHash() {
+        const params = new URLSearchParams(location.hash.slice(1));
+        const row = state.report.rows.find(item => item.id === params.get("row"));
+        if (!row) return false;
+        selectRow(row, params.get("candidate"), false);
+        return true;
+      }
+
+      sourceSelect.addEventListener("change", () => {
+        const rows = state.report.rows.filter(row => row.source_id === sourceSelect.value);
+        const next = rows.find(row => row.label === state.row.label)
+          || rows.find(row => row.label === "Thumbnail 256px") || rows[0];
+        selectRow(next);
+      });
+      rowSelect.addEventListener("change", () => {
+        selectRow(state.report.rows.find(row => row.id === rowSelect.value));
+      });
+      candidateSelect.addEventListener("change", () => selectRow(state.row, candidateSelect.value));
+      $("zoom-select").addEventListener("change", event => {
+        state.zoom = event.target.value;
+        updateScale(true);
+      });
+      $("paired-button").addEventListener("click", () => setMode("paired"));
+      $("blink-button").addEventListener("click", () => setMode("blink"));
+      $("center-button").addEventListener("click", centerViews);
+      $("swap-button").addEventListener("click", () => {
+        stopBlink();
+        showBlink(!state.showB);
+      });
+      $("auto-button").addEventListener("click", () => {
+        if (state.timer) { stopBlink(); return; }
+        state.timer = setInterval(() => showBlink(!state.showB), 700);
+        $("auto-button").textContent = "Stop auto blink";
+        $("auto-button").setAttribute("aria-pressed", "true");
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopBlink();
+      });
+      window.addEventListener("resize", () => updateScale());
+      window.addEventListener("hashchange", () => {
+        if (state.report) selectFromHash();
+      });
+
+      viewports.forEach(view => {
+        view.addEventListener("scroll", () => {
+          if (syncing || view.closest("[hidden]")) return;
+          syncing = true;
+          const x = view.scrollLeft / Math.max(1, view.scrollWidth - view.clientWidth);
+          const y = view.scrollTop / Math.max(1, view.scrollHeight - view.clientHeight);
+          visibleViews().forEach(other => {
+            if (other === view) return;
+            other.scrollLeft = x * Math.max(0, other.scrollWidth - other.clientWidth);
+            other.scrollTop = y * Math.max(0, other.scrollHeight - other.clientHeight);
+          });
+          requestAnimationFrame(() => { syncing = false; });
+        }, { passive: true });
+        let drag = null;
+        view.addEventListener("pointerdown", event => {
+          // Leave touch scrolling to the browser; use drag-to-pan for mouse/pen.
+          if (event.pointerType === "touch" || event.button !== 0 || !view.classList.contains("can-pan")) return;
+          drag = { x: event.clientX, y: event.clientY, left: view.scrollLeft, top: view.scrollTop };
+          view.setPointerCapture(event.pointerId);
+          view.classList.add("dragging");
+          view.focus({ preventScroll: true });
+          event.preventDefault();
+        });
+        view.addEventListener("pointermove", event => {
+          if (!drag) return;
+          view.scrollLeft = drag.left - (event.clientX - drag.x);
+          view.scrollTop = drag.top - (event.clientY - drag.y);
+        });
+        const endDrag = () => { drag = null; view.classList.remove("dragging"); };
+        view.addEventListener("pointerup", endDrag);
+        view.addEventListener("pointercancel", endDrag);
+        view.addEventListener("lostpointercapture", endDrag);
+      });
+
+      document.querySelectorAll(".image-stage img").forEach(image => {
+        image.addEventListener("error", () => {
+          image.alt = `Could not load generated image: ${image.getAttribute("src") || "(missing path)"}`;
+          $("status").hidden = false;
+          $("status").classList.add("error");
+          $("status").textContent = "A generated image could not be loaded. Keep index.html, report.json, and all generated image files together.";
+        });
+      });
+
+      async function load() {
+        try {
+          const response = await fetch("report.json", { cache: "no-store" });
+          if (!response.ok) throw new Error(`report.json returned HTTP ${response.status}.`);
+          const report = await response.json();
+          if (!Array.isArray(report.sources) || !report.sources.length ||
+              !Array.isArray(report.rows) || !report.rows.length ||
+              report.rows.some(row => !Array.isArray(row.variants) || !row.variants.length)) {
+            throw new Error("The report has no sources, rows, or candidates to display.");
+          }
+          state.report = report;
+          fillSelect(sourceSelect, report.sources.map(source => [source.id, source.name]));
+          const counts = $("counts");
+          [
+            [report.sources.length, "sources"],
+            [report.rows.reduce((sum, row) => sum + row.variants.length, 0), "comparisons"],
+            [report.progressive_checks ?? 0, "progressive checks"]
+          ].forEach(([count, label]) => {
+            const span = node("span");
+            span.append(node("strong", number(count, 0)), document.createTextNode(" " + label));
+            counts.append(span);
+          });
+          counts.hidden = false;
+          const notes = Array.isArray(report.notes) ? report.notes : [];
+          $("notes-list").replaceChildren(...notes.map(note => node("li", note)));
+          $("generator-notes").hidden = !notes.length;
+          buildSummary();
+          $("report").hidden = false;
+          $("status").hidden = true;
+          if (!selectFromHash()) {
+            const firstSourceRows = report.rows.filter(row => row.source_id === report.sources[0].id);
+            selectRow(firstSourceRows.find(row => row.label === "Thumbnail 256px") || firstSourceRows[0] || report.rows[0]);
+          }
+        } catch (error) {
+          $("status").hidden = false;
+          $("status").classList.add("error");
+          $("status").replaceChildren(
+            node("p", "Could not open the quality report."),
+            node("p", error.message),
+            node("p", "Keep this HTML file beside report.json and the generated images, and open the directory through an HTTP static-file server. Browsers usually block fetch when opening an HTML file directly with file://.")
+          );
+        }
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Cascade Canyon Main Canyon",
+    "path": "cascade-canyon-nps.jpg",
+    "source": "https://npgallery.nps.gov/AssetDetail/fbc5674a-155d-451f-67b7-fa15aed783bd",
+    "creator": "National Park Service (PhotoCredit: NPS; individual photographer not named)",
+    "license": "Public domain",
+    "download": "https://www.nps.gov/npgallery/GetAsset/fbc5674a-155d-451f-67b7-fa15aed783bd/original",
+    "sha256": "2c9ddac8ed33280b4a9d2408dc28fbd56e10d3371f216dd68fbf7051783b8d6b"
+  },
+  {
+    "name": "American bison (USDA ARS image K5680-1)",
+    "path": "bison-usda-k5680-1.jpg",
+    "source": "https://www.ars.usda.gov/oc/images/photos/k5680-1/",
+    "creator": "Jack Dykinga, USDA Agricultural Research Service",
+    "license": "Public domain",
+    "download": "https://www.ars.usda.gov/ARSUserFiles/oc/graphics/photos/300dpi/kesa/k5680-1.jpg",
+    "sha256": "1c414c4ccce90c399e50ab1fee8966ae960ad0fce195f00ae4895832b3497e14"
+  }
+]
