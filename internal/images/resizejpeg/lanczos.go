@@ -178,14 +178,21 @@ func newScaledFilteredResizer(originalWidth, originalHeight, factor, dw, dh int,
 		float64(originalWidth)/float64(factor), float64(originalHeight)/float64(factor), filter)
 }
 
-func newFilteredResizerExtent(sw, sh, dw, dh int, extentX, extentY float64, filter Filter) (*lanczosResizer, error) {
+// filterAllocation describes the constructor's bulk backing arrays without
+// computing any spans or weights. Memory admission uses this same geometry so
+// changes to the constructor's conservative capacities cannot drift from it.
+type filterAllocation struct {
+	weightCount, ringRows, sumBytes int
+}
+
+func filterAllocationGeometry(sw, sh, dw, dh int, extentY float64, filter Filter) (filterAllocation, error) {
 	if !filter.valid() {
-		return nil, UnsupportedError("invalid resize filter")
+		return filterAllocation{}, UnsupportedError("invalid resize filter")
 	}
 	if sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0 {
-		return nil, UnsupportedError("invalid resize dimensions")
+		return filterAllocation{}, UnsupportedError("invalid resize dimensions")
 	}
-	support, kernel := filter.kernel()
+	support, _ := filter.kernel()
 	// Check all known allocation sizes before allocating anything. Source
 	// height does not participate in a pixel or floating-point allocation.
 	for _, factors := range [][]int{
@@ -196,7 +203,7 @@ func newFilteredResizerExtent(sw, sh, dw, dh int, extentX, extentY float64, filt
 		{dh, int(unsafe.Sizeof(lanczosSpan{}))},
 	} {
 		if _, err := lanczosSize(factors...); err != nil {
-			return nil, err
+			return filterAllocation{}, err
 		}
 	}
 	// Bound horizontal storage without first iterating over potentially huge
@@ -208,10 +215,10 @@ func newFilteredResizerExtent(sw, sh, dw, dh int, extentX, extentY float64, filt
 		taps = uint64(sw) * uint64(dw)
 	}
 	if taps > uint64(^uint(0)>>1)/8 {
-		return nil, UnsupportedError("image is too large")
+		return filterAllocation{}, UnsupportedError("image is too large")
 	}
 	if err := checkAllocationSize(taps * 8); err != nil {
-		return nil, err
+		return filterAllocation{}, err
 	}
 
 	// An output support interval is 2*support scale units wide on reduction,
@@ -229,18 +236,27 @@ func newFilteredResizerExtent(sw, sh, dw, dh int, extentX, extentY float64, filt
 	}
 	sumBytes, err := lanczosSize(ringRows, dw, 3, 8)
 	if err != nil {
+		return filterAllocation{}, err
+	}
+	return filterAllocation{int(taps), ringRows, sumBytes}, nil
+}
+
+func newFilteredResizerExtent(sw, sh, dw, dh int, extentX, extentY float64, filter Filter) (*lanczosResizer, error) {
+	a, err := filterAllocationGeometry(sw, sh, dw, dh, extentY, filter)
+	if err != nil {
 		return nil, err
 	}
+	support, kernel := filter.kernel()
 
 	r := &lanczosResizer{
 		sw: sw, sh: sh, dw: dw, dh: dh,
 		x:        filterSpans(sw, extentX, dw, support, kernel),
 		y:        filterSpans(sh, extentY, dh, support, kernel),
 		kernel:   kernel,
-		ringRows: ringRows,
+		ringRows: a.ringRows,
 	}
-	r.sums = make([]float64, sumBytes/8)
-	r.xWeights = make([]float64, 0, int(taps))
+	r.sums = make([]float64, a.sumBytes/8)
+	r.xWeights = make([]float64, 0, a.weightCount)
 	_, _, _, argScale := filterBounds(sw, extentX, dw, 0, support)
 	for _, span := range r.x {
 		for s := span.first; s < span.last; s++ {

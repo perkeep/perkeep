@@ -107,6 +107,12 @@ Applications handling untrusted input should choose deployment-appropriate
 limits, constrain compressed input and concurrent requests, and be
 especially cautious before enabling full-buffer fallback.
 
+`MaxMemoryBytes` additionally caps the planned decode reservation.
+`MemAllocSemaphore` admits that reservation to a caller-supplied shared
+budget, with one cancelable acquisition before the large allocations and
+release after worker shutdown. See [memory admission](MEMORY.md) for an
+example and the distinction between active decoding and retained output.
+
 ## Validation
 
 Tests compare against an independent reference: standard `image/jpeg`,

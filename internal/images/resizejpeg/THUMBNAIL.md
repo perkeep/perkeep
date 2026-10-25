@@ -18,6 +18,11 @@ policy before calling. The result is opaque `*image.RGBA`. Like the other
 APIs, this filters encoded RGB, not linear light, and does not apply EXIF
 orientation or ICC profiles.
 
+`MaxMemoryBytes` caps the planned buffer reservation; `MemAllocSemaphore`
+can share a cancelable byte-weighted admission budget across callers.
+Both cover progressive fallback too. See [memory budgets](MEMORY.md) for
+details, including the separate lifetime of returned image pixels.
+
 ## Scale selection and quality
 
 By default, from the source header choose the largest reduction factor in

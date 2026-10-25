@@ -26,6 +26,12 @@ zero means 4; using 2 can quarter the intermediate pixel count, where
 the power-of-two IDCT factors permit it. See the
 [CPU/quality options](THUMBNAIL.md#cpu-and-quality-options).
 
+Both resizing APIs also accept `MaxMemoryBytes` and `MemAllocSemaphore`
+for per-decode limits and shared, cancelable memory admission. A single
+reservation covers the planned buffers, including later progressive
+scans, without incremental acquisition. See [memory budgets](MEMORY.md)
+for ownership boundaries and an HTTP-context example.
+
 For performance against the actual native `djpeg` thumbnail pipeline, see
 the [legacy comparison](LEGACY.md). The streaming speedups versus a full
 Go decode plus Lanczos3 do not imply a speedup over native reduced decoding.

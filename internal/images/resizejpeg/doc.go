@@ -44,5 +44,11 @@ limitations under the License.
 // Original-image sampling coordinates avoid rounded-size phase drift.
 // This is faster but not pixel-equivalent to full decoding plus Lanczos3.
 //
+// Both resizing APIs support [ResizeOptions.MaxMemoryBytes] and
+// [ResizeOptions.MemAllocSemaphore] for per-decode limits and shared memory
+// admission. One reservation covers the planned buffers, including progressive
+// scans; it is released after worker shutdown. Returned pixels transfer to
+// callers and require a separate retention budget.
+//
 // JPEG is defined in ITU-T T.81: https://www.w3.org/Graphics/JPEG/itu-t81.pdf.
 package resizejpeg // import "perkeep.org/internal/images/resizejpeg"

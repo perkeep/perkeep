@@ -17,6 +17,7 @@ limitations under the License.
 package resizejpeg
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -65,6 +66,35 @@ type ResizeOptions struct {
 	// Zero imposes no pixel budget. This is not a total memory/CPU limit:
 	// callers should also bound concurrent requests and compressed input.
 	MaxSourcePixels uint64
+
+	// MaxMemoryBytes limits the conservative memory reservation for one
+	// decode. Zero imposes no limit; negative values are invalid. The plan
+	// includes output pixels, temporary buffers, and an overhead allowance.
+	// An over-budget decode returns UnsupportedError before allocating
+	// those buffers or calling MemAllocSemaphore.
+	//
+	// This is not a hard Go heap or process RSS limit. It excludes the
+	// reader's storage, caller-retained images, and runtime/GC overhead.
+	MaxMemoryBytes int64
+
+	// MemAllocSemaphore optionally admits a decode to a shared memory budget.
+	// It is called synchronously, at most once, after the first scan header
+	// determines the buffer plan and before the large allocations or workers
+	// start. Its argument is the same reservation checked by MaxMemoryBytes.
+	// The function may wait for capacity; capturing a request context lets
+	// callers cancel that wait. An error is returned unchanged and must not
+	// leave a reservation held.
+	//
+	// After success, a non-nil release function is called exactly once on
+	// every exit, after workers stop and temporary references are dropped.
+	// A nil release is allowed. No further capacity is acquired while this
+	// reservation is held, including for later progressive scans.
+	//
+	// The reservation includes the destination during decoding. On return,
+	// ownership of the destination transfers to the caller; the hook does
+	// not budget images retained by callers, encoders, or caches. Garbage
+	// collection may reclaim scratch space later than the release call.
+	MemAllocSemaphore func(bytes int64) (release func(), err error)
 }
 
 // DecodeResize fully decodes JPEG samples and resizes them with the selected
@@ -72,7 +102,8 @@ type ResizeOptions struct {
 // exactly width by height pixels.
 // Both dimensions must be positive and no larger than the source dimensions.
 // Non-positive or out-of-JPEG-range target dimensions, invalid filters or
-// worker counts, and negative headroom are rejected without reading r.
+// worker counts, and negative headroom or memory budgets are rejected without
+// reading r.
 // Upsampling is rejected after reading the source dimensions.
 //
 // Unlike [Decode] at reduced factors, this applies full 8x8 IDCT, sample
@@ -152,11 +183,15 @@ func decodeResizeMode(r io.Reader, width, height int, opts *ResizeOptions, thumb
 	if o.Workers < 0 || o.Workers > 64 {
 		return nil, nil, UnsupportedError("resize workers must be in [0, 64]")
 	}
+	if o.MaxMemoryBytes < 0 {
+		return nil, nil, UnsupportedError("resize memory budget must be non-negative")
+	}
 	if o.Workers == 0 {
 		o.Workers = min(runtime.GOMAXPROCS(0), 8)
 	}
 	req := &resizeRequest{width: width, height: height, opts: o, thumbnail: thumbnail}
 	d := &decoder{factor: 1, resize: req}
+	defer req.releaseMemory(d)
 	im, err := d.decode(r, false)
 	if err != nil {
 		return nil, d, err
@@ -217,19 +252,21 @@ func chooseThumbnailFactorHeadroom(sw, sh, dw, dh, headroom int) int {
 }
 
 type resizeRequest struct {
-	width, height int
-	opts          ResizeOptions
-	thumbnail     bool
-	streaming     bool
-	fallback      bool
-	deferred      bool // Progressive thumbnail: coefficients only until EOI.
-	complete      bool
-	scans         int
-	filter        *lanczosResizer
-	pipeline      *resizePipeline
-	rgb           bool
-	adobeValid    bool
-	adobe         uint8
+	width, height  int
+	opts           ResizeOptions
+	thumbnail      bool
+	streaming      bool
+	fallback       bool
+	deferred       bool // Progressive thumbnail: coefficients only until EOI.
+	complete       bool
+	scans          int
+	filter         *lanczosResizer
+	pipeline       *resizePipeline
+	rgb            bool
+	adobeValid     bool
+	adobe          uint8
+	memoryAdmitted bool
+	memoryRelease  func()
 }
 
 func (r *resizeRequest) source(d *decoder) error {
@@ -262,9 +299,63 @@ func (r *resizeRequest) startScan(d *decoder, nComp, mxx, myy int) error {
 		}
 		r.fallback = true
 		r.deferred = r.thumbnail && d.progressive
-		return nil
+		return r.reserveMemory(d, mxx, myy)
+	}
+	if err := checkResizeColor(d); err != nil {
+		return err
+	}
+	if err := r.reserveMemory(d, mxx, myy); err != nil {
+		return err
 	}
 	return r.startPipeline(d, mxx, myy)
+}
+
+// reserveMemory acquires the entire plan before any large allocation. In
+// particular, progressive scans never acquire more capacity while holding a
+// reservation for previously decoded components.
+func (r *resizeRequest) reserveMemory(d *decoder, mxx, myy int) error {
+	if r.memoryAdmitted {
+		return nil
+	}
+	if r.opts.MaxMemoryBytes == 0 && r.opts.MemAllocSemaphore == nil {
+		return nil
+	}
+	n, err := r.memoryEstimate(d, mxx, myy)
+	if err != nil {
+		return err
+	}
+	if r.opts.MaxMemoryBytes > 0 && n > r.opts.MaxMemoryBytes {
+		return UnsupportedError(fmt.Sprintf("resize requires %d bytes, exceeds memory budget %d", n, r.opts.MaxMemoryBytes))
+	}
+	if r.opts.MemAllocSemaphore != nil {
+		release, err := r.opts.MemAllocSemaphore(n)
+		if err != nil {
+			return err
+		}
+		r.memoryRelease = release
+	}
+	r.memoryAdmitted = true
+	return nil
+}
+
+func (r *resizeRequest) releaseMemory(d *decoder) {
+	if !r.memoryAdmitted || r.opts.MemAllocSemaphore == nil {
+		return
+	}
+	// All pipeline exits join workers before reaching this defer. Drop the
+	// decoder's scratch references before giving the reservation back. Keep
+	// private buffer-inspection helpers unchanged when no hook is configured.
+	release := r.memoryRelease
+	r.memoryRelease = nil
+	r.opts.MemAllocSemaphore = nil
+	r.pipeline, r.filter = nil, nil
+	d.img1, d.img3, d.blackPix = nil, nil, nil
+	d.progCoeffs = [maxComponents][]int32{}
+	d.progNonzero = [maxComponents][]uint64{}
+	d.r = nil
+	if release != nil {
+		release()
+	}
 }
 
 func (r *resizeRequest) newFilter(d *decoder) (*lanczosResizer, error) {
@@ -274,7 +365,7 @@ func (r *resizeRequest) newFilter(d *decoder) (*lanczosResizer, error) {
 	return newFilteredResizer(d.width, d.height, r.width, r.height, r.opts.Filter)
 }
 
-func (r *resizeRequest) startPipeline(d *decoder, mxx, myy int) error {
+func checkResizeColor(d *decoder) error {
 	if d.nComp == 4 && !d.adobeTransformValid {
 		return UnsupportedError("unknown color model: 4-component JPEG doesn't have Adobe APP14 metadata")
 	}
@@ -284,6 +375,13 @@ func (r *resizeRequest) startPipeline(d *decoder, mxx, myy int) error {
 		if h1 != h2 || h0%h1 != 0 || v1 != v2 || v0%v1 != 0 {
 			return errUnsupportedSubsamplingRatio
 		}
+	}
+	return nil
+}
+
+func (r *resizeRequest) startPipeline(d *decoder, mxx, myy int) error {
+	if err := checkResizeColor(d); err != nil {
+		return err
 	}
 	f, err := r.newFilter(d)
 	if err != nil {

@@ -47,6 +47,8 @@ import (
 // Generation defaults to RESIZEJPEG_MEM_SIZE=20000x15000 and quality 80.
 // Decode defaults to RESIZEJPEG_MEM_WIDTH=256 and RESIZEJPEG_MEM_WORKERS=2;
 // target height is floor(sourceHeight*targetWidth/sourceWidth), at least one.
+// RESIZEJPEG_MEM_MAX_BYTES is a nonnegative int64 decode memory budget
+// (default zero, unlimited); the probe logs its conservative memory plan too.
 // The unlimited source-pixel budget is intentional for trusted giant fixtures,
 // not a policy appropriate for untrusted input. Progressive input is explicitly
 // permitted and its coefficient storage is included in the measurement.
@@ -105,11 +107,16 @@ func TestThumbnailMemoryProbe(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("memory probe needs Linux /proc/self/status for process peak RSS")
 	}
+	maxMemoryBytes, err := memoryProbeEnvMaxBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	record := memoryProbeRecord{
 		Mode: mode, GoVersion: runtime.Version(), GOOS: runtime.GOOS,
 		GOARCH: runtime.GOARCH, GOMAXPROCS: runtime.GOMAXPROCS(0),
 		GOGCEnv: os.Getenv("GOGC"), GOMEMLIMITEnv: os.Getenv("GOMEMLIMIT"),
+		MaxMemoryBytes: maxMemoryBytes,
 	}
 	var f *os.File
 	if mode == "decode" {
@@ -157,7 +164,6 @@ func TestThumbnailMemoryProbe(t *testing.T) {
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
 	record.Baseline = memoryProbeHeapSnapshot(&baseline)
-	var err error
 	record.BaselineRSSKiB, record.BaselineHWMKiB, err = memoryProbeReadRSS()
 	if err != nil {
 		t.Fatal(err)
@@ -174,6 +180,7 @@ func TestThumbnailMemoryProbe(t *testing.T) {
 	start := time.Now()
 	im, d, decodeErr := decodeThumbnail(f, record.TargetWidth, record.TargetHeight, &ResizeOptions{
 		Workers: record.WorkersRequested, AllowFullDecode: true, MaxSourcePixels: 0,
+		MaxMemoryBytes: record.MaxMemoryBytes,
 	})
 	record.ElapsedNS = time.Since(start).Nanoseconds()
 	samples := stop()
@@ -192,6 +199,16 @@ func TestThumbnailMemoryProbe(t *testing.T) {
 			record.Streaming, record.Deferred, record.Fallback = r.streaming, r.deferred, r.fallback
 			if r.pipeline != nil {
 				record.WorkerCount = len(r.pipeline.workers)
+			}
+			if d.width > 0 && d.height > 0 && d.maxH > 0 && d.maxV > 0 {
+				mxx := (d.width-1)/(8*d.maxH) + 1
+				myy := (d.height-1)/(8*d.maxV) + 1
+				// No hook: preserve retained decoder buffers and take the
+				// existing peak snapshots before recomputing this pure plan.
+				record.PlannedMemoryBytes, err = r.memoryEstimate(d, mxx, myy)
+				if err != nil && decodeErr == nil {
+					decodeErr = err
+				}
 			}
 		}
 	}
@@ -242,6 +259,9 @@ type memoryProbeRecord struct {
 	Endpoint         memoryProbeHeap `json:"endpoint"`
 	SampledPeak      memoryProbeHeap `json:"sampledPeak"`
 	Error            string          `json:"error,omitempty"`
+
+	MaxMemoryBytes     int64 `json:"maxMemoryBytes"`
+	PlannedMemoryBytes int64 `json:"plannedMemoryBytes"`
 }
 
 // All sizes in these Go snapshots are bytes; RSS fields explicitly use KiB.
@@ -338,6 +358,19 @@ func memoryProbeEnvInt(name string, fallback, limit int) (int, error) {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 || n > limit {
 		return 0, fmt.Errorf("%s must be an integer in [1, %d], got %q", name, limit, s)
+	}
+	return n, nil
+}
+
+func memoryProbeEnvMaxBytes() (int64, error) {
+	const name = "RESIZEJPEG_MEM_MAX_BYTES"
+	s := os.Getenv(name)
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s must be a nonnegative int64, got %q", name, s)
 	}
 	return n, nil
 }
@@ -464,6 +497,23 @@ func memoryProbeParseStatus(r io.Reader) (rss, hwm uint64, err error) {
 }
 
 func TestMemoryProbeHelpers(t *testing.T) {
+	t.Run("maxMemoryBytes", func(t *testing.T) {
+		for s, want := range map[string]int64{
+			"": 0, "0": 0, "1": 1, "16777216": 16777216, "9223372036854775807": 1<<63 - 1,
+		} {
+			t.Setenv("RESIZEJPEG_MEM_MAX_BYTES", s)
+			got, err := memoryProbeEnvMaxBytes()
+			if err != nil || got != want {
+				t.Errorf("%q: got %d, %v; want %d", s, got, err, want)
+			}
+		}
+		for _, s := range []string{"-1", "bad", "1.5", " 1", "9223372036854775808", "-9223372036854775809"} {
+			t.Setenv("RESIZEJPEG_MEM_MAX_BYTES", s)
+			if _, err := memoryProbeEnvMaxBytes(); err == nil {
+				t.Errorf("accepted invalid byte budget %q", s)
+			}
+		}
+	})
 	t.Run("lazyImage", func(t *testing.T) {
 		m := newMemoryProbeImage(37, 29)
 		if m.Bounds() != image.Rect(0, 0, 37, 29) || m.ColorModel() != color.YCbCrModel || !m.Opaque() {

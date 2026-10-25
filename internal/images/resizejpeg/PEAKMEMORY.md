@@ -30,6 +30,29 @@ that count substantially.
 These are observed peaks for these inputs and settings, not hard limits
 for every JPEG or a prediction of total Perkeep server RSS.
 
+For caller-controlled limits rather than measurements, both resizing APIs
+support `MaxMemoryBytes` and the optional `MemAllocSemaphore` admission
+hook. See [memory budgets](MEMORY.md). Those reservations describe active
+decode buffers, not process RSS or the lifetime of returned images.
+
+## Admission-limit check
+
+The same 300 MP files were also decoded with `MaxMemoryBytes: 16 << 20`,
+two workers, and the default 256x192 thumbnail. Each used a fresh process,
+streaming input from disk:
+
+| Input | Planned reservation | Result | Peak process RSS |
+| --- | ---: | --- | ---: |
+| Single scan | 6.37 MiB | Completed | 12.64 MiB |
+| Progressive | 86.92 MiB | Rejected before coefficient/worker allocation | 6.14 MiB |
+
+The progressive rejection is expected: its compact coefficient arrays
+alone exceed the cap. It started zero workers and reported
+`resize requires 91142464 bytes, exceeds memory budget 16777216`.
+The planned bytes are not process RSS; the latter includes the runtime
+and test harness. These are single-run admission checks, not replacements
+for the repeated measurements above.
+
 ## Method
 
 The opt-in `jpegmemory` test binary runs only `TestThumbnailMemoryProbe`.
@@ -118,6 +141,11 @@ GOMAXPROCS=2 GOGC=100 GOMEMLIMIT=off \
 Use `RESIZEJPEG_MEM_WORKERS` to override worker count. The decoder source
 budget is deliberately unlimited in this manual, trusted-input probe;
 it is not a suggested production default.
+
+To exercise admission, add `RESIZEJPEG_MEM_MAX_BYTES=16777216` to a decode
+invocation. The probe logs `plannedMemoryBytes` and `maxMemoryBytes`.
+An over-budget input logs the plan and error, then intentionally exits
+with a failed test; it is not a successful decode measurement.
 
 The measured progressive fixture was prepared separately:
 

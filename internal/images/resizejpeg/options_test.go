@@ -25,6 +25,7 @@ import (
 	"image/jpeg"
 	"io"
 	"math"
+	"reflect"
 	"testing"
 	"testing/iotest"
 
@@ -208,7 +209,7 @@ func TestResizeOptionsInvalidBeforeRead(t *testing.T) {
 				if got != nil || !errors.As(err, &unsupported) || r.reads != 0 {
 					t.Fatalf("image %v error %v after %d reads; want UnsupportedError before Read", got, err, r.reads)
 				}
-				if opts != before {
+				if !reflect.DeepEqual(opts, before) {
 					t.Fatal("decoder modified caller options")
 				}
 			})
@@ -369,7 +370,7 @@ func TestResizeOptionsFilterHeadroomMatrix(t *testing.T) {
 									if err != nil {
 										t.Fatalf("workers %d: %v", workers, err)
 									}
-									if opts != before {
+									if !reflect.DeepEqual(opts, before) {
 										t.Fatal("decoder modified caller options")
 									}
 									if d.factor != factor {
