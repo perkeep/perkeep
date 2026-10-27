@@ -1641,6 +1641,9 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 	if c.IsImage && !strings.HasPrefix(fi.MIMEType, "image/") {
 		return false, nil
 	}
+	if c.IsVideo && !strings.HasPrefix(fi.MIMEType, "video/") {
+		return false, nil
+	}
 	if sc := c.FileName; sc != nil && !stringConstraintStringMatches(sc, fi.FileName) {
 		return false, nil
 	}

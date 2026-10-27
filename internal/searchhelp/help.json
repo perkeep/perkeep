@@ -56,6 +56,10 @@
     "Description": "Match both halves of the Live Photo with the given Apple content identifier, case insensitively."
   },
   {
+    "Name": "is:video",
+    "Description": "object is a video, other than the video of a Live Photo whose still image is indexed"
+  },
+  {
     "Name": "height",
     "Description": "use height:min-max to match images having a height of at least min\nand at most max. Use height:min- to specify only an underbound and\nheight:-max to specify only an upperbound.\nExact matches should use height:480"
   },

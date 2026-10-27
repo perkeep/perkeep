@@ -55,6 +55,9 @@ func TestQueryLivePhoto(t *testing.T) {
 			{`livephoto:unknown`, nil},
 			{`-is:livephotovideo`, []blob.Ref{stillA, stillB, videoC, plain}},
 			{`camera:"iPhone 16 Pro"`, []blob.Ref{videoA}},
+			// is:video leaves out Live Photo videos whose stills are indexed.
+			{`is:video`, []blob.Ref{videoC}},
+			{`is:video or is:livephoto`, []blob.Ref{stillA, videoC}},
 		} {
 			t.Logf("query: %s", tt.expression)
 			var wanted []blob.Ref
@@ -64,6 +67,7 @@ func TestQueryLivePhoto(t *testing.T) {
 			qt.wantRes(&SearchQuery{Expression: tt.expression}, wanted...)
 		}
 		qt.wantRes(&SearchQuery{Constraint: &Constraint{File: &FileConstraint{LivePhoto: "any"}}}, stillA, videoA)
+		qt.wantRes(&SearchQuery{Constraint: &Constraint{File: &FileConstraint{IsVideo: true}}}, videoA, videoC)
 		if _, err := qt.Handler().Query(ctxbg, &SearchQuery{Constraint: &Constraint{File: &FileConstraint{LivePhoto: "bogus"}}}); err == nil {
 			t.Error("invalid livePhoto constraint value accepted")
 		}

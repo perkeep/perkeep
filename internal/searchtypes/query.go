@@ -171,6 +171,9 @@ type FileConstraint struct {
 	WHRatio  *FloatConstraint    `json:"widthHeightRation,omitempty"`
 	Location *LocationConstraint `json:"location,omitempty"`
 
+	// IsVideo matches files with a video MIME type.
+	IsVideo bool `json:"isVideo,omitempty"`
+
 	// Camera matches either the EXIF make or model. Files without camera
 	// metadata do not match. Requires an in-memory corpus.
 	Camera *StringConstraint `json:"camera,omitempty"`
