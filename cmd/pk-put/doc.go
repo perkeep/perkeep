@@ -66,11 +66,16 @@ Examples:
 The attr-bulk mode reads one tab-separated <permanode>, <name>, <value>
 record per line, with LF or CRLF line endings. Use full permanode blobrefs.
 With --del, the value may be omitted to delete all values of the named
-attribute. Fields are literal:
-there is no quoting or escaping, and tabs and newlines cannot appear in
-fields. Each uploaded claim's blobref is printed on stdout. Claims are
-uploaded in input order; an error stops processing and reports the line
-number, but does not roll back earlier claims.
+attribute. Fields are literal: there is no quoting or escaping, and tabs
+and newlines cannot appear in fields.
+
+Claims are buffered in input order and uploaded as multi claims containing
+up to 100 operations. Larger batches are split to leave room for signing
+within the 1 MiB schema blob limit; a single oversized operation is rejected.
+Each uploaded multi claim's blobref is printed on stdout. EOF flushes the
+final partial batch. An error stops processing and reports the input line
+or batch's line range. Malformed records and read errors discard buffered
+claims, but earlier uploads are not rolled back.
 
 For mode-specific help:
 
