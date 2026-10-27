@@ -76,6 +76,28 @@ func (ix *Index) indexAppleMakerNote(wholeRef blob.Ref, ex *exif.Exif, mm *mutat
 	setMediaTag(mm, wholeRef, MediaTagPhotoIdentifier, mn.PhotoIdentifier)
 }
 
+// indexAppleMakerNoteEXIF decodes the EXIF in r and indexes only its
+// Apple MakerNote, unlike indexEXIF, which indexes all of the EXIF. As
+// with indexEXIF, short reads return io.ErrUnexpectedEOF, so that
+// readPrefixOrFile retries with the whole file.
+func (ix *Index) indexAppleMakerNoteEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
+	ex, err := exif.Decode(r)
+	if err != nil && exif.IsCriticalError(err) {
+		if exif.IsShortReadTagValueError(err) {
+			return io.ErrUnexpectedEOF
+		}
+		return err
+	}
+	defer func() {
+		// As in indexEXIF: the EXIF library can panic on invalid EXIF.
+		if e := recover(); e != nil {
+			err = errEXIFPanic
+		}
+	}()
+	ix.indexAppleMakerNote(wholeRef, ex, mm)
+	return nil
+}
+
 // isQuickTimeMIME reports whether files of the given MIME type may
 // contain QuickTime metadata.
 func isQuickTimeMIME(mimeType string) bool {
