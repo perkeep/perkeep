@@ -240,6 +240,8 @@ func newIndex(s sorted.KeyValue, rebuilding bool) (*Index, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Could not write index schema version %d: %w", requiredSchemaVersion, err)
 		}
+	case is7To8SchemaBump(schemaVersion):
+		return idx, errMissingMediaTags
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
 		if env.IsDev() {
@@ -424,6 +426,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		// we have to think about the case on GCE/CoreOS in particular.
 		if err := ix.fixMissingWholeRef(sto); err != nil {
 			return nil, fmt.Errorf("could not fix missing wholeRef entries: %w", err)
+		}
+		ix, err = New(kv)
+	}
+	if errors.Is(err, errMissingMediaTags) {
+		if err := ix.addMediaTags(context.Background(), sto); err != nil {
+			return nil, fmt.Errorf("could not upgrade the index to schema version %d: %w", requiredSchemaVersion, err)
 		}
 		ix, err = New(kv)
 	}

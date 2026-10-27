@@ -772,6 +772,32 @@ func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn fu
 	return err
 }
 
+// imagePrefixSize is how much of the start of an image file is retained
+// while hashing it, for decoding its config and EXIF.
+const imagePrefixSize = 512 << 10
+
+// decodeImageConfig decodes the config of image file b from prefix, its
+// first bytes, or else from the whole file.
+func decodeImageConfig(prefix []byte, fetcher blob.Fetcher, b *schema.Blob) (conf images.Config, err error) {
+	err = readPrefixOrFile(prefix, fetcher, b, func(r filePrefixReader) error {
+		var err error
+		conf, err = images.DecodeConfig(r)
+		return err
+	})
+	return conf, err
+}
+
+// imageEXIFData returns the bytes of an image in which to look for EXIF:
+// a HEIC image's EXIF item, per its config, or else prefix, the image
+// file's first bytes, with which readPrefixOrFile can retry on the whole
+// file.
+func imageEXIFData(prefix []byte, conf images.Config) []byte {
+	if conf.HEICEXIF != nil {
+		return conf.HEICEXIF
+	}
+	return prefix
+}
+
 const msdosEpoch = "1980-01-01T00:00:00Z"
 
 var (
@@ -806,7 +832,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	var imageBuf *keepFirstN // or nil
 	var app1 jpegAPP1Finder
 	if strings.HasPrefix(mimeType, "image/") {
-		imageBuf = newKeepFirstN(512<<10, fr.Size())
+		imageBuf = newKeepFirstN(imagePrefixSize, fr.Size())
 		if isJPEG {
 			copyDest = io.MultiWriter(copyDest, imageBuf, &app1)
 		} else {
@@ -829,22 +855,15 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	noEXIF := isJPEG && size == fr.Size() && !app1.found
 
 	if imageBuf != nil {
-		var conf images.Config
-		decodeConfig := func(r filePrefixReader) error {
-			conf, err = images.DecodeConfig(r)
-			return err
-		}
-		if err := readPrefixOrFile(imageBuf.Bytes, fetcher, b, decodeConfig); err == nil {
+		conf, confErr := decodeImageConfig(imageBuf.Bytes, fetcher, b)
+		if confErr == nil {
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		} else if debugEnv {
-			ix.printf("index: WARNING: image decodeConfig: %v", err)
+			ix.printf("index: WARNING: image decodeConfig: %v", confErr)
 		}
 
 		if !noEXIF {
-			exifData := imageBuf.Bytes
-			if conf.HEICEXIF != nil {
-				exifData = conf.HEICEXIF
-			}
+			exifData := imageEXIFData(imageBuf.Bytes, conf)
 			var ft time.Time
 			fileTime := func(r filePrefixReader) error {
 				ft, err = schema.FileTime(r)
