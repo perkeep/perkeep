@@ -59,6 +59,13 @@ var (
 	thumbCacheHitFull    = expvar.NewInt("thumbcache-hit-full")
 	thumbCacheHitFile    = expvar.NewInt("thumbcache-hit-file")
 	thumbCacheHeader304  = expvar.NewInt("thumbcache-header-304")
+
+	// HEIC thumbnails made from embedded thumbnails, from primary
+	// images, and from primary images after failing to decode an
+	// embedded thumbnail.
+	heicThumbEmbedded    = expvar.NewInt("heic-thumb-embedded")
+	heicThumbPrimary     = expvar.NewInt("heic-thumb-primary")
+	heicThumbEmbeddedErr = expvar.NewInt("heic-thumb-embedded-error")
 )
 
 type ImageHandler struct {
@@ -315,6 +322,106 @@ func (ih *ImageHandler) jpegPostDecodeMemory(conf image.Config) (int64, error) {
 	return pixels*16 + overhead, nil
 }
 
+// heicThumbnail decodes the embedded thumbnail of the HEIC image h if the
+// thumbnail can stand in for the primary image at the size requested by opts,
+// holding a memory reservation for it in *release. Otherwise, it returns a
+// nil image, for the caller to decode the primary image.
+func (ih *ImageHandler) heicThumbnail(ctx context.Context, h *images.HEIC, opts *images.DecodeOpts, release *func()) (image.Image, images.Config, error) {
+	th, err := h.Thumbnail(opts)
+	if err != nil {
+		if !errors.Is(err, images.ErrNoUsableThumbnail) {
+			log.Printf("Warning: finding HEIC thumbnail: %v", err)
+		}
+		heicThumbPrimary.Add(1)
+		return nil, images.Config{}, nil
+	}
+	// As for other non-JPEG images, an approximation of 3 bytes per pixel.
+	ramSize, err := imageMemoryEstimate(th.Width, th.Height, 3)
+	if err != nil {
+		return nil, images.Config{}, err
+	}
+	if *release, err = ih.acquireImageMemory(ctx, ramSize); err != nil {
+		return nil, images.Config{}, err
+	}
+	im, conf, err := th.Decode()
+	if err != nil {
+		log.Printf("Warning: decoding the primary image after failing to decode its HEIC thumbnail: %v", err)
+		(*release)()
+		*release = nil
+		heicThumbEmbeddedErr.Add(1)
+		return nil, images.Config{}, nil
+	}
+	heicThumbEmbedded.Add(1)
+	return im, conf, nil
+}
+
+// openHEIC reads the metadata of the HEIC image in head, if it is one.
+// It returns nil if not, or if the metadata is invalid.
+func openHEIC(head *headReaderAt) *images.HEIC {
+	var prefix [1 << 10]byte
+	n, _ := head.ReadAt(prefix[:], 0)
+	if magic.MIMEType(prefix[:n]) != "image/heic" {
+		return nil
+	}
+	h, err := images.OpenHEIC(head)
+	if err != nil {
+		log.Printf("Warning: reading HEIC metadata: %v", err)
+		return nil
+	}
+	return h
+}
+
+// headReaderAt is an io.ReaderAt of the start of r, which buffers all it
+// reads. It lets HEIC metadata and thumbnails, which are typically within
+// the first couple hundred kilobytes of a file, be read without reading
+// the rest of the file, which is still available from All.
+type headReaderAt struct {
+	r   io.Reader
+	buf []byte
+	err error // from reading r; io.EOF at its end
+}
+
+func (h *headReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < 0 {
+		return 0, errors.New("negative offset")
+	}
+	if end := off + int64(len(p)); end > int64(len(h.buf)) && h.err == nil {
+		h.fill(end)
+	}
+	var n int
+	if off < int64(len(h.buf)) {
+		n = copy(p, h.buf[off:])
+	}
+	if n < len(p) {
+		return n, h.err
+	}
+	return n, nil
+}
+
+// fill reads from r until h.buf has at least n bytes or r fails, growing
+// h.buf geometrically to amortize copying.
+func (h *headReaderAt) fill(n int64) {
+	if n > int64(cap(h.buf)) {
+		const minSize = 64 << 10
+		size := max(n, int64(cap(h.buf))*2, minSize)
+		buf := make([]byte, len(h.buf), size)
+		copy(buf, h.buf)
+		h.buf = buf
+	}
+	m, err := io.ReadAtLeast(h.r, h.buf[len(h.buf):cap(h.buf)], int(n)-len(h.buf))
+	h.buf = h.buf[:len(h.buf)+m]
+	if err == io.ErrUnexpectedEOF {
+		err = io.EOF
+	}
+	h.err = err
+}
+
+// All returns a reader of all of r: the bytes read so far, then the rest.
+// No more calls to ReadAt may be made.
+func (h *headReaderAt) All() io.Reader {
+	return io.MultiReader(bytes.NewReader(h.buf), h.r)
+}
+
 func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io.ReadCloser, error) {
 	fi, ok := fileInfoPacked(ctx, ih.Search, ih.Fetcher, nil, fileRef)
 	if debugPack {
@@ -360,10 +467,21 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	}
 	defer fr.Close()
 
-	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
-	sr, conf, sourceFormat, err := imageConfigFromReader(sr)
-	if err != nil {
-		return nil, err
+	head := &headReaderAt{r: readerutil.NewStatsReader(imageBytesFetchedVar, fr)}
+	var sr io.Reader // all of the file, once head is done
+	var conf image.Config
+	var sourceFormat string
+	// HEIC metadata is read without the heic package's DecodeConfig,
+	// which has libheif parse up to 256 KB of the file.
+	heicFile := openHEIC(head)
+	if heicFile != nil {
+		conf = image.Config{Width: heicFile.Width, Height: heicFile.Height}
+		sourceFormat = "heic"
+	} else {
+		sr, conf, sourceFormat, err = imageConfigFromReader(head.All())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	opts := &images.DecodeOpts{
@@ -379,44 +497,54 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 			release()
 		}
 	}()
-	if sourceFormat == "jpeg" {
-		extra, err := ih.jpegPostDecodeMemory(conf)
+	var i image.Image
+	var imConfig images.Config
+	if heicFile != nil {
+		i, imConfig, err = ih.heicThumbnail(ctx, heicFile, opts, &release)
 		if err != nil {
 			return nil, err
 		}
-		opts.JPEGOptions = &resizejpeg.ResizeOptions{
-			AllowFullDecode: true,
-			// Keep at least 2x the thumbnail's width and height (4x its
-			// pixels) before filtering, rather than the default 4x per
-			// dimension. This lets typical UI thumbnails of large photos
-			// use the 1/4 or 1/8 scaled IDCT, which greatly cuts the decode
-			// and Lanczos work, at little visible cost at thumbnail sizes.
-			ThumbnailHeadroom: 2,
-			MemAllocSemaphore: func(n int64) (func(), error) {
-				if n < 0 || n > math.MaxInt64-extra {
-					return nil, errors.New("JPEG decode plan overflows memory estimate")
-				}
-				var err error
-				release, err = ih.acquireImageMemory(ctx, n+extra)
-				return nil, err
-			},
-		}
-	} else {
-		// Preserve the legacy estimate for other formats: 3 bytes per source
-		// pixel (an approximation; e.g. PNGs have varying pixel depths).
-		ramSize, err := imageMemoryEstimate(conf.Width, conf.Height, 3)
-		if err != nil {
-			return nil, err
-		}
-		release, err = ih.acquireImageMemory(ctx, ramSize)
-		if err != nil {
-			return nil, err
-		}
+		sr = head.All()
 	}
-
-	i, imConfig, err := images.Decode(sr, opts)
-	if err != nil {
-		return nil, err
+	if i == nil {
+		if sourceFormat == "jpeg" {
+			extra, err := ih.jpegPostDecodeMemory(conf)
+			if err != nil {
+				return nil, err
+			}
+			opts.JPEGOptions = &resizejpeg.ResizeOptions{
+				AllowFullDecode: true,
+				// Keep at least 2x the thumbnail's width and height (4x its
+				// pixels) before filtering, rather than the default 4x per
+				// dimension. This lets typical UI thumbnails of large photos
+				// use the 1/4 or 1/8 scaled IDCT, which greatly cuts the decode
+				// and Lanczos work, at little visible cost at thumbnail sizes.
+				ThumbnailHeadroom: 2,
+				MemAllocSemaphore: func(n int64) (func(), error) {
+					if n < 0 || n > math.MaxInt64-extra {
+						return nil, errors.New("JPEG decode plan overflows memory estimate")
+					}
+					var err error
+					release, err = ih.acquireImageMemory(ctx, n+extra)
+					return nil, err
+				},
+			}
+		} else {
+			// Preserve the legacy estimate for other formats: 3 bytes per source
+			// pixel (an approximation; e.g. PNGs have varying pixel depths).
+			ramSize, err := imageMemoryEstimate(conf.Width, conf.Height, 3)
+			if err != nil {
+				return nil, err
+			}
+			release, err = ih.acquireImageMemory(ctx, ramSize)
+			if err != nil {
+				return nil, err
+			}
+		}
+		i, imConfig, err = images.Decode(sr, opts)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
