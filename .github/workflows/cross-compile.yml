@@ -12,6 +12,8 @@ concurrency:
 
 # Cross-compile all packages and their tests, without cgo, for platforms
 # we don't run tests on, to catch dependencies that don't build there.
+# linux/386 catches code that doesn't build where int is 32 bits, like
+# the Docker image's linux/arm/v7.
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,17 +21,21 @@ jobs:
       fail-fast: false
       matrix:
         goos: [freebsd, openbsd]
+        goarch: [amd64]
+        include:
+          - goos: linux
+            goarch: "386"
 
     steps:
     - uses: actions/checkout@v4
     - uses: ./.github/actions/setup-go
       with:
-        cache-key-suffix: -${{ matrix.goos }}
+        cache-key-suffix: -${{ matrix.goos }}-${{ matrix.goarch }}
 
     - name: Build packages and tests
       env:
         GOOS: ${{ matrix.goos }}
-        GOARCH: amd64
+        GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: "0"
       run: |
         go build ./...
@@ -37,4 +43,4 @@ jobs:
 
     - uses: ./.github/actions/save-go-cache
       with:
-        cache-key-suffix: -${{ matrix.goos }}
+        cache-key-suffix: -${{ matrix.goos }}-${{ matrix.goarch }}
