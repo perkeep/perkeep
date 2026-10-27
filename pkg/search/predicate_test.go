@@ -273,6 +273,23 @@ var keywordTests = []keywordTestcase{
 
 	{
 		object: newFormat(),
+		args:   []string{"heic"},
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						MIMEType: &StringConstraint{
+							Equals: "image/heic",
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		object: newFormat(),
 		args:   []string{"pdf"},
 		want: &Constraint{
 			Permanode: &PermanodeConstraint{
