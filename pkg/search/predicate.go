@@ -826,6 +826,18 @@ func mimeFromFormat(v string) (string, error) {
 		return "image/gif", nil
 	case "png":
 		return "image/png", nil
+	case "heic":
+		return "image/heic", nil
+	case "heif":
+		return "image/heif", nil
+	case "avif":
+		return "image/avif", nil
+	case "webp":
+		return "image/webp", nil
+	case "tif", "tiff":
+		return "image/tiff", nil
+	case "svg":
+		return "image/svg+xml", nil
 	case "pdf":
 		return "application/pdf", nil // RFC 3778
 	}
