@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bradfitz/resizejpeg"
 	"github.com/rwcarlsen/goexif/exif"
 )
 
@@ -64,12 +65,14 @@ func straightFImage(t *testing.T) image.Image {
 }
 
 func smallStraightFImage(t *testing.T) image.Image {
-	g, err := os.Open(filepath.Join(datadir, "f1-s.jpg"))
+	g, err := os.Open(filepath.Join(datadir, "f1.jpg"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer g.Close()
-	straightF, err := jpeg.Decode(g)
+	// Use the library's thumbnail as the pixel reference, rather than the
+	// precomputed fixture from the former area-resizing implementation.
+	straightF, err := resizejpeg.DecodeThumbnail(g, 20, 40, &resizejpeg.ResizeOptions{AllowFullDecode: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,24 +336,25 @@ func TestDateTime(t *testing.T) {
 }
 
 var issue513tests = []image.Rectangle{
-	// These test image bounds give a fastjpeg.Factor() result of 1 since
-	// they give dim/max == 1, but require rescaling.
+	// Images that need resizing, including odd and very skinny dimensions.
 	image.Rect(0, 0, 500, 500), // The file, bug.jpeg, in issue 315 is a black 500x500.
 	image.Rect(0, 0, 1, 257),
 	image.Rect(0, 0, 1, 511),
 	image.Rect(0, 0, 2001, 1),
 	image.Rect(0, 0, 3999, 1),
 
-	// These test image bounds give either a fastjpeg.Factor() > 1 or
-	// do not require rescaling.
+	// Include exact boundaries and images that do not require resizing.
 	image.Rect(0, 0, 1, 256),
 	image.Rect(0, 0, 1, 512),
 	image.Rect(0, 0, 2000, 1),
 	image.Rect(0, 0, 4000, 1),
+	image.Rect(0, 0, 1, 1),
+	image.Rect(0, 0, 1, 2),
+	image.Rect(0, 0, 2, 1),
 }
 
-// Test that decode does not hand off a nil image when using
-// fastjpeg, and fastjpeg.Factor() == 1.
+// Test that JPEG thumbnail decoding returns a usable image at scale-factor
+// boundaries and for skinny or tiny images, with or without resizing.
 // See https://perkeep.org/issue/513
 func TestIssue513(t *testing.T) {
 	opts := &DecodeOpts{MaxWidth: 2000, MaxHeight: 256}
@@ -366,9 +370,16 @@ func TestIssue513(t *testing.T) {
 					t.Errorf("Unexpected panic for image size %dx%d: %v", rect.Dx(), rect.Dy(), r)
 				}
 			}()
-			_, format, err, needsRescale := decode(buf, opts, false)
+			im, format, err, needsRescale := decode(buf, opts, false)
 			if err != nil {
-				t.Errorf("Unexpected error for image size %dx%d: %v", rect.Dx(), rect.Dy(), err)
+				t.Fatalf("Unexpected error for image size %dx%d: %v", rect.Dx(), rect.Dy(), err)
+			}
+			if im == nil || im.Bounds().Empty() {
+				t.Fatalf("Empty image for image size %dx%d", rect.Dx(), rect.Dy())
+			}
+			got := im.Bounds()
+			if got.Dx() > rect.Dx() || got.Dy() > rect.Dy() || got.Dx() > opts.MaxWidth || got.Dy() > opts.MaxHeight {
+				t.Errorf("Unexpected thumbnail bounds %v for image size %dx%d", got, rect.Dx(), rect.Dy())
 			}
 			if format != "jpeg" {
 				t.Errorf("Unexpected format for image size %dx%d: got %q want %q", rect.Dx(), rect.Dy(), format, "jpeg")

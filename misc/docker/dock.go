@@ -70,7 +70,6 @@ var (
 
 const (
 	goDockerImage       = "perkeep/go"
-	djpegDockerImage    = "perkeep/djpeg"
 	zoneinfoDockerImage = "perkeep/zoneinfo"
 	goCmd               = "/usr/local/go/bin/go"
 	// Path to where the Perkeep builder is mounted on the perkeep/go image.
@@ -126,18 +125,6 @@ func copyFinalDockerfile(ctxDir string) {
 	serverDockerFile, err := os.ReadFile(filepath.Join(dockDir, "server", "Dockerfile"))
 	check(err)
 	check(os.WriteFile(filepath.Join(ctxDir, "Dockerfile"), serverDockerFile, 0644))
-}
-
-func genDjpeg(ctxDir string) {
-	cmd := exec.Command("docker", "run",
-		"--rm",
-		"--volume="+ctxDir+":/OUT",
-		djpegDockerImage, "/bin/bash", "-c", "mkdir -p /OUT && cp /src/libjpeg-turbo-1.4.1/djpeg /OUT/djpeg")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building djpeg in go container: %v", err)
-	}
 }
 
 func genZoneinfo(ctxDir string) {
@@ -318,10 +305,8 @@ func main() {
 	}
 	defer os.RemoveAll(ctxDir)
 
-	buildDockerImage("djpeg-static", djpegDockerImage)
 	buildDockerImage("zoneinfo", zoneinfoDockerImage)
 	genPerkeep(ctxDir)
-	genDjpeg(ctxDir)
 	genZoneinfo(ctxDir)
 	buildServer(ctxDir)
 

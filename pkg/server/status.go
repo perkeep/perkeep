@@ -292,7 +292,6 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	}
 	f("<li><b>Perkeep</b>: %s%s</li>", html.EscapeString(buildinfo.Summary()), envStr)
 	f("<li><b>Go</b>: %s/%s %s, cgo=%v</li>", runtime.GOOS, runtime.GOARCH, runtime.Version(), cgoEnabled)
-	f("<li><b>djpeg</b>: %s", html.EscapeString(buildinfo.DjpegStatus()))
 	f("<li><b>HEIC decoder</b>: %s", html.EscapeString(buildinfo.HEICStatus()))
 	f("</ul>")
 

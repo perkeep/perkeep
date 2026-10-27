@@ -48,7 +48,7 @@ ARG TARGETARCH
 # "libheif.so", which Debian only ships in libheif-dev, so rather than
 # install that and its dependencies, link it to libheif1's libheif.so.1.
 RUN apt-get update && \
-    apt-get install -y libjpeg-turbo-progs ca-certificates $([ "$TARGETARCH" = arm ] || echo libheif1) && \
+    apt-get install -y ca-certificates $([ "$TARGETARCH" = arm ] || echo libheif1) && \
     rm -rf /var/lib/apt/lists/* && \
     if [ "$TARGETARCH" != arm ]; then \
         lib=$(ls /usr/lib/*/libheif.so.1) && ln -s libheif.so.1 "${lib%.1}"; \
@@ -56,12 +56,12 @@ RUN apt-get update && \
 
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
-# Check that perkeepd uses the image's djpeg and libheif. The binaries
-# are built without cgo. The 64-bit builds still link dynamically for
-# the purego image decoders; 32-bit builds use WASM instead.
+# Check that perkeepd uses libheif, except on 32-bit ARM.
+# JPEG thumbnailing is pure Go. The binaries are built without cgo;
+# HEIC decoding loads libheif through purego on 64-bit builds and
+# uses the embedded WASM decoder on 32-bit ARM.
 RUN perkeepd -build-config > /tmp/build-config.json && \
     cat /tmp/build-config.json && \
-    grep -q '"djpeg": "/' /tmp/build-config.json && \
     { [ "$TARGETARCH" = arm ] || grep -q '"heic": "libheif"' /tmp/build-config.json; } && \
     rm /tmp/build-config.json
 

@@ -24,7 +24,6 @@ import (
 	"image"
 	"image/draw"
 	_ "image/gif"
-	"image/jpeg"
 	_ "image/png"
 	"io"
 	"log"
@@ -35,11 +34,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/bradfitz/resizejpeg"
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
 	"go4.org/media/heif"
 	"go4.org/readerutil"
-	"perkeep.org/internal/images/fastjpeg"
 	"perkeep.org/internal/images/resize"
 	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/buildinfo"
@@ -77,7 +76,7 @@ var disableThumbCache, _ = strconv.ParseBool(os.Getenv("PK_DISABLE_THUMB_CACHE")
 // thumbnailVersion should be incremented whenever we want to
 // invalidate the cache of previous thumbnails on the server's
 // cache and in browsers.
-const thumbnailVersion = "2"
+const thumbnailVersion = "3"
 
 // ThumbnailVersion returns a string safe for URL query components
 // which is a generation number. Whenever the thumbnailing code is
@@ -140,6 +139,12 @@ type DecodeOpts struct {
 	// They overrule MaxWidth and MaxHeight.
 	ScaleWidth, ScaleHeight float32
 
+	// JPEGOptions controls JPEG thumbnail filtering, decode headroom, and
+	// memory admission whenever DecodeOpts is non-nil, even without resizing.
+	// The options are copied, not modified. If nil, progressive and multi-scan
+	// JPEGs are allowed; otherwise AllowFullDecode is honored as supplied.
+	JPEGOptions *resizejpeg.ResizeOptions
+
 	// TODO: consider alternate options if scaled ratio doesn't
 	// match original ratio:
 	//   Crop    bool
@@ -152,7 +157,7 @@ type DecodeOpts struct {
 type Config struct {
 	Width, Height int // visual Width and Height of the image (after any EXIF/etc rotation)
 	Format        string
-	Modified      bool   // true if Decode actually rotated or flipped the image.
+	Modified      bool   // true if Decode resized, rotated, or flipped the image.
 	HEICEXIF      []byte // if not nil, the part of the HEIC file that contains EXIF metadata
 }
 
@@ -583,11 +588,18 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 	b := image.Rect(0, 0, ic.Width, ic.Height)
 	sw, sh, needRescale := opts.rescaleDimensions(b, swapDimensions)
 	if !needRescale {
+		// rescaleDimensions can return post-rotation dimensions when it
+		// declines to upscale. The JPEG decoder needs the original bounds.
+		sw, sh = ic.Width, ic.Height
+	}
+	if !needRescale && format != "jpeg" {
 		im, format, err = image.Decode(mr)
 		return im, format, err, false
 	}
 
-	imageDebug(fmt.Sprintf("Resizing from %dx%d -> %dx%d", ic.Width, ic.Height, sw, sh))
+	if needRescale {
+		imageDebug(fmt.Sprintf("Resizing from %dx%d -> %dx%d", ic.Width, ic.Height, sw, sh))
+	}
 	if format == "cr2" {
 		// Replace mr with an io.Reader to the JPEG thumbnail embedded in a
 		// CR2 image.
@@ -597,26 +609,18 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 		format = "jpeg"
 	}
 
-	if format == "jpeg" && fastjpeg.Available() {
-		factor := fastjpeg.Factor(ic.Width, ic.Height, sw, sh)
-		if factor > 1 {
-			var buf bytes.Buffer
-			tr := io.TeeReader(mr, &buf)
-			im, err = fastjpeg.DecodeDownsample(tr, factor)
-			var derr fastjpeg.DjpegFailedError
-			if errors.As(err, &derr) {
-				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
-				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
-				if err != nil {
-					return nil, format, err, false
-				}
-			} else if err == nil {
-				// fallthrough to rescale() below.
-			} else {
-				return nil, format, err, false
-			}
-			return rescale(im, sw, sh), format, err, true
+	if format == "jpeg" {
+		// Preserve a visible pixel on the short edge of very skinny images.
+		sw, sh = max(1, sw), max(1, sh)
+		jpegOpts := resizejpeg.ResizeOptions{AllowFullDecode: true}
+		if opts.JPEGOptions != nil {
+			jpegOpts = *opts.JPEGOptions
 		}
+		im, err = resizejpeg.DecodeThumbnail(mr, sw, sh, &jpegOpts)
+		if err != nil {
+			return nil, format, err, false
+		}
+		return im, format, nil, needRescale
 	}
 
 	// Fall-back to normal decode.

@@ -15,6 +15,7 @@ require (
 	github.com/aws/smithy-go v1.28.5
 	github.com/bluesky-social/indigo v0.0.0-20261011191816-390acc39edfa
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
+	github.com/bradfitz/resizejpeg v0.0.0-20261025190336-6c2d225efbb7
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.2
