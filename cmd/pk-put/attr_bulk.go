@@ -33,6 +33,13 @@ type attrBulkCmd struct {
 	del bool
 }
 
+// TODO(bradfitz): maybe increase this? Keep "multi" blobs under a size
+// threshold like 1 MiB, and definitely under the 16 MiB blob limit.
+const attrBulkBatchSize = 100
+
+// Leave room for the signer and signature within the schema blob size limit.
+const attrBulkMaxUnsignedBytes = schema.MaxSchemaBlobSize - 4096
+
 func init() {
 	cmdmain.RegisterMode("attr-bulk", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(attrBulkCmd)
@@ -50,7 +57,7 @@ func (c *attrBulkCmd) Usage() {
 	cmdmain.Errorf("Usage: pk-put [globalopts] attr-bulk [--add | --del] < attributes.tsv\n")
 	cmdmain.Errorf("Each line: <permanode>\\t<name>\\t<value> (value optional with --del).\n")
 	cmdmain.Errorf("Use full permanode blobrefs. Tabs and newlines cannot appear in fields.\n")
-	cmdmain.Errorf("Claims are uploaded in order; an error stops processing without rolling back earlier claims.\n")
+	cmdmain.Errorf("Claims are uploaded in ordered batches of up to 100; errors discard buffered claims, not earlier uploads.\n")
 }
 
 func (c *attrBulkCmd) Examples() []string {
@@ -74,8 +81,8 @@ func (c *attrBulkCmd) RunCommand(args []string) error {
 	})
 }
 
-// run streams claims in input order, stopping at the first error. upload is
-// called only after a complete input line has been read and validated.
+// run buffers claims in input order, stopping at the first error. A malformed
+// record or read error discards buffered claims, not earlier uploads.
 func (c *attrBulkCmd) run(input io.Reader, upload func(*schema.Builder) error) error {
 	if c.add && c.del {
 		return cmdmain.UsageError("Add and del options are exclusive")
@@ -87,6 +94,16 @@ func (c *attrBulkCmd) run(input io.Reader, upload func(*schema.Builder) error) e
 		claimFunc = schema.NewDelAttributeClaim
 	}
 
+	claims := make([]*schema.Builder, 0, attrBulkBatchSize)
+	firstLine := 1
+	flush := func() error {
+		if err := uploadAttrBulkBatch(claims, firstLine, upload); err != nil {
+			return err
+		}
+		clear(claims)
+		claims = claims[:0]
+		return nil
+	}
 	reader := bufio.NewReader(input)
 	for line := 1; ; line++ {
 		// ReadString handles long lines without truncation or Scanner's
@@ -96,7 +113,7 @@ func (c *attrBulkCmd) run(input io.Reader, upload func(*schema.Builder) error) e
 			return fmt.Errorf("attr-bulk: line %d: reading stdin: %w", line, err)
 		}
 		if record == "" && err == io.EOF {
-			return nil
+			return flush()
 		}
 
 		if strings.HasSuffix(record, "\n") {
@@ -118,11 +135,48 @@ func (c *attrBulkCmd) run(input io.Reader, upload func(*schema.Builder) error) e
 		if len(fields) == 3 {
 			value = fields[2]
 		}
-		if err := upload(claimFunc(pn, fields[1], value)); err != nil {
-			return fmt.Errorf("attr-bulk: line %d: uploading claim: %w", line, err)
+		if len(claims) == 0 {
+			firstLine = line
+		}
+		claims = append(claims, claimFunc(pn, fields[1], value))
+		if len(claims) == attrBulkBatchSize {
+			if err := flush(); err != nil {
+				return err
+			}
 		}
 		if err == io.EOF {
-			return nil
+			return flush()
 		}
 	}
+}
+
+// uploadAttrBulkBatch splits batches whose serialized JSON would exceed the
+// size budget. Even a single operation is wrapped in a multi claim.
+func uploadAttrBulkBatch(claims []*schema.Builder, firstLine int, upload func(*schema.Builder) error) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	lastLine := firstLine + len(claims) - 1
+	bb, err := schema.NewMultiClaim(claims...)
+	if err != nil {
+		return fmt.Errorf("attr-bulk: lines %d-%d: building multi claim: %w", firstLine, lastLine, err)
+	}
+	unsigned, err := bb.JSON()
+	if err != nil {
+		return fmt.Errorf("attr-bulk: lines %d-%d: encoding multi claim: %w", firstLine, lastLine, err)
+	}
+	if len(unsigned) > attrBulkMaxUnsignedBytes {
+		if len(claims) == 1 {
+			return fmt.Errorf("attr-bulk: line %d: attribute claim exceeds the %d-byte unsigned size limit", firstLine, attrBulkMaxUnsignedBytes)
+		}
+		mid := len(claims) / 2
+		if err := uploadAttrBulkBatch(claims[:mid], firstLine, upload); err != nil {
+			return err
+		}
+		return uploadAttrBulkBatch(claims[mid:], firstLine+mid, upload)
+	}
+	if err := upload(bb); err != nil {
+		return fmt.Errorf("attr-bulk: lines %d-%d: uploading multi claim: %w", firstLine, lastLine, err)
+	}
+	return nil
 }
