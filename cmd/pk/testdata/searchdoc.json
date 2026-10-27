@@ -23,6 +23,7 @@
   "is:livephoto\t\tobject is the still image of a Live Photo whose video is indexed",
   "is:livephotovideo\tobject is the video of a Live Photo whose still image is indexed",
   "livephoto\t\tMatch both halves of the Live Photo with the given Apple content identifier, case insensitively.",
+  "is:video\t\tobject is a video, other than the video of a Live Photo whose still image is indexed",
   "height\t\t\tuse height:min-max to match images having a height of at least min",
   "\t\t\tand at most max. Use height:min- to specify only an underbound and",
   "\t\t\theight:-max to specify only an upperbound.",

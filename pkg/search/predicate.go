@@ -120,6 +120,7 @@ func init() {
 	registerKeyword(newIsLivePhoto())
 	registerKeyword(newIsLivePhotoVideo())
 	registerKeyword(newLivePhotoID())
+	registerKeyword(newIsVideo())
 	registerKeyword(newHeight())
 	registerKeyword(newIsLandscape())
 	registerKeyword(newIsPano())
@@ -487,6 +488,27 @@ func (k isImage) Predicate(ctx context.Context, args []string) (*Constraint, err
 		},
 	}
 	return c, nil
+}
+
+type isVideo struct {
+	matchEqual
+}
+
+func newIsVideo() keyword {
+	return isVideo{"is:video"}
+}
+
+func (k isVideo) Description() string {
+	return "object is a video, other than the video of a Live Photo whose still image is indexed"
+}
+
+// Predicate matches videos but not Live Photo videos, which the web UI
+// shows as part of their still images, like is:livephotovideo.
+func (k isVideo) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return andConst(
+		permOfFile(&FileConstraint{IsVideo: true}),
+		notConst(permOfFile(&FileConstraint{LivePhoto: "video"})),
+	), nil
 }
 
 type isLandscape struct {

@@ -158,6 +158,11 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 **<a name="portrait"></a>is:portrait**
 : the image has a portrait aspect.
 
+**<a name="video"></a>is:video**
+: the object is a video. Apple Live Photo videos whose still images are
+  indexed are left out, as the web UI shows them with their still images; use
+  `is:livephotovideo` to find those.
+
 **<a name="loc"></a>loc**
 : uses the available metadata, such as EXIF GPS fields, or check-in locations,
   to match nodes having a location near the specified location.  Locations are
