@@ -171,10 +171,6 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `CAMPUT_ANDROID_OUTPUT` (bool)
 : Enable pkg/client status messages to print to stdout. Used in android client.
 
-`CAMLI_DISABLE_DJPEG` (bool)
-: Disable use of djpeg(1) to down-sample JPEG images by a factor of 2, 4 or 8.
-  Only has an effect when djpeg is found in the PATH.
-
 `PK_DISABLE_THUMB_CACHE` (bool)
 : If true, no thumbnail caching is done, and URLs even have cache
   buster components, to force browsers to reload a lot.

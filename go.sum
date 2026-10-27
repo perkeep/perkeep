@@ -120,6 +120,8 @@ github.com/bluesky-social/indigo v0.0.0-20261011191816-390acc39edfa h1:I4XjcqXWF
 github.com/bluesky-social/indigo v0.0.0-20261011191816-390acc39edfa/go.mod h1:QKojlbP6uRiB4jDlHGnl1eoCLVMQw5luR8HXTut4xzE=
 github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40 h1:wsnz4B2CSHJ09pwtMReU/GRqWDsI7XSasq7Nphem3Xk=
 github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40/go.mod h1:ZcXX9BndVQx6Q/JM6B8x7dLE9sl20S+TQsv4KO7tEQk=
+github.com/bradfitz/resizejpeg v0.0.0-20261025190336-6c2d225efbb7 h1:0BtrQ0WnwR1HGtK8rXWupvNFVNMJcKKGUu4taYSb29g=
+github.com/bradfitz/resizejpeg v0.0.0-20261025190336-6c2d225efbb7/go.mod h1:h0wthKYy7BBRLKj3ILA6xLbwdkXwM16VvM+TmTXMwxs=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=

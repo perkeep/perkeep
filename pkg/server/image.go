@@ -27,11 +27,13 @@ import (
 	"image/png"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bradfitz/resizejpeg"
 	_ "github.com/nf/cr2"
 	"go4.org/readerutil"
 	"go4.org/syncutil"
@@ -219,10 +221,8 @@ type formatAndImage struct {
 
 // imageConfigFromReader calls image.DecodeConfig on r. It returns an
 // io.Reader that is the concatenation of the bytes read and the remaining r,
-// the image configuration, and the error from image.DecodeConfig.
-// If the image is HEIC, and its config was decoded properly (but partially,
-// because we don't do ColorModel yet), it returns images.ErrHEIC.
-func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
+// the image configuration, its format, and the error from image.DecodeConfig.
+func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, string, error) {
 	header := new(bytes.Buffer)
 	tr := io.TeeReader(r, header)
 	// We just need width & height for memory considerations, so we use the
@@ -230,8 +230,89 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	// orientation correction for images.DecodeConfig. image.DecodeConfig is
 	// able to deal with HEIC because it's registered indirectly in
 	// internal/images via the gen2brain/heic package.
-	conf, _, err := image.DecodeConfig(tr)
-	return io.MultiReader(header, r), conf, err
+	conf, format, err := image.DecodeConfig(tr)
+	return io.MultiReader(header, r), conf, format, err
+}
+
+// imageMemorySlots bounds both active resizes and workers waiting on the legacy
+// semaphore, which has no context-aware Acquire. Canceled callers can leave a
+// worker behind until memory becomes available, but never an unbounded number.
+var imageMemorySlots = make(chan struct{}, 16)
+
+func (ih *ImageHandler) acquireImageMemory(ctx context.Context, n int64) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if ih.ResizeSem == nil {
+		return nil, errors.New("image resize semaphore is not configured")
+	}
+	select {
+	case imageMemorySlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	sem := ih.ResizeSem
+	ready := make(chan error)
+	go func() {
+		err := sem.Acquire(n)
+		select {
+		case ready <- err:
+		case <-ctx.Done():
+			if err == nil {
+				sem.Release(n)
+			}
+			<-imageMemorySlots
+		}
+	}()
+	select {
+	case err := <-ready:
+		if err != nil {
+			<-imageMemorySlots
+			return nil, err
+		}
+		release := func() {
+			sem.Release(n)
+			<-imageMemorySlots
+		}
+		// Cancellation may race with the worker's successful acquisition.
+		if err := ctx.Err(); err != nil {
+			release()
+			return nil, err
+		}
+		return release, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func imageMemoryEstimate(width, height int, bytesPerPixel int64) (int64, error) {
+	if width <= 0 || height <= 0 || bytesPerPixel <= 0 ||
+		int64(width) > math.MaxInt64/int64(height)/bytesPerPixel {
+		return 0, errors.New("image dimensions overflow memory estimate")
+	}
+	return int64(width) * int64(height) * bytesPerPixel, nil
+}
+
+// jpegPostDecodeMemory budgets rotation and the encoded output buffer in
+// addition to resizejpeg's decode plan. Rotation may swap the target bounds,
+// but cannot increase their area or the source area.
+func (ih *ImageHandler) jpegPostDecodeMemory(conf image.Config) (int64, error) {
+	pixels, err := imageMemoryEstimate(conf.Width, conf.Height, 1)
+	if err != nil {
+		return 0, err
+	}
+	if ih.MaxWidth > 0 && ih.MaxHeight > 0 {
+		// Only multiply the target dimensions when their product is smaller
+		// than the source area, so oversized caller bounds cannot overflow.
+		if int64(ih.MaxWidth) <= pixels/int64(ih.MaxHeight) {
+			pixels = int64(ih.MaxWidth) * int64(ih.MaxHeight)
+		}
+	}
+	const overhead = 256 << 10
+	if pixels > (math.MaxInt64-overhead)/16 {
+		return 0, errors.New("JPEG dimensions overflow memory estimate")
+	}
+	return pixels*16 + overhead, nil
 }
 
 func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io.ReadCloser, error) {
@@ -270,6 +351,9 @@ func (ih *ImageHandler) ScaleImage(ctx context.Context, fileRef blob.Ref) (data 
 }
 
 func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*formatAndImage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	fr, err := ih.newFileReader(ctx, fileRef)
 	if err != nil {
 		return nil, err
@@ -277,32 +361,64 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	defer fr.Close()
 
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
-	sr, conf, err := imageConfigFromReader(sr)
+	sr, conf, sourceFormat, err := imageConfigFromReader(sr)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO(wathiede): build a size table keyed by conf.ColorModel for
-	// common color models for a more exact size estimate.
+	opts := &images.DecodeOpts{
+		MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight,
+	}
+	var release func()
+	// The JPEG hook transfers its one reservation to us rather than releasing
+	// it when decoding ends: orientation, cropping, and encoding still retain
+	// the destination. In particular, never reserve full source pixels before
+	// asking resizejpeg for its streaming/compact progressive memory plan.
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
+	if sourceFormat == "jpeg" {
+		extra, err := ih.jpegPostDecodeMemory(conf)
+		if err != nil {
+			return nil, err
+		}
+		opts.JPEGOptions = &resizejpeg.ResizeOptions{
+			AllowFullDecode: true,
+			// Keep at least 2x the thumbnail's width and height (4x its
+			// pixels) before filtering, rather than the default 4x per
+			// dimension. This lets typical UI thumbnails of large photos
+			// use the 1/4 or 1/8 scaled IDCT, which greatly cuts the decode
+			// and Lanczos work, at little visible cost at thumbnail sizes.
+			ThumbnailHeadroom: 2,
+			MemAllocSemaphore: func(n int64) (func(), error) {
+				if n < 0 || n > math.MaxInt64-extra {
+					return nil, errors.New("JPEG decode plan overflows memory estimate")
+				}
+				var err error
+				release, err = ih.acquireImageMemory(ctx, n+extra)
+				return nil, err
+			},
+		}
+	} else {
+		// Preserve the legacy estimate for other formats: 3 bytes per source
+		// pixel (an approximation; e.g. PNGs have varying pixel depths).
+		ramSize, err := imageMemoryEstimate(conf.Width, conf.Height, 3)
+		if err != nil {
+			return nil, err
+		}
+		release, err = ih.acquireImageMemory(ctx, ramSize)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	// This value is an estimate of the memory required to decode an image.
-	// PNGs range from 1-64 bits per pixel (not all of which are supported by
-	// the Go standard parser). JPEGs encoded in YCbCr 4:4:4 are 3 byte/pixel.
-	// For all other JPEGs this is an overestimate.  For GIFs it is 3x larger
-	// than needed.  How accurate this estimate is depends on the mix of
-	// images being resized concurrently.
-	ramSize := int64(conf.Width) * int64(conf.Height) * 3
-
-	if err = ih.ResizeSem.Acquire(ramSize); err != nil {
+	i, imConfig, err := images.Decode(sr, opts)
+	if err != nil {
 		return nil, err
 	}
-	defer ih.ResizeSem.Release(ramSize)
-
-	i, imConfig, err := images.Decode(sr, &images.DecodeOpts{
-		MaxWidth:  ih.MaxWidth,
-		MaxHeight: ih.MaxHeight,
-	})
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	b := i.Bounds()

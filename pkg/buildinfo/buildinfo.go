@@ -67,10 +67,6 @@ type Features struct {
 	HEIC string `json:"heic"`
 	// LibheifError, if HEIC is "wasm", is why libheif wasn't used.
 	LibheifError string `json:"libheifError,omitempty"`
-
-	// Djpeg is the path to the djpeg binary used to downsample JPEGs
-	// faster, or empty if it's unavailable, disabled, or not linked in.
-	Djpeg string `json:"djpeg"`
 }
 
 var featureFuncs []func(*Features)
@@ -101,15 +97,6 @@ func CurrentFeatures() Features {
 		fn(&f)
 	}
 	return f
-}
-
-// DjpegStatus returns a plaintext (non-HTML) string describing the
-// state of djpeg on the system.
-func DjpegStatus() string {
-	if p := CurrentFeatures().Djpeg; p != "" {
-		return "djpeg available at " + p
-	}
-	return "djpeg optimization unavailable"
 }
 
 // HEICStatus returns a plaintext (non-HTML) string describing the
