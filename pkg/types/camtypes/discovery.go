@@ -44,6 +44,11 @@ type Discovery struct {
 
 	ThumbVersion string `json:"thumbVersion"` // Thumbnailing version.
 
+	// VideoThumbVersion is the version of video thumbnails, in addition
+	// to ThumbVersion, for clients to put in their URLs, so that browsers
+	// don't use cached video thumbnails after they change.
+	VideoThumbVersion string `json:"videoThumbVersion,omitempty"`
+
 	// AuthToken is an auth.OpAll token used by the web UI and the WebSocket.
 	// It is randomly generated the first time discovery is served.
 	AuthToken string `json:"authToken"`
