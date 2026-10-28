@@ -35,6 +35,7 @@
   "\t\t\tand at most max. Use width:min- to specify only an underbound and",
   "\t\t\twidth:-max to specify only an upperbound.",
   "\t\t\tExact matches should use width:640 ",
+  "media\t\t\tmatch file permanodes by a case-insensitive substring in any media tag value; requires the in-memory index",
   "filename\t\tMatch filename, case sensitively. Supports optional '*' wildcard at beginning, end, or both.",
   "is:post\t\t\tmatches tweets, status updates, blog posts, etc",
   "is:like\t\t\tmatches liked tweets",
