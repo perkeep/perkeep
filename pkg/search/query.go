@@ -1789,13 +1789,12 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 		return false, nil
 	}
 
-	// match mediaTags
 	if mt := c.MediaTag; mt != nil {
 		if corpus == nil {
 			return false, nil
 		}
 		var tagValue string
-		var mediaTags, err = corpus.GetMediaTags(ctx, br)
+		mediaTags, err := corpus.GetMediaTags(ctx, br)
 		if err == nil && mt.Tag != "" {
 			tagValue = mediaTags[mt.Tag]
 		}

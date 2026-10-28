@@ -80,6 +80,10 @@
     "Description": "use width:min-max to match images having a width of at least min\nand at most max. Use width:min- to specify only an underbound and\nwidth:-max to specify only an upperbound.\nExact matches should use width:640 "
   },
   {
+    "Name": "media",
+    "Description": "match file permanodes by a case-insensitive substring in any media tag value; requires the in-memory index"
+  },
+  {
     "Name": "filename",
     "Description": "Match filename, case sensitively. Supports optional '*' wildcard at beginning, end, or both."
   },

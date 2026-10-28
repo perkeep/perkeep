@@ -78,6 +78,27 @@ func TestCameraPredicate(t *testing.T) {
 	}
 }
 
+func TestMediaPredicate(t *testing.T) {
+	for _, value := range []string{"Test Artist", "ALBUM", ""} {
+		got, err := parseExpression(context.Background(), `media:"`+value+`"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := permOfFile(&FileConstraint{MediaTag: &MediaTagConstraint{
+			String: &StringConstraint{Contains: value, CaseInsensitive: true},
+		}})
+		want = andConst(skiphiddenC, want)
+		if !reflect.DeepEqual(got.Constraint, want) {
+			t.Errorf("media:%q = %#v; want %#v", value, got.Constraint, want)
+		}
+	}
+	for _, expression := range []string{`media:artist:album`, `media`} {
+		if _, err := parseExpression(context.Background(), expression); err == nil {
+			t.Errorf("expected %q to fail", expression)
+		}
+	}
+}
+
 type keywordTestcase struct {
 	name        string
 	object      keyword
