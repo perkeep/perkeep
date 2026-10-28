@@ -123,7 +123,7 @@ func TestPopulateFileQuickTime(t *testing.T) {
 		"com.apple.quicktime.model":                        "iPhone 16 Pro",
 		"com.apple.quicktime.software":                     "26.6",
 		"com.apple.quicktime.creationdate":                 "2026-10-18T17:49:20-0700",
-		"com.apple.quicktime.location.ISO6709":             "+47.6305-122.3478+084.505/",
+		"com.apple.quicktime.location.ISO6709":             "+48.8584+002.2945+035.000/",
 		"com.apple.quicktime.live-photo.vitality-score":    "1.000000",
 		"com.apple.quicktime.smartstyle.rendering-version": "1",
 	})
@@ -138,7 +138,7 @@ func TestPopulateFileQuickTime(t *testing.T) {
 		keyFileInfo.Key(file.BlobRef()):              keyFileInfo.Val(len(data), "IMG_3204.MOV", "video/quicktime", whole),
 		keyFileTimes.Key(file.BlobRef()):             keyFileTimes.Val("2023-11-14T22:13:20Z"),
 		keyWholeToFileRef.Key(whole, file.BlobRef()): "1",
-		keyEXIFGPS.Key(whole):                        "47.6305000|-122.3478000",
+		keyEXIFGPS.Key(whole):                        "48.8584000|2.2945000",
 	}
 	for _, kv := range [][2]string{
 		{MediaTagContentIdentifier, "7C16BD72-9110-4AB6-80F6-6BF098D5F43E"},

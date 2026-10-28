@@ -22,7 +22,7 @@ import (
 )
 
 // ParseISO6709 parses the latitude and longitude, in decimal degrees,
-// of an ISO 6709 point such as "+47.6305-122.3478+084.505/", the format
+// of an ISO 6709 point such as "+48.8584+002.2945+035.000/", the format
 // of KeyLocationISO6709. Any altitude or coordinate reference system
 // following the longitude is ignored.
 func ParseISO6709(s string) (lat, long float64, ok bool) {

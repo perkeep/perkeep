@@ -75,7 +75,7 @@ func readMetadata(t *testing.T, file []byte) *Metadata {
 
 func TestReadMetadata(t *testing.T) {
 	file := movie(100000, 600, 444,
-		item{KeyLocationISO6709, 1, []byte("+47.6305-122.3478+084.505/")},
+		item{KeyLocationISO6709, 1, []byte("+48.8584+002.2945+035.000/")},
 		item{KeyLivePhotoAuto, 22, []byte{1}},
 		item{"com.example.signed", 21, []byte{0xff, 0xfe}},
 		item{"com.example.uint64", 22, binary.BigEndian.AppendUint64(nil, math.MaxUint64)},
@@ -91,7 +91,7 @@ func TestReadMetadata(t *testing.T) {
 		t.Errorf("Duration = %v; want %v", md.Duration, want)
 	}
 	want := map[string]string{
-		KeyLocationISO6709:    "+47.6305-122.3478+084.505/",
+		KeyLocationISO6709:    "+48.8584+002.2945+035.000/",
 		KeyLivePhotoAuto:      "1",
 		"com.example.signed":  "-2",
 		"com.example.uint64":  "18446744073709551615",
@@ -132,21 +132,21 @@ func TestParseISO6709(t *testing.T) {
 		lat, long float64
 		ok        bool
 	}{
-		{"+47.6305-122.3478+084.505/", 47.6305, -122.3478, true},
-		{"+47.6305-122.3478/", 47.6305, -122.3478, true},
+		{"+48.8584+002.2945+035.000/", 48.8584, 2.2945, true},
+		{"+48.8584+002.2945/", 48.8584, 2.2945, true},
 		{"-33.8688+151.2093", -33.8688, 151.2093, true},
-		{"+4737.83-12220.868/", 47 + 37.83/60, -(122 + 20.868/60), true},
-		{"+473749-1222052/", 47 + 37.0/60 + 49.0/3600, -(122 + 20.0/60 + 52.0/3600), true},
-		{"+47.6305-122.3478CRSWGS_84/", 47.6305, -122.3478, true},
+		{"+4851.504+00217.670/", 48 + 51.504/60, 2 + 17.670/60, true},
+		{"+485130+0021740/", 48 + 51.0/60 + 30.0/3600, 2 + 17.0/60 + 40.0/3600, true},
+		{"+48.8584+002.2945CRSWGS_84/", 48.8584, 2.2945, true},
 		{"", 0, 0, false},
-		{"47.6305-122.3478/", 0, 0, false},
-		{"+47.6305/", 0, 0, false},
-		{"+91.0-122.0/", 0, 0, false},
-		{"+47.0-181.0/", 0, 0, false},
-		{"+4760.0-12220.0/", 0, 0, false}, // 60 minutes
-		{"+4.6305-122.3478/", 0, 0, false},
-		{"+47.-122.3478/", 0, 0, false},
-		{"+47.6305-122.3478x/", 0, 0, false},
+		{"48.8584+002.2945/", 0, 0, false},
+		{"+48.8584/", 0, 0, false},
+		{"+91.0+002.0/", 0, 0, false},
+		{"+48.0+181.0/", 0, 0, false},
+		{"+4860.0+00217.0/", 0, 0, false}, // 60 minutes
+		{"+4.8584+002.2945/", 0, 0, false},
+		{"+48.+002.2945/", 0, 0, false},
+		{"+48.8584+002.2945x/", 0, 0, false},
 	}
 	for _, tt := range tests {
 		lat, long, ok := ParseISO6709(tt.in)
@@ -164,8 +164,8 @@ func FuzzReadMetadata(f *testing.F) {
 }
 
 func FuzzParseISO6709(f *testing.F) {
-	f.Add("+47.6305-122.3478+084.505/")
-	f.Add("+473749-1222052/")
+	f.Add("+48.8584+002.2945+035.000/")
+	f.Add("+485130+0021740/")
 	f.Fuzz(func(t *testing.T, s string) {
 		lat, long, ok := ParseISO6709(s)
 		if ok && (math.Abs(lat) > 90 || math.Abs(long) > 180) {

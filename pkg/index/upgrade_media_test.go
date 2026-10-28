@@ -93,7 +93,7 @@ func TestAddMediaTags(t *testing.T) {
 	video := liveVideo(map[string]string{
 		"com.apple.quicktime.content.identifier": "7C16BD72-9110-4AB6-80F6-6BF098D5F43E",
 		"com.apple.quicktime.make":               "Apple",
-		"com.apple.quicktime.location.ISO6709":   "+47.6305-122.3478+084.505/",
+		"com.apple.quicktime.location.ISO6709":   "+48.8584+002.2945+035.000/",
 	})
 	files := []struct {
 		name string
