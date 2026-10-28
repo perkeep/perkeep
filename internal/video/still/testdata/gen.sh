@@ -18,9 +18,18 @@ ffmpeg -v error -y -display_rotation:v -90 -i fade-unrotated.mov -c copy fade.mo
 rm fade-unrotated.mov
 
 # 10-bit HLG HEVC, like iPhone HDR videos, with one keyframe a second.
+# The color information is in both the HEVC stream and the MOV file.
 ffmpeg -v error -y -f lavfi -i "$pattern:d=2" \
+	-vf "setparams=color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc" \
 	$x265:keyint=10:min-keyint=10:scenecut=0:colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc \
 	-pix_fmt yuv420p10le hdr.mov
+
+# HEVC in Display P3, like iPhone Live Photo videos, of the sRGB color
+# #996633. Like iPhones, it says it has BT.709's transfer function, but
+# has sRGB's.
+ffmpeg -v error -y -f lavfi -i "color=c=0x996633:s=64x48:r=10:d=0.2,format=gbrpf32le" \
+	-vf "zscale=tin=iec61966-2-1:pin=709:min=gbr:rin=full:t=iec61966-2-1:p=smpte432:m=170m:r=full,format=yuvj420p,setparams=color_trc=bt709" \
+	$x265:colorprim=smpte432:transfer=bt709:colormatrix=smpte170m:range=full p3.mov
 
 # HEVC with only its first frame a keyframe.
 ffmpeg -v error -y -f lavfi -i "$pattern:d=2" $x265:keyint=1000:min-keyint=1000:scenecut=0 -pix_fmt yuv420p onekey.mov

@@ -211,6 +211,30 @@ func TestReadVideoTrack(t *testing.T) {
 	}
 }
 
+func TestReadVideoTrackColor(t *testing.T) {
+	// See ../../video/still/testdata/gen.sh. ffmpeg writes QuickTime
+	// ("nclc") color information in MOV files, like iPhones.
+	for _, tt := range []struct {
+		name string
+		want ColorInfo
+	}{
+		{"hdr.mov", ColorInfo{Known: true, Primaries: PrimariesBT2020, Transfer: TransferHLG, Matrix: 9}},
+		{"p3.mov", ColorInfo{Known: true, Primaries: PrimariesDisplayP3, Transfer: 1, Matrix: 6}},
+	} {
+		b, err := os.ReadFile("../../video/still/testdata/" + tt.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vt, err := ReadVideoTrack(bytes.NewReader(b), int64(len(b)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if vt.ColorInfo != tt.want {
+			t.Errorf("%s: ColorInfo = %+v; want %+v", tt.name, vt.ColorInfo, tt.want)
+		}
+	}
+}
+
 func liveMovieWithoutVideo() []byte {
 	return movie(10, 600, 444, item{KeyContentIdentifier, 1, []byte("id")})
 }
