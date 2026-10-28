@@ -48,6 +48,24 @@ displayed as `owner@perkeep.invalid`; different app credentials do not create
 separate accounts. Select the albums to back up and enable backup using the
 app's normal settings.
 
+To let a phone on the local network reach the server directly, without
+Tailscale, set `listen` to an additional address on which to serve the
+Immich API, and only the Immich API, over plain HTTP/1.1:
+
+```json
+"immich": {
+    "listen": "10.0.0.21:2283",
+    "email": "photos@example.com",
+    "password": "use-a-long-separate-random-password"
+}
+```
+
+and enter `http://10.0.0.21:2283/immich/api` in the app. Tailscale never
+authenticates the requests on that address, so with Tailscale
+authentication it requires the [standalone credentials](#optional-standalone-credentials).
+**The traffic is unencrypted**, including the password and session token,
+so only use it on a network you trust.
+
 The app's "Server Storage" shows the total size of the uploaded photos and
 videos as both the space used and the disk size: Perkeep's storage has no
 fixed size.

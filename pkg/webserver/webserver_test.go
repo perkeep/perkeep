@@ -18,6 +18,7 @@ package webserver
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -119,6 +120,44 @@ func TestServeHTTP2(t *testing.T) {
 	}
 	if got := get(&http.Transport{TLSClientConfig: insecure(), Protocols: &h1}); got != "HTTP/1.1" {
 		t.Errorf("HTTP/1.1 client got served %q; want HTTP/1.1", got)
+	}
+}
+
+// TestServeHTTP1 checks that the plain HTTP/1.1 listener serves only
+// under its prefix, and that even in Tailscale mode, its requests can't
+// be authenticated by Tailscale.
+func TestServeHTTP1(t *testing.T) {
+	s := New()
+	// Constructing the request context must not start a node.
+	s.tsnetServer = new(tsnet.Server)
+	s.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s tailscale=%v", r.Proto, auth.TailscaleWhoIsCtxKey.Value(r.Context()) != nil)
+	})
+	mln := memnet.Listen("localhost:2283")
+	srv := s.http1Server("/immich/api/")
+	go srv.Serve(mln)
+	defer srv.Close()
+
+	tr := &http.Transport{DialContext: mln.Dial}
+	defer tr.CloseIdleConnections()
+	get := func(path string) (int, string) {
+		t.Helper()
+		res, err := (&http.Client{Transport: tr}).Get("http://localhost:2283" + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.StatusCode, string(body)
+	}
+	if code, body := get("/immich/api/server/ping"); code != 200 || body != "HTTP/1.1 tailscale=false" {
+		t.Errorf("under prefix: got %d %q; want 200 \"HTTP/1.1 tailscale=false\"", code, body)
+	}
+	if code, _ := get("/ui/"); code != http.StatusNotFound {
+		t.Errorf("outside prefix: got %d; want 404", code)
 	}
 }
 

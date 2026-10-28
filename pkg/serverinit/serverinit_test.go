@@ -279,6 +279,72 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 	}
 }
 
+func TestImmichPrefix(t *testing.T) {
+	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	for _, tt := range []struct {
+		conf string
+		want string
+	}{
+		{`{"handlerConfig": true, "prefixes": {"/ui/": {"handler": "ui"}}}`, ""},
+		{`{"handlerConfig": true, "prefixes": {"/ui/": {"handler": "ui"}, "/immich/api/": {"handler": "immich"}}}`, "/immich/api/"},
+	} {
+		conf, err := serverinit.Load([]byte(tt.conf))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := conf.ImmichPrefix(); got != tt.want {
+			t.Errorf("ImmichPrefix of %s = %q; want %q", tt.conf, got, tt.want)
+		}
+	}
+}
+
+func TestImmichListen(t *testing.T) {
+	srcRoot, err := osutil.PkSourceRoot()
+	if err != nil {
+		t.Fatalf("source root folder not found: %v", err)
+	}
+	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	secring, _ := json.Marshal(filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+	load := func(auth, immich string) (*serverinit.Config, error) {
+		return serverinit.Load([]byte(`{
+    "auth": "` + auth + `",
+    "listen": ":3179",
+    "identity": "26F5ABDA",
+    "identitySecretRing": ` + string(secring) + `,
+    "memoryStorage": true,
+    "memoryIndex": true,
+    "immich": ` + immich + `
+}`))
+	}
+	conf, err := load("localhost", `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := conf.ImmichListen(); got != "" {
+		t.Errorf("without immich listen, ImmichListen = %q; want empty", got)
+	}
+	conf, err = load("localhost", `{"listen": "10.0.0.21:2283"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := conf.ImmichListen(); got != "10.0.0.21:2283" {
+		t.Errorf("ImmichListen = %q; want 10.0.0.21:2283", got)
+	}
+	// Tailscale auth never authenticates the requests on the extra listener.
+	if _, err := load("tailscale:full-access-to-tailnet", `{"listen": "10.0.0.21:2283"}`); err == nil {
+		t.Error("immich listen with Tailscale auth and no credentials: no error")
+	}
+	conf, err = load("tailscale:full-access-to-tailnet", `{"listen": "10.0.0.21:2283", "email": "a@b.example", "password": "secret"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := conf.ImmichListen(); got != "10.0.0.21:2283" {
+		t.Errorf("with credentials, ImmichListen = %q; want 10.0.0.21:2283", got)
+	}
+}
+
 func TestInstallHandlers(t *testing.T) {
 	test.TLog(t)
 	srcRoot, err := osutil.PkSourceRoot()
