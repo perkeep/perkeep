@@ -19,6 +19,7 @@ package signhandler
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -38,6 +39,7 @@ func TestUploadPublicKeyNoDestination(t *testing.T) {
 }
 
 func setupHandler(t *testing.T) http.Handler {
+	t.Helper()
 	handler, err := newJSONSignFromConfig(
 		test.NewLoader(),
 		jsonconfig.Obj{
@@ -52,6 +54,7 @@ func setupHandler(t *testing.T) http.Handler {
 }
 
 func setupServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	handler := &httputil.PrefixHandler{
 		Prefix:  "/",
 		Handler: setupHandler(t),
@@ -72,12 +75,29 @@ func TestDiscovery(t *testing.T) {
 		t.Fatalf("expected 200 status: %v", resp)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var disco camtypes.SignDiscovery
-	if err := json.NewDecoder(resp.Body).Decode(&disco); err != nil {
+	if err := json.Unmarshal(body, &disco); err != nil {
 		t.Fatal(err)
 	}
 
 	if expectedFingerprint := "FBB89AA320A2806FE497C0492931A67C26F5ABDA"; disco.PublicKeyFingerprint != expectedFingerprint {
 		t.Errorf("Got Fingerprint %s, expected %s ", disco.PublicKeyFingerprint, expectedFingerprint)
+	}
+	if disco.PublicKeyID != "2931A67C26F5ABDA" {
+		t.Errorf("PublicKeyID = %q; want 2931A67C26F5ABDA", disco.PublicKeyID)
+	}
+	// Decode the same response as a client predating fingerprint discovery.
+	var legacy struct {
+		PublicKeyID string `json:"publicKeyId"`
+	}
+	if err := json.Unmarshal(body, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.PublicKeyID != "2931A67C26F5ABDA" {
+		t.Errorf("legacy publicKeyId = %q; want 2931A67C26F5ABDA", legacy.PublicKeyID)
 	}
 }

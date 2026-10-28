@@ -38,11 +38,13 @@ import (
 )
 
 type syncCmd struct {
-	src       string
-	dest      string
-	third     string
-	srcKeyID  string // GPG public key ID of the source server, if supported.
-	destKeyID string // GPG public key ID of the destination server, if supported.
+	src                string
+	dest               string
+	third              string
+	srcKeyID           string // GPG public key ID of the source server, if supported.
+	destKeyID          string // GPG public key ID of the destination server, if supported.
+	srcKeyFingerprint  string // Full GPG public key fingerprint of the source server, if supported.
+	destKeyFingerprint string // Full GPG public key fingerprint of the destination server, if supported.
 
 	loop           bool
 	all            bool
@@ -126,13 +128,11 @@ func (c *syncCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	differentKeyIDs := fmt.Sprintf("WARNING: the source server GPG key ID (%v) and the destination's (%v) differ. All blobs will be synced, but because the indexer at the other side is indexing claims by a different user, you may not see what you expect in that server's web UI, etc.", c.srcKeyID, c.destKeyID)
-
-	if c.dest != "stdout" && !c.oneIsDisk && c.srcKeyID != c.destKeyID { // both blank is ok.
+	if warning := c.keyMismatchWarning(); warning != "" {
 		// Warn at the top (and hope the user sees it and can abort if it was a mistake):
-		fmt.Fprintln(cmdmain.Stderr, differentKeyIDs)
+		fmt.Fprintln(cmdmain.Stderr, warning)
 		// Warn also at the end (in case the user missed the first one)
-		defer fmt.Fprintln(cmdmain.Stderr, differentKeyIDs)
+		defer fmt.Fprintln(cmdmain.Stderr, warning)
 	}
 
 	passNum := 0
@@ -148,6 +148,20 @@ func (c *syncCmd) RunCommand(args []string) error {
 		}
 	}
 	return nil
+}
+
+func (c *syncCmd) keyMismatchWarning() string {
+	if c.dest == "stdout" || c.oneIsDisk {
+		return ""
+	}
+	src, dest, kind := c.srcKeyID, c.destKeyID, "key ID"
+	if c.srcKeyFingerprint != "" && c.destKeyFingerprint != "" {
+		src, dest, kind = c.srcKeyFingerprint, c.destKeyFingerprint, "key fingerprint"
+	}
+	if src == dest { // Both blank is OK.
+		return ""
+	}
+	return fmt.Sprintf("WARNING: the source server GPG %s (%v) and the destination's (%v) differ. All blobs will be synced, but because the indexer at the other side is indexing claims by a different user, you may not see what you expect in that server's web UI, etc.", kind, src, dest)
 }
 
 // A storageType is one of "src", "dest", or "thirdleg". These match the flag names.
@@ -203,14 +217,21 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	}
 	cl.Verbose = *cmdmain.FlagVerbose
 	cl.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
+	serverKeyFingerprint, err := cl.ServerKeyFingerprint()
+	if err != nil && err != client.ErrNoSigning {
+		fmt.Fprintf(cmdmain.Stderr, "Failed to discover key fingerprint for server %v: %v", val, err)
+		return cl, nil
+	}
 	serverKeyID, err := cl.ServerKeyID()
 	if err != nil && err != client.ErrNoSigning {
 		fmt.Fprintf(cmdmain.Stderr, "Failed to discover keyId for server %v: %v", val, err)
 	} else {
 		if which == storageSource {
 			c.srcKeyID = serverKeyID
+			c.srcKeyFingerprint = serverKeyFingerprint
 		} else if which == storageDest {
 			c.destKeyID = serverKeyID
+			c.destKeyFingerprint = serverKeyFingerprint
 		}
 	}
 	return cl, nil

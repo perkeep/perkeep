@@ -34,8 +34,8 @@ The response is a JSON document with a [Discovery value](https://perkeep.org/pkg
       "publishRoots": {},
       "searchRoot": "/my-search/",
       "signing": {
-        "publicKey": "/sighelper/camli/sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
-        "publicKeyBlobRef": "sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
+        "publicKey": "/sighelper/camli/sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+        "publicKeyBlobRef": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
         "publicKeyId": "2931A67C26F5ABDA",
         "publicKeyFingerprint": "FBB89AA320A2806FE497C0492931A67C26F5ABDA",
         "signHandler": "/sighelper/camli/sig/sign",
@@ -62,3 +62,9 @@ The response is a JSON document with a [Discovery value](https://perkeep.org/pkg
       "uploadSessions": true,
       "wsAuthToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
+
+The optional `signing.publicKeyFingerprint` is the full uppercase hexadecimal
+GPG key fingerprint. `signing.publicKeyId` remains available for compatibility.
+Prefer comparing full fingerprints when both peers advertise them; if either
+peer omits its fingerprint, compare their long key IDs instead. An absent
+fingerprint does not mean the server lacks signing support.
