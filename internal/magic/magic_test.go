@@ -55,6 +55,38 @@ var tests = []magicTest{
 	{data: "<html>foo</html>", want: "text/html"},
 	{data: "\xff", want: ""},
 	{fileName: "park.heic", want: "image/heic"}, // truncated file for header only
+	// As iOS saves edited photos, of HEVC 4:4:4.
+	{data: "\x00\x00\x00\x1cftypheix\x00\x00\x00\x00tmapheixmif1" + pictMeta, want: "image/heic"},
+	// A generic major brand, with HEVC only among the compatible brands.
+	{data: "\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1heic" + pictMeta, want: "image/heic"},
+	// Neither HEVC brands nor a "pict" handler.
+	{data: "\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1miaf" + pictMeta, want: ""},
+	{data: "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic" + strings.Replace(pictMeta, "pict", "vide", 1), want: ""},
+}
+
+// pictMeta is a "meta" box with just a "hdlr" box of handler type "pict",
+// as in HEIF files of still images.
+const pictMeta = "\x00\x00\x00\x2dmeta\x00\x00\x00\x00" +
+	"\x00\x00\x00\x21hdlr\x00\x00\x00\x00\x00\x00\x00\x00pict" + "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+func TestHEICBrand(t *testing.T) {
+	for _, tt := range []struct{ ftyp, want string }{
+		{"\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic", "heic"},
+		{"\x00\x00\x00\x1cftypheix\x00\x00\x00\x00tmapheixmif1", "heix"},
+		{"\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1heix", "heix"},
+		{"\x00\x00\x00\x18ftypavif\x00\x00\x00\x00avifmif1", ""},
+		{"\x00\x00\x00\x14ftypmif1\x00\x00\x00\x00mif1heic", ""}, // heic is past the box
+		{"\x00\x00\x00\x40ftypmif1\x00\x00\x00\x00mif1heic", ""}, // truncated box
+		{"\x00\x00\x00\x18ftyp", ""},
+	} {
+		if got := HEICBrand([]byte(tt.ftyp)); got != tt.want {
+			t.Errorf("HEICBrand(%q) = %q; want %q", tt.ftyp, got, tt.want)
+		}
+	}
+	b := []byte("\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1heix")
+	if n := testing.AllocsPerRun(100, func() { HEICBrand(b) }); n != 0 {
+		t.Errorf("HEICBrand allocates %v times; want 0", n)
+	}
 }
 
 func TestMatcherTableValid(t *testing.T) {

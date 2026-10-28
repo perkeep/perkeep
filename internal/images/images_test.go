@@ -18,6 +18,7 @@ package images
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -27,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/bradfitz/resizejpeg"
@@ -464,6 +466,22 @@ func TestDecodeSVG(t *testing.T) {
 	want := "Width:500 Height:600 Format:svg"
 	if got != want {
 		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
+	}
+}
+
+// TestDecodeReadError tests that Decode returns errors reading its input,
+// including while it sniffs the input's type, rather than only short reads.
+func TestDecodeReadError(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join(datadir, "f1.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	errRead := errors.New("read error")
+	for _, n := range []int{0, 100, 700} {
+		r := io.MultiReader(bytes.NewReader(src[:n]), iotest.ErrReader(errRead))
+		if _, _, err := Decode(r, &DecodeOpts{MaxWidth: 100, MaxHeight: 100}); !errors.Is(err, errRead) {
+			t.Errorf("Decode with a read error after %d bytes: error = %v; want %v", n, err, errRead)
+		}
 	}
 }
 

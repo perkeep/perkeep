@@ -583,15 +583,26 @@ func DecodeConfig(r io.Reader) (Config, error) {
 // will be non-nil.  If the decoded image was made smaller, needRescale will
 // be true.
 func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image, format string, err error, needRescale bool) {
+	// HEIC is sniffed here rather than left to the image package, as the
+	// heic package registers only some of HEIC's brands. See decodeImage.
+	var head [1 << 10]byte
+	n, err := io.ReadFull(r, head[:])
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		// Only reading all of a smaller file is fine.
+		return nil, "", err, false
+	}
+	isHEIC := magic.MIMEType(head[:n]) == "image/heic"
+	r = io.MultiReader(bytes.NewReader(head[:n]), r)
+
 	if opts == nil {
 		// Fall-back to normal decode.
-		im, format, err = image.Decode(r)
+		im, format, err = decodeImage(r, isHEIC)
 		return im, format, err, false
 	}
 
 	var buf bytes.Buffer
 	tr := io.TeeReader(r, &buf)
-	ic, format, err := image.DecodeConfig(tr)
+	ic, format, err := decodeImageConfig(tr, isHEIC)
 	if err != nil {
 		return nil, "", err, false
 	}
@@ -605,7 +616,7 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 		sw, sh = ic.Width, ic.Height
 	}
 	if !needRescale && format != "jpeg" {
-		im, format, err = image.Decode(mr)
+		im, format, err = decodeImage(mr, isHEIC)
 		return im, format, err, false
 	}
 
@@ -636,11 +647,57 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 	}
 
 	// Fall-back to normal decode.
-	im, format, err = image.Decode(mr)
+	im, format, err = decodeImage(mr, isHEIC)
 	if err != nil {
 		return nil, "", err, false
 	}
 	return rescale(im, sw, sh), format, err, needRescale
+}
+
+// decodeImage is image.Decode, except that HEIC images (isHEIC, as sniffed
+// by internal/magic) are decoded by the heic package directly. Its
+// registered formats match only files whose major brand is an HEVC one,
+// not those with a generic major brand, such as "mif1", that name HEVC
+// among their compatible brands, and its libheif decoder refuses those
+// too, as libheif only says they may be HEIF. See heicData.
+func decodeImage(r io.Reader, isHEIC bool) (image.Image, string, error) {
+	if isHEIC {
+		b, err := heicData(r)
+		if err != nil {
+			return nil, "", err
+		}
+		im, err := heic.Decode(bytes.NewReader(b))
+		return im, "heic", err
+	}
+	return image.Decode(r)
+}
+
+// decodeImageConfig is image.DecodeConfig, with HEIC images decoded as by
+// decodeImage.
+func decodeImageConfig(r io.Reader, isHEIC bool) (image.Config, string, error) {
+	if isHEIC {
+		b, err := heicData(r)
+		if err != nil {
+			return image.Config{}, "", err
+		}
+		c, err := heic.DecodeConfig(bytes.NewReader(b))
+		return c, "heic", err
+	}
+	return image.DecodeConfig(r)
+}
+
+// heicData reads all of the HEIC file r, as the heic package does anyway,
+// giving it the major brand that the file names among its compatible
+// brands if its own is a generic one, so the heic package decodes it.
+func heicData(r io.Reader) ([]byte, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if brand := magic.HEICBrand(b); brand != "" && string(b[8:12]) != brand {
+		copy(b[8:12], brand)
+	}
+	return b, nil
 }
 
 // exifOrientation parses the  EXIF data in r and returns the stored
