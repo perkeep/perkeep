@@ -64,6 +64,15 @@ func (h *Handler) serveMobile(w http.ResponseWriter, r *http.Request, path strin
 		if immichMobileMethod(w, r, http.MethodGet) {
 			immichJSON(w, 200, map[string]any{"version": immichMobileVersion, "versionUrl": "", "licensed": false, "repository": "perkeep", "repositoryUrl": "https://perkeep.org/"})
 		}
+	case "/server/storage":
+		if immichMobileMethod(w, r, http.MethodGet) {
+			storage, err := h.mobileStorage()
+			if err != nil {
+				immichError(w, 500, "Cannot read storage usage")
+				break
+			}
+			immichJSON(w, 200, storage)
+		}
 	case "/server/version-history":
 		if immichMobileMethod(w, r, http.MethodGet) {
 			immichJSON(w, 200, []any{})
@@ -179,6 +188,57 @@ type immichMobileProfile struct {
 	CreatedAt time.Time
 }
 
+// mobileUsageLocked returns the total size in bytes of the uploaded assets.
+// Call with h.mu held.
+func (h *Handler) mobileUsageLocked() (int64, error) {
+	stored, err := h.metadata.Get("usage")
+	if errors.Is(err, sorted.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	usage, err := strconv.ParseInt(stored, 10, 64)
+	if err == nil && usage < 0 {
+		err = errors.New("invalid usage counter")
+	}
+	return usage, err
+}
+
+// mobileStorage returns the server storage statistics, reporting the
+// uploaded assets as the disk used. Perkeep's storage has no fixed size,
+// so the disk is reported as exactly full: the size is the usage, with
+// nothing available, but the usage percentage is zero so as not to look
+// alarming.
+func (h *Handler) mobileStorage() (map[string]any, error) {
+	h.mu.Lock()
+	usage, err := h.mobileUsageLocked()
+	h.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"diskSize": immichHumanSize(usage), "diskSizeRaw": usage,
+		"diskUse": immichHumanSize(usage), "diskUseRaw": usage,
+		"diskAvailable": immichHumanSize(0), "diskAvailableRaw": 0,
+		"diskUsagePercentage": 0,
+	}, nil
+}
+
+// immichHumanSize formats n bytes for display, such as "1.5 GiB".
+func immichHumanSize(n int64) string {
+	units := []string{"B", "KiB", "MiB", "GiB", "TiB", "PiB"}
+	v, i := float64(n), 0
+	for v >= 1024 && i < len(units)-1 {
+		v /= 1024
+		i++
+	}
+	if i == 0 {
+		return fmt.Sprintf("%d B", n)
+	}
+	return fmt.Sprintf("%.1f %s", v, units[i])
+}
+
 func (h *Handler) mobileUser() (map[string]any, error) {
 	id := h.userID() // userID may itself lock h.mu.
 	h.mu.Lock()
@@ -193,16 +253,7 @@ func (h *Handler) mobileUser() (map[string]any, error) {
 	}
 	var usage int64
 	if err == nil {
-		var stored string
-		stored, err = h.metadata.Get("usage")
-		if errors.Is(err, sorted.ErrNotFound) {
-			err = nil
-		} else if err == nil {
-			usage, err = strconv.ParseInt(stored, 10, 64)
-			if err == nil && usage < 0 {
-				err = errors.New("invalid usage counter")
-			}
-		}
+		usage, err = h.mobileUsageLocked()
 	}
 	h.mu.Unlock()
 	if err != nil {

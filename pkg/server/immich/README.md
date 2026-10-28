@@ -48,6 +48,10 @@ displayed as `owner@perkeep.invalid`; different app credentials do not create
 separate accounts. Select the albums to back up and enable backup using the
 app's normal settings.
 
+The app's "Server Storage" shows the total size of the uploaded photos and
+videos as both the space used and the disk size: Perkeep's storage has no
+fixed size.
+
 ### Normal Perkeep and Tailscale authentication
 
 With both `immich.email` and `immich.password` omitted, the adapter requires
