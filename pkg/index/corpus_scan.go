@@ -167,6 +167,9 @@ func (c *Corpus) mergeScanWorkers(workers []*Corpus) {
 	mergeDisjoint(&c.fileWholeRef, workers, func(w *Corpus) map[blob.Ref]blob.Ref { return w.fileWholeRef })
 	mergeDisjoint(&c.fileOfWholeRef, workers, func(w *Corpus) map[blob.Ref]blob.Ref { return w.fileOfWholeRef })
 	mergeDisjoint(&c.moreFilesOfWholeRef, workers, func(w *Corpus) map[blob.Ref][]blob.Ref { return w.moreFilesOfWholeRef })
+	// The fileinfo rows are all loaded by one worker.
+	mergeDisjoint(&c.fileOfSize, workers, func(w *Corpus) map[int64]blob.Ref { return w.fileOfSize })
+	mergeDisjoint(&c.moreFilesOfSize, workers, func(w *Corpus) map[int64][]blob.Ref { return w.moreFilesOfSize })
 	mergeDisjoint(&c.gps, workers, func(w *Corpus) map[blob.Ref]latLong { return w.gps })
 	mergeDisjoint(&c.camera, workers, func(w *Corpus) map[blob.Ref]cameraInfo { return w.camera })
 	mergeDisjoint(&c.mediaTags, workers, func(w *Corpus) map[blob.Ref]map[string]string { return w.mediaTags })

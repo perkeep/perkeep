@@ -93,6 +93,11 @@ type Corpus struct {
 	// are rare enough that most wholeRefs needn't pay for a slice.
 	fileOfWholeRef      map[blob.Ref]blob.Ref
 	moreFilesOfWholeRef map[blob.Ref][]blob.Ref
+	// fileOfSize and moreFilesOfSize similarly map a size to the
+	// files and directories indexed with that size. A directory's
+	// size is its number of entries.
+	fileOfSize      map[int64]blob.Ref
+	moreFilesOfSize map[int64][]blob.Ref
 	// dirChildren maps a directory to its (direct) children (static-set entries).
 	dirChildren map[blob.Ref]map[blob.Ref]struct{}
 	// fileParents maps a file or directory to its (direct) parents.
@@ -357,6 +362,8 @@ func newCorpus() *Corpus {
 		fileWholeRef:            make(map[blob.Ref]blob.Ref),
 		fileOfWholeRef:          make(map[blob.Ref]blob.Ref),
 		moreFilesOfWholeRef:     make(map[blob.Ref][]blob.Ref),
+		fileOfSize:              make(map[int64]blob.Ref),
+		moreFilesOfSize:         make(map[int64][]blob.Ref),
 		gps:                     make(map[blob.Ref]latLong),
 		camera:                  make(map[blob.Ref]cameraInfo),
 		mediaTags:               make(map[blob.Ref]map[string]string),
@@ -856,6 +863,13 @@ func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 		fi.MIMEType = c.str(urld(c.ss[2]))
 		fi.WholeRef = wholeRef
 	})
+	if first, ok := c.fileOfSize[size]; !ok {
+		c.fileOfSize[size] = br
+	} else if first != br && (c.building || !slices.Contains(c.moreFilesOfSize[size], br)) {
+		// While building, each fileinfo row is merged once, so
+		// skip the search, which is slow for common sizes.
+		c.moreFilesOfSize[size] = append(c.moreFilesOfSize[size], br)
+	}
 	return nil
 }
 
@@ -1694,6 +1708,18 @@ func (c *Corpus) AppendFilesOfWholeRef(dst []blob.Ref, wholeRef blob.Ref) []blob
 	}
 	dst = append(dst, first)
 	return append(dst, c.moreFilesOfWholeRef[wholeRef]...)
+}
+
+// AppendFilesOfSize appends to dst the file and directory schemas
+// indexed with the given size, in an undefined order. A directory's
+// size is its number of entries.
+func (c *Corpus) AppendFilesOfSize(dst []blob.Ref, size int64) []blob.Ref {
+	first, ok := c.fileOfSize[size]
+	if !ok {
+		return dst
+	}
+	dst = append(dst, first)
+	return append(dst, c.moreFilesOfSize[size]...)
 }
 
 func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {

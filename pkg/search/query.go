@@ -262,8 +262,13 @@ func constraintBlobCandidates(c *Constraint, corpus *index.Corpus) (cands set.Se
 			return set.Of(br), true
 		}
 	}
-	if fc := c.File; fc != nil && fc.WholeRef.Valid() {
-		return set.Of(corpus.AppendFilesOfWholeRef(nil, fc.WholeRef)...), true
+	if fc := c.File; fc != nil {
+		if fc.WholeRef.Valid() {
+			return set.Of(corpus.AppendFilesOfWholeRef(nil, fc.WholeRef)...), true
+		}
+		if fs := fc.FileSize; fs != nil && fs.Equals != nil {
+			return set.Of(corpus.AppendFilesOfSize(nil, *fs.Equals)...), true
+		}
 	}
 	if pc := c.Permanode; pc != nil {
 		if cands, ok := permanodeConstraintPermanodeCandidates(pc, corpus); ok {
