@@ -76,6 +76,11 @@ type Sample struct {
 
 	Offset int64 // in the file
 	Size   int64
+
+	// NextOffset and NextSize are those of the next sample in decoding
+	// order, or zero if it's the last. Decoders of interlaced video,
+	// whose samples are each one field, need it for a whole frame.
+	NextOffset, NextSize int64
 }
 
 // VideoTrack is a movie's main video track, as read by ReadVideoTrack.
@@ -93,7 +98,8 @@ type VideoTrack struct {
 	Rotation int
 
 	// Config is the first sample entry's decoder configuration box
-	// (such as "hvcC"), including its header, or nil if it has none.
+	// (such as "hvcC", "avcC", or for MPEG-4 Part 2 video, "esds"),
+	// including its header, or nil if it has none.
 	Config []byte
 
 	// Color is the first sample entry's ISO color information box
@@ -381,6 +387,27 @@ func (co *compositionOffsets) at(sample int) int64 {
 // syncSamples returns the track's sync samples, with times in units of
 // timescale. mediaStart is the media time at which the track's edit list
 // starts presenting it, which is when its first frame is shown.
+// syncSampleIndexes returns the 0-based indexes of the sync samples in
+// st's sync sample table, of a track of n samples.
+func (st *sampleTables) syncSampleIndexes(n int) ([]uint32, error) {
+	b, count, err := tableEntries(st.stss, "stss", 4)
+	if err != nil {
+		return nil, err
+	}
+	var sync []uint32
+	for i := range count {
+		num := binary.BigEndian.Uint32(b[4*i:]) // 1-based
+		if num == 0 || num > uint32(n) {
+			return nil, fmt.Errorf("quicktime: bad sync sample number %d", num)
+		}
+		if len(sync) > 0 && num-1 <= sync[len(sync)-1] {
+			return nil, errors.New("quicktime: sync samples out of order")
+		}
+		sync = append(sync, num-1)
+	}
+	return sync, nil
+}
+
 func (st *sampleTables) syncSamples(timescale uint32, mediaStart int64) ([]Sample, error) {
 	be := binary.BigEndian
 	if timescale == 0 {
@@ -398,19 +425,11 @@ func (st *sampleTables) syncSamples(timescale uint32, mediaStart int64) ([]Sampl
 	// Which samples are sync samples, by 0-based index.
 	var sync []uint32
 	if st.stss != nil {
-		b, n, err := tableEntries(st.stss, "stss", 4)
+		sync, err = st.syncSampleIndexes(len(sizes))
 		if err != nil {
-			return nil, err
-		}
-		for i := range n {
-			num := be.Uint32(b[4*i:]) // 1-based
-			if num == 0 || num > uint32(len(sizes)) {
-				return nil, fmt.Errorf("quicktime: bad sync sample number %d", num)
-			}
-			if len(sync) > 0 && num-1 <= sync[len(sync)-1] {
-				return nil, errors.New("quicktime: sync samples out of order")
-			}
-			sync = append(sync, num-1)
+			// As in some old phones' 3GPP videos. Their first
+			// samples are sync samples, as video's must be.
+			sync = []uint32{0}
 		}
 	} else {
 		sync = make([]uint32, len(sizes))
@@ -481,11 +500,15 @@ func (st *sampleTables) syncSamples(timescale uint32, mediaStart int64) ([]Sampl
 			if uint32(sample) == sync[next] {
 				// The presentation time, from the decoding time.
 				pt := int64(min(t, math.MaxInt64/2)) + compOffsets.at(sample) - mediaStart
-				out = append(out, Sample{
+				s := Sample{
 					Time:   mediaDuration(uint64(max(pt, 0)), timescale),
 					Offset: offsets[sample],
 					Size:   int64(sizes[sample]),
-				})
+				}
+				if sample+1 < len(sizes) {
+					s.NextOffset, s.NextSize = offsets[sample+1], int64(sizes[sample+1])
+				}
+				out = append(out, s)
 				next++
 			}
 			t += delta

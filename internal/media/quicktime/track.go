@@ -50,7 +50,8 @@ type track struct {
 	entryWidth, entryHeight int
 
 	// config is the first visual sample entry's decoder configuration
-	// box (such as "hvcC" or "avcC"), including its header, or nil.
+	// box (such as "hvcC", "avcC", or "esds"), including its header, or
+	// nil.
 	config []byte
 
 	// color is the first visual sample entry's ISO color information
@@ -325,14 +326,15 @@ func (t *track) parseSampleDescription(b []byte) {
 	// After the size: resolutions, reserved, frame count, compressor
 	// name, depth, and pre_defined, 50 bytes, then child boxes, the
 	// first of which with a type ending in "C" is the decoder
-	// configuration ("hvcC", "avcC", "av1C", etc).
+	// configuration ("hvcC", "avcC", "av1C", etc), or for MPEG-4 Part 2
+	// video, an elementary stream descriptor ("esds").
 	for kids := entry[min(len(entry), 86):]; len(kids) >= 8; {
 		n := binary.BigEndian.Uint32(kids)
 		if n < 8 || uint64(n) > uint64(len(kids)) {
 			break
 		}
 		switch {
-		case kids[7] == 'C' && t.config == nil:
+		case (kids[7] == 'C' || string(kids[4:8]) == "esds") && t.config == nil:
 			t.config = kids[:n:n]
 		case string(kids[4:8]) == "colr" && n >= 18 && !t.colorInfo.Known:
 			// ISO ("nclx") or QuickTime ("nclc") color information.

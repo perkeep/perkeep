@@ -18,8 +18,9 @@ jobs:
     - uses: actions/checkout@v4
     - uses: ./.github/actions/setup-go
 
-    - name: Install fuse
-      run: sudo apt-get install --yes fuse3
+    - name: Install fuse and ffmpeg
+      # ffmpeg is for video thumbnail tests, which skip without it.
+      run: sudo apt-get install --yes fuse3 ffmpeg
 
     - name: Build and test
       run: |

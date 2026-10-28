@@ -34,8 +34,29 @@ ffmpeg -v error -y -f lavfi -i "color=c=0x996633:s=64x48:r=10:d=0.2,format=gbrpf
 # HEVC with only its first frame a keyframe.
 ffmpeg -v error -y -f lavfi -i "$pattern:d=2" $x265:keyint=1000:min-keyint=1000:scenecut=0 -pix_fmt yuv420p onekey.mov
 
-# H.264, which isn't supported.
+# H.264, which is decoded with ffmpeg.
 ffmpeg -v error -y -f lavfi -i "$pattern:d=1" -c:v libx264 -pix_fmt yuv420p h264.mp4
+
+# H.264 with keyframes every 0.5 seconds, rotated 90 degrees clockwise.
+ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v libx264 -g 5 -pix_fmt yuv420p h264-unrotated.mp4
+ffmpeg -v error -y -display_rotation:v -90 -i h264-unrotated.mp4 -c copy h264-rotated.mp4
+rm h264-unrotated.mp4
+
+# H.264 in BT.709's limited range of the sRGB color #996633, like
+# p3.mov.
+ffmpeg -v error -y -f lavfi -i "color=c=0x996633:s=64x48:r=10:d=0.2,format=gbrpf32le" \
+	-vf "zscale=tin=iec61966-2-1:pin=709:min=gbr:rin=full:t=iec61966-2-1:p=709:m=709:r=limited,format=yuv420p,setparams=color_trc=bt709" \
+	-c:v libx264 sienna709.mp4
+
+# Other codecs of older phones and cameras, decoded with ffmpeg: H.263
+# and MPEG-4 Part 2 keyframes, and Motion JPEG in QuickTime.
+ffmpeg -v error -y -f lavfi -i "testsrc=s=128x96:r=10:d=2" -c:v h263 h263.3gp
+ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v mpeg4 mpeg4.mp4
+ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v mjpeg -pix_fmt yuvj420p mjpeg.mov
+
+# Other formats, which ffmpeg reads whole.
+ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v wmv2 wmv2.wmv
+ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v libvpx vp8.webm
 
 # Motion JPEG in an AVI, as from older cameras.
 ffmpeg -v error -y -f lavfi -i "$pattern:d=2" -c:v mjpeg -pix_fmt yuvj420p mjpeg.avi
