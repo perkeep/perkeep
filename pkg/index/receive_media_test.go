@@ -116,6 +116,104 @@ func liveVideo(items map[string]string) []byte {
 	}, nil)
 }
 
+// trackedVideo returns an ISO BMFF movie of the given major brand (e.g.
+// "qt  " or "3gp5") with an HEVC video track of the given stored size,
+// rotated the given degrees clockwise for display.
+func trackedVideo(brand string, width, height, rotation int) []byte {
+	be := binary.BigEndian
+	// The matrix's scale and rotation terms a, b, c, and d, in 16.16
+	// fixed point, for each clockwise rotation.
+	one := int32(1 << 16)
+	m := map[int][4]int32{
+		0:   {one, 0, 0, one},
+		90:  {0, one, -one, 0},
+		180: {-one, 0, 0, -one},
+		270: {0, -one, one, 0},
+	}[rotation]
+	var matrix []byte
+	for _, v := range []int32{m[0], m[1], 0, m[2], m[3], 0, 0, 0, 1 << 30} {
+		matrix = be.AppendUint32(matrix, uint32(v))
+	}
+	// Enabled; times, track ID, reserved, duration; reserved; layer,
+	// alternate group, volume, reserved; matrix; 16.16 size.
+	tkhd := qtBox("tkhd", []byte{0, 0, 0, 3}, make([]byte, 20), make([]byte, 8), make([]byte, 8), matrix,
+		be.AppendUint32(nil, uint32(width)<<16), be.AppendUint32(nil, uint32(height)<<16))
+	// A VisualSampleEntry, with the pixel size at offset 32.
+	entry := qtBox("hvc1", make([]byte, 24), be.AppendUint16(nil, uint16(width)), be.AppendUint16(nil, uint16(height)), make([]byte, 50))
+	return bytes.Join([][]byte{
+		qtBox("ftyp", []byte(brand), make([]byte, 4), []byte(brand)),
+		qtBox("mdat", make([]byte, 100)),
+		qtBox("moov",
+			qtBox("mvhd", make([]byte, 12), be.AppendUint32(nil, 600), be.AppendUint32(nil, 1200), make([]byte, 80)),
+			qtBox("trak", tkhd,
+				qtBox("mdia",
+					qtBox("hdlr", make([]byte, 8), []byte("vide"), make([]byte, 13)),
+					qtBox("minf",
+						// QuickTime's data handler, which isn't the media type.
+						qtBox("hdlr", make([]byte, 8), []byte("alis"), make([]byte, 13)),
+						qtBox("stbl", qtBox("stsd", make([]byte, 4), be.AppendUint32(nil, 1), entry)))))),
+	}, nil)
+}
+
+// aviVideo returns the headers of a Motion JPEG AVI video with 30 frames
+// of the given size at 30 frames per second, without frames.
+func aviVideo(width, height int) []byte {
+	le := binary.LittleEndian
+	chunk := func(id string, data ...[]byte) []byte {
+		b := bytes.Join(data, nil)
+		return append(le.AppendUint32([]byte(id), uint32(len(b))), b...)
+	}
+	u32 := func(v uint32) []byte { return le.AppendUint32(nil, v) }
+	avih := chunk("avih", u32(33333), u32(0), u32(0), u32(0x10), u32(30), u32(0), u32(1), u32(0),
+		u32(uint32(width)), u32(uint32(height)), make([]byte, 16))
+	strh := chunk("strh", []byte("vidsMJPG"), make([]byte, 48))
+	strf := chunk("strf", u32(40), u32(uint32(width)), u32(uint32(height)), []byte{1, 0, 24, 0}, []byte("MJPG"), make([]byte, 20))
+	hdrl := chunk("LIST", []byte("hdrl"), avih, chunk("LIST", []byte("strl"), strh, strf))
+	movi := chunk("LIST", []byte("movi"))
+	return chunk("RIFF", []byte("AVI "), hdrl, movi)
+}
+
+func TestPopulateFileVideoSize(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		data          []byte
+		mime          string
+		width, height string
+		rotation      string
+		durationMS    string
+	}{
+		{"IMG_0001.MOV", trackedVideo("qt  ", 1920, 1440, 90), "video/quicktime", "1440", "1920", "90", "2000"},
+		{"upside-down.MOV", trackedVideo("qt  ", 1920, 1080, 180), "video/quicktime", "1920", "1080", "180", "2000"},
+		{"video.3gp", trackedVideo("3gp5", 352, 288, 0), "video/3gpp", "352", "288", "", "2000"},
+		{"MVI_0001.AVI", aviVideo(640, 480), "video/x-msvideo", "640", "480", "", "999"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sto, file := exifTestFile(t, tt.data, tt.name)
+			mm := &mutationMap{kv: make(map[string]string)}
+			if err := newLoggingIndex(t).populateFile(context.Background(), &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
+				t.Fatal(err)
+			}
+			whole := blob.RefFromBytes(tt.data)
+			if got, want := mm.kv[keyFileInfo.Key(file.BlobRef())], keyFileInfo.Val(len(tt.data), tt.name, tt.mime, whole); got != want {
+				t.Errorf("fileinfo = %q; want %q", got, want)
+			}
+			for tag, want := range map[string]string{
+				MediaTagWidth:      tt.width,
+				MediaTagHeight:     tt.height,
+				MediaTagRotation:   tt.rotation,
+				MediaTagDurationMS: tt.durationMS,
+			} {
+				got, ok := mm.kv[keyMediaTag.Key(whole, tag)]
+				if want == "" && ok {
+					t.Errorf("media tag %s = %q; want none", tag, got)
+				} else if want != "" && got != keyMediaTag.Val(want) {
+					t.Errorf("media tag %s = %q; want %q", tag, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestPopulateFileQuickTime(t *testing.T) {
 	data := liveVideo(map[string]string{
 		"com.apple.quicktime.content.identifier":           "7C16BD72-9110-4AB6-80F6-6BF098D5F43E",

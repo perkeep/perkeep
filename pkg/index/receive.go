@@ -1028,8 +1028,8 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	if strings.HasPrefix(mimeType, "audio/") {
 		ix.indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
 	}
-	if isQuickTimeMIME(mimeType) {
-		ix.indexQuickTime(fr, fr.Size(), wholeRef, mm)
+	if isIndexedVideoMIME(mimeType) {
+		ix.indexVideo(fr, fr.Size(), mimeType, wholeRef, mm)
 	}
 
 	return nil

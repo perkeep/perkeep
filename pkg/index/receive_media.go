@@ -24,6 +24,7 @@ import (
 
 	"github.com/rwcarlsen/goexif/exif"
 	"perkeep.org/internal/media/applemakernote"
+	"perkeep.org/internal/media/avi"
 	"perkeep.org/internal/media/quicktime"
 	"perkeep.org/pkg/blob"
 )
@@ -49,6 +50,13 @@ const (
 	MediaTagCreationDate           = "creationdate"
 	MediaTagLivePhotoAuto          = "livephotoauto"
 	MediaTagLivePhotoVitalityScore = "livephotovitalityscore"
+
+	// From QuickTime, MP4, 3GPP, and AVI videos: the size of the main
+	// video track as displayed, after rotation, and its clockwise
+	// rotation in degrees (90, 180, or 270; omitted if 0).
+	MediaTagWidth    = "width"
+	MediaTagHeight   = "height"
+	MediaTagRotation = "rotation"
 )
 
 func setMediaTag(mm *mutationMap, wholeRef blob.Ref, tag, value string) {
@@ -99,13 +107,58 @@ func (ix *Index) indexAppleMakerNoteEXIF(wholeRef blob.Ref, r io.Reader, mm *mut
 }
 
 // isQuickTimeMIME reports whether files of the given MIME type may
-// contain QuickTime metadata.
+// contain QuickTime metadata: QuickTime movies and the ISO BMFF formats
+// derived from them.
 func isQuickTimeMIME(mimeType string) bool {
-	return mimeType == "video/quicktime" || mimeType == "video/mp4"
+	switch mimeType {
+	case "video/quicktime", "video/mp4", "video/3gpp", "video/3gpp2":
+		return true
+	}
+	return false
 }
 
-// indexQuickTime indexes a QuickTime or MP4 movie's duration and Apple
-// metadata as media tags, and its location like an image's EXIF GPS
+// isAVIMIME reports whether files of the given MIME type may be AVI
+// videos.
+func isAVIMIME(mimeType string) bool {
+	switch mimeType {
+	case "video/x-msvideo", "video/vnd.avi", "video/avi", "video/msvideo":
+		return true
+	}
+	return false
+}
+
+// isIndexedVideoMIME reports whether indexVideo indexes files of the
+// given MIME type.
+func isIndexedVideoMIME(mimeType string) bool {
+	return isQuickTimeMIME(mimeType) || isAVIMIME(mimeType)
+}
+
+// indexVideo indexes the media tags and location of a video file of the
+// given MIME type, if it's one of a type that isIndexedVideoMIME reports.
+func (ix *Index) indexVideo(r io.ReaderAt, size int64, mimeType string, wholeRef blob.Ref, mm *mutationMap) {
+	switch {
+	case isQuickTimeMIME(mimeType):
+		ix.indexQuickTime(r, size, wholeRef, mm)
+	case isAVIMIME(mimeType):
+		ix.indexAVI(r, size, wholeRef, mm)
+	}
+}
+
+// setVideoSize sets the media tags of a video's displayed size and
+// rotation.
+func setVideoSize(mm *mutationMap, wholeRef blob.Ref, width, height, rotation int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+	setMediaTag(mm, wholeRef, MediaTagWidth, strconv.Itoa(width))
+	setMediaTag(mm, wholeRef, MediaTagHeight, strconv.Itoa(height))
+	if rotation != 0 {
+		setMediaTag(mm, wholeRef, MediaTagRotation, strconv.Itoa(rotation))
+	}
+}
+
+// indexQuickTime indexes a QuickTime or MP4 movie's duration, size, and
+// Apple metadata as media tags, and its location like an image's EXIF GPS
 // location.
 func (ix *Index) indexQuickTime(r io.ReaderAt, size int64, wholeRef blob.Ref, mm *mutationMap) {
 	md, err := quicktime.ReadMetadata(r, size)
@@ -118,6 +171,7 @@ func (ix *Index) indexQuickTime(r io.ReaderAt, size int64, wholeRef blob.Ref, mm
 	if md.Duration > 0 {
 		setMediaTag(mm, wholeRef, MediaTagDurationMS, strconv.FormatInt(md.Duration.Milliseconds(), 10))
 	}
+	setVideoSize(mm, wholeRef, md.Width, md.Height, md.Rotation)
 	for tag, key := range map[string]string{
 		MediaTagContentIdentifier:      quicktime.KeyContentIdentifier,
 		MediaTagMake:                   quicktime.KeyMake,
@@ -133,4 +187,19 @@ func (ix *Index) indexQuickTime(r io.ReaderAt, size int64, wholeRef blob.Ref, mm
 		// Same 7-place precision as EXIF GPS locations.
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprintf("%.7f", lat), fmt.Sprintf("%.7f", long)))
 	}
+}
+
+// indexAVI indexes an AVI video's duration and size as media tags.
+func (ix *Index) indexAVI(r io.ReaderAt, size int64, wholeRef blob.Ref, mm *mutationMap) {
+	h, err := avi.ReadHeader(r, size)
+	if err != nil {
+		if debugEnv {
+			ix.printf("index: AVI header: %v", err)
+		}
+		return
+	}
+	if d := h.Duration(); d > 0 {
+		setMediaTag(mm, wholeRef, MediaTagDurationMS, strconv.FormatInt(d.Milliseconds(), 10))
+	}
+	setVideoSize(mm, wholeRef, h.Width, h.Height, 0)
 }
