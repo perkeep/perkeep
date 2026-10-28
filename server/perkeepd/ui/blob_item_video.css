@@ -25,6 +25,11 @@ limitations under the License.
 	text-decoration: none;
 }
 
+.cam-blobitem-video .cam-blobitem-video-poster {
+	display: block;
+	object-fit: cover;
+}
+
 .cam-blobitem-video .fa-video-camera {
 	color: #ccc;
 	display: block;

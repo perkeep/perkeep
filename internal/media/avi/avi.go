@@ -42,6 +42,11 @@ type Header struct {
 	// Codec is the four-character code of the first video stream's
 	// compression, e.g. "MJPG", or empty if there's no video stream.
 	Codec string
+
+	// VideoStream is the stream number of the first video stream, which
+	// prefixes its chunk IDs (e.g. "00dc" for stream 0), or -1 if
+	// there's no video stream.
+	VideoStream int
 }
 
 // Duration returns the video's duration, or zero if unknown.
@@ -84,14 +89,18 @@ func ReadHeader(r io.ReaderAt, size int64) (*Header, error) {
 	if _, err := r.ReadAt(hdrl, 24); err != nil {
 		return nil, fmt.Errorf("avi: reading header list: %w", err)
 	}
-	h := new(Header)
+	h := &Header{VideoStream: -1}
+	stream := 0 // number of the next stream list
 	err := forEachChunk(hdrl, func(id string, data []byte) error {
 		switch id {
 		case "avih":
 			h.parseMainHeader(data)
 		case "LIST":
-			if len(data) >= 4 && string(data[:4]) == "strl" && h.Codec == "" {
-				h.parseStreamList(data[4:])
+			if len(data) >= 4 && string(data[:4]) == "strl" {
+				if h.VideoStream < 0 && h.parseStreamList(data[4:]) {
+					h.VideoStream = stream
+				}
+				stream++
 			}
 		}
 		return nil
@@ -114,10 +123,9 @@ func (h *Header) parseMainHeader(b []byte) {
 	h.Height = int(le.Uint32(b[36:]))
 }
 
-// parseStreamList parses the chunks of a stream list ("strl"), setting
-// h.Codec if it's a video stream.
-func (h *Header) parseStreamList(b []byte) {
-	video := false
+// parseStreamList parses the chunks of a stream list ("strl"), reporting
+// whether it's a video stream and if so, setting h.Codec.
+func (h *Header) parseStreamList(b []byte) (video bool) {
 	forEachChunk(b, func(id string, data []byte) error {
 		switch id {
 		case "strh":
@@ -137,6 +145,7 @@ func (h *Header) parseStreamList(b []byte) {
 		}
 		return nil
 	})
+	return video
 }
 
 // forEachChunk calls fn for each RIFF chunk in b, with its ID and data.

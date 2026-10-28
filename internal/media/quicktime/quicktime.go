@@ -76,6 +76,16 @@ const maxMetaSize = 1 << 20
 // ReadMetadata reads the metadata of the QuickTime or MP4 file r of the
 // given size. It seeks past the media data rather than reading it.
 func ReadMetadata(r io.ReaderAt, size int64) (*Metadata, error) {
+	moov, err := findMovie(r, size)
+	if err != nil {
+		return nil, err
+	}
+	return readMovie(moov)
+}
+
+// findMovie returns a reader of the body of the movie ("moov") box of the
+// QuickTime or MP4 file r of the given size, seeking past other boxes.
+func findMovie(r io.ReaderAt, size int64) (io.Reader, error) {
 	br := bmff.NewReader(io.NewSectionReader(r, 0, size))
 	for {
 		b, err := br.ReadBox()
@@ -93,7 +103,7 @@ func ReadMetadata(r io.ReaderAt, size int64) (*Metadata, error) {
 		if b.Size() == 0 { // extends to end of file
 			n = size - start
 		}
-		return readMovie(io.NewSectionReader(r, start, n))
+		return io.NewSectionReader(r, start, n), nil
 	}
 }
 
@@ -129,7 +139,7 @@ func readMovie(moov io.Reader) (*Metadata, error) {
 				md.Items = items
 			}
 		case b.Type().EqualString("trak"):
-			t, err := readTrack(b.Body())
+			t, err := readTrack(b.Body(), false)
 			if err != nil {
 				return nil, err
 			}

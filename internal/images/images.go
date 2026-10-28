@@ -335,6 +335,18 @@ func rescale(im image.Image, sw, sh int) image.Image {
 	return resize.Resize(im, b, sw, sh)
 }
 
+// Shrink returns im scaled down to fit within maxWidth x maxHeight,
+// keeping its aspect ratio, or im itself if it already fits. It may
+// overwrite im's pixels.
+func Shrink(im image.Image, maxWidth, maxHeight int) image.Image {
+	b := im.Bounds()
+	if b.Dx() <= maxWidth && b.Dy() <= maxHeight {
+		return im
+	}
+	w, h := ScaledDimensions(b.Dx(), b.Dy(), maxWidth, maxHeight)
+	return rescale(im, w, h)
+}
+
 // forcedRotate checks if the values in opts explicitly set a rotation.
 func (opts *DecodeOpts) forcedRotate() bool {
 	return opts != nil && opts.Rotate != nil

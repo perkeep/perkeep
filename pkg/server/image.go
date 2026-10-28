@@ -42,6 +42,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/images"
 	"perkeep.org/internal/magic"
+	"perkeep.org/internal/video/still"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/constants"
@@ -66,6 +67,12 @@ var (
 	heicThumbEmbedded    = expvar.NewInt("heic-thumb-embedded")
 	heicThumbPrimary     = expvar.NewInt("heic-thumb-primary")
 	heicThumbEmbeddedErr = expvar.NewInt("heic-thumb-embedded-error")
+
+	// Video thumbnails made from decoded frames, videos of unsupported
+	// codecs, and failures to decode their frames.
+	videoStillOK          = expvar.NewInt("video-still")
+	videoStillUnsupported = expvar.NewInt("video-still-unsupported")
+	videoStillErr         = expvar.NewInt("video-still-error")
 )
 
 type ImageHandler struct {
@@ -358,9 +365,7 @@ func (ih *ImageHandler) heicThumbnail(ctx context.Context, h *images.HEIC, opts 
 // openHEIC reads the metadata of the HEIC image in head, if it is one.
 // It returns nil if not, or if the metadata is invalid.
 func openHEIC(head *headReaderAt) *images.HEIC {
-	var prefix [1 << 10]byte
-	n, _ := head.ReadAt(prefix[:], 0)
-	if magic.MIMEType(prefix[:n]) != "image/heic" {
+	if sniffMIME(head) != "image/heic" {
 		return nil
 	}
 	h, err := images.OpenHEIC(head)
@@ -369,6 +374,50 @@ func openHEIC(head *headReaderAt) *images.HEIC {
 		return nil
 	}
 	return h
+}
+
+// sniffMIME returns the MIME type of the file in head, from its first
+// kilobyte, or the empty string if unknown.
+func sniffMIME(head *headReaderAt) string {
+	var prefix [1 << 10]byte
+	n, _ := head.ReadAt(prefix[:], 0)
+	return magic.MIMEType(prefix[:n])
+}
+
+// videoStill decodes a still image of the video fileRef of the given MIME
+// type, scaled down to fit opts' maximum size, holding a memory reservation
+// for it in *release. It returns still.ErrUnsupported for videos whose
+// codecs it can't decode.
+func (ih *ImageHandler) videoStill(ctx context.Context, fileRef blob.Ref, mimeType string, opts *images.DecodeOpts, release *func()) (image.Image, error) {
+	// A video's metadata is commonly at its end, so read it with random
+	// access, unlike newFileReader's streaming reads of packed files.
+	fr, err := schema.NewFileReader(ctx, ih.Fetcher, fileRef)
+	if err != nil {
+		return nil, err
+	}
+	defer fr.Close()
+	v, err := still.Open(fr, fr.Size(), mimeType)
+	if err != nil {
+		if errors.Is(err, still.ErrUnsupported) {
+			videoStillUnsupported.Add(1)
+		}
+		return nil, err
+	}
+	// Decoded frames are YCbCr or RGBA, besides the frame's coded data.
+	ramSize, err := imageMemoryEstimate(v.Width, v.Height, 4)
+	if err != nil {
+		return nil, err
+	}
+	if *release, err = ih.acquireImageMemory(ctx, ramSize); err != nil {
+		return nil, err
+	}
+	im, err := v.Decode()
+	if err != nil {
+		videoStillErr.Add(1)
+		return nil, err
+	}
+	videoStillOK.Add(1)
+	return images.Shrink(im, opts.MaxWidth, opts.MaxHeight), nil
 }
 
 // headReaderAt is an io.ReaderAt of the start of r, which buffers all it
@@ -447,17 +496,19 @@ func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io
 // ScaleImage reads the image file schema at fileRef using ih.Fetcher and returns
 // its encoded bytes, scaled according to ih.MaxWidth, ih.MaxHeight, and ih.Square.
 // The returned format is "png" for PNG images and "jpeg" for all other supported
-// formats. Fetcher and ResizeSem must be set; Search is optional.
-// ScaleImage does not read or write the thumbnail cache.
+// formats, including stills of videos. Fetcher and ResizeSem must be set;
+// Search is optional. ScaleImage does not read or write the thumbnail cache.
 func (ih *ImageHandler) ScaleImage(ctx context.Context, fileRef blob.Ref) (data []byte, format string, err error) {
-	im, err := ih.scaleImage(ctx, fileRef)
+	im, err := ih.scaleImage(ctx, fileRef, "")
 	if err != nil {
 		return nil, "", err
 	}
 	return im.image, im.format, nil
 }
 
-func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*formatAndImage, error) {
+// scaleImage is ScaleImage, for a file whose indexed MIME type is mimeType,
+// or the empty string if unknown.
+func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeType string) (*formatAndImage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -468,22 +519,6 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	defer fr.Close()
 
 	head := &headReaderAt{r: readerutil.NewStatsReader(imageBytesFetchedVar, fr)}
-	var sr io.Reader // all of the file, once head is done
-	var conf image.Config
-	var sourceFormat string
-	// HEIC metadata is read without the heic package's DecodeConfig,
-	// which has libheif parse up to 256 KB of the file.
-	heicFile := openHEIC(head)
-	if heicFile != nil {
-		conf = image.Config{Width: heicFile.Width, Height: heicFile.Height}
-		sourceFormat = "heic"
-	} else {
-		sr, conf, sourceFormat, err = imageConfigFromReader(head.All())
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	opts := &images.DecodeOpts{
 		MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight,
 	}
@@ -499,6 +534,39 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	}()
 	var i image.Image
 	var imConfig images.Config
+	// The indexed MIME type of videos is more reliable than sniffing,
+	// which misses some QuickTime files.
+	if !strings.HasPrefix(mimeType, "video/") {
+		mimeType = sniffMIME(head)
+	}
+	if strings.HasPrefix(mimeType, "video/") {
+		if !still.Supported(mimeType) {
+			return nil, still.ErrUnsupported
+		}
+		if i, err = ih.videoStill(ctx, fileRef, mimeType, opts, &release); err != nil {
+			return nil, err
+		}
+		imConfig = images.Config{Format: "jpeg"}
+	}
+
+	var sr io.Reader // all of the file, once head is done
+	var conf image.Config
+	var sourceFormat string
+	var heicFile *images.HEIC
+	if i == nil {
+		// HEIC metadata is read without the heic package's DecodeConfig,
+		// which has libheif parse up to 256 KB of the file.
+		heicFile = openHEIC(head)
+		if heicFile != nil {
+			conf = image.Config{Width: heicFile.Width, Height: heicFile.Height}
+			sourceFormat = "heic"
+		} else {
+			sr, conf, sourceFormat, err = imageConfigFromReader(head.All())
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	if heicFile != nil {
 		i, imConfig, err = ih.heicThumbnail(ctx, heicFile, opts, &release)
 		if err != nil {
@@ -622,7 +690,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		ih.serveFitnessThumbnail(rw, req, file, db.Permanode)
 		return
 	}
-	if db.File == nil || !strings.HasPrefix(db.File.MIMEType, "image/") {
+	if db.File == nil || !strings.HasPrefix(db.File.MIMEType, "image/") && !still.Supported(db.File.MIMEType) {
 		http.NotFound(rw, req)
 		return
 	}
@@ -677,8 +745,13 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	if !cacheHit {
 		thumbCacheMiss.Add(1)
 		imi, err := singleResize.Do(key, func() (any, error) {
-			return ih.scaleImage(ctx, file)
+			return ih.scaleImage(ctx, file, db.File.MIMEType)
 		})
+		if errors.Is(err, still.ErrUnsupported) {
+			// Clients show a placeholder instead.
+			http.NotFound(rw, req)
+			return
+		}
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			return

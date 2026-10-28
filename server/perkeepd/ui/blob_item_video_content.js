@@ -17,6 +17,9 @@ limitations under the License.
 goog.provide('cam.BlobItemVideoContent');
 
 goog.require('goog.math.Size');
+goog.require('goog.string');
+
+goog.require('cam.Thumber');
 
 // Renders video blob items. Currently recognizes movies by looking for a filename with a common movie extension.
 cam.BlobItemVideoContent = React.createClass({
@@ -29,6 +32,8 @@ cam.BlobItemVideoContent = React.createClass({
 		filename: React.PropTypes.string.isRequired,
 		href: React.PropTypes.string.isRequired,
 		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
+		// The URL of a still image of the video, if any.
+		posterSrc: React.PropTypes.string,
 	},
 
 	getInitialState: function() {
@@ -36,6 +41,7 @@ cam.BlobItemVideoContent = React.createClass({
 			loaded: false,
 			mouseover: false,
 			playing: false,
+			posterFailed: false,
 		};
 	},
 
@@ -60,7 +66,16 @@ cam.BlobItemVideoContent = React.createClass({
 		if (this.state.loaded) {
 			return null;
 		}
-		// TODO(aa): When server indexes videos and provides a poster image, render it here.
+		if (this.props.posterSrc && !this.state.posterFailed) {
+			// The server makes stills of some videos, and 404s for others.
+			return React.DOM.img({
+				className: 'cam-blobitem-video-poster',
+				onError: this.handlePosterError_,
+				src: this.props.posterSrc,
+				width: this.props.size.width,
+				height: this.props.size.height,
+			});
+		}
 		return React.DOM.i({
 			className: 'fa fa-video-camera',
 			style: {
@@ -114,6 +129,10 @@ cam.BlobItemVideoContent = React.createClass({
 				video.play();
 			}
 		}
+	},
+
+	handlePosterError_: function() {
+		this.setState({posterFailed: true});
 	},
 
 	handleMouseOver_: function() {
@@ -180,6 +199,7 @@ cam.BlobItemVideoContent.getHandler = function(blobref, searchSession, href) {
 cam.BlobItemVideoContent.Handler = function(rm, href) {
 	this.rm_ = rm;
 	this.href_ = href;
+	this.thumber_ = new cam.Thumber(goog.string.subs('thumbnail/%s/%s', rm.blobRef, rm.file.fileName), this.getAspectRatio());
 };
 
 cam.BlobItemVideoContent.Handler.prototype.getAspectRatio = function() {
@@ -200,5 +220,6 @@ cam.BlobItemVideoContent.Handler.prototype.createContent = function(size) {
 		filename: this.rm_.file.fileName,
 		href: this.href_,
 		size: size,
+		posterSrc: this.thumber_.getSrc(size),
 	});
 };
