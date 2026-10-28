@@ -57,6 +57,7 @@ type Video struct {
 	duration time.Duration
 	frames   []frame // candidates, in order
 	decode   func(data []byte) (image.Image, error)
+	color    *colorConversion // for decoded frames, or nil
 
 	// decodeAt, if non-nil, replaces decodeFrame, for tests.
 	decodeAt func(frame) (image.Image, error)
@@ -126,7 +127,9 @@ func openQuickTime(r io.ReaderAt, size int64) (*Video, error) {
 	if vt.Codec != "hvc1" || vt.Config == nil || vt.Width <= 0 || vt.Height <= 0 {
 		return nil, ErrUnsupported
 	}
-	v := &Video{r: r, duration: vt.Duration}
+	// HEIF decoders convert the frames' Y'CbCr, but not from HDR or wide
+	// color primaries, which is done here.
+	v := &Video{r: r, duration: vt.Duration, color: newColorConversion(vt.ColorInfo)}
 	v.Width, v.Height = vt.DisplaySize()
 	for _, s := range vt.SyncSamples {
 		v.frames = append(v.frames, frame{time: s.Time, offset: s.Offset, size: s.Size})
@@ -207,7 +210,7 @@ func (v *Video) Decode() (image.Image, error) {
 		} else {
 			mean, spread := luma(im)
 			if !blank(mean, spread) {
-				return im, nil
+				return v.convert(im), nil
 			}
 			if spread > bestSpread {
 				best, bestSpread = im, spread
@@ -220,9 +223,17 @@ func (v *Video) Decode() (image.Image, error) {
 		i = next
 	}
 	if best != nil {
-		return best, nil
+		return v.convert(best), nil
 	}
 	return nil, firstErr
+}
+
+// convert returns the decoded frame im converted for display as sRGB.
+func (v *Video) convert(im image.Image) image.Image {
+	if v.color == nil {
+		return im
+	}
+	return v.color.convert(im)
 }
 
 // frameAt returns the index of the first frame at or after t, or of the

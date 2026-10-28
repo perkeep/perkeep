@@ -57,6 +57,10 @@ type track struct {
 	// box ("colr" of type "nclx"), including its header, or nil.
 	color []byte
 
+	// colorInfo is the first visual sample entry's color information,
+	// ISO or QuickTime.
+	colorInfo ColorInfo
+
 	// clap is the first visual sample entry's clean aperture box, which
 	// crops the coded frames for display, including its header, or nil.
 	clap []byte
@@ -330,10 +334,24 @@ func (t *track) parseSampleDescription(b []byte) {
 		switch {
 		case kids[7] == 'C' && t.config == nil:
 			t.config = kids[:n:n]
-		case string(kids[4:8]) == "colr" && n >= 12 && string(kids[8:12]) == "nclx" && t.color == nil:
-			// ISO color information, unlike QuickTime's "nclc",
-			// includes whether the video uses the full range.
-			t.color = kids[:n:n]
+		case string(kids[4:8]) == "colr" && n >= 18 && !t.colorInfo.Known:
+			// ISO ("nclx") or QuickTime ("nclc") color information.
+			// Only ISO's includes whether the video uses the full
+			// range, and is a HEIF property, to keep for decoders.
+			kind := string(kids[8:12])
+			if kind != "nclx" && kind != "nclc" {
+				break
+			}
+			be := binary.BigEndian
+			t.colorInfo = ColorInfo{
+				Known:     true,
+				Primaries: be.Uint16(kids[12:]),
+				Transfer:  be.Uint16(kids[14:]),
+				Matrix:    be.Uint16(kids[16:]),
+			}
+			if kind == "nclx" && n >= 19 {
+				t.color = kids[:n:n]
+			}
 		case string(kids[4:8]) == "clap" && n == 40 && t.clap == nil:
 			// Clean aperture: eight 32-bit values.
 			t.clap = kids[:n:n]

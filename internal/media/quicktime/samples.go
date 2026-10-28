@@ -102,6 +102,11 @@ type VideoTrack struct {
 	// range of sample values, which HEIF decoders read from it.
 	Color []byte
 
+	// ColorInfo is the first sample entry's color information, from an
+	// ISO ("nclx") or QuickTime ("nclc") box, which says how to convert
+	// its frames to RGB for display.
+	ColorInfo ColorInfo
+
 	// CleanAperture is the first sample entry's clean aperture box
 	// ("clap"), including its header, or nil if it has none. It crops
 	// the coded frames for display, as in iPhone Live Photo videos.
@@ -138,6 +143,25 @@ func (vt *VideoTrack) DisplaySize() (width, height int) {
 	}
 	return width, height
 }
+
+// ColorInfo is a video's color information, with the code points of ITU-T
+// H.273 (as in HEVC and H.264 video usability information).
+type ColorInfo struct {
+	Known     bool   // whether the video has color information
+	Primaries uint16 // e.g. 1 for BT.709, 9 for BT.2020, 12 for Display P3
+	Transfer  uint16 // e.g. 1 for BT.709, 16 for PQ, 18 for HLG
+	Matrix    uint16 // e.g. 1 for BT.709, 6 for BT.601, 9 for BT.2020
+}
+
+// Color code points of ITU-T H.273.
+const (
+	PrimariesBT709     = 1
+	PrimariesBT2020    = 9
+	PrimariesDisplayP3 = 12 // SMPTE EG 432-1
+
+	TransferPQ  = 16 // SMPTE ST 2084
+	TransferHLG = 18 // ARIB STD-B67
+)
 
 // ErrNoVideo is returned by ReadVideoTrack for movies without an enabled
 // video track.
@@ -181,6 +205,7 @@ func ReadVideoTrack(r io.ReaderAt, size int64) (*VideoTrack, error) {
 		Rotation:      t.rotation,
 		Config:        t.config,
 		Color:         t.color,
+		ColorInfo:     t.colorInfo,
 		CleanAperture: t.clap,
 		Duration:      mediaDuration(t.duration, t.timescale),
 		SyncSamples:   samples,
