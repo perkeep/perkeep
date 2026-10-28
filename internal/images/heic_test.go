@@ -71,6 +71,42 @@ func findHEICThumbnail(ra io.ReaderAt, opts *DecodeOpts) (*HEICThumbnail, error)
 	return h.Thumbnail(opts)
 }
 
+// TestHEICGenericMajorBrand tests a HEIC file whose major brand is the
+// generic "mif1", with HEVC brands only among its compatible brands, which
+// the heic package's registered image formats don't match.
+func TestHEICGenericMajorBrand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("decodes a 12 megapixel image")
+	}
+	orig := readTestdata(t, "ski-throne.heic")
+	src := bytes.Clone(orig)
+	if string(src[4:12]) != "ftypheic" {
+		t.Fatalf("ski-throne.heic starts %q", src[:12])
+	}
+	copy(src[8:12], "mif1")
+
+	want, err := DecodeConfig(bytes.NewReader(orig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf, err := DecodeConfig(bytes.NewReader(src))
+	if err != nil {
+		t.Fatalf("DecodeConfig: %v", err)
+	}
+	if conf.Format != "heic" || conf.Width != want.Width || conf.Height != want.Height {
+		t.Errorf("DecodeConfig = %+v; want %+v", conf, want)
+	}
+	forEachHEICDecoder(t, func(t *testing.T) {
+		im, conf, err := Decode(bytes.NewReader(src), uiOpts(256))
+		if err != nil {
+			t.Fatalf("Decode: %v", err)
+		}
+		if conf.Format != "heic" || im.Bounds().Dx() != 192 || im.Bounds().Dy() != 256 {
+			t.Errorf("Decode = %v, config %+v; want 192x256 heic", im.Bounds(), conf)
+		}
+	})
+}
+
 func TestOpenHEIC(t *testing.T) {
 	h, err := OpenHEIC(bytes.NewReader(readTestdata(t, "ski-throne.heic")))
 	if err != nil {

@@ -286,15 +286,16 @@ func MIMETypeByExtension(ext string) string {
 var pict = []byte("pict")
 
 // isHEIC reports whether the prefix looks like a BMFF HEIF file for a
-// still image. (image/heic type)
+// still image coded with HEVC. (image/heic type)
 //
-// We verify it starts with an "ftyp" box of MajorBrand heic, and then
-// has a "hdlr" box of HandlerType "pict" (inside a meta box which we
-// don't verify). This isn't a compliant parser, so might have false
-// positives on invalid inputs, but that's acceptable, as long as it
+// We verify it starts with an "ftyp" box with an HEVC still image brand
+// (see heicBrand) as its major brand or one of its compatible brands,
+// and then has a "hdlr" box of HandlerType "pict" (inside a meta box
+// which we don't verify). This isn't a compliant parser, so might have
+// false positives on invalid inputs, but that's acceptable, as long as it
 // doesn't reject any valid HEIC images.
 //
-// The structure of the header of such a file looks like:
+// The structure of the header of an iPhone camera photo looks like:
 //
 // Box: type "ftyp", size 24
 // - *bmff.FileTypeBox: &{box:0xc00009a1e0 MajorBrand:heic MinorVersion:^@^@^@^@ Compatible:[mif1 heic]}
@@ -302,14 +303,12 @@ var pict = []byte("pict")
 //   - *bmff.MetaBox, 8 children:
 //     Box: type "hdlr", size 34
 //   - *bmff.HandlerBox: &{FullBox:{box:0xc00009a2d0 Version:0 Flags:0} HandlerType:pict Name:}
+//
+// Photos that iOS saves after editing are HEVC 4:4:4, with the major brand
+// "heix" and compatible brands [tmap heix mif1]. Other writers may use a
+// generic major brand, such as "mif1", and name HEVC only among the
+// compatible brands.
 func isHEIC(prefix []byte) bool {
-	if len(prefix) < 12 {
-		return false
-	}
-	if string(prefix[4:12]) != "ftypheic" {
-		return false
-	}
-
 	// Mini allocation-free BMFF parser for the two box types we
 	// care about. We consersatively only check whether the "hdlr"
 	// box type is "pict" for now, until we get a larger corpus of
@@ -318,10 +317,10 @@ func isHEIC(prefix []byte) bool {
 	// haven't run across those ... yet.)
 
 	// Consume the "ftyp" box, required to be first in file.
-	ftypLen := binary.BigEndian.Uint32(prefix[:4])
-	if uint32(len(prefix)) < ftypLen {
+	if HEICBrand(prefix) == "" {
 		return false
 	}
+	ftypLen := binary.BigEndian.Uint32(prefix[:4])
 
 	// The meta box should follow the ftyp box, but we don't verify it here.
 	// See comment above.
@@ -338,6 +337,48 @@ func isHEIC(prefix []byte) bool {
 		return false
 	}
 	return true
+}
+
+// HEICBrand returns the HEVC still image brand (see heicBrand) of the BMFF
+// file that prefix starts: the major brand of its "ftyp" box if it's one,
+// or else the first of its compatible brands that is, or "" if none is.
+func HEICBrand(prefix []byte) string {
+	if len(prefix) < 16 || string(prefix[4:8]) != "ftyp" {
+		return ""
+	}
+	// The major brand, minor version, and then compatible brands, to
+	// the end of the box.
+	ftypLen := binary.BigEndian.Uint32(prefix[:4])
+	if ftypLen < 16 || uint32(len(prefix)) < ftypLen {
+		return ""
+	}
+	if brand := heicBrand(prefix[8:12]); brand != "" {
+		return brand
+	}
+	for b := prefix[16:ftypLen]; len(b) >= 4; b = b[4:] {
+		if brand := heicBrand(b[:4]); brand != "" {
+			return brand
+		}
+	}
+	return ""
+}
+
+// heicBrand returns brand if it's a brand of HEIF files of HEVC still
+// images (ISO/IEC 23008-12 Annex B), or else "": "heic" for HEVC Main and
+// Main Still Picture images, "heix" for other HEVC profiles, such as 10-bit
+// or 4:4:4 ones, and "heim" and "heis" for multi-layer and scalable ones.
+func heicBrand(brand []byte) string {
+	switch string(brand) {
+	case "heic":
+		return "heic"
+	case "heix":
+		return "heix"
+	case "heim":
+		return "heim"
+	case "heis":
+		return "heis"
+	}
+	return ""
 }
 
 func isSVG(prefix []byte) bool {
