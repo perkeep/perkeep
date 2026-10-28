@@ -17,14 +17,20 @@ value, such as:
 
 ```
 {
-    "publicKey": "/sighelper/camli/sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
-    "publicKeyBlobRef": "sha1-f72d9090b61b70ee6501cceacc9d81a0801d32f6",
+    "publicKey": "/sighelper/camli/sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+    "publicKeyBlobRef": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
     "publicKeyId": "2931A67C26F5ABDA",
     "publicKeyFingerprint": "FBB89AA320A2806FE497C0492931A67C26F5ABDA",
     "signHandler": "/sighelper/camli/sig/sign",
     "verifyHandler": "/sighelper/camli/sig/verify"
 }
 ```
+
+`publicKeyFingerprint` is the full uppercase hexadecimal GPG key fingerprint.
+Older servers may omit it. Prefer it for key comparisons when available, but
+fall back to `publicKeyId` when either peer omits its fingerprint. Servers
+continue to advertise the long `publicKeyId` for compatibility with older
+clients. Neither field changes the public key blob reference or signing format.
 
 ## Signing
 

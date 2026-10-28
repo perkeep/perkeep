@@ -42,13 +42,16 @@ func (c *whoamiCmd) Describe() string {
 }
 
 func (c *whoamiCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "pk whoami [key]\n")
+	fmt.Fprintf(os.Stderr, "pk whoami [identity|fingerprint|type|private]\n")
+	fmt.Fprintf(os.Stderr, "With no argument, show identity (the long GPG key ID).\n")
+	fmt.Fprintf(os.Stderr, "Use fingerprint to show the full GPG key fingerprint.\n")
 }
 
 var whoCmds = map[string]func(c *client.Client, s *schema.Signer) error{
-	"identity": whoamiIdentity,
-	"type":     whoamiType,
-	"private":  whoamiPrivate,
+	"identity":    whoamiIdentity,
+	"fingerprint": whoamiFingerprint,
+	"type":        whoamiType,
+	"private":     whoamiPrivate,
 }
 
 func (c *whoamiCmd) RunCommand(args []string) error {
@@ -82,6 +85,15 @@ func (c *whoamiCmd) RunCommand(args []string) error {
 
 func whoamiIdentity(c *client.Client, s *schema.Signer) error {
 	v := s.KeyIDLong()
+	if v == "" {
+		return errors.New("no configured identity")
+	}
+	fmt.Println("perkeepid:" + v)
+	return nil
+}
+
+func whoamiFingerprint(c *client.Client, s *schema.Signer) error {
+	v := s.Fingerprint()
 	if v == "" {
 		return errors.New("no configured identity")
 	}

@@ -18,6 +18,7 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +43,12 @@ func TestSigner(t *testing.T) {
 	sig, err := NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {
 		t.Fatalf("NewSigner: %v", err)
+	}
+	if got, want := sig.Fingerprint(), fmt.Sprintf("%X", ent.PrimaryKey.Fingerprint); got != want {
+		t.Errorf("Fingerprint() = %q; want %q", got, want)
+	}
+	if got, want := sig.KeyIDLong(), ent.PrimaryKey.KeyIdString(); got != want {
+		t.Errorf("KeyIDLong() = %q; want %q", got, want)
 	}
 	pn, err := NewUnsignedPermanode().Sign(ctxbg, sig)
 	if err != nil {

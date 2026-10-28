@@ -80,6 +80,8 @@ type Client struct {
 	uploadSessions         bool        // Whether the blob root supports upload sessions.
 	syncHandlers           []*SyncInfo // "from" and "to" url prefix for each syncHandler
 	serverKeyID            string      // Server's GPG public key ID.
+	serverKeyFingerprint   string      // Server's full GPG public key fingerprint, if advertised.
+	hasSigning             bool        // Whether the server advertises a signing handler.
 	helpRoot               string      // Handler prefix, or "" if none
 	shareRoot              string      // Share handler prefix, or "" if none
 	serverPublicKeyBlobRef blob.Ref    // Server's public key blobRef
@@ -531,7 +533,8 @@ var ErrNoHelpRoot = errors.New("client: server does not have a help handler")
 // ErrNoShareRoot is returned by ShareRoot if the server doesn't have a share handler.
 var ErrNoShareRoot = errors.New("client: server does not have a share handler")
 
-// ErrNoSigning is returned by ServerKeyID if the server doesn't support signing.
+// ErrNoSigning is returned by the signing discovery accessors if the server
+// doesn't support signing.
 var ErrNoSigning = fmt.Errorf("client: server doesn't support signing")
 
 // ErrNoStorageGeneration is returned by StorageGeneration if the
@@ -564,6 +567,20 @@ func (c *Client) ServerKeyID() (string, error) {
 		return "", ErrNoSigning
 	}
 	return c.serverKeyID, nil
+}
+
+// ServerKeyFingerprint returns the server's full uppercase hexadecimal GPG
+// public key fingerprint. Older servers may support signing without advertising
+// a fingerprint; in that case it returns "", nil and callers can fall back to
+// ServerKeyID. If the server doesn't advertise signing, it returns ErrNoSigning.
+func (c *Client) ServerKeyFingerprint() (string, error) {
+	if err := c.condDiscovery(); err != nil {
+		return "", err
+	}
+	if !c.hasSigning {
+		return "", ErrNoSigning
+	}
+	return c.serverKeyFingerprint, nil
 }
 
 // ServerPublicKeyBlobRef returns the server's public key blobRef
@@ -1150,7 +1167,9 @@ func (c *Client) doDiscovery() error {
 	}
 
 	if disco.Signing != nil {
+		c.hasSigning = true
 		c.serverKeyID = disco.Signing.PublicKeyID
+		c.serverKeyFingerprint = disco.Signing.PublicKeyFingerprint
 		c.serverPublicKeyBlobRef = disco.Signing.PublicKeyBlobRef
 		c.signHandler = disco.Signing.SignHandler
 	}
@@ -1424,13 +1443,18 @@ func (c *Client) UploadPublicKey(ctx context.Context) error {
 
 // checkMatchingKeys compares the client's and the server's keys and logs if they differ.
 func (c *Client) checkMatchingKeys() {
-	serverKey, err := c.ServerKeyID()
+	serverKey, err := c.ServerKeyFingerprint()
+	clientKey := c.signer.Fingerprint()
+	if err == nil && serverKey == "" {
+		serverKey, err = c.ServerKeyID()
+		clientKey = c.signer.KeyIDLong()
+	}
 	if err != nil {
-		log.Printf("Warning: Could not obtain ther server's key id: %v", err)
+		log.Printf("Warning: Could not obtain the server's signing key: %v", err)
 		return
 	}
-	if serverKey != c.signer.KeyIDLong() {
-		log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyIDLong(), serverKey)
+	if serverKey != clientKey {
+		log.Printf("Warning: client (%s) and server (%s) keys differ.", clientKey, serverKey)
 	}
 }
 
