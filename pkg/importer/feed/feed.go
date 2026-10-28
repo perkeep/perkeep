@@ -242,7 +242,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Feed</h1>
-<form method="get" action="{{.CallbackURL}}">
+<form method="get" action="{{.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
   <table border=0 cellpadding=3>
   <tr><td align=right>Feed URL</td><td><input name="feedURL" size=50></td></tr>

@@ -108,7 +108,7 @@ func (*imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Set
 	// refresh its access token.
 	// You typically start the OAuth redirect flow here.
 	// The importer.OAuth2.RedirectURL and importer.OAuth2.RedirectState helpers can be used for OAuth2.
-	http.Redirect(w, r, ctx.CallbackURL(), http.StatusFound)
+	http.Redirect(w, r, ctx.CallbackPath(), http.StatusFound)
 	return nil
 }
 

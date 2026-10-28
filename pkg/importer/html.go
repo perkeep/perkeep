@@ -68,6 +68,7 @@ type acctPage struct {
 
 type acctBody struct {
 	Acct           *importerAcct
+	Importer       *importer
 	AcctType       string
 	Running        bool
 	LastStatus     string
@@ -129,7 +130,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{end}}
 
 {{define "importerBody"}}
-<p>[<a href="{{.Host.ImporterBaseURL}}">&lt;&lt; Back</a>]</p>
+<p>[<a href="{{.Host.ImporterBasePath}}">&lt;&lt; Back</a>]</p>
 <ul>
   <li>Importer configuration permanode: {{.Importer.Node.PermanodeRef | bloblink}}</li>
   <li>Status: {{.Importer.Status}}</li>
@@ -225,7 +226,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{end}}
 
 {{define "acctBody"}}
-<p>[<a href="./">&lt;&lt; Back</a>]</p>
+<p>[<a href="{{.Importer.URL}}">&lt;&lt; Back</a>]</p>
 <ul>
    <li>Account type: {{.AcctType}}</li>
    <li>Account metadata permanode: {{.Acct.AccountObject.PermanodeRef | bloblink}}</li>

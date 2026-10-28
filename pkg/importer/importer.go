@@ -398,18 +398,30 @@ func (sc *SetupContext) Credentials() (clientID, clientSecret string, err error)
 	return sc.ia.im.credentials()
 }
 
+// CallbackURL returns the fully qualified callback URL for OAuth providers.
+// Use CallbackPath for forms and redirects handled by this server.
 func (sc *SetupContext) CallbackURL() string {
+	return sc.Host.ImporterBaseURL() + sc.callbackSuffix()
+}
+
+// CallbackPath returns the same-origin absolute URL path to the callback,
+// including its account-identifying query parameters.
+func (sc *SetupContext) CallbackPath() string {
+	return sc.Host.ImporterBasePath() + sc.callbackSuffix()
+}
+
+func (sc *SetupContext) callbackSuffix() string {
 	params := sc.ia.im.impl.CallbackURLParameters(sc.AccountNode.PermanodeRef()).Encode()
 	if params != "" {
 		params = "?" + params
 	}
-	return sc.Host.ImporterBaseURL() + sc.ia.im.name + "/callback" + params
+	return sc.ia.im.name + "/callback" + params
 }
 
-// AccountURL returns the URL to an account of an importer
-// (http://host/importer/TYPE/sha1-sd8fsd7f8sdf7).
+// AccountURL returns the same-origin absolute URL path to an importer account
+// (for example, /importer/TYPE/sha1-sd8fsd7f8sdf7).
 func (sc *SetupContext) AccountURL() string {
-	return sc.Host.ImporterBaseURL() + sc.ia.im.name + "/" + sc.AccountNode.PermanodeRef().String()
+	return sc.ia.im.URL() + "/" + sc.AccountNode.PermanodeRef().String()
 }
 
 // RunContext is the context provided for a given Run of an importer, importing
@@ -848,7 +860,7 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 			http.Error(w, "Error saving node: "+err.Error(), 500)
 			return
 		}
-		http.Redirect(w, r, h.ImporterBaseURL()+imp.name, http.StatusFound)
+		http.Redirect(w, r, imp.URL(), http.StatusFound)
 	}
 }
 
@@ -982,8 +994,9 @@ func (h *Host) BaseURL() string {
 	return h.baseURL
 }
 
-// ImporterBaseURL returns the URL base of the importer handler,
-// including trailing slash.
+// ImporterBaseURL returns the fully qualified URL base of the importer handler,
+// including trailing slash, for OAuth callbacks and provider configuration.
+// Use ImporterBasePath for same-origin browser navigation.
 func (h *Host) ImporterBaseURL() string {
 	return h.importerBase
 }
@@ -1063,8 +1076,8 @@ func (im *importer) ImporterType() string {
 
 func (im *importer) StaticConfig() bool { return im.clientSecret != "" }
 
-// URL returns the importer's URL without trailing slash.
-func (im *importer) URL() string { return im.host.ImporterBaseURL() + im.name }
+// URL returns the importer's same-origin absolute URL path without trailing slash.
+func (im *importer) URL() string { return im.host.ImporterBasePath() + im.name }
 
 func (im *importer) ShowClientAuthEditForm() bool {
 	if im.StaticConfig() {
@@ -1420,7 +1433,7 @@ func (ia *importerAcct) AccountObject() *Object { return ia.acct }
 func (ia *importerAcct) RootObject() *Object    { return ia.root }
 
 func (ia *importerAcct) AccountURL() string {
-	return ia.im.host.ImporterBasePath() + ia.im.name + "/" + ia.acct.PermanodeRef().String()
+	return ia.im.URL() + "/" + ia.acct.PermanodeRef().String()
 }
 
 func (ia *importerAcct) AccountLinkText() string {
@@ -1454,6 +1467,7 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer ia.mu.Unlock()
 	body := acctBody{
 		Acct:          ia,
+		Importer:      ia.im,
 		AcctType:      fmt.Sprintf("%T", ia.im.impl),
 		ArchiveUpload: ia.im.archiveUpload(ia),
 		ArchiveOnly:   ia.im.props.ArchiveOnly,

@@ -164,7 +164,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Bluesky account</h1>
 <p>Only public data is imported, so no password is needed.</p>
-<form method="get" action="{{.CallbackURL}}">
+<form method="get" action="{{.CallbackPath}}">
 	<input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
 	<label>Handle or DID (e.g. perkeep.bsky.social) <input name="handle" size="40" required></label>
 	<input type="submit" value="Add">

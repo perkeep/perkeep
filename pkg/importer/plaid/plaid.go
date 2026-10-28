@@ -85,7 +85,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Bank Account</h1>
 <p>Enter your username/password credentials for your bank/card account and select the institution type.
-<form method="get" action="{{.Ctx.CallbackURL}}">
+<form method="get" action="{{.Ctx.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.Ctx.AccountNode.PermanodeRef}}">
   <table border=0 cellpadding=3>
   <tr><td align=right>Username</td><td><input name="username" size=50></td></tr>
