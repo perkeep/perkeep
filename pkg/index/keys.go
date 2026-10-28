@@ -33,7 +33,9 @@ import (
 // Version 7: ordered multi-claim children and collision-free secondary keys.
 // Reindexing is required because earlier versions silently ignored multi claims.
 // Version 8: media tags from Apple MakerNotes and QuickTime metadata; video locations
-const requiredSchemaVersion = 8
+// Version 9: video sizes as media tags, and 3GPP and AVI video media tags.
+// Versions 7 and 8 are upgraded at startup, by addMediaTags.
+const requiredSchemaVersion = 9
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)

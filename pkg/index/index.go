@@ -248,7 +248,7 @@ func newIndex(s sorted.KeyValue, rebuilding bool) (*Index, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Could not write index schema version %d: %w", requiredSchemaVersion, err)
 		}
-	case is7To8SchemaBump(schemaVersion):
+	case isMediaTagsUpgrade(schemaVersion):
 		return idx, errMissingMediaTags
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""

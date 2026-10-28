@@ -183,7 +183,14 @@ cam.BlobItemVideoContent.Handler = function(rm, href) {
 };
 
 cam.BlobItemVideoContent.Handler.prototype.getAspectRatio = function() {
-	// TODO(aa): Provide the right value here once server indexes movies.
+	// The server indexes the displayed size of QuickTime, MP4, 3GPP, and
+	// AVI videos as media tags. Other videos are shown square.
+	var tags = this.rm_.mediaTags;
+	var width = tags && Number(tags.width);
+	var height = tags && Number(tags.height);
+	if (width > 0 && height > 0) {
+		return width / height;
+	}
 	return 1;
 };
 

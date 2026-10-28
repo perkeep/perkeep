@@ -33,46 +33,51 @@ import (
 	"perkeep.org/pkg/schema"
 )
 
-// is7To8SchemaBump reports whether an index of schemaVersion can be
+// isMediaTagsUpgrade reports whether an index of schemaVersion can be
 // upgraded to the required version by addMediaTags, without a reindex.
-func is7To8SchemaBump(schemaVersion int) bool {
-	return schemaVersion == 7 && requiredSchemaVersion == 8
+func isMediaTagsUpgrade(schemaVersion int) bool {
+	return (schemaVersion == 7 || schemaVersion == 8) && requiredSchemaVersion == 9
 }
 
-var errMissingMediaTags = errors.New("index: missing the media tags of index schema version 8")
+var errMissingMediaTags = errors.New("index: missing the media tags of index schema version 9")
 
 // mediaTagFile is a file that may have media tags or a location added in
-// index schema version 8.
+// index schema version 8 or 9.
 type mediaTagFile struct {
 	fileRef  blob.Ref // any of the files with wholeRef
 	wholeRef blob.Ref
-	video    bool // a QuickTime or MP4 video; otherwise an Apple image
+	mimeType string
+	video    bool // a video that indexVideo indexes; otherwise an Apple image
 }
 
 // mediaTagBatchSize is how many files' rows addMediaTags commits at once.
 const mediaTagBatchSize = 500
 
-// addMediaTags upgrades a version 7 index to version 8. Version 8 adds
-// media tags from Apple MakerNotes and QuickTime metadata, and video
-// locations, but otherwise indexes the same rows. Only QuickTime and MP4
-// videos and images whose EXIF Make is Apple can have the new rows, so
-// rather than reindexing everything, addMediaTags reads just those files
-// with the same code as populateFile, then sets the schema version.
-// It's idempotent, so if it's interrupted, the next start runs it again.
+// addMediaTags upgrades a version 7 or 8 index to version 9. Version 8
+// added media tags from Apple MakerNotes and QuickTime metadata, and video
+// locations; version 9 adds video sizes, and indexes 3GPP and AVI videos
+// too. Otherwise they index the same rows as version 7. Only videos, and
+// for version 7 also images whose EXIF Make is Apple, can have the new
+// rows, so rather than reindexing everything, addMediaTags reads just
+// those files with the same code as populateFile, then sets the schema
+// version. It's idempotent, so if it's interrupted, the next start runs
+// it again.
 func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err error) {
+	from := x.schemaVersion()
 	// Like fixMissingWholeRef, guard against misuse.
-	if !is7To8SchemaBump(x.schemaVersion()) {
-		panic("addMediaTags should only be used when upgrading from v7 to v8 of the index schema")
+	if !isMediaTagsUpgrade(from) {
+		panic("addMediaTags should only be used when upgrading from v7 or v8 to v9 of the index schema")
 	}
 	start := time.Now()
-	x.logf("upgrading index schema from version 7 to 8 by adding media tags...")
+	x.logf("upgrading index schema from version %d to %d by adding media tags...", from, requiredSchemaVersion)
 	defer func() {
 		if err != nil {
 			x.logf("adding media tags failed: %v", err)
 		}
 	}()
 
-	files, err := x.mediaTagFiles()
+	// Version 8 indexes already have the Apple images' media tags.
+	files, err := x.mediaTagFiles(from == 7)
 	if err != nil {
 		return err
 	}
@@ -163,7 +168,7 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion)); err != nil {
 		return fmt.Errorf("could not write index schema version %d: %w", requiredSchemaVersion, err)
 	}
-	x.logf("upgraded index schema to version 8 in %v; %d files failed", time.Since(start).Round(time.Millisecond), failed.Load())
+	x.logf("upgraded index schema to version %d in %v; %d files failed", requiredSchemaVersion, time.Since(start).Round(time.Millisecond), failed.Load())
 	return nil
 }
 
@@ -171,14 +176,15 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 var appleMakeKeySuffix = fmt.Sprintf("|%d|%04x", exifIFD0, 0x010f)
 
 // mediaTagFiles returns the files whose contents can have media tags or
-// locations added in index schema version 8, one file per content.
-func (x *Index) mediaTagFiles() (files []mediaTagFile, err error) {
+// locations added in index schema versions 8 and 9, one file per content:
+// videos and, if withApple, images whose EXIF Make is Apple.
+func (x *Index) mediaTagFiles(withApple bool) (files []mediaTagFile, err error) {
 	var vals []string
 
 	// Apple images, by their indexed EXIF Make.
 	apple := make(map[blob.Ref]bool)
 	it := x.queryPrefix(keyEXIFTag)
-	for it.Next() {
+	for withApple && it.Next() {
 		// exiftag|wholeRef|dir|tag = type|n|vals
 		k := it.Key()
 		if !strings.HasSuffix(k, appleMakeKeySuffix) {
@@ -215,18 +221,19 @@ func (x *Index) mediaTagFiles() (files []mediaTagFile, err error) {
 		if !ok || seen[wholeRef] {
 			continue
 		}
-		video := isQuickTimeMIME(urld(vals[2]))
+		mimeType := urld(vals[2])
+		video := isIndexedVideoMIME(mimeType)
 		if !video && !apple[wholeRef] {
 			continue
 		}
 		seen[wholeRef] = true
-		files = append(files, mediaTagFile{fileRef: fileRef, wholeRef: wholeRef, video: video})
+		files = append(files, mediaTagFile{fileRef: fileRef, wholeRef: wholeRef, mimeType: mimeType, video: video})
 	}
 	return files, nil
 }
 
 // addFileMediaTags adds to mm the media tags and location of f's contents
-// that populateFile indexes for schema version 8.
+// that populateFile indexes for schema versions 8 and 9.
 func (x *Index) addFileMediaTags(ctx context.Context, fetcher blob.Fetcher, f mediaTagFile, mm *mutationMap) error {
 	rc, _, err := fetcher.Fetch(ctx, f.fileRef)
 	if err != nil {
@@ -243,7 +250,7 @@ func (x *Index) addFileMediaTags(ctx context.Context, fetcher blob.Fetcher, f me
 	}
 	defer fr.Close()
 	if f.video {
-		x.indexQuickTime(fr, fr.Size(), f.wholeRef, mm)
+		x.indexVideo(fr, fr.Size(), f.mimeType, f.wholeRef, mm)
 		return nil
 	}
 

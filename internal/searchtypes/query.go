@@ -194,6 +194,8 @@ type MediaTagConstraint struct {
 	// For Apple photos and QuickTime videos, this includes: contentidentifier (shared by a Live Photo's
 	// still image and video), burstuuid and photoidentifier (photos), and durationms, make, model,
 	// software, creationdate, livephotoauto, and livephotovitalityscore (videos).
+	// For QuickTime, MP4, 3GPP, and AVI videos, this includes width and height (as displayed),
+	// rotation (degrees clockwise, if nonzero), and durationms.
 	Tag string `json:"tag"`
 
 	String *StringConstraint `json:"string,omitempty"`

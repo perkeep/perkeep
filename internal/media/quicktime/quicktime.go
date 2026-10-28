@@ -54,6 +54,15 @@ type Metadata struct {
 	// (e.g. KeyContentIdentifier). Numeric values are formatted in
 	// decimal. Items of other types, such as images, are omitted.
 	Items map[string]string
+
+	// Width and Height are the size of the movie's main video track as
+	// displayed, after Rotation, or zero if unknown or if the movie has
+	// no video track.
+	Width, Height int
+
+	// Rotation is how many degrees clockwise the main video track is
+	// rotated for display: 0, 90, 180, or 270.
+	Rotation int
 }
 
 // ErrNoMovie is returned by ReadMetadata when the input has no movie
@@ -90,10 +99,15 @@ func ReadMetadata(r io.ReaderAt, size int64) (*Metadata, error) {
 
 func readMovie(moov io.Reader) (*Metadata, error) {
 	md := &Metadata{}
+	var tracks []*track
 	br := bmff.NewReader(moov)
 	for {
 		b, err := br.ReadBox()
 		if err == io.EOF {
+			if t := mainVideoTrack(tracks); t != nil {
+				md.Width, md.Height = t.displaySize()
+				md.Rotation = t.rotation
+			}
 			return md, nil
 		}
 		if err != nil {
@@ -114,6 +128,12 @@ func readMovie(moov io.Reader) (*Metadata, error) {
 			if items := metaItems(pb.(*bmff.MetaBox)); items != nil && md.Items == nil {
 				md.Items = items
 			}
+		case b.Type().EqualString("trak"):
+			t, err := readTrack(b.Body())
+			if err != nil {
+				return nil, err
+			}
+			tracks = append(tracks, t)
 		}
 	}
 }
