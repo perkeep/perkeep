@@ -25,6 +25,7 @@ import (
 	"image"
 	"image/jpeg"
 	"maps"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -91,6 +92,10 @@ func TestAddMediaTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A HEIC file with the major brand "heix", as of photos that iOS saves
+	// after editing, which version 9 indexes didn't recognize.
+	heix := bytes.Clone(heic)
+	copy(heix[8:12], "heix")
 	live := liveVideo(map[string]string{
 		"com.apple.quicktime.content.identifier": "7C16BD72-9110-4AB6-80F6-6BF098D5F43E",
 		"com.apple.quicktime.make":               "Apple",
@@ -106,6 +111,7 @@ func TestAddMediaTags(t *testing.T) {
 		{"apple.jpg", jpegWithMakeEXIF(t, "Apple", appleMakerNote)},
 		{"canon.jpg", jpegWithMakeEXIF(t, "Canon", []byte("Nikon\x00\x02\x10\x00\x00MM\x00\x2a\x00\x00\x00\x08"))},
 		{"ski-throne.heic", heic},
+		{"IMG_0002.heic", heix},
 		{"IMG_3204.MOV", live},
 		{"IMG_0001.MOV", mov},
 		{"video.3gp", threeGP},
@@ -113,10 +119,11 @@ func TestAddMediaTags(t *testing.T) {
 		{"notes.txt", []byte("not media")},
 	}
 
-	// Index the files at version 9.
+	// Index the files at version 10.
 	sto := new(memory.Storage)
 	ix := newLoggingIndex(t)
 	mm := &mutationMap{kv: make(map[string]string)}
+	var heixFile blob.Ref
 	for _, f := range files {
 		if _, err := sto.ReceiveBlob(ctx, blob.RefFromBytes(f.data), bytes.NewReader(f.data)); err != nil {
 			t.Fatal(err)
@@ -132,12 +139,16 @@ func TestAddMediaTags(t *testing.T) {
 		if err := ix.populateFile(ctx, &missTrackFetcher{fetcher: sto}, file, mm); err != nil {
 			t.Fatalf("populateFile(%s): %v", f.name, err)
 		}
+		if f.name == "IMG_0002.heic" {
+			heixFile = file.BlobRef()
+		}
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "9"
+	want[keySchemaVersion.name] = "10"
 
 	// The test needs files with new rows to upgrade: both Apple images
-	// (including the HEIC, with its EXIF item) and the videos.
+	// (including the HEIC, with its EXIF item), the videos, and the heix
+	// HEIC file.
 	tagRow := func(data []byte, tag string) string { return keyMediaTag.Key(blob.RefFromBytes(data), tag) }
 	for _, row := range []string{
 		tagRow(files[0].data, MediaTagPhotoIdentifier),
@@ -149,10 +160,17 @@ func TestAddMediaTags(t *testing.T) {
 		tagRow(threeGP, MediaTagHeight),
 		tagRow(aviFile, MediaTagWidth),
 		tagRow(aviFile, MediaTagDurationMS),
+		tagRow(heix, MediaTagPhotoIdentifier),
+		keyImageSize.Key(heixFile),
+		keyEXIFGPS.Key(blob.RefFromBytes(heix)),
 	} {
 		if _, ok := want[row]; !ok {
-			t.Fatalf("version 9 indexing added no row %q", row)
+			t.Fatalf("version 10 indexing added no row %q", row)
 		}
+	}
+	heixInfo := keyFileInfo.Key(heixFile)
+	if !strings.Contains(want[heixInfo], "|image%2Fheic|") {
+		t.Fatalf("heix file's %s row = %q; want image/heic", heixInfo, want[heixInfo])
 	}
 	if got, want := want[tagRow(mov, MediaTagWidth)]+"x"+want[tagRow(mov, MediaTagHeight)], "1080x1920"; got != want {
 		t.Errorf("rotated video size = %s; want %s", got, want)
@@ -179,14 +197,40 @@ func TestAddMediaTags(t *testing.T) {
 		return false
 	}
 
-	for _, from := range []int{7, 8} {
+	// Rows of the heix file that version 10 indexes and earlier ones don't:
+	// its image size, and its contents' rows (such as EXIF), except the
+	// one mapping them to the file. Earlier versions indexed it as
+	// image/heif, by its name, and with only its modification time.
+	heixWhole := blob.RefFromBytes(heix).String()
+	isV10Row := func(k string) bool {
+		return k == keyImageSize.Key(heixFile) ||
+			strings.Contains(k, "|"+heixWhole) && !strings.HasPrefix(k, keyWholeToFileRef.name+"|")
+	}
+	heixTimes := keyFileTimes.Key(heixFile)
+	v9Value := func(k, v string) string {
+		switch k {
+		case heixInfo:
+			return strings.Replace(v, "|image%2Fheic|", "|image%2Fheif|", 1)
+		case heixTimes:
+			// Its modification time, without its EXIF ones.
+			modTime, _, _ := strings.Cut(v, "%2C")
+			if want := url.QueryEscape(time.Unix(1700000000, 0).UTC().Format(time.RFC3339)); modTime != want {
+				t.Fatalf("heix file's %s row = %q; want it to start with %q", k, v, want)
+			}
+			return modTime
+		}
+		return v
+	}
+
+	for _, from := range []int{7, 8, 9} {
 		t.Run(fmt.Sprintf("from%d", from), func(t *testing.T) {
 			kv := sorted.NewMemoryKeyValue()
 			t.Cleanup(func() { kv.Close() })
 			for k, v := range want {
-				if isV9Row(k) || from == 7 && isV8Row(k) {
+				if isV10Row(k) || from < 9 && isV9Row(k) || from == 7 && isV8Row(k) {
 					continue
 				}
+				v = v9Value(k, v)
 				if k == keySchemaVersion.name {
 					v = fmt.Sprint(from)
 				}

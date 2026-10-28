@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,58 +37,67 @@ import (
 // isMediaTagsUpgrade reports whether an index of schemaVersion can be
 // upgraded to the required version by addMediaTags, without a reindex.
 func isMediaTagsUpgrade(schemaVersion int) bool {
-	return (schemaVersion == 7 || schemaVersion == 8) && requiredSchemaVersion == 9
+	return schemaVersion >= 7 && schemaVersion <= 9 && requiredSchemaVersion == 10
 }
 
-var errMissingMediaTags = errors.New("index: missing the media tags of index schema version 9")
+var errMissingMediaTags = errors.New("index: missing the rows of index schema versions 8 to 10")
 
-// mediaTagFile is a file that may have media tags or a location added in
-// index schema version 8 or 9.
+// mediaTagFile is a file that may have rows added in index schema
+// versions 8 to 10.
 type mediaTagFile struct {
-	fileRef  blob.Ref // any of the files with wholeRef
+	fileRef  blob.Ref // for videos and Apple images, any of the files with wholeRef
 	wholeRef blob.Ref
 	mimeType string
-	video    bool // a video that indexVideo indexes; otherwise an Apple image
+	video    bool // a video that indexVideo indexes
+	// heic is whether it's a HEIC file that version 9 indexes took to be
+	// some other type, which populateFile reindexes whole.
+	heic bool
+	// Otherwise, it's an Apple image.
 }
 
 // mediaTagBatchSize is how many files' rows addMediaTags commits at once.
 const mediaTagBatchSize = 500
 
-// addMediaTags upgrades a version 7 or 8 index to version 9. Version 8
-// added media tags from Apple MakerNotes and QuickTime metadata, and video
-// locations; version 9 adds video sizes, and indexes 3GPP and AVI videos
-// too. Otherwise they index the same rows as version 7. Only videos, and
-// for version 7 also images whose EXIF Make is Apple, can have the new
-// rows, so rather than reindexing everything, addMediaTags reads just
-// those files with the same code as populateFile, then sets the schema
-// version. It's idempotent, so if it's interrupted, the next start runs
-// it again.
+// addMediaTags upgrades a version 7, 8, or 9 index to version 10. Version
+// 8 added media tags from Apple MakerNotes and QuickTime metadata, and
+// video locations; version 9 adds video sizes, and indexes 3GPP and AVI
+// videos too; version 10 recognizes HEIC files by any of their HEVC
+// brands, such as those of photos that iOS saves after editing, which
+// earlier versions indexed as image/heif, by their names, without their
+// image rows. Otherwise they index the same rows as version 7. Only
+// videos, images whose EXIF Make is Apple, and such HEIC files can have
+// the new rows, so rather than reindexing everything, addMediaTags reads
+// just those files with the same code as populateFile, then sets the
+// schema version. It's idempotent, so if it's interrupted, the next start
+// runs it again.
 func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err error) {
 	from := x.schemaVersion()
 	// Like fixMissingWholeRef, guard against misuse.
 	if !isMediaTagsUpgrade(from) {
-		panic("addMediaTags should only be used when upgrading from v7 or v8 to v9 of the index schema")
+		panic("addMediaTags should only be used when upgrading from v7, v8, or v9 to v10 of the index schema")
 	}
 	start := time.Now()
-	x.logf("upgrading index schema from version %d to %d by adding media tags...", from, requiredSchemaVersion)
+	x.logf("upgrading index schema from version %d to %d by adding media rows...", from, requiredSchemaVersion)
 	defer func() {
 		if err != nil {
-			x.logf("adding media tags failed: %v", err)
+			x.logf("adding media rows failed: %v", err)
 		}
 	}()
 
-	// Version 8 indexes already have the Apple images' media tags.
-	files, err := x.mediaTagFiles(from == 7)
+	files, err := x.mediaTagFiles(from)
 	if err != nil {
 		return err
 	}
-	var videos int
+	var videos, heics int
 	for _, f := range files {
-		if f.video {
+		switch {
+		case f.video:
 			videos++
+		case f.heic:
+			heics++
 		}
 	}
-	x.logf("adding media tags of %d videos and %d Apple images...", videos, len(files)-videos)
+	x.logf("adding media rows of %d videos, %d Apple images, and %d HEIC files...", videos, len(files)-videos-heics, heics)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -103,7 +113,7 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 					// Like a failed reindex of the file, which
 					// wouldn't have these rows either.
 					if failed.Add(1) <= 10 {
-						x.logf("adding media tags of %v: %v", f.fileRef, err)
+						x.logf("adding media rows of %v: %v", f.fileRef, err)
 					}
 				}
 				select {
@@ -155,7 +165,7 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 		}
 		select {
 		case <-ticker.C:
-			x.logf("added media tags of %d of %d files", done, len(files))
+			x.logf("added media rows of %d of %d files", done, len(files))
 		default:
 		}
 	}
@@ -175,10 +185,15 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 // appleMakeKeySuffix ends the keyEXIFTag keys of images' IFD0 Make tags.
 var appleMakeKeySuffix = fmt.Sprintf("|%d|%04x", exifIFD0, 0x010f)
 
-// mediaTagFiles returns the files whose contents can have media tags or
-// locations added in index schema versions 8 and 9, one file per content:
-// videos and, if withApple, images whose EXIF Make is Apple.
-func (x *Index) mediaTagFiles(withApple bool) (files []mediaTagFile, err error) {
+// mediaTagFiles returns the files that can have rows added in upgrading an
+// index from schema version from: videos, and images whose EXIF Make is
+// Apple, one file per content, for indexes before versions 9 and 8; and
+// every file that version 9 indexes didn't take to be HEIC but may be:
+// those indexed as image/heif, by their names, or named as HEIC.
+func (x *Index) mediaTagFiles(from int) (files []mediaTagFile, err error) {
+	// Version 8 indexes already have the Apple images' media tags, and
+	// version 9 ones the videos' too.
+	withApple, withVideos := from < 8, from < 9
 	var vals []string
 
 	// Apple images, by their indexed EXIF Make.
@@ -203,7 +218,7 @@ func (x *Index) mediaTagFiles(withApple bool) (files []mediaTagFile, err error) 
 		return nil, err
 	}
 
-	// The files with those contents, and videos.
+	// The files with those contents, videos, and possible HEIC files.
 	seen := make(map[blob.Ref]bool)
 	it = x.queryPrefix(keyFileInfo)
 	defer closeIterator(it, &err)
@@ -218,11 +233,20 @@ func (x *Index) mediaTagFiles(withApple bool) (files []mediaTagFile, err error) 
 			continue
 		}
 		wholeRef, ok := blob.Parse(urld(vals[3]))
-		if !ok || seen[wholeRef] {
+		if !ok {
 			continue
 		}
 		mimeType := urld(vals[2])
-		video := isIndexedVideoMIME(mimeType)
+		if maybeMissedHEIC(urld(vals[1]), mimeType) {
+			// Each file's own rows, such as this fileinfo one,
+			// need reindexing, not just its contents'.
+			files = append(files, mediaTagFile{fileRef: fileRef, wholeRef: wholeRef, mimeType: mimeType, heic: true})
+			continue
+		}
+		if seen[wholeRef] {
+			continue
+		}
+		video := withVideos && isIndexedVideoMIME(mimeType)
 		if !video && !apple[wholeRef] {
 			continue
 		}
@@ -232,8 +256,21 @@ func (x *Index) mediaTagFiles(withApple bool) (files []mediaTagFile, err error) 
 	return files, nil
 }
 
-// addFileMediaTags adds to mm the media tags and location of f's contents
-// that populateFile indexes for schema versions 8 and 9.
+// maybeMissedHEIC reports whether a file indexed by a version 9 index with
+// fileName and mimeType may be a HEIC file that it didn't recognize: one
+// indexed as image/heif, which files named ".heic" or ".heif" that aren't
+// sniffed as HEIC are, or otherwise named as HEIC but not indexed so.
+func maybeMissedHEIC(fileName, mimeType string) bool {
+	if mimeType == "image/heif" {
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(fileName))
+	return (ext == ".heic" || ext == ".heif") && mimeType != "image/heic"
+}
+
+// addFileMediaTags adds to mm the rows of f that populateFile indexes for
+// schema versions 8 to 10: for HEIC files, all of them, and otherwise the
+// media tags and location of f's contents.
 func (x *Index) addFileMediaTags(ctx context.Context, fetcher blob.Fetcher, f mediaTagFile, mm *mutationMap) error {
 	rc, _, err := fetcher.Fetch(ctx, f.fileRef)
 	if err != nil {
@@ -243,6 +280,9 @@ func (x *Index) addFileMediaTags(ctx context.Context, fetcher blob.Fetcher, f me
 	rc.Close()
 	if err != nil {
 		return err
+	}
+	if f.heic {
+		return x.populateFile(ctx, &missTrackFetcher{fetcher: fetcher}, b, mm)
 	}
 	fr, err := b.NewFileReader(fetcher)
 	if err != nil {

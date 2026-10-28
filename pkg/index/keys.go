@@ -34,8 +34,9 @@ import (
 // Reindexing is required because earlier versions silently ignored multi claims.
 // Version 8: media tags from Apple MakerNotes and QuickTime metadata; video locations
 // Version 9: video sizes as media tags, and 3GPP and AVI video media tags.
-// Versions 7 and 8 are upgraded at startup, by addMediaTags.
-const requiredSchemaVersion = 9
+// Version 10: HEIC files recognized by any of their HEVC brands, major or compatible.
+// Versions 7 to 9 are upgraded at startup, by addMediaTags.
+const requiredSchemaVersion = 10
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
