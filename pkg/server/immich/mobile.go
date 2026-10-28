@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -572,6 +573,9 @@ func (h *Handler) serveMobileAck(w http.ResponseWriter, r *http.Request) {
 		immichError(w, status, "Cannot update sync acknowledgements")
 		return
 	}
+	if r.Method == http.MethodPost {
+		log.Printf("immich: sync ack from %s: %q", r.RemoteAddr, set.Acks)
+	}
 	if status == 204 {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
@@ -645,14 +649,19 @@ func (h *Handler) serveMobileSync(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	encoder := json.NewEncoder(w)
+	progress := newMobileSyncProgress(r, request.Types, request.Reset, cursors, sequence)
+	defer progress.done()
+	cw := &countingWriter{w: w}
+	encoder := json.NewEncoder(cw)
 	write := func(event immichMobileSyncEvent) {
+		start := time.Now()
 		if r.Context().Err() != nil || encoder.Encode(event) != nil {
 			panic(http.ErrAbortHandler)
 		}
 		if flusher, ok := w.(http.Flusher); ok {
 			flusher.Flush()
 		}
+		progress.wrote(event.Type, cw.n, time.Since(start))
 	}
 	emit := func(t string, n, index uint64, data any) {
 		cursor := immichMobileCursor{Type: t, Sequence: n, Index: index}
@@ -771,7 +780,79 @@ func (h *Handler) serveMobileSync(w http.ResponseWriter, r *http.Request) {
 		write(immichMobileSyncEvent{Type: "SyncAckV1", Data: map[string]any{}, Ack: ack})
 	}
 	write(immichMobileSyncEvent{Type: "SyncCompleteV1", Data: map[string]any{}, Ack: fmt.Sprintf("SyncCompleteV1|%d", sequence)})
+	progress.completed = true
 	// Sending is not acknowledging: only POST /sync/ack changes the cursor.
+}
+
+// mobileSyncLogInterval is how often a sync stream logs its progress.
+const mobileSyncLogInterval = 10 * time.Second
+
+// mobileSyncProgress logs a sync stream's progress, including how long it
+// has spent writing events, which is mostly waiting for the client to read
+// them. That distinguishes a slow client from a slow server.
+type mobileSyncProgress struct {
+	remote    string
+	start     time.Time
+	lastLog   time.Time
+	events    int64
+	bytes     int64
+	writing   time.Duration // time spent encoding, writing and flushing events
+	lastType  string        // type of the most recently written event
+	completed bool          // whether SyncCompleteV1 was written
+}
+
+func newMobileSyncProgress(r *http.Request, types []string, reset bool, cursors map[string]immichMobileCursor, sequence uint64) *mobileSyncProgress {
+	now := time.Now()
+	p := &mobileSyncProgress{remote: r.RemoteAddr, start: now, lastLog: now}
+	from := make([]string, 0, len(cursors))
+	for t, c := range cursors {
+		from = append(from, fmt.Sprintf("%s=%d", t, c.Sequence))
+	}
+	sort.Strings(from)
+	log.Printf("immich: sync stream from %s (%s) started: types %v, reset=%v, from %v to sequence %d",
+		p.remote, r.Proto, types, reset, from, sequence)
+	return p
+}
+
+// wrote records that an event of type typ was written, bringing the total
+// written to bytes, in d.
+func (p *mobileSyncProgress) wrote(typ string, bytes int64, d time.Duration) {
+	p.events++
+	p.bytes = bytes
+	p.writing += d
+	p.lastType = typ
+	if now := time.Now(); now.Sub(p.lastLog) >= mobileSyncLogInterval {
+		p.lastLog = now
+		p.logf("in progress")
+	}
+}
+
+// done logs the end of the stream, which wasn't completed if the client
+// went away or writing failed.
+func (p *mobileSyncProgress) done() {
+	if p.completed {
+		p.logf("completed")
+	} else {
+		p.logf("aborted")
+	}
+}
+
+func (p *mobileSyncProgress) logf(state string) {
+	log.Printf("immich: sync stream from %s %s: %d events (%d bytes) in %v, %v of it writing; last event %s",
+		p.remote, state, p.events, p.bytes, time.Since(p.start).Round(time.Millisecond),
+		p.writing.Round(time.Millisecond), p.lastType)
+}
+
+// countingWriter counts the bytes written to w.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (cw *countingWriter) Write(p []byte) (int, error) {
+	n, err := cw.w.Write(p)
+	cw.n += int64(n)
+	return n, err
 }
 
 func immichMobileAsset(a immichAsset, ownerID, version string) (map[string]any, error) {
