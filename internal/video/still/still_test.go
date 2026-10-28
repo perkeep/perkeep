@@ -153,18 +153,27 @@ func TestDecodeMJPEG(t *testing.T) {
 
 func TestUnsupported(t *testing.T) {
 	for _, tt := range []struct{ name, mimeType string }{
-		{"h264.mp4", "video/mp4"},
 		{"gen.sh", "video/quicktime"},
 		{"gen.sh", "video/x-msvideo"},
-		{"fade.mov", "video/webm"},
+		{"fade.mov", "video/x-unknown"},
 	} {
 		if _, err := openTestdata(t, tt.name, tt.mimeType); !errors.Is(err, ErrUnsupported) {
 			t.Errorf("Open(%s as %s) error = %v; want ErrUnsupported", tt.name, tt.mimeType, err)
 		}
 	}
-	if !Supported("video/quicktime") || !Supported("video/x-msvideo") || Supported("video/webm") {
-		t.Error("Supported is wrong")
-	}
+	withoutFFmpeg(func() {
+		for _, tt := range []struct{ name, mimeType string }{
+			{"h264.mp4", "video/mp4"},
+			{"vp8.webm", "video/webm"},
+		} {
+			if _, err := openTestdata(t, tt.name, tt.mimeType); !errors.Is(err, ErrUnsupported) {
+				t.Errorf("without ffmpeg, Open(%s as %s) error = %v; want ErrUnsupported", tt.name, tt.mimeType, err)
+			}
+		}
+		if !Supported("video/quicktime") || !Supported("video/x-msvideo") || Supported("video/webm") {
+			t.Error("without ffmpeg, Supported is wrong")
+		}
+	})
 
 	// Files that aren't what their MIME types say, as indexed by their
 	// names: garbage, and an ASF (WMV) header.
@@ -176,8 +185,14 @@ func TestUnsupported(t *testing.T) {
 		{append([]byte{0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11}, make([]byte, 100)...), "video/vnd.avi"},
 		{[]byte("\x00\x00\x00\x08moov"), "video/quicktime"}, // an empty movie
 	} {
-		if _, err := Open(bytes.NewReader(tt.data), int64(len(tt.data)), tt.mimeType); !errors.Is(err, ErrUnsupported) {
-			t.Errorf("Open(%q as %s) error = %v; want ErrUnsupported", tt.data[:8], tt.mimeType, err)
+		// With ffmpeg, the ASF one is found unsupported only when
+		// ffmpeg reads it.
+		v, err := Open(bytes.NewReader(tt.data), int64(len(tt.data)), tt.mimeType)
+		if err == nil {
+			_, err = v.Decode()
+		}
+		if !errors.Is(err, ErrUnsupported) {
+			t.Errorf("Open and Decode(%q as %s) error = %v; want ErrUnsupported", tt.data[:8], tt.mimeType, err)
 		}
 	}
 }

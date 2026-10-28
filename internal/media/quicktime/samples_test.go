@@ -50,9 +50,13 @@ func testTables() *sampleTables {
 
 func TestSyncSamples(t *testing.T) {
 	ms := time.Millisecond
-	want := []Sample{{Time: 0, Offset: 1000, Size: 10}, {Time: 300 * ms, Offset: 2030, Size: 40}}
+	// smp returns a Sample without its next sample.
+	smp := func(t time.Duration, offset, size int64) Sample {
+		return Sample{Time: t, Offset: offset, Size: size}
+	}
+	want := []Sample{smp(0, 1000, 10), smp(300*ms, 2030, 40)}
 	all := []Sample{
-		{0, 1000, 10}, {100 * ms, 1010, 20}, {200 * ms, 2000, 30}, {300 * ms, 2030, 40}, {500 * ms, 2070, 50},
+		smp(0, 1000, 10), smp(100*ms, 1010, 20), smp(200*ms, 2000, 30), smp(300*ms, 2030, 40), smp(500*ms, 2070, 50),
 	}
 	stz2 := func(field byte, vals ...byte) []byte {
 		return append([]byte{0, 0, 0, 0, 0, 0, 0, field, 0, 0, 0, 5}, vals...)
@@ -73,18 +77,18 @@ func TestSyncSamples(t *testing.T) {
 		{"stz2 4", func(st *sampleTables) {
 			// Sizes 1, 2, 3, 4, and 5, two to a byte.
 			st.stsz, st.stz2 = nil, stz2(4, 0x12, 0x34, 0x50)
-		}, []Sample{{0, 1000, 1}, {300 * ms, 2003, 4}}},
+		}, []Sample{smp(0, 1000, 1), smp(300*ms, 2003, 4)}},
 		{"uniform stsz", func(st *sampleTables) {
 			st.stsz = append(make([]byte, 4), append(u32(7), u32(5)...)...)
-		}, []Sample{{0, 1000, 7}, {300 * ms, 2007, 7}}},
+		}, []Sample{smp(0, 1000, 7), smp(300*ms, 2007, 7)}},
 		{"ctts", func(st *sampleTables) {
 			// Sample 1 is presented 0.2 seconds late, the rest 0.1.
 			st.ctts = table(2, 1, 200, 4, 100)
-		}, []Sample{{200 * ms, 1000, 10}, {400 * ms, 2030, 40}}},
+		}, []Sample{smp(200*ms, 1000, 10), smp(400*ms, 2030, 40)}},
 		{"ctts v1", func(st *sampleTables) {
 			st.ctts = table(2, 3, 50, 2, 0xffffff9c) // 50, then -100
 			st.ctts[0] = 1
-		}, []Sample{{50 * ms, 1000, 10}, {200 * ms, 2030, 40}}},
+		}, []Sample{smp(50*ms, 1000, 10), smp(200*ms, 2030, 40)}},
 	} {
 		st := testTables()
 		tt.modify(st)
@@ -93,8 +97,43 @@ func TestSyncSamples(t *testing.T) {
 			t.Errorf("%s: %v", tt.name, err)
 			continue
 		}
+		if tt.name == "stsz" {
+			if g := got[0]; g.NextOffset != 1010 || g.NextSize != 20 {
+				t.Errorf("first sync sample's next sample = %d, %d; want 1010, 20", g.NextOffset, g.NextSize)
+			}
+			if g := got[1]; g.NextOffset != 2070 || g.NextSize != 50 {
+				t.Errorf("second sync sample's next sample = %d, %d; want 2070, 50", g.NextOffset, g.NextSize)
+			}
+		}
+		for i := range got {
+			got[i].NextOffset, got[i].NextSize = 0, 0
+		}
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%s: syncSamples = %+v; want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// TestBadSyncSampleTable tests that tracks with bad sync sample tables
+// have just their first samples as sync samples.
+func TestBadSyncSampleTable(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		stss []byte
+	}{
+		{"sync sample 0", table(1, 0)},
+		{"sync sample past end", table(1, 6)},
+		{"sync samples out of order", table(2, 4, 1)},
+		{"stss too short", table(3, 1, 4)},
+	} {
+		st := testTables()
+		st.stss = tt.stss
+		if _, err := st.syncSampleIndexes(5); err == nil {
+			t.Errorf("%s: syncSampleIndexes succeeded; want error", tt.name)
+		}
+		got, err := st.syncSamples(1000, 0)
+		if err != nil || len(got) != 1 || got[0].Offset != 1000 {
+			t.Errorf("%s: syncSamples = %+v, %v; want just the first sample", tt.name, got, err)
 		}
 	}
 }
@@ -108,10 +147,6 @@ func TestSyncSamplesErrors(t *testing.T) {
 		{"no stco", func(st *sampleTables) { st.stco = nil }},
 		{"no stsc", func(st *sampleTables) { st.stsc = nil }},
 		{"no stts", func(st *sampleTables) { st.stts = nil }},
-		{"sync sample 0", func(st *sampleTables) { st.stss = table(1, 0) }},
-		{"sync sample past end", func(st *sampleTables) { st.stss = table(1, 6) }},
-		{"sync samples out of order", func(st *sampleTables) { st.stss = table(2, 4, 1) }},
-		{"stss too short", func(st *sampleTables) { st.stss = table(3, 1, 4) }},
 		{"stsc chunk 0", func(st *sampleTables) { st.stsc = table(1, 0, 5, 1) }},
 		{"stsc past chunks", func(st *sampleTables) { st.stsc = table(2, 1, 2, 1, 9, 3, 1) }},
 		{"stsc too few samples", func(st *sampleTables) { st.stsc = table(1, 1, 1, 1) }},
@@ -130,7 +165,11 @@ func TestSyncSamplesErrors(t *testing.T) {
 	// Presentation starting at media time 0.2 seconds, per an edit
 	// list, which moves the first sample to before the start.
 	got, err := testTables().syncSamples(1000, 200)
-	if want := []Sample{{0, 1000, 10}, {100 * time.Millisecond, 2030, 40}}; err != nil || !reflect.DeepEqual(got, want) {
+	want := []Sample{
+		{Time: 0, Offset: 1000, Size: 10, NextOffset: 1010, NextSize: 20},
+		{Time: 100 * time.Millisecond, Offset: 2030, Size: 40, NextOffset: 2070, NextSize: 50},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("syncSamples from 200 = %+v, %v; want %+v", got, err, want)
 	}
 }

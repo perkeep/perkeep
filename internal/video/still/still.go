@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package still decodes still images of videos, for thumbnails, without
-// external programs. It decodes HEVC keyframes of QuickTime, MP4, and
-// 3GPP videos with the HEIF decoder of github.com/gen2brain/heic, and
-// Motion JPEG frames of AVI videos. Other videos are unsupported.
+// Package still decodes still images of videos, for thumbnails. In
+// process, it decodes HEVC keyframes of QuickTime, MP4, and 3GPP videos
+// with the HEIF decoder of github.com/gen2brain/heic, and Motion JPEG
+// frames of AVI videos.
+//
+// If ffmpeg is installed, it also decodes keyframes of other codecs in
+// QuickTime, MP4, and 3GPP videos (H.264, H.263, MPEG-4 Part 2, and
+// Motion JPEG) with it, giving it just the keyframe, and videos of other
+// formats, such as WMV and WebM, which it reads whole.
 package still // import "perkeep.org/internal/video/still"
 
 import (
@@ -50,7 +55,7 @@ const tries = 3
 // Video is a video opened by Open.
 type Video struct {
 	// Width and Height are the size of the decoded still, after any
-	// rotation.
+	// rotation, or for videos that ffmpeg reads whole, its maximum.
 	Width, Height int
 
 	r        io.ReaderAt
@@ -59,7 +64,8 @@ type Video struct {
 	decode   func(data []byte) (image.Image, error)
 	color    *colorConversion // for decoded frames, or nil
 
-	// decodeAt, if non-nil, replaces decodeFrame, for tests.
+	// decodeAt, if non-nil, replaces decodeFrame's reading and decoding
+	// of frames: for tests, and for videos that ffmpeg decodes.
 	decodeAt func(frame) (image.Image, error)
 }
 
@@ -68,12 +74,20 @@ type frame struct {
 	time   time.Duration
 	offset int64
 	size   int64
+
+	// nextOffset and nextSize are of the frame's next sample, if
+	// known, for interlaced video whose samples are fields.
+	nextOffset, nextSize int64
 }
 
 // Supported reports whether Open supports videos of mimeType, at least
 // for some codecs.
 func Supported(mimeType string) bool {
-	return isQuickTime(mimeType) || isAVI(mimeType)
+	if isQuickTime(mimeType) || isAVI(mimeType) {
+		return true
+	}
+	_, ok := ffmpegDemuxers[mimeType]
+	return ok && ffmpegPath() != ""
 }
 
 func isQuickTime(mimeType string) bool {
@@ -103,8 +117,15 @@ func Open(r io.ReaderAt, size int64, mimeType string) (*Video, error) {
 		v, err = openQuickTime(r, size)
 	case isAVI(mimeType):
 		v, err = openAVI(r, size)
+	case ffmpegDemuxers[mimeType] != "":
+		v, err = openStream(r, size, ffmpegDemuxers[mimeType])
 	default:
 		return nil, ErrUnsupported
+	}
+	if err != nil && ffmpegPath() != "" {
+		if format := sniffDemuxer(r); format != "" && format != ffmpegDemuxers[mimeType] {
+			return openStream(r, size, format)
+		}
 	}
 	if err != nil && !errors.Is(err, ErrUnsupported) {
 		// Files of video MIME types that can't be parsed, such as
@@ -122,17 +143,50 @@ func openQuickTime(r io.ReaderAt, size int64) (*Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	// HEVC with its parameter sets in its decoder configuration, as
-	// HEIF decoders require: "hvc1", but not "hev1".
-	if vt.Codec != "hvc1" || vt.Config == nil || vt.Width <= 0 || vt.Height <= 0 {
+	if vt.Width <= 0 || vt.Height <= 0 {
 		return nil, ErrUnsupported
 	}
-	// HEIF decoders convert the frames' Y'CbCr, but not from HDR or wide
+	// The decoders convert the frames' Y'CbCr, but not from HDR or wide
 	// color primaries, which is done here.
 	v := &Video{r: r, duration: vt.Duration, color: newColorConversion(vt.ColorInfo)}
 	v.Width, v.Height = vt.DisplaySize()
 	for _, s := range vt.SyncSamples {
-		v.frames = append(v.frames, frame{time: s.Time, offset: s.Offset, size: s.Size})
+		v.frames = append(v.frames, frame{time: s.Time, offset: s.Offset, size: s.Size, nextOffset: s.NextOffset, nextSize: s.NextSize})
+	}
+	// HEVC with its parameter sets in its decoder configuration, as
+	// HEIF decoders require: "hvc1", but not "hev1".
+	if vt.Codec != "hvc1" || vt.Config == nil {
+		es, ok := trackStream(vt)
+		if !ok || ffmpegPath() == "" {
+			return nil, ErrUnsupported
+		}
+		filters := trackFilters(vt)
+		v.decodeAt = func(f frame) (image.Image, error) {
+			input := es.header[:len(es.header):len(es.header)]
+			add := func(offset, size int64) error {
+				data, err := v.read(offset, size)
+				if err != nil {
+					return err
+				}
+				sample, err := es.sample(data)
+				input = append(input, sample...)
+				return err
+			}
+			if err := add(f.offset, f.size); err != nil {
+				return nil, err
+			}
+			im, err := runFFmpeg(es.format, bytes.NewReader(input), filters)
+			if errors.Is(err, errNoFrame) && f.nextSize > 0 {
+				// Interlaced video, whose keyframe is just its first
+				// field.
+				if err := add(f.nextOffset, f.nextSize); err != nil {
+					return nil, err
+				}
+				im, err = runFFmpeg(es.format, bytes.NewReader(input), filters)
+			}
+			return im, err
+		}
+		return v, nil
 	}
 	props := []heif.Property{
 		{Box: vt.Config, Essential: true},
@@ -169,7 +223,10 @@ func openAVI(r io.ReaderAt, size int64) (*Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !strings.EqualFold(h.Codec, "MJPG") || h.Width <= 0 || h.Height <= 0 {
+	if !strings.EqualFold(h.Codec, "MJPG") {
+		return openStream(r, size, "avi")
+	}
+	if h.Width <= 0 || h.Height <= 0 {
 		return nil, ErrUnsupported
 	}
 	frames, err := avi.Frames(r, size, h.VideoStream)
@@ -183,6 +240,30 @@ func openAVI(r io.ReaderAt, size int64) (*Video, error) {
 	return v, nil
 }
 
+// openStream opens a video that ffmpeg reads whole, from its start, of
+// the given ffmpeg format. Its still is its first frame at or after a
+// second, or else its first frame, of at most maxStreamSide pixels wide
+// and high.
+func openStream(r io.ReaderAt, size int64, format string) (*Video, error) {
+	if ffmpegPath() == "" {
+		return nil, ErrUnsupported
+	}
+	scale := fmt.Sprintf(`scale=w=min(iw\,%d):h=min(ih\,%[1]d):force_original_aspect_ratio=decrease`, maxStreamSide)
+	v := &Video{Width: maxStreamSide, Height: maxStreamSide, frames: []frame{{}}}
+	v.decodeAt = func(frame) (image.Image, error) {
+		im, err := runFFmpeg(format, io.NewSectionReader(r, 0, size), `select=gte(t\,1),`+scale)
+		if err != nil && !errors.Is(err, errNoFrame) {
+			return nil, err
+		}
+		if err != nil {
+			// Shorter than a second.
+			im, err = runFFmpeg(format, io.NewSectionReader(r, 0, size), scale)
+		}
+		return im, err
+	}
+	return v, nil
+}
+
 // Decode decodes a still of the video: its first decodable frame at or
 // after the lesser of a second and a tenth of its duration, or failing
 // that, its first decodable frame. If that frame is nearly black or of
@@ -191,7 +272,7 @@ func openAVI(r io.ReaderAt, size int64) (*Video, error) {
 // varied one.
 func (v *Video) Decode() (image.Image, error) {
 	if len(v.frames) == 0 {
-		return nil, errors.New("still: video has no decodable frames")
+		return nil, fmt.Errorf("%w: video has no decodable frames", ErrUnsupported)
 	}
 	step := time.Second
 	if v.duration > 0 {
@@ -251,14 +332,23 @@ func (v *Video) decodeFrame(f frame) (image.Image, error) {
 	if v.decodeAt != nil {
 		return v.decodeAt(f)
 	}
-	if f.size <= 0 || f.size > maxFrameSize {
-		return nil, fmt.Errorf("still: bad frame size %d", f.size)
-	}
-	data := make([]byte, f.size)
-	if _, err := v.r.ReadAt(data, f.offset); err != nil {
-		return nil, fmt.Errorf("still: reading frame: %w", err)
+	data, err := v.read(f.offset, f.size)
+	if err != nil {
+		return nil, err
 	}
 	return v.decode(data)
+}
+
+// read returns the coded frame data at offset, of size bytes.
+func (v *Video) read(offset, size int64) ([]byte, error) {
+	if size <= 0 || size > maxFrameSize {
+		return nil, fmt.Errorf("still: bad frame size %d", size)
+	}
+	data := make([]byte, size)
+	if _, err := v.r.ReadAt(data, offset); err != nil {
+		return nil, fmt.Errorf("still: reading frame: %w", err)
+	}
+	return data, nil
 }
 
 // blank reports whether an image of the given luma mean and standard

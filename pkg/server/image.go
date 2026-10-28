@@ -423,7 +423,13 @@ func (ih *ImageHandler) videoStill(ctx context.Context, fileRef blob.Ref, mimeTy
 	}
 	im, err := v.Decode()
 	if err != nil {
-		videoStillErr.Add(1)
+		// Videos that ffmpeg can't decode are only found to be
+		// unsupported here.
+		if errors.Is(err, still.ErrUnsupported) {
+			videoStillUnsupported.Add(1)
+		} else {
+			videoStillErr.Add(1)
+		}
 		return nil, err
 	}
 	videoStillOK.Add(1)

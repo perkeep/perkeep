@@ -26,6 +26,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"os"
+	"os/exec"
 	"testing"
 
 	"perkeep.org/internal/video/still"
@@ -71,18 +72,27 @@ func TestScaleImageVideo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// H.264 videos are decoded with ffmpeg, if it's installed.
 	ih, ref := jpegScaleTestFile(t, data, 1<<20, 32, 32)
 	unsupported := videoStillUnsupported.Value()
-	if _, _, err := ih.ScaleImage(context.Background(), ref); !errors.Is(err, still.ErrUnsupported) {
-		t.Errorf("ScaleImage of H.264 video: %v; want still.ErrUnsupported", err)
-	}
-	if got := videoStillUnsupported.Value() - unsupported; got != 1 {
-		t.Errorf("unsupported videos = %d; want 1", got)
+	_, _, err = ih.ScaleImage(context.Background(), ref)
+	if _, lookErr := exec.LookPath("ffmpeg"); lookErr == nil {
+		if err != nil {
+			t.Errorf("ScaleImage of H.264 video: %v", err)
+		}
+	} else {
+		if !errors.Is(err, still.ErrUnsupported) {
+			t.Errorf("ScaleImage of H.264 video without ffmpeg: %v; want still.ErrUnsupported", err)
+		}
+		if got := videoStillUnsupported.Value() - unsupported; got != 1 {
+			t.Errorf("unsupported videos = %d; want 1", got)
+		}
 	}
 
 	// Files indexed as videos by their names, but that aren't, are
-	// unsupported rather than decoded as images.
-	ih, ref = jpegScaleTestFile(t, bytes.Repeat([]byte("not a video "), 100), 1<<20, 32, 32)
+	// unsupported rather than decoded as images. (ffmpeg, which reads
+	// WMV videos, has memory reserved for a still of up to 1920x1920.)
+	ih, ref = jpegScaleTestFile(t, bytes.Repeat([]byte("not a video "), 100), 32<<20, 32, 32)
 	if _, err := ih.scaleImage(context.Background(), ref, "video/3gpp", false); !errors.Is(err, still.ErrUnsupported) {
 		t.Errorf("scaleImage of a non-video indexed as a video: %v; want still.ErrUnsupported", err)
 	}
