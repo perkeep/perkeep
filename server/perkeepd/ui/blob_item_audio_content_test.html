@@ -1,0 +1,175 @@
+<!--
+Copyright 2026 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Audio tile tests</title>
+	<script src="closure/goog/base.js"></script>
+	<script src="deps.js"></script>
+	<script src="react/react-with-addons.min.js"></script>
+	<script src="react/react-dom.min.js"></script>
+	<script src="react/classnames.js"></script>
+	<script>
+		goog.require('goog.math.Size');
+		goog.require('cam.BlobItemAudioContent');
+	</script>
+	<link rel="stylesheet" href="fontawesome/css/font-awesome.min.css">
+	<link rel="stylesheet/less" href="index.css" type="text/css">
+	<link rel="stylesheet/less" href="blob_item.css" type="text/css">
+	<link rel="stylesheet/less" href="blob_item_audio.css" type="text/css">
+	<script src="less/less.js"></script>
+</head>
+<body class="cam-index-page">
+	<h1>Audio tile tests</h1>
+	<div id="status">Running…</div>
+	<pre id="errors"></pre>
+	<script>
+		// Uses the embedded React and Closure versions. Playback is mocked; no
+		// audio files or server-side data are required.
+		window.__audioTestResults = {passed: 0, failed: 0, errors: []};
+		window.onload = function() {
+			Promise.resolve(less.pageLoadFinished).then(run);
+		};
+		function run() {
+			var results = window.__audioTestResults;
+			// Use a local empty WAV rather than requesting synthetic blobrefs.
+			goog.global.CAMLISTORE_CONFIG = {downloadHelper: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=#'};
+			function assert(ok, message) { if (!ok) throw new Error(message || 'assertion failed'); }
+			function equal(expected, actual) { assert(expected === actual, 'expected ' + expected + ', got ' + actual); }
+			function test(name, fn) {
+				try { fn(); results.passed++; } catch (err) { results.failed++; results.errors.push(name + ': ' + err.message); }
+			}
+			function mount(tags, size, fn) {
+				var root = document.createElement('div');
+				root.className = 'cam-blobitem cam-blobitemcontainer-200';
+				document.body.appendChild(root);
+				var element = React.createElement(cam.BlobItemAudioContent, {blobref: 'sha1-test', filename: 'song.mp3', href: '/detail', size: new goog.math.Size(size, size), mediaTags: tags});
+				try { fn(root, ReactDOM.render(element, root), element); }
+				finally { ReactDOM.unmountComponentAtNode(root); root.remove(); }
+			}
+			function mediaEvent(audio, name) { audio.dispatchEvent(new Event(name)); }
+			test('title and metadata fallback', function() {
+				[null, {}, {artist: 'Artist'}, {album: 'Album'}].forEach(function(tags) {
+					mount(tags, 200, function(root) {
+						equal('song.mp3', root.querySelector('.cam-blobitem-thumbtitle').textContent);
+						var track = root.querySelector('.cam-blobitem-audio-trackinfo');
+						equal(tags && (tags.artist || tags.album) || null, track && track.textContent);
+					});
+				});
+				mount({title: 'Title', artist: 'Artist', album: 'Album'}, 200, function(root) {
+					equal('Title', root.querySelector('.cam-blobitem-thumbtitle').textContent);
+					equal('Artist / Album', root.querySelector('.cam-blobitem-audio-trackinfo').textContent);
+					equal('/detail', root.querySelector('a').getAttribute('href'));
+				});
+			});
+			test('metadata and icon fit the tile', function() {
+				[50, 75, 128, 200].forEach(function(size) {
+					[{}, {title: 'A long title for truncation', artist: 'An artist', album: 'An album'}].forEach(function(tags) {
+						mount(tags, size, function(root) {
+							var tile = root.firstChild.getBoundingClientRect();
+							var clip = root.querySelector('.cam-blobitem-thumbclip').getBoundingClientRect();
+							var icon = root.querySelector('.fa-volume-up').getBoundingClientRect();
+							var labels = root.querySelectorAll('.cam-blobitem-thumbtitle');
+							equal(size, tile.height);
+							assert(icon.top >= clip.top - 1 && icon.bottom <= clip.bottom + 1, 'icon outside preview');
+							assert(labels[labels.length - 1].getBoundingClientRect().bottom <= tile.bottom + 1, 'label outside tile');
+						});
+					});
+				});
+			});
+			test('small tiles retain the title and preview', function() {
+				mount({artist: 'Artist'}, 50, function(root) {
+					equal('song.mp3', root.querySelector('.cam-blobitem-thumbtitle').textContent);
+					equal(0, root.querySelectorAll('.cam-blobitem-audio-trackinfo').length);
+					assert(root.querySelector('.cam-blobitem-thumbclip').getBoundingClientRect().height > 0);
+				});
+			});
+			test('generic image thumbnails retain precedence', function() {
+				var root = document.createElement('div');
+				document.body.appendChild(root);
+				try {
+					ReactDOM.render(React.createElement(cam.BlobItemGenericContent, {href: '/detail', size: new goog.math.Size(200, 200), thumbSrc: 'file.png', thumbAspect: 1, thumbFAIcon: 'volume-up', title: 'File'}), root);
+					equal(1, root.querySelectorAll('img').length);
+					equal(0, root.querySelectorAll('.fa').length);
+				} finally {
+					ReactDOM.unmountComponentAtNode(root);
+					root.remove();
+				}
+			});
+			test('media events control button after repeated renders', function() {
+				mount({}, 200, function(root, instance, element) {
+					var audio = root.querySelector('audio');
+					for (var i = 0; i < 5; i++) ReactDOM.render(element, root);
+					var updates = 0, setState = instance.setState;
+					instance.setState = function() { updates++; return setState.apply(this, arguments); };
+					mediaEvent(audio, 'play');
+					equal(1, updates);
+					equal('Pause audio', root.querySelector('button').getAttribute('aria-label'));
+					mediaEvent(audio, 'pause');
+					equal('Play audio', root.querySelector('button').getAttribute('aria-label'));
+					['ended', 'error', 'emptied'].forEach(function(name) {
+						mediaEvent(audio, 'play'); mediaEvent(audio, name);
+						equal('Play audio', root.querySelector('button').getAttribute('aria-label'));
+					});
+				});
+			});
+			test('unmounted audio does not update its old component', function() {
+				var audio, instance, updates = 0;
+				mount({}, 200, function(root, component) {
+					audio = root.querySelector('audio');
+					instance = component;
+					instance.setState = function() { updates++; };
+				});
+				mediaEvent(audio, 'pause');
+				equal(0, updates);
+			});
+			test('rejected playback does not show pause', function() {
+				mount({}, 200, function(root) {
+					var audio = root.querySelector('audio'), caught = false;
+					audio.play = function() { return {catch: function(fn) { caught = true; fn(); }}; };
+					root.querySelector('button').click();
+					assert(caught, 'play rejection not handled');
+					equal('Play audio', root.querySelector('button').getAttribute('aria-label'));
+				});
+			});
+			test('click pauses active audio without optimistic state', function() {
+				mount({}, 200, function(root) {
+					var audio = root.querySelector('audio'), paused = false;
+					Object.defineProperty(audio, 'paused', {configurable: true, get: function() { return false; }});
+					audio.pause = function() { paused = true; };
+					mediaEvent(audio, 'play');
+					root.querySelector('button').click();
+					assert(paused, 'pause was not called');
+					equal('Pause audio', root.querySelector('button').getAttribute('aria-label'));
+					mediaEvent(audio, 'pause');
+					equal('Play audio', root.querySelector('button').getAttribute('aria-label'));
+				});
+			});
+			test('keyboard can focus the play button', function() {
+				mount({}, 200, function(root) {
+					var button = root.querySelector('button');
+					button.focus();
+					equal(button, document.activeElement);
+					equal('1', getComputedStyle(button).opacity);
+				});
+			});
+			document.getElementById('status').textContent = (results.failed ? 'FAIL: ' : 'PASS: ') + results.passed + ' passed, ' + results.failed + ' failed';
+			document.getElementById('errors').textContent = results.errors.join('\n');
+		}
+	</script>
+</body>
+</html>

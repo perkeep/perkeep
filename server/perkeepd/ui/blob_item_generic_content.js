@@ -70,18 +70,17 @@ cam.BlobItemGenericContent = React.createClass({
 		} else if (this.props.thumbFAIcon) {
 			return React.DOM.div({
 				className: 'cam-blobitem-thumb',
-				width: '100%',
-				height: '100%',
-			}, [
+				style: {width: '100%', height: '100%'},
+			},
 				React.DOM.i({
 					className: 'fa fa-' + this.props.thumbFAIcon,
 					style: {
-						fontSize: this.props.size.height / 1.5 + 'px',
-						lineHeight: this.props.size.height + 'px',
-						width: this.props.size.width,
+						fontSize: Math.min(thumbClipSize.width, thumbClipSize.height) / 1.5 + 'px',
+						lineHeight: thumbClipSize.height + 'px',
+						width: thumbClipSize.width,
 					},
 				})
-			]);
+			);
 		}
 	},
 

@@ -19,6 +19,7 @@ limitations under the License.
 
 .cam-blobitem-audio {
 	display: block;
+	position: relative;
 }
 
 .cam-blobitem-audio a {
@@ -49,9 +50,35 @@ limitations under the License.
 	animation: slow-pulse 1s cubic-bezier(.76,.05,.86,.06) alternate infinite;
 }
 
+.cam-blobitem-audio-play {
+	opacity: 0;
+}
+
+.cam-blobitem-audio:hover .cam-blobitem-audio-play,
+.cam-blobitem-audio-play:focus {
+	opacity: 1;
+}
+
+.cam-blobitem-audio-pause:focus {
+	animation: none;
+}
+
 @keyframes slow-pulse {
 	0% { opacity: 1 }
-	100% { opacity: 0 }
+	100% { opacity: 0.5 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cam-blobitem-audio-pause {
+		animation: none;
+	}
+}
+
+.cam-blobitem-audio .cam-blobitem-thumbtitle {
+	box-sizing: border-box;
+	height: 22px;
+	line-height: 22px;
+	white-space: nowrap;
 }
 
 .cam-blobitem-audio-trackinfo {

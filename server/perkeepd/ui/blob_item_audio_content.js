@@ -30,33 +30,36 @@ cam.BlobItemAudioContent = React.createClass({
 		filename: React.PropTypes.string.isRequired,
 		href: React.PropTypes.string.isRequired,
 		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
+		mediaTags: React.PropTypes.object,
 	},
 
 	getInitialState: function() {
 		return {
-			mouseover: false,
 			playing: false,
 		};
 	},
 
 	render: function() {
+		var titleHeight = 22;
+		// Leave room for a preview as well as both lines on small tiles.
+		var trackInfo = this.props.size.height >= 3 * titleHeight ? this.getTrackInfo_() : null;
+		var contentSize = new goog.math.Size(this.props.size.width, Math.max(titleHeight, this.props.size.height - (trackInfo ? titleHeight : 0)));
 		return React.DOM.div({
 				className: 'cam-blobitem-audio',
-				onMouseEnter: this.handleMouseOver_,
-				onMouseLeave: this.handleMouseOut_,
+				style: {width: this.props.size.width, height: this.props.size.height},
 			},
 			this.getAudio_(),
 			React.createElement(cam.BlobItemGenericContent, {
 				href: this.props.href,
-				size: this.props.size,
+				size: contentSize,
 				thumbFAIcon: 'volume-up',
 				// TODO(oac): When server indexes audio and provides a poster image, add it here
 				// thumbSrc: ,
 				// thumbAspect: ,
 				title: this.getTitle_(),
 			}),
-			this.getTrackInfo_(),
-			this.getPlayPauseButton_(),
+			trackInfo,
+			this.getPlayPauseButton_(Math.max(0, contentSize.height - titleHeight)),
 		);
 	},
 
@@ -65,6 +68,11 @@ cam.BlobItemAudioContent = React.createClass({
 			src: goog.string.subs('%s%s/%s', goog.global.CAMLISTORE_CONFIG.downloadHelper, this.props.blobref, this.props.filename),
 			controls: true,
 			ref: this.setAudioRef_,
+			onPlay: this.handlePlay_,
+			onPause: this.handlePause_,
+			onEnded: this.handlePause_,
+			onError: this.handlePause_,
+			onEmptied: this.handlePause_,
 			style: {
 				display: 'none',
 			},
@@ -73,27 +81,21 @@ cam.BlobItemAudioContent = React.createClass({
 
 	getTitle_: function() {
 		var mediaTags = this.props.mediaTags;
-		if (mediaTags) {
-			return mediaTags.title || '[No Title]';
-		} else {
-			return this.props.filename || 'Audio File';
-		}
+		return (mediaTags && mediaTags.title) || this.props.filename || 'Audio File';
 	},
 
 	getTrackInfo_: function() {
 		var mediaTags = this.props.mediaTags;
-		if (mediaTags) {
+		if (mediaTags && (mediaTags.artist || mediaTags.album)) {
 			return React.DOM.span({
 				className:'cam-blobitem-thumbtitle cam-blobitem-audio-trackinfo',
 				style: { width: this.props.size.width }
-			}, (mediaTags.artist || '[No Artist]') + ' / ' + (mediaTags.album || '[No Album]'));
+			}, [mediaTags.artist, mediaTags.album].filter(function(value) { return !!value; }).join(' / '));
 		}
+		return null;
 	},
 
-	getPlayPauseButton_: function() {
-		if (!this.state.playing && !this.state.mouseover) {
-			return null;
-		}
+	getPlayPauseButton_: function(previewHeight) {
 		return (
 			React.DOM.button({
 				className: classNames({
@@ -102,6 +104,8 @@ cam.BlobItemAudioContent = React.createClass({
 					'cam-blobitem-audio-pause': this.state.playing,
 				}),
 				onClick: this.handlePlayPauseClick_,
+				'aria-label': this.state.playing ? 'Pause audio' : 'Play audio',
+				style: {top: previewHeight / 2},
 			},
 				React.DOM.i({
 					className: classNames({
@@ -118,39 +122,31 @@ cam.BlobItemAudioContent = React.createClass({
 	},
 
 	setAudioRef_: function(audio) {
-		var self = this;
-		if (audio) {
-			self.audioRef_ = audio;
-			audio.addEventListener('pause', function() {
-				self.setState({ playing: false })
-			})
-		}
+		this.audioRef_ = audio;
 	},
 
 	handlePlayPauseClick_: function(e) {
-		if (this.state.playing) {
+		if (!this.audioRef_) {
+			return;
+		}
+		if (!this.audioRef_.paused) {
 			this.audioRef_.pause();
-			this.setState({
-				playing: false,
-			});
 		} else {
-			this.audioRef_.play();
-			this.setState({
-				playing: true,
-			});
+			// The play event is authoritative: play() may reject, e.g. if
+			// the browser cannot decode the file or blocks playback.
+			var result = this.audioRef_.play();
+			if (result && result.catch) {
+				result.catch(function() {});
+			}
 		}
 	},
 
-	handleMouseOver_: function() {
-		this.setState({
-			mouseover: true,
-		});
+	handlePlay_: function() {
+		this.setState({playing: true});
 	},
 
-	handleMouseOut_: function() {
-		this.setState({
-			mouseover: false,
-		});
+	handlePause_: function() {
+		this.setState({playing: false});
 	},
 });
 
