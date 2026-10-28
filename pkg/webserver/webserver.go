@@ -400,6 +400,45 @@ func (s *Server) httpServer() *http.Server {
 	}
 }
 
+// ListenAndServeHTTP1 serves the requests for paths under pathPrefix on
+// the TCP address addr, over plain HTTP/1.1. Requests for other paths get
+// a 404. Even in Tailscale mode, its requests don't come from the tailnet,
+// so Tailscale authentication never grants them access.
+//
+// It is for clients such as the Immich mobile app on the local network,
+// to reach the server without Tailscale. It serves in the background and
+// returns the listener's base URL.
+func (s *Server) ListenAndServeHTTP1(addr, pathPrefix string) (baseURL string, err error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return "", err
+	}
+	go func() {
+		if err := s.http1Server(pathPrefix).Serve(ln); err != nil {
+			s.printf("Error in HTTP/1.1 server on %s: %v", addr, err)
+		}
+	}()
+	return "http://" + ln.Addr().String(), nil
+}
+
+// http1Server returns an HTTP/1.1-only http.Server serving the requests
+// for paths under pathPrefix with s, and a 404 for others. Unlike
+// httpServer's, its requests have no Tailscale context.
+func (s *Server) http1Server(pathPrefix string) *http.Server {
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.HasPrefix(r.URL.Path, pathPrefix) {
+				http.NotFound(w, r)
+				return
+			}
+			s.ServeHTTP(w, r)
+		}),
+		Protocols: new(http.Protocols),
+	}
+	srv.Protocols.SetHTTP1(true)
+	return srv
+}
+
 func (s *Server) tailscaleWhoIs(ctx context.Context, remoteAddr string) (string, error) {
 	lc, err := s.tsnetServer.LocalClient()
 	if err != nil {

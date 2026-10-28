@@ -500,6 +500,13 @@ func main() {
 			exitf("Error starting webserver: %v", err)
 		}
 		listened <- baseURL
+		if prefix, addr := config.ImmichPrefix(), config.ImmichListen(); prefix != "" && addr != "" {
+			immichURL, err := ws.ListenAndServeHTTP1(addr, prefix)
+			if err != nil {
+				exitf("Error serving Immich on %s: %v", addr, err)
+			}
+			log.Printf("Serving the Immich API over plain HTTP at %s%s", immichURL, prefix)
+		}
 		ws.Serve()
 	}()
 	getBaseURL := sync.OnceValue(func() string { return <-listened })

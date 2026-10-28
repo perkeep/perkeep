@@ -149,6 +149,13 @@ type Immich struct {
 	// bytes. Zero uses the handler's default of 32 GiB; negative values are
 	// invalid.
 	MaxUploadBytes int64 `json:"maxUploadBytes,omitempty"`
+
+	// Listen optionally names an additional TCP address, such as
+	// "10.0.0.21:2283", on which to serve the Immich API (and nothing else)
+	// over plain HTTP/1.1, for phones on the local network to reach the
+	// server directly. Its requests are never authenticated by Tailscale,
+	// so with Tailscale authentication it requires Email and Password.
+	Listen string `json:"listen,omitempty"`
 }
 
 // App holds the common configuration values for apps and the app handler.

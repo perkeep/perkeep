@@ -472,6 +472,8 @@ type Config struct {
 	baseURL    string // optional, without trailing slash
 	listenAddr string // the optional net.Listen-style TCP listen address
 
+	immichListen string // optional TCP address to also serve the Immich API on
+
 	installedHandlers bool   // whether InstallHandlers (which validates the config too) has been called
 	uiPath            string // Not valid until after InstallHandlers
 
@@ -518,6 +520,26 @@ func (c *Config) HTTPS() bool { return c.https }
 // Tailscale tsnet mode.
 func (c *Config) IsTailscaleListener() bool {
 	return c.listenAddr == "tailscale" || strings.HasPrefix(c.listenAddr, "tailscale:")
+}
+
+// ImmichListen returns the optional additional TCP address on which to
+// serve the Immich API over plain HTTP/1.1, or the empty string.
+func (c *Config) ImmichListen() string { return c.immichListen }
+
+// ImmichPrefix returns the path prefix of the configured Immich API
+// handler, or the empty string if there isn't one.
+func (c *Config) ImmichPrefix() string {
+	prefixes, _ := c.jconf["prefixes"].(map[string]any)
+	for prefix, vei := range prefixes {
+		pmap, ok := vei.(map[string]any)
+		if !ok {
+			continue
+		}
+		if typ, _ := pmap["handler"].(string); typ == "immich" {
+			return prefix
+		}
+	}
+	return ""
 }
 
 // detectConfigChange returns an informative error if conf contains obsolete keys.
@@ -636,6 +658,7 @@ func (c *Config) readFields() error {
 	c.httpsCert = c.jconf.OptionalString("httpsCert", "")
 	c.httpsKey = c.jconf.OptionalString("httpsKey", "")
 	c.https = c.jconf.OptionalBool("https", false)
+	c.immichListen = c.jconf.OptionalString("immichListen", "")
 
 	_, explicitHTTPS := c.jconf["https"]
 	if c.httpsCert != "" && !explicitHTTPS {

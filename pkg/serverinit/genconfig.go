@@ -1018,6 +1018,12 @@ func (b *lowBuilder) build() (*Config, error) {
 		if !b.runIndex() {
 			return nil, errors.New("immich requires runIndex=true (native index and search for duplicate detection)")
 		}
+		if immich.Listen != "" {
+			if immich.Email == "" && strings.HasPrefix(conf.Auth, "tailscale") {
+				return nil, errors.New("immich listen requires immich email and password with Tailscale auth, which never authenticates its requests")
+			}
+			low["immichListen"] = immich.Listen
+		}
 	}
 
 	if conf.HTTPS {
