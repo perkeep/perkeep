@@ -353,6 +353,43 @@ func TestImmichMobileLivePhotoMetadataAndDetail(t *testing.T) {
 	}
 }
 
+func TestImmichMobileServerStorage(t *testing.T) {
+	h := newImmichTestHandler(t)
+	if w := immichTestRequest(t, h, "", "GET", "server/storage", nil, ""); w.Code != 401 {
+		t.Fatalf("storage without auth: %d", w.Code)
+	}
+	token := immichTestLogin(t, h)
+	immichUploadedID(t, immichTestUpload(t, h, token, "some photo bytes", nil), 201)
+	w := immichTestRequest(t, h, token, "GET", "server/storage", nil, "")
+	var storage map[string]any
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &storage) != nil {
+		t.Fatalf("storage: %d %s", w.Code, w.Body)
+	}
+	used := float64(len("some photo bytes"))
+	if storage["diskUseRaw"] != used || storage["diskSizeRaw"] != used || storage["diskAvailableRaw"] != float64(0) {
+		t.Errorf("storage = %+v; want %v bytes used of %v", storage, used, used)
+	}
+	if storage["diskUse"] != "16 B" {
+		t.Errorf("diskUse = %v; want \"16 B\"", storage["diskUse"])
+	}
+}
+
+func TestImmichHumanSize(t *testing.T) {
+	for _, tt := range []struct {
+		n    int64
+		want string
+	}{
+		{0, "0 B"},
+		{1023, "1023 B"},
+		{1536, "1.5 KiB"},
+		{5 << 30, "5.0 GiB"},
+	} {
+		if got := immichHumanSize(tt.n); got != tt.want {
+			t.Errorf("immichHumanSize(%d) = %q; want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestImmichMobilePreferences(t *testing.T) {
 	h := newImmichTestHandler(t)
 	token := immichTestLogin(t, h)
@@ -457,7 +494,7 @@ func TestImmichMobileOpenAPIContract(t *testing.T) {
 	h := newImmichTestHandler(t)
 	token := immichTestLogin(t, h)
 	id := immichUploadedID(t, immichTestUpload(t, h, token, "contract bytes", map[string]string{"metadata": `[{"key":"mobile-app","value":{"iCloudId":"contract"}}]`}), 201)
-	for path, schema := range map[string]string{"server/ping": "ServerPingResponse", "server/version": "ServerVersionResponseDto", "server/features": "ServerFeaturesDto", "server/config": "ServerConfigDto", "server/about": "ServerAboutResponseDto", "users/me": "UserAdminResponseDto", "users/me/preferences": "UserPreferencesResponseDto", "assets/" + id: "AssetResponseDto"} {
+	for path, schema := range map[string]string{"server/ping": "ServerPingResponse", "server/version": "ServerVersionResponseDto", "server/features": "ServerFeaturesDto", "server/config": "ServerConfigDto", "server/about": "ServerAboutResponseDto", "server/storage": "ServerStorageResponseDto", "users/me": "UserAdminResponseDto", "users/me/preferences": "UserPreferencesResponseDto", "assets/" + id: "AssetResponseDto"} {
 		t.Run(schema, func(t *testing.T) {
 			w := immichTestRequest(t, h, token, "GET", path, nil, "")
 			var value any
