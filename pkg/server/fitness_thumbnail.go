@@ -657,6 +657,15 @@ func drawFitnessProjectedThumbnail(ctx context.Context, plan fitnessProjection, 
 
 // The badge uses only local vector geometry, at the bottom left of every card.
 func drawFitnessIcon(img *image.RGBA, pen fitnessPen, sport string) {
+	drawBadge(img, pen, func(cx, cy, size float64) {
+		drawFitnessMaterialIcon(img, pen, sport, cx, cy, size)
+	})
+}
+
+// drawBadge draws a badge's white disc at the bottom left of img, and then
+// calls drawIcon to draw its icon, centered at (cx, cy), size across.
+// Fitness activity cards and video thumbnails have badges.
+func drawBadge(img *image.RGBA, pen fitnessPen, drawIcon func(cx, cy, size float64)) {
 	w, h := img.Bounds().Dx(), img.Bounds().Dy()
 	size := math.Min(46, float64(min(w, h))*.27)
 	margin := math.Max(2, float64(min(w, h))*.055)
@@ -665,5 +674,5 @@ func drawFitnessIcon(img *image.RGBA, pen fitnessPen, sport string) {
 	pen.paint(img, color.NRGBA{211, 218, 227, 200})
 	pen.circle(cx, cy, size/2)
 	pen.paint(img, color.NRGBA{255, 255, 255, 250})
-	drawFitnessMaterialIcon(img, pen, sport, cx, cy, size)
+	drawIcon(cx, cy, size)
 }
