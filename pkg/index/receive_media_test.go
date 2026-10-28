@@ -250,6 +250,7 @@ func TestPopulateFileQuickTime(t *testing.T) {
 		k, v := tag(kv[0], kv[1])
 		want[k] = v
 	}
+	addWantDigestRows(want, data)
 	if !reflect.DeepEqual(mm.kv, want) {
 		t.Errorf("mutations = %v; want %v", mm.kv, want)
 	}

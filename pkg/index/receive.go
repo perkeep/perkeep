@@ -933,8 +933,8 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
 	}
 
-	h := blob.NewHash()
-	var copyDest io.Writer = h
+	digester := newFileDigester()
+	var copyDest io.Writer = digester
 	var imageBuf *keepFirstN // or nil
 	var app1 jpegAPP1Finder
 	if strings.HasPrefix(mimeType, "image/") {
@@ -954,7 +954,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		}
 		return err
 	}
-	wholeRef := blob.RefFromHash(h)
+	wholeRef := digester.wholeRef()
 	// The whole file was read for its hash. A truncated prefix alone cannot
 	// rule out EXIF. If the complete JPEG byte stream has no APP1 marker,
 	// avoid the two redundant scans and the otherwise fruitless full-file retry.
@@ -1023,6 +1023,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mimeType, wholeRef))
+	setDigestRows(mm, wholeRef, digester.digests())
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
 	if strings.HasPrefix(mimeType, "audio/") {

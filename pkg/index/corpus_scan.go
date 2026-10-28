@@ -172,6 +172,7 @@ func (c *Corpus) mergeScanWorkers(workers []*Corpus) {
 	mergeDisjoint(&c.moreFilesOfSize, workers, func(w *Corpus) map[int64][]blob.Ref { return w.moreFilesOfSize })
 	mergeDisjoint(&c.gps, workers, func(w *Corpus) map[blob.Ref]latLong { return w.gps })
 	mergeDisjoint(&c.camera, workers, func(w *Corpus) map[blob.Ref]cameraInfo { return w.camera })
+	mergeDisjoint(&c.crc32s, workers, func(w *Corpus) map[blob.Ref]uint32 { return w.crc32s })
 	mergeDisjoint(&c.mediaTags, workers, func(w *Corpus) map[blob.Ref]map[string]string { return w.mediaTags })
 	mergeDisjoint(&c.livePhotos, workers, func(w *Corpus) map[string][]blob.Ref { return w.livePhotos })
 	mergeDisjoint(&c.dirChildren, workers, func(w *Corpus) map[blob.Ref]map[blob.Ref]struct{} { return w.dirChildren })

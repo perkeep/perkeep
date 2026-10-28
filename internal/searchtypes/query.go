@@ -159,6 +159,12 @@ type FileConstraint struct {
 	// every known hash algorithm.
 	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 
+	// Digest, if non-empty, only matches files whose contents have
+	// this digest, such as "crc32-cbf43926" or "md5-" and 32 hex
+	// digits. The types are those of index.DigestTypes. Files whose
+	// digests aren't indexed don't match.
+	Digest string `json:"digest,omitempty"`
+
 	// ParentDir, if non-nil, constrains the file match based on properties
 	// of its parent directory.
 	ParentDir *DirConstraint `json:"parentDir,omitempty"`

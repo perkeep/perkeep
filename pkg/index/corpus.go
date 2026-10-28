@@ -87,6 +87,7 @@ type Corpus struct {
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
 	camera       map[blob.Ref]cameraInfo         // wholeRef -> EXIF camera make and model
+	crc32s       map[blob.Ref]uint32             // wholeRef -> CRC-32 of its contents
 	// fileOfWholeRef and moreFilesOfWholeRef are the inverse of the
 	// wholetofile rows: fileOfWholeRef maps a wholeRef to a file schema
 	// with those contents, and moreFilesOfWholeRef to any others, which
@@ -366,6 +367,7 @@ func newCorpus() *Corpus {
 		moreFilesOfSize:         make(map[int64][]blob.Ref),
 		gps:                     make(map[blob.Ref]latLong),
 		camera:                  make(map[blob.Ref]cameraInfo),
+		crc32s:                  make(map[blob.Ref]uint32),
 		mediaTags:               make(map[blob.Ref]map[string]string),
 		livePhotos:              make(map[string][]blob.Ref),
 		deletes:                 make(map[blob.Ref][]deletion),
@@ -439,6 +441,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"signerattrvalue":      nil, // ignoring for now
 	"mediatag":             (*Corpus).mergeMediaTag,
 	keyStaticDirChild.name: (*Corpus).mergeStaticDirChildRow,
+	keyFileDigests.name:    (*Corpus).mergeFileDigestsRow,
 }
 
 func memstats() *runtime.MemStats {
@@ -465,6 +468,7 @@ var slurpPrefixes = []string{
 	"exiftag|",
 	"mediatag|",
 	keyStaticDirChild.name + "|",
+	keyFileDigests.name + "|",
 }
 
 // Key types (without trailing punctuation) that we slurp to memory at start.
@@ -965,6 +969,19 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 		if bytes.HasPrefix(pair, sha1Prefix) {
 			c.hasLegacySHA1 = true
 		}
+	}
+	return nil
+}
+
+// "filedigests|sha224-…" = "crc32-cbf43926|md5-…|sha1-…|sha224-…|sha256-…"
+func (c *Corpus) mergeFileDigestsRow(k, v []byte) error {
+	wholeRef, ok := c.blobParse(k[len(keyFileDigests.name)+1:])
+	if !ok {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	// Only the CRC-32, which is small, is kept in memory.
+	if sum, ok := crc32OfDigests(parseDigestsValue(string(v))); ok {
+		c.crc32s[wholeRef] = sum
 	}
 	return nil
 }
@@ -1720,6 +1737,17 @@ func (c *Corpus) AppendFilesOfSize(dst []blob.Ref, size int64) []blob.Ref {
 	}
 	dst = append(dst, first)
 	return append(dst, c.moreFilesOfSize[size]...)
+}
+
+// FileCRC32 returns the CRC-32 of the contents of the file fileRef, if
+// it's indexed.
+func (c *Corpus) FileCRC32(fileRef blob.Ref) (sum uint32, ok bool) {
+	wholeRef, ok := c.fileWholeRef[fileRef]
+	if !ok {
+		return 0, false
+	}
+	sum, ok = c.crc32s[wholeRef]
+	return sum, ok
 }
 
 func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {

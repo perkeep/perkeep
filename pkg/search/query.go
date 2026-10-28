@@ -248,13 +248,15 @@ func constraintMatchesPermanodeTypes(c *Constraint) []string {
 }
 
 // blobCandidates reports whether c can only match blobs in a set that
-// corpus can find without enumerating all blobs of some kind. If so, it
-// returns a superset of the blobs c matches, which may include blobs
-// that don't exist.
-func constraintBlobCandidates(c *Constraint, corpus *index.Corpus) (cands set.Set[blob.Ref], ok bool) {
+// the corpus can find without enumerating all blobs of some kind (or, for
+// a file digest, the index's digest rows can). If so, it returns a
+// superset of the blobs c matches, which may include blobs that don't
+// exist.
+func (s *search) constraintBlobCandidates(ctx context.Context, c *Constraint) (cands set.Set[blob.Ref], ok bool) {
 	if c == nil {
 		return nil, false
 	}
+	corpus := s.h.corpus
 	// A blob must match all of c's fields, so any one of them that
 	// limits the candidates is enough.
 	if c.BlobRefPrefix != "" {
@@ -269,15 +271,18 @@ func constraintBlobCandidates(c *Constraint, corpus *index.Corpus) (cands set.Se
 		if fs := fc.FileSize; fs != nil && fs.Equals != nil {
 			return set.Of(corpus.AppendFilesOfSize(nil, *fs.Equals)...), true
 		}
+		if fc.Digest != "" {
+			return s.filesOfDigest(ctx, fc.Digest)
+		}
 	}
 	if pc := c.Permanode; pc != nil {
-		if cands, ok := permanodeConstraintPermanodeCandidates(pc, corpus); ok {
+		if cands, ok := s.permanodeConstraintPermanodeCandidates(ctx, pc); ok {
 			return cands, true
 		}
 	}
 	if lc := c.Logical; lc != nil {
-		a, aok := constraintBlobCandidates(lc.A, corpus)
-		b, bok := constraintBlobCandidates(lc.B, corpus)
+		a, aok := s.constraintBlobCandidates(ctx, lc.A)
+		b, bok := s.constraintBlobCandidates(ctx, lc.B)
 		switch lc.Op {
 		case "and":
 			if aok && (!bok || len(a) <= len(b)) {
@@ -300,7 +305,8 @@ func constraintBlobCandidates(c *Constraint, corpus *index.Corpus) (cands set.Se
 // one of a set of blobs that blobCandidates can find. If so, it returns
 // the permanodes with a claim giving c.Attr one of those values, a
 // superset of the permanodes c matches.
-func permanodeConstraintPermanodeCandidates(c *PermanodeConstraint, corpus *index.Corpus) (set.Set[blob.Ref], bool) {
+func (s *search) permanodeConstraintPermanodeCandidates(ctx context.Context, c *PermanodeConstraint) (set.Set[blob.Ref], bool) {
+	corpus := s.h.corpus
 	if c.Attr == "" {
 		return nil, false
 	}
@@ -313,7 +319,7 @@ func permanodeConstraintPermanodeCandidates(c *PermanodeConstraint, corpus *inde
 		vals = set.Of(br)
 	} else if c.ValueInSet != nil {
 		var ok bool
-		if vals, ok = constraintBlobCandidates(c.ValueInSet, corpus); !ok {
+		if vals, ok = s.constraintBlobCandidates(ctx, c.ValueInSet); !ok {
 			return nil, false
 		}
 	} else {
@@ -733,7 +739,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 
 	corpus := h.corpus
 
-	cands := searchQueryPickCandidateSource(q, s)
+	cands := searchQueryPickCandidateSource(ctx, q, s)
 	if candSourceHook != nil {
 		candSourceHook(cands.name)
 	}
@@ -1133,11 +1139,11 @@ type candidateSource struct {
 	send func(context.Context, *search, func(camtypes.BlobMeta) bool) error
 }
 
-func searchQueryPickCandidateSource(q *SearchQuery, s *search) (src candidateSource) {
+func searchQueryPickCandidateSource(ctx context.Context, q *SearchQuery, s *search) (src candidateSource) {
 	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
-		if cands, ok := constraintBlobCandidates(c, corpus); ok {
+		if cands, ok := s.constraintBlobCandidates(ctx, c); ok {
 			src.name = "corpus_candidates"
 			brs := cands.Slice()
 			sort.Slice(brs, func(i, j int) bool { return brs[i].Less(brs[j]) })
@@ -1626,6 +1632,9 @@ func fileConstraintCheckValid(c *FileConstraint) error {
 	default:
 		return fmt.Errorf("invalid livePhoto value %q; want still, video, or any", c.LivePhoto)
 	}
+	if c.Digest != "" && !index.ValidDigest(c.Digest) {
+		return fmt.Errorf("invalid digest %q; want one of the types %q, a hyphen, and lowercase hex", c.Digest, index.DigestTypes)
+	}
 	return nil
 }
 
@@ -1654,6 +1663,11 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 	}
 	if sc := c.MIMEType; sc != nil && !stringConstraintStringMatches(sc, fi.MIMEType) {
 		return false, nil
+	}
+	if c.Digest != "" {
+		if ok, err := s.fileHasDigest(ctx, br, fi, c.Digest); !ok || err != nil {
+			return false, err
+		}
 	}
 	if tc := c.Time; tc != nil {
 		if fi.Time == nil || !timeConstraintTimeMatches(tc, fi.Time.Time()) {

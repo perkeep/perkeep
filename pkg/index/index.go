@@ -250,6 +250,8 @@ func newIndex(s sorted.KeyValue, rebuilding bool) (*Index, error) {
 		}
 	case isMediaTagsUpgrade(schemaVersion):
 		return idx, errMissingMediaTags
+	case isDigestsUpgrade(schemaVersion):
+		return idx, errMissingDigests
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
 		if env.IsDev() {
@@ -439,6 +441,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	}
 	if errors.Is(err, errMissingMediaTags) {
 		if err := ix.addMediaTags(context.Background(), sto); err != nil {
+			return nil, fmt.Errorf("could not upgrade the index to schema version %d: %w", mediaTagsSchemaVersion, err)
+		}
+		ix, err = New(kv)
+	}
+	if errors.Is(err, errMissingDigests) {
+		if err := ix.addDigests(context.Background(), sto); err != nil {
 			return nil, fmt.Errorf("could not upgrade the index to schema version %d: %w", requiredSchemaVersion, err)
 		}
 		ix, err = New(kv)

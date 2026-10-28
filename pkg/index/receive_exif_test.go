@@ -328,6 +328,7 @@ func TestPopulateFileJPEGWithoutEXIF(t *testing.T) {
 		keyWholeToFileRef.Key(whole, file.BlobRef()): "1",
 		keyImageSize.Key(file.BlobRef()):             "1024|768",
 	}
+	addWantDigestRows(want, data)
 	if !reflect.DeepEqual(mm.kv, want) {
 		t.Errorf("mutations = %v; want %v", mm.kv, want)
 	}
