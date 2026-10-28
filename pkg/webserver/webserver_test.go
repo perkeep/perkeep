@@ -21,14 +21,19 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/auth"
 
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/memnet"
 	"tailscale.com/tsnet"
+	"tailscale.com/types/key"
 )
 
 func TestTailscaleAuthContext(t *testing.T) {
@@ -114,6 +119,47 @@ func TestServeHTTP2(t *testing.T) {
 	}
 	if got := get(&http.Transport{TLSClientConfig: insecure(), Protocols: &h1}); got != "HTTP/1.1" {
 		t.Errorf("HTTP/1.1 client got served %q; want HTTP/1.1", got)
+	}
+}
+
+func TestWriteTailscaleStatus(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	k1, k2, k3 := key.NewNode().Public(), key.NewNode().Public(), key.NewNode().Public()
+	st := &ipnstate.Status{
+		BackendState: "Running",
+		Self:         &ipnstate.PeerStatus{DNSName: "perkeep.example.ts.net.", TailscaleIPs: []netip.Addr{netip.MustParseAddr("100.64.0.1")}},
+		Peer: map[key.NodePublic]*ipnstate.PeerStatus{
+			k1: {HostName: "phone", OS: "iOS", Active: true, CurAddr: "10.0.0.5:41641", RxBytes: 100, TxBytes: 200, LastHandshake: now.Add(-30 * time.Second), Online: true},
+			k2: {HostName: "laptop", OS: "macOS", Active: true, Relay: "sfo", Online: true},
+			k3: {HostName: "old", OS: "linux"},
+		},
+	}
+	var buf strings.Builder
+	writeTailscaleStatus(&buf, st, false, now)
+	got := buf.String()
+	for _, want := range []string{"Backend state: Running", "perkeep.example.ts.net", "direct 10.0.0.5:41641", "derp sfo", "30s ago", "(1 inactive peers not shown"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("status lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "old") {
+		t.Errorf("status shows the inactive peer:\n%s", got)
+	}
+	if strings.Index(got, "laptop") > strings.Index(got, "phone") {
+		t.Errorf("peers not sorted by name:\n%s", got)
+	}
+	buf.Reset()
+	writeTailscaleStatus(&buf, st, true, now)
+	if !strings.Contains(buf.String(), "old") {
+		t.Errorf("all status lacks the inactive peer:\n%s", buf.String())
+	}
+}
+
+func TestTailscaleDebugHandlerOffTailnet(t *testing.T) {
+	rec := httptest.NewRecorder()
+	TailscaleDebugHandler(rec, httptest.NewRequest("GET", "/debug/tailscale", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("off the tailnet, got %d; want 404", rec.Code)
 	}
 }
 

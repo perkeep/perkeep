@@ -55,6 +55,7 @@ import (
 	"perkeep.org/pkg/server/app"
 	_ "perkeep.org/pkg/server/immich" // Register the optional mobile upload handler.
 	"perkeep.org/pkg/types/serverconfig"
+	"perkeep.org/pkg/webserver"
 
 	"cloud.google.com/go/compute/metadata"
 	"go4.org/jsonconfig"
@@ -893,6 +894,7 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 	hi.Handle("/debug/goroutines", auth.RequireAuth(http.HandlerFunc(dumpGoroutines), auth.OpRead))
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
 	hi.Handle("/debug/logs/", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
+	hi.Handle("/debug/tailscale", auth.RequireAuth(http.HandlerFunc(webserver.TailscaleDebugHandler), auth.OpAll))
 	config.installedHandlers = true
 	return multiCloser(hl.closers), nil
 }
