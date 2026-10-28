@@ -20,7 +20,6 @@ import (
 	"bytes"
 	_ "embed"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -45,11 +44,7 @@ func (im *importer) archiveUpload(ia *importerAcct) *archiveUploadData {
 	if _, ok := im.impl.(ArchiveImporter); !ok {
 		return nil
 	}
-	u, err := url.Parse(im.URL())
-	if err != nil {
-		return nil
-	}
-	base := u.EscapedPath()
+	base := im.URL()
 	data := &archiveUploadData{
 		Title:        im.Title(),
 		DiscoveryURL: im.host.discoveryRoot + "?camli.mode=config",

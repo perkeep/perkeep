@@ -141,7 +141,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Instapaper Account</h1>
 <h3>If your Instapaper account does not have a password, leave that field blank. However, a username is required. Passwords are not stored at all and are only used to retrieve an access token.</h3>
-<form method="get" action="{{.CallbackURL}}">
+<form method="get" action="{{.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
   <table border=0 cellpadding=3>
   <tr><td align=right>Username</td><td><input name="username" size=50 required></td></tr>

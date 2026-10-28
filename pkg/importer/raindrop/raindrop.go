@@ -83,7 +83,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 	<h1>Configuring Raindrop Account</h1>
-	<form method="get" action="{{.CallbackURL}}">
+	<form method="get" action="{{.CallbackPath}}">
 		<input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
 		<table border=0 cellpadding=3>
 		<tr><td align=right>API token</td><td><input name="apiToken" size=50> (You can find it <a href="https://app.raindrop.io/settings/integrations">here</a>)</td></tr>

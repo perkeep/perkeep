@@ -92,6 +92,8 @@ func TestImporterNavigationPaths(t *testing.T) {
 		{"custom", "https://configured.example", "/custom/imports/", "/custom/imports/"},
 		{"base path", "https://configured.example/perkeep", "/importer/", "/perkeep/importer/"},
 		{"escaped path", "https://configured.example/per%20keep", "/importer/", "/per%20keep/importer/"},
+		{"escaped slash", "https://configured.example/per%2Fkeep", "/importer/", "/per%2Fkeep/importer/"},
+		{"escaped percent", "https://configured.example/per%25keep", "/importer/", "/per%25keep/importer/"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h, err := NewHost(HostConfig{BaseURL: tt.baseURL, Prefix: tt.prefix})
@@ -102,11 +104,31 @@ func TestImporterNavigationPaths(t *testing.T) {
 			im := h.imp["dummy1"]
 			ref := blob.RefFromString("account")
 			ia := &importerAcct{im: im, acct: &Object{pn: ref}}
+			sc := &SetupContext{Host: h, AccountNode: ia.acct, ia: ia}
 			if got, want := h.ImporterBasePath(), tt.want; got != want {
 				t.Errorf("ImporterBasePath = %q; want %q", got, want)
 			}
 			if got, want := ia.AccountURL(), tt.want+"dummy1/"+ref.String(); got != want {
 				t.Errorf("AccountURL = %q; want %q", got, want)
+			}
+			if got, want := sc.AccountURL(), ia.AccountURL(); got != want {
+				t.Errorf("SetupContext.AccountURL = %q; want %q", got, want)
+			}
+			if got, want := im.URL(), tt.want+"dummy1"; got != want {
+				t.Errorf("importer URL = %q; want %q", got, want)
+			}
+			callbackSuffix := "dummy1/callback?acct=" + ref.String()
+			if got, want := sc.CallbackPath(), tt.want+callbackSuffix; got != want {
+				t.Errorf("CallbackPath = %q; want %q", got, want)
+			}
+			if got, want := sc.CallbackURL(), tt.baseURL+tt.prefix+callbackSuffix; got != want {
+				t.Errorf("CallbackURL = %q; want %q", got, want)
+			}
+			if got, want := (OAuth2{}).RedirectURL(im.impl, sc), tt.baseURL+tt.prefix+"dummy1/callback"; got != want {
+				t.Errorf("OAuth redirect URI = %q; want %q", got, want)
+			}
+			if h.BaseURL() != tt.baseURL || h.ImporterBaseURL() != tt.baseURL+tt.prefix {
+				t.Error("provider configuration URLs changed")
 			}
 			// Render a non-TODO importer without depending on which
 			// concrete importers happen to be linked into this test.
@@ -123,5 +145,28 @@ func TestImporterNavigationPaths(t *testing.T) {
 				t.Errorf("importer list missing %s:\n%s", want, &buf)
 			}
 		})
+	}
+}
+
+func TestImporterBasePathValidation(t *testing.T) {
+	for _, tt := range []struct {
+		baseURL, prefix string
+	}{
+		{"https://configured.example", "//other.example/importer/"},
+		{"", "relative/"},
+		{"https://configured.example/%zz", "/importer/"},
+	} {
+		if h, err := NewHost(HostConfig{BaseURL: tt.baseURL, Prefix: tt.prefix}); err == nil {
+			h.Close()
+			t.Errorf("NewHost(%q, %q) accepted an invalid URL path", tt.baseURL, tt.prefix)
+		}
+	}
+	h, err := NewHost(HostConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	if got := h.ImporterBasePath(); got != "/" {
+		t.Errorf("empty HostConfig path = %q; want /", got)
 	}
 }

@@ -1816,7 +1816,7 @@ func TestImporterOAuthSetupCallbackAndReplay(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("callback status = %d: %s", w.Code, w.Body.String())
 	}
-	wantURL := "https://perkeep.example/importer/strava/" + f.rc.AccountNode().PermanodeRef().String()
+	wantURL := "/importer/strava/" + f.rc.AccountNode().PermanodeRef().String()
 	if got := w.Header().Get("Location"); got != wantURL {
 		t.Errorf("callback redirect = %q; want %q", got, wantURL)
 	}

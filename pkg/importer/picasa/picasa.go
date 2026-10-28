@@ -248,7 +248,7 @@ func (imp) AccountSetupHTML(host *importer.Host) string {
 	}
 
 	callback := host.ImporterBaseURL() + "picasa/callback"
-	gphotosURL := host.ImporterBaseURL() + "gphotos"
+	gphotosURL := host.ImporterBasePath() + "gphotos"
 	return fmt.Sprintf(`
 <h1>Configuring Picasa</h1>
 <p>Please note that because of a bug in the Picasa API, you cannot retrieve more than 10000 photos. If you have more than 10000 photos, you should use the <a href='%s'>Google Photos importer</a> instead.</p>

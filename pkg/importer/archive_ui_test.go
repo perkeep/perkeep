@@ -33,6 +33,7 @@ func archiveUIHost(t *testing.T) (*Host, http.Handler) {
 	t.Helper()
 	h, _, _ := archiveTestHost(t)
 	h.importerBase = "https://public.example/custom-imports/"
+	h.importerPath = "/custom-imports/"
 	h.discoveryRoot = "/metadata/"
 	im := h.imp[archiveTestName]
 	props := *im.props
