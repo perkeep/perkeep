@@ -189,13 +189,21 @@ func cacheKey(bref string, width int, height int) string {
 	return fmt.Sprintf("scaled:%v:%dx%d:tv%v", bref, width, height, images.ThumbnailVersion())
 }
 
+// videoThumbVersion is added to the cache keys of video thumbnails, and
+// should be bumped when they change, such as their badge.
+const videoThumbVersion = "1"
+
+// videoCacheKey is cacheKey, for thumbnails of videos.
+func videoCacheKey(bref string, width int, height int) string {
+	return cacheKey(bref, width, height) + ":video" + videoThumbVersion
+}
+
 // ScaledCached reads the scaled version of the image in file,
 // if it is in cache and writes it to buf.
 //
 // On successful read and population of buf, the returned format is non-empty.
 // Almost all errors are not interesting. Real errors will be logged.
-func (ih *ImageHandler) scaledCached(ctx context.Context, buf *bytes.Buffer, file blob.Ref) (format string) {
-	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
+func (ih *ImageHandler) scaledCached(ctx context.Context, buf *bytes.Buffer, key string) (format string) {
 	br, err := ih.ThumbMeta.Get(key)
 	if errors.Is(err, errCacheMiss) {
 		return ""
@@ -499,7 +507,7 @@ func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io
 // formats, including stills of videos. Fetcher and ResizeSem must be set;
 // Search is optional. ScaleImage does not read or write the thumbnail cache.
 func (ih *ImageHandler) ScaleImage(ctx context.Context, fileRef blob.Ref) (data []byte, format string, err error) {
-	im, err := ih.scaleImage(ctx, fileRef, "")
+	im, err := ih.scaleImage(ctx, fileRef, "", false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -507,8 +515,10 @@ func (ih *ImageHandler) ScaleImage(ctx context.Context, fileRef blob.Ref) (data 
 }
 
 // scaleImage is ScaleImage, for a file whose indexed MIME type is mimeType,
-// or the empty string if unknown.
-func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeType string) (*formatAndImage, error) {
+// or the empty string if unknown. If videoBadge, stills of videos get a
+// video badge, as the web UI shows them alongside images; other clients,
+// such as Immich apps, mark videos themselves.
+func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeType string, videoBadge bool) (*formatAndImage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -534,6 +544,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeTy
 	}()
 	var i image.Image
 	var imConfig images.Config
+	isVideo := false
 	// The indexed MIME type of videos is more reliable than sniffing,
 	// which misses some QuickTime files.
 	if !strings.HasPrefix(mimeType, "video/") {
@@ -547,6 +558,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeTy
 			return nil, err
 		}
 		imConfig = images.Config{Format: "jpeg"}
+		isVideo = true
 	}
 
 	var sr io.Reader // all of the file, once head is done
@@ -626,6 +638,9 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeTy
 		b = i.Bounds()
 		_ = b
 	}
+	if isVideo && videoBadge {
+		i = drawVideoBadge(i)
+	}
 
 	// Encode as a new image
 	var buf bytes.Buffer
@@ -695,7 +710,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		return
 	}
 
+	isVideo := strings.HasPrefix(db.File.MIMEType, "video/")
 	key := cacheKey(file.String(), mw, mh)
+	if isVideo {
+		key = videoCacheKey(file.String(), mw, mh)
+	}
 	_, etag, _ := strings.Cut(blob.RefFromString(key).String(), "-")
 	inm := req.Header.Get("If-None-Match")
 	if inm != "" {
@@ -735,7 +754,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	cacheHit := false
 	if ih.ThumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
-		format = ih.scaledCached(ctx, &buf, file)
+		format = ih.scaledCached(ctx, &buf, key)
 		if format != "" {
 			cacheHit = true
 			imageData = buf.Bytes()
@@ -745,7 +764,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	if !cacheHit {
 		thumbCacheMiss.Add(1)
 		imi, err := singleResize.Do(key, func() (any, error) {
-			return ih.scaleImage(ctx, file, db.File.MIMEType)
+			return ih.scaleImage(ctx, file, db.File.MIMEType, true)
 		})
 		if errors.Is(err, still.ErrUnsupported) {
 			// Clients show a placeholder instead.

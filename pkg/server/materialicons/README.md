@@ -1,4 +1,4 @@
-# Material Design fitness icons
+# Material Design badge icons
 
 These are unmodified, 24-pixel **rounded** SVGs from Google's
 [Material Design Icons](https://github.com/google/material-design-icons),
@@ -21,6 +21,9 @@ external fonts are needed.
 | `workout` | `places/fitness_center/materialiconsround/24px.svg` |
 | `other` | `social/sports/materialiconsround/24px.svg` |
 
+Video thumbnails' badge uses `av/videocam/materialiconsround/24px.svg`.
+
 The local files are named after their upstream icons. Updates should preserve
 these original SVGs and record the new upstream revision here. Bump the fitness
-thumbnail rendering version whenever the badge artwork changes.
+thumbnail rendering version (or `videoThumbVersion`, for the video badge)
+whenever the badge artwork changes.

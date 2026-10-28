@@ -3,4 +3,5 @@ https://github.com/google/material-design-icons
 
 Original icon artwork by Google, licensed under the Apache License, Version 2.0.
 Selected rounded SVGs are redistributed unchanged. Perkeep's local renderer
-scales and rasterizes this artwork into fitness activity thumbnail badges.
+scales and rasterizes this artwork into fitness activity and video thumbnail
+badges.
