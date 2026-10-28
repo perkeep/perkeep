@@ -19,6 +19,7 @@ package search_test
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,6 +111,64 @@ func TestQueryCandidates(t *testing.T) {
 				t.Logf("query %s, sort %v", tt.name, sort)
 				qt.wantRes(&SearchQuery{Constraint: tt.c, Sort: sort}, tt.want...)
 			}
+		}
+	})
+}
+
+// sizeConstraint matches files of exactly size bytes.
+func sizeConstraint(size int64) *Constraint {
+	return &Constraint{File: &FileConstraint{FileSize: &IntConstraint{Equals: &size}}}
+}
+
+func TestQueryFileSizeCandidates(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		f1, _ := id.UploadFile("a.jpg", "hello", time.Unix(100, 0))
+		f1b, _ := id.UploadFile("b.jpg", "hello", time.Unix(200, 0))
+		f2, _ := id.UploadFile("c.jpg", "world", time.Unix(300, 0))
+		f3, _ := id.UploadFile("d.jpg", "hi", time.Unix(400, 0))
+		// A directory's indexed size is its number of entries,
+		// but it doesn't match a FileConstraint.
+		id.UploadDir("dir", []blob.Ref{f1, f1b}, time.Unix(500, 0))
+
+		p1 := id.NewDeterministicPermanodeForTest("1")
+		id.SetAttribute(p1, "camliContent", f1.String())
+		p3 := id.NewDeterministicPermanodeForTest("3")
+		id.SetAttribute(p3, "camliContent", f3.String())
+
+		qt.candidateSource = "corpus_candidates"
+		tests := []struct {
+			name string
+			c    *Constraint
+			want []blob.Ref
+		}{
+			{"size", sizeConstraint(5), []blob.Ref{f1, f1b, f2}},
+			{"dir_size", sizeConstraint(2), []blob.Ref{f3}},
+			{"size_missing", sizeConstraint(6), nil},
+			{"size_and_name", &Constraint{File: &FileConstraint{
+				FileSize: sizeConstraint(5).File.FileSize,
+				FileName: &StringConstraint{Equals: "b.jpg"},
+			}}, []blob.Ref{f1b}},
+			{"content_size", &Constraint{Permanode: &PermanodeConstraint{
+				Attr:       "camliContent",
+				ValueInSet: sizeConstraint(2),
+			}}, []blob.Ref{p3}},
+		}
+		for _, tt := range tests {
+			t.Logf("query %s", tt.name)
+			qt.wantRes(&SearchQuery{Constraint: tt.c}, tt.want...)
+		}
+
+		// Size ranges still scan.
+		qt.candidateSource = ""
+		var src string
+		ExportSetCandidateSourceHook(func(s string) { src = s })
+		defer ExportSetCandidateSourceHook(nil)
+		qt.wantRes(&SearchQuery{Constraint: &Constraint{File: &FileConstraint{
+			FileSize: &IntConstraint{Min: 3, Max: 5},
+		}}}, f1, f1b, f2)
+		if src == "corpus_candidates" {
+			t.Errorf("size range query used candidate source %q", src)
 		}
 	})
 }
@@ -214,6 +273,39 @@ func BenchmarkQueryContentByWholeRef(b *testing.B) {
 		}{
 			{"candidates", contentConstraint(whole)},
 			{"scan", &Constraint{Permanode: &PermanodeConstraint{Attr: "mark", Value: "x"}}},
+		} {
+			b.Run(bc.name, func(b *testing.B) {
+				for b.Loop() {
+					res, err := h.Query(ctxbg, &SearchQuery{Constraint: bc.c})
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(res.Blobs) != 1 {
+						b.Fatalf("got %d results; want 1", len(res.Blobs))
+					}
+				}
+			})
+		}
+	})
+}
+
+// BenchmarkQueryFileBySize compares finding a file by its exact size with
+// the same query as a size range, which must scan all the files.
+func BenchmarkQueryFileBySize(b *testing.B) {
+	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {
+		id := qt.id
+		const n = 2000
+		for i := range n {
+			id.UploadFile(fmt.Sprintf("f%d.jpg", i), strings.Repeat("x", i+1), time.Unix(int64(i), 0))
+		}
+		const size = n / 2
+		h := qt.Handler()
+		for _, bc := range []struct {
+			name string
+			c    *Constraint
+		}{
+			{"candidates", sizeConstraint(size)},
+			{"scan", &Constraint{File: &FileConstraint{FileSize: &IntConstraint{Min: size, Max: size}}}},
 		} {
 			b.Run(bc.name, func(b *testing.B) {
 				for b.Loop() {
