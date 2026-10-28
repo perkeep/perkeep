@@ -190,7 +190,9 @@ func cacheKey(bref string, width int, height int) string {
 }
 
 // videoThumbVersion is added to the cache keys of video thumbnails, and
-// should be bumped when they change, such as their badge.
+// should be bumped when they change, such as their badge. The web UI also
+// adds it to their URLs, as the "vtv" parameter, which the server ignores,
+// since thumbnails are cached by browsers for a year.
 const videoThumbVersion = "1"
 
 // videoCacheKey is cacheKey, for thumbnails of videos.

@@ -236,17 +236,18 @@ func (b byFromTo) Less(i, j int) bool {
 
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	d := &camtypes.Discovery{
-		BlobRoot:     rh.BlobRoot,
-		JSONSignRoot: rh.JSONSignRoot,
-		HelpRoot:     rh.helpRoot,
-		ImporterRoot: rh.importerRoot,
-		SearchRoot:   rh.SearchRoot,
-		ShareRoot:    rh.shareRoot,
-		StatusRoot:   rh.statusRoot,
-		OwnerName:    rh.OwnerName,
-		UserName:     rh.Username,
-		AuthToken:    auth.DiscoveryToken(),
-		ThumbVersion: images.ThumbnailVersion(),
+		BlobRoot:          rh.BlobRoot,
+		JSONSignRoot:      rh.JSONSignRoot,
+		HelpRoot:          rh.helpRoot,
+		ImporterRoot:      rh.importerRoot,
+		SearchRoot:        rh.SearchRoot,
+		ShareRoot:         rh.shareRoot,
+		StatusRoot:        rh.statusRoot,
+		OwnerName:         rh.OwnerName,
+		UserName:          rh.Username,
+		AuthToken:         auth.DiscoveryToken(),
+		ThumbVersion:      images.ThumbnailVersion(),
+		VideoThumbVersion: videoThumbVersion,
 		// serverinit serves upload sessions for every blob root.
 		UploadSessions: rh.BlobRoot != "",
 	}

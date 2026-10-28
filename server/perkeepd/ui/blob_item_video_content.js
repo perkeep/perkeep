@@ -202,6 +202,14 @@ cam.BlobItemVideoContent.Handler = function(rm, href) {
 	this.thumber_ = new cam.Thumber(goog.string.subs('thumbnail/%s/%s', rm.blobRef, rm.file.fileName), this.getAspectRatio());
 };
 
+// Returns a video thumbnail URL with the server's video thumbnail version, so
+// that browsers, which cache thumbnails for a year, fetch them again when
+// video thumbnails change, such as their badge.
+cam.BlobItemVideoContent.versionedSrc_ = function(src) {
+	var config = goog.global.CAMLISTORE_CONFIG;
+	return goog.string.subs('%s&vtv=%s', src, (config && config.videoThumbVersion) || 0);
+};
+
 cam.BlobItemVideoContent.Handler.prototype.getAspectRatio = function() {
 	// The server indexes the displayed size of QuickTime, MP4, 3GPP, and
 	// AVI videos as media tags. Other videos are shown square.
@@ -220,6 +228,6 @@ cam.BlobItemVideoContent.Handler.prototype.createContent = function(size) {
 		filename: this.rm_.file.fileName,
 		href: this.href_,
 		size: size,
-		posterSrc: this.thumber_.getSrc(size),
+		posterSrc: cam.BlobItemVideoContent.versionedSrc_(this.thumber_.getSrc(size)),
 	});
 };
