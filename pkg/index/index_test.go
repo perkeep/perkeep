@@ -128,6 +128,7 @@ var (
 		"corpus_meta_test.go",
 		"corpus_parse_test.go",
 		"corpus_test.go",
+		"digests_test.go",
 		"enumstat_test.go",
 		"exif_test.go",
 		"export_test.go",
@@ -145,6 +146,7 @@ var (
 		"receiving_test.go",
 		"reindex_session_test.go",
 		"sniff_test.go",
+		"upgrade_digests_test.go",
 		"upgrade_media_test.go",
 		"util_test.go",
 	}

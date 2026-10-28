@@ -35,8 +35,10 @@ import (
 // Version 8: media tags from Apple MakerNotes and QuickTime metadata; video locations
 // Version 9: video sizes as media tags, and 3GPP and AVI video media tags.
 // Version 10: HEIC files recognized by any of their HEVC brands, major or compatible.
-// Versions 7 to 9 are upgraded at startup, by addMediaTags.
-const requiredSchemaVersion = 10
+// Version 11: digests of file contents (see DigestTypes).
+// Versions 7 to 9 are upgraded at startup, by addMediaTags, and then
+// version 10 by addDigests.
+const requiredSchemaVersion = 11
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
@@ -279,6 +281,31 @@ var (
 			{"filename", typeStr},
 			{"mimetype", typeStr},
 			{"whole", typeBlobRef},
+		},
+	}
+
+	// keyFileDigests lists the digests of a file's contents, in the
+	// order of DigestTypes, separated by "|".
+	keyFileDigests = &keyType{
+		"filedigests",
+		[]part{
+			{"wholeRef", typeBlobRef},
+		},
+		[]part{
+			{"digests", typeRawStr},
+		},
+	}
+
+	// keyDigestToWhole maps each digest in a keyFileDigests row
+	// back to its wholeRef.
+	keyDigestToWhole = &keyType{
+		"digesttowhole",
+		[]part{
+			{"digest", typeRawStr},
+			{"wholeRef", typeBlobRef}, // for key uniqueness
+		},
+		[]part{
+			{"1", typeStr},
 		},
 	}
 

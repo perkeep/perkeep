@@ -80,8 +80,9 @@ func jpegWithMakeEXIF(t *testing.T, cameraMake string, makerNote []byte) []byte 
 	return append(out, img.Bytes()[2:]...) // after the image's SOI
 }
 
-// TestAddMediaTags checks that upgrading a version 7 or 8 index to version
-// 9 adds the same rows as indexing the files at version 9.
+// TestAddMediaTags checks that upgrading a version 7, 8, or 9 index to
+// version 10, and then by addDigests to version 11, adds the same rows as
+// indexing the files at version 11.
 func TestAddMediaTags(t *testing.T) {
 	ctx := context.Background()
 	appleMakerNote, err := os.ReadFile("../../internal/media/applemakernote/testdata/iphone16pro.makernote")
@@ -119,7 +120,7 @@ func TestAddMediaTags(t *testing.T) {
 		{"notes.txt", []byte("not media")},
 	}
 
-	// Index the files at version 10.
+	// Index the files at version 11.
 	sto := new(memory.Storage)
 	ix := newLoggingIndex(t)
 	mm := &mutationMap{kv: make(map[string]string)}
@@ -144,7 +145,7 @@ func TestAddMediaTags(t *testing.T) {
 		}
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "10"
+	want[keySchemaVersion.name] = "11"
 
 	// The test needs files with new rows to upgrade: both Apple images
 	// (including the HEIC, with its EXIF item), the videos, and the heix
@@ -206,6 +207,10 @@ func TestAddMediaTags(t *testing.T) {
 		return k == keyImageSize.Key(heixFile) ||
 			strings.Contains(k, "|"+heixWhole) && !strings.HasPrefix(k, keyWholeToFileRef.name+"|")
 	}
+	// Rows added in version 11: the file digests.
+	isV11Row := func(k string) bool {
+		return strings.HasPrefix(k, keyFileDigests.name+"|") || strings.HasPrefix(k, keyDigestToWhole.name+"|")
+	}
 	heixTimes := keyFileTimes.Key(heixFile)
 	v9Value := func(k, v string) string {
 		switch k {
@@ -227,7 +232,7 @@ func TestAddMediaTags(t *testing.T) {
 			kv := sorted.NewMemoryKeyValue()
 			t.Cleanup(func() { kv.Close() })
 			for k, v := range want {
-				if isV10Row(k) || from < 9 && isV9Row(k) || from == 7 && isV8Row(k) {
+				if isV11Row(k) || isV10Row(k) || from < 9 && isV9Row(k) || from == 7 && isV8Row(k) {
 					continue
 				}
 				v = v9Value(k, v)
@@ -246,6 +251,14 @@ func TestAddMediaTags(t *testing.T) {
 			old.Logger = test.NewLogger(t, "")
 			if err := old.addMediaTags(ctx, sto); err != nil {
 				t.Fatalf("addMediaTags: %v", err)
+			}
+			old, err = New(kv)
+			if !errors.Is(err, errMissingDigests) {
+				t.Fatalf("New after addMediaTags: error %v; want errMissingDigests", err)
+			}
+			old.Logger = test.NewLogger(t, "")
+			if err := old.addDigests(ctx, sto); err != nil {
+				t.Fatalf("addDigests: %v", err)
 			}
 			if _, err := New(kv); err != nil {
 				t.Fatalf("New after upgrade: %v", err)

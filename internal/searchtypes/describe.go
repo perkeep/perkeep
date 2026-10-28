@@ -139,6 +139,10 @@ type DescribeRequest struct {
 	// longer match or internal limits are hit.
 	Rules []*DescribeRule `json:"rules,omitempty"`
 
+	// Digests, if true, requests the digests of described files'
+	// contents (see DescribedBlob.Digests).
+	Digests bool `json:"digests,omitempty"`
+
 	// Internal details, used while loading.
 	// Initialized by InitDescribeRequest.
 	sh            *describeHandler
@@ -259,6 +263,10 @@ type DescribedBlob struct {
 	Image *camtypes.ImageInfo `json:"image,omitempty"`
 	// if camliType "file" and media file
 	MediaTags map[string]string `json:"mediaTags,omitempty"`
+	// Digests, if camliType is "file" and the request's Digests is set,
+	// are the indexed digests of the file's contents, such as
+	// "crc32-cbf43926", in the order of index.DigestTypes.
+	Digests []string `json:"digests,omitempty"`
 
 	// if camliType "directory"
 	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
@@ -297,6 +305,14 @@ type DescribedLivePhoto struct {
 	Video blob.Ref `json:"video,omitzero"`
 	// Still is the still image file, if the described file is the video.
 	Still blob.Ref `json:"still,omitzero"`
+}
+
+// DigestIndex is implemented by a DescribeIndex that indexes the digests
+// of files' contents.
+type DigestIndex interface {
+	// GetFileDigests returns the digests of the contents of fileRef,
+	// or os.ErrNotExist if they aren't indexed.
+	GetFileDigests(ctx context.Context, fileRef blob.Ref) ([]string, error)
 }
 
 // LivePhotoIndex is implemented by a DescribeIndex that can pair the
@@ -813,6 +829,13 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		}
 		if mediaTags, err := dr.sh.index.GetMediaTags(ctx, br); err == nil {
 			des.MediaTags = mediaTags
+		}
+		if di, ok := dr.sh.index.(DigestIndex); ok && dr.Digests {
+			if digests, err := di.GetFileDigests(ctx, br); err == nil {
+				des.Digests = digests
+			} else if !errors.Is(err, os.ErrNotExist) {
+				dr.addError(br, err)
+			}
 		}
 		if lpi, ok := dr.sh.index.(LivePhotoIndex); ok {
 			if lp := describeLivePhoto(lpi, br, des.File.MIMEType); lp != nil {

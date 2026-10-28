@@ -34,10 +34,15 @@ import (
 	"perkeep.org/pkg/schema"
 )
 
+// mediaTagsSchemaVersion is the index schema version that addMediaTags
+// upgrades to.
+const mediaTagsSchemaVersion = 10
+
 // isMediaTagsUpgrade reports whether an index of schemaVersion can be
-// upgraded to the required version by addMediaTags, without a reindex.
+// upgraded by addMediaTags, and then to the required version by
+// addDigests, without a reindex.
 func isMediaTagsUpgrade(schemaVersion int) bool {
-	return schemaVersion >= 7 && schemaVersion <= 9 && requiredSchemaVersion == 10
+	return schemaVersion >= 7 && schemaVersion <= 9 && isDigestsUpgrade(mediaTagsSchemaVersion)
 }
 
 var errMissingMediaTags = errors.New("index: missing the rows of index schema versions 8 to 10")
@@ -77,7 +82,7 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 		panic("addMediaTags should only be used when upgrading from v7, v8, or v9 to v10 of the index schema")
 	}
 	start := time.Now()
-	x.logf("upgrading index schema from version %d to %d by adding media rows...", from, requiredSchemaVersion)
+	x.logf("upgrading index schema from version %d to %d by adding media rows...", from, mediaTagsSchemaVersion)
 	defer func() {
 		if err != nil {
 			x.logf("adding media rows failed: %v", err)
@@ -175,10 +180,10 @@ func (x *Index) addMediaTags(ctx context.Context, fetcher blob.Fetcher) (err err
 	if err := commit(); err != nil {
 		return err
 	}
-	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion)); err != nil {
-		return fmt.Errorf("could not write index schema version %d: %w", requiredSchemaVersion, err)
+	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(mediaTagsSchemaVersion)); err != nil {
+		return fmt.Errorf("could not write index schema version %d: %w", mediaTagsSchemaVersion, err)
 	}
-	x.logf("upgraded index schema to version %d in %v; %d files failed", requiredSchemaVersion, time.Since(start).Round(time.Millisecond), failed.Load())
+	x.logf("upgraded index schema to version %d in %v; %d files failed", mediaTagsSchemaVersion, time.Since(start).Round(time.Millisecond), failed.Load())
 	return nil
 }
 
