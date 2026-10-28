@@ -189,7 +189,8 @@ type FileConstraint struct {
 }
 
 type MediaTagConstraint struct {
-	// Tag is the tag to match.
+	// Tag is the tag to match. If empty, String matches when at least one
+	// media tag value matches; Int requires a named tag.
 	// For ID3, this includes: title, artist, album, genre, musicbrainzalbumid, year, track, disc, mediaref, durationms.
 	// For Apple photos and QuickTime videos, this includes: contentidentifier (shared by a Live Photo's
 	// still image and video), burstuuid and photoidentifier (photos), and durationms, make, model,

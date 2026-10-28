@@ -188,6 +188,14 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
      rest of whole expression (regardless of its position within the expression),
      logical 'or's around it are forbidden.
 
+**<a name="media"></a>media**
+: search for file permanodes by a case-insensitive substring in any indexed
+  media tag value. For example, `media:"Test Artist"` matches an artist,
+  album, or title containing that text. This also searches other indexed
+  media metadata, not just audio tags. Each value is matched separately;
+  tag names and filenames are not searched. `media:""` matches files with
+  at least one indexed media tag. Requires the in-memory index.
+
 **<a name="parentof"></a>parentof**
 : Find parent permanodes of a child permanode (or prefix of a child permanode):
   `parentof:sha1-527cf12`

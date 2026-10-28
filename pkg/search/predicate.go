@@ -127,10 +127,8 @@ func init() {
 	registerKeyword(newIsPortait())
 	registerKeyword(newWidth())
 
-	// MediaTags predicates
+	// Media tag predicates
 	registerKeyword(newMedia())
-	//registerKeyword(newArtist())
-	//registerKeyword(newAlbum())
 
 	// File predicates
 	registerKeyword(newFilename())
@@ -618,7 +616,7 @@ func (h height) Predicate(ctx context.Context, args []string) (*Constraint, erro
 	return c, nil
 }
 
-// MediaTags Predicates
+// Media tag predicates
 
 type media struct {
 	matchPrefix
@@ -629,26 +627,18 @@ func newMedia() keyword {
 }
 
 func (t media) Description() string {
-	return "match nodes containing substring in their media tags"
+	return "match file permanodes by a case-insensitive substring in any media tag value; requires the in-memory index"
 }
 
 func (t media) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	c := &Constraint{
-		Permanode: &PermanodeConstraint{
-			Attr: nodeattr.CamliContent,
-			ValueInSet: &Constraint{
-				File: &FileConstraint{
-					MediaTag: &MediaTagConstraint{
-						String: &StringConstraint{
-							Contains:        args[0],
-							CaseInsensitive: true,
-						},
-					},
-				},
+	return permOfFile(&FileConstraint{
+		MediaTag: &MediaTagConstraint{
+			String: &StringConstraint{
+				Contains:        args[0],
+				CaseInsensitive: true,
 			},
 		},
-	}
-	return c, nil
+	}), nil
 }
 
 // Location predicates
