@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"go4.org/media/heif/bmff"
 )
@@ -47,6 +48,31 @@ type track struct {
 	// entryWidth and entryHeight are the first visual sample entry's
 	// pixel size, before rotation, or zero if unset.
 	entryWidth, entryHeight int
+
+	// config is the first visual sample entry's decoder configuration
+	// box (such as "hvcC" or "avcC"), including its header, or nil.
+	config []byte
+
+	// color is the first visual sample entry's ISO color information
+	// box ("colr" of type "nclx"), including its header, or nil.
+	color []byte
+
+	// clap is the first visual sample entry's clean aperture box, which
+	// crops the coded frames for display, including its header, or nil.
+	clap []byte
+
+	// timescale is the media's time units per second, from its "mdhd"
+	// box, and duration its duration in those units.
+	timescale uint32
+	duration  uint64
+
+	// mediaStart is the media time, in timescale units, at which the
+	// track's edit list starts presenting it.
+	mediaStart int64
+
+	// tables are the sample table boxes' bodies, if readTrack was asked
+	// for them.
+	tables *sampleTables
 }
 
 // displaySize returns the track's size as displayed, after rotation.
@@ -79,9 +105,13 @@ func mainVideoTrack(tracks []*track) *track {
 	return best
 }
 
-// readTrack reads the body of a "trak" box.
-func readTrack(trak io.Reader) (*track, error) {
+// readTrack reads the body of a "trak" box, including its sample tables
+// if withSamples.
+func readTrack(trak io.Reader, withSamples bool) (*track, error) {
 	t := new(track)
+	if withSamples {
+		t.tables = new(sampleTables)
+	}
 	err := forEachBox(trak, func(b bmff.Box) error {
 		switch b.Type().String() {
 		case "tkhd":
@@ -92,6 +122,18 @@ func readTrack(trak io.Reader) (*track, error) {
 			return t.parseTrackHeader(body)
 		case "mdia":
 			return forEachBox(b.Body(), t.readMediaBox)
+		case "edts":
+			return forEachBox(b.Body(), func(b bmff.Box) error {
+				if !b.Type().EqualString("elst") {
+					return nil
+				}
+				body, err := readLeaf(b)
+				if err != nil {
+					return err
+				}
+				t.parseEditList(body)
+				return nil
+			})
 		}
 		return nil
 	})
@@ -115,6 +157,12 @@ func (t *track) readMediaBox(b bmff.Box) error {
 		if len(body) >= 12 {
 			t.handler = string(body[8:12])
 		}
+	case "mdhd":
+		body, err := readLeaf(b)
+		if err != nil {
+			return err
+		}
+		t.parseMediaHeader(body)
 	case "minf":
 		return forEachBox(b.Body(), func(b bmff.Box) error {
 			if !b.Type().EqualString("stbl") {
@@ -134,8 +182,74 @@ func (t *track) readSampleTableBox(b bmff.Box) error {
 			return err
 		}
 		t.parseSampleDescription(body)
+		return nil
+	}
+	if t.tables == nil {
+		return nil
+	}
+	dst := t.tables.box(b.Type().String())
+	if dst == nil {
+		return nil
+	}
+	n := b.Size() - b.HeaderSize()
+	if b.Size() <= 0 || n > maxTableBoxSize {
+		return fmt.Errorf("quicktime: unsupported %q box size %d", b.Type(), b.Size())
+	}
+	*dst = make([]byte, n)
+	if _, err := io.ReadFull(b.Body(), *dst); err != nil {
+		return fmt.Errorf("quicktime: reading %q box: %w", b.Type(), err)
 	}
 	return nil
+}
+
+// parseEditList parses an "elst" box, setting t.mediaStart to the media
+// time of its first edit that isn't empty (a delay).
+func (t *track) parseEditList(b []byte) {
+	be := binary.BigEndian
+	if len(b) < 8 {
+		return
+	}
+	version, n := b[0], be.Uint32(b[4:])
+	entry := 12 // 32-bit segment duration, media time, and media rate
+	if version == 1 {
+		entry = 20 // 64-bit duration and media time
+	}
+	for i := 0; i < int(min(n, 1000)) && 8+(i+1)*entry <= len(b); i++ {
+		e := b[8+i*entry:]
+		var mediaTime int64
+		if version == 1 {
+			mediaTime = int64(be.Uint64(e[8:]))
+		} else {
+			mediaTime = int64(int32(be.Uint32(e[4:])))
+		}
+		if mediaTime >= 0 { // -1 is an empty edit
+			t.mediaStart = mediaTime
+			return
+		}
+	}
+}
+
+// parseMediaHeader parses an "mdhd" box.
+func (t *track) parseMediaHeader(b []byte) {
+	if len(b) < 4 {
+		return
+	}
+	be := binary.BigEndian
+	// After the FullBox header, creation and modification times, then
+	// the timescale and duration, all 32 bits, or 64 for times and
+	// duration in version 1.
+	switch {
+	case b[0] == 0 && len(b) >= 20:
+		t.timescale, t.duration = be.Uint32(b[12:]), uint64(be.Uint32(b[16:]))
+		if t.duration == math.MaxUint32 { // unknown
+			t.duration = 0
+		}
+	case b[0] == 1 && len(b) >= 32:
+		t.timescale, t.duration = be.Uint32(b[20:]), be.Uint64(b[24:])
+		if t.duration == math.MaxUint64 {
+			t.duration = 0
+		}
+	}
 }
 
 func (t *track) parseTrackHeader(b []byte) error {
@@ -203,6 +317,28 @@ func (t *track) parseSampleDescription(b []byte) {
 	if len(entry) >= 36 {
 		t.entryWidth = int(binary.BigEndian.Uint16(entry[32:]))
 		t.entryHeight = int(binary.BigEndian.Uint16(entry[34:]))
+	}
+	// After the size: resolutions, reserved, frame count, compressor
+	// name, depth, and pre_defined, 50 bytes, then child boxes, the
+	// first of which with a type ending in "C" is the decoder
+	// configuration ("hvcC", "avcC", "av1C", etc).
+	for kids := entry[min(len(entry), 86):]; len(kids) >= 8; {
+		n := binary.BigEndian.Uint32(kids)
+		if n < 8 || uint64(n) > uint64(len(kids)) {
+			break
+		}
+		switch {
+		case kids[7] == 'C' && t.config == nil:
+			t.config = kids[:n:n]
+		case string(kids[4:8]) == "colr" && n >= 12 && string(kids[8:12]) == "nclx" && t.color == nil:
+			// ISO color information, unlike QuickTime's "nclc",
+			// includes whether the video uses the full range.
+			t.color = kids[:n:n]
+		case string(kids[4:8]) == "clap" && n == 40 && t.clap == nil:
+			// Clean aperture: eight 32-bit values.
+			t.clap = kids[:n:n]
+		}
+		kids = kids[n:]
 	}
 }
 

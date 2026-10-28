@@ -67,7 +67,7 @@ func FuzzReadTrack(f *testing.F) {
 	trak := videoTrak(1920, 1080, true)
 	f.Add(trak[8:]) // the box's body
 	f.Fuzz(func(t *testing.T, in []byte) {
-		if tr, err := readTrack(bytes.NewReader(in)); err == nil {
+		if tr, err := readTrack(bytes.NewReader(in), true); err == nil {
 			tr.displaySize()
 		}
 	})

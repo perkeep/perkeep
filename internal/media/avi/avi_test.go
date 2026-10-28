@@ -55,7 +55,7 @@ func TestReadHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Header{Width: 640, Height: 480, FrameDuration: 40 * time.Millisecond, Frames: 250, Codec: "MJPG"}
+	want := Header{Width: 640, Height: 480, FrameDuration: 40 * time.Millisecond, Frames: 250, Codec: "MJPG", VideoStream: 1}
 	if *h != want {
 		t.Errorf("ReadHeader = %+v; want %+v", *h, want)
 	}
