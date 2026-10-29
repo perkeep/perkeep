@@ -76,17 +76,30 @@ func (l *startupLog) Lines() []string {
 // startupHandler serves all requests while the server starts, before its
 // handlers are installed (see webserver.Server.SetStartupHandler). It
 // shows the startup log at / and /ui/ to the server's owner, passes
-// /healthz to the health handler, and tells all other requests to try
-// again soon.
+// /healthz to the health handler, and debug requests from the owner (for
+// profiles and goroutines' stacks, as of a server stuck starting) to the
+// debug handler, and tells all other requests to try again soon.
 type startupHandler struct {
 	log     *startupLog
 	start   time.Time
 	healthz http.Handler // or nil
+	debug   http.Handler // or nil; see serverinit.DebugHandler
 }
 
 func (h *startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/healthz" && h.healthz != nil {
 		h.healthz.ServeHTTP(w, r)
+		return
+	}
+	if h.debug != nil && (strings.HasPrefix(r.URL.Path, "/debug/pprof/") || r.URL.Path == "/debug/goroutines") {
+		// Only the owner, as for the startup log. Until the auth
+		// mode is configured, first thing when the handlers are
+		// installed, no one is.
+		if !auth.Allowed(r, auth.OpAll) {
+			auth.SendUnauthorized(w, r)
+			return
+		}
+		h.debug.ServeHTTP(w, r)
 		return
 	}
 	w.Header().Set("Retry-After", "5")

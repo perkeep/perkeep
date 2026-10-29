@@ -492,7 +492,7 @@ func main() {
 	}
 	healthz := http.HandlerFunc(mon.ServeHealthz)
 	ws.Handle("/healthz", healthz)
-	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz})
+	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz, debug: serverinit.DebugHandler()})
 	listened := make(chan string, 1) // the base URL, once listening
 	go func() {
 		baseURL, err := listen(ws, config)
