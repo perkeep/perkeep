@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -35,9 +36,15 @@ import (
 type fakeDrive struct {
 	zips   map[string][]byte
 	ranges atomic.Int64 // number of ranged reads
+	limit  atomic.Int64 // how many more requests to reject for a rate limit
 }
 
 func (fd *fakeDrive) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if fd.limit.Add(-1) >= 0 {
+		// As Drive rejects requests beyond a rate limit.
+		http.Error(w, `{"error": {"errors": [{"reason": "rateLimitExceeded"}], "status": "PERMISSION_DENIED"}}`, http.StatusForbidden)
+		return
+	}
 	switch {
 	case r.URL.Path == "/drive/v3/files":
 		q := r.FormValue("q")
@@ -114,4 +121,24 @@ func TestDriveExports(t *testing.T) {
 	if n := fd.ranges.Load(); n != 0 {
 		t.Errorf("loading cached tables of contents made %d ranged reads; want 0", n)
 	}
+}
+
+// TestDriveRateLimit checks that requests that Drive rejects for a rate
+// limit are retried, after waiting.
+func TestDriveRateLimit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fd := &fakeDrive{zips: testZips(t)}
+		fd.limit.Store(3)
+		ts := httptest.NewTestServer(t, fd)
+		d := &Drive{Client: ts.Client(), apiBase: ts.URL}
+		start := time.Now()
+		exps, err := d.Exports(context.Background(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waited := time.Since(start); waited < 7*time.Second {
+			t.Errorf("waited %v for 3 rejections; want at least 1s+2s+4s", waited)
+		}
+		checkExport(t, exps)
+	})
 }

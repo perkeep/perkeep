@@ -17,16 +17,23 @@ limitations under the License.
 package takeout
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"go4.org/ziputil"
+	"golang.org/x/time/rate"
 )
 
 // DriveScope is the OAuth scope that Drive needs: reading Google Drive.
@@ -44,6 +51,12 @@ type Drive struct {
 	// tables of contents in, by the ID of the revision read.
 	CacheDir string
 
+	// Limiter, if non-nil, limits the rate of requests to Drive. Drive
+	// rejects requests beyond a quota per minute, which it doesn't
+	// report, so the requests are retried, but limiting them avoids
+	// that, and leaves room for others using the quota.
+	Limiter *rate.Limiter
+
 	// apiBase is the Drive API's URL, if not the usual one, for tests.
 	apiBase string
 }
@@ -53,6 +66,61 @@ func (d *Drive) base() string {
 		return d.apiBase
 	}
 	return "https://www.googleapis.com"
+}
+
+// maxDriveTries is how many times do tries a request that Drive limits
+// or fails with a server error.
+const maxDriveTries = 10
+
+// do does req, retrying with exponential backoff while Drive rejects
+// it for exceeding a rate limit or with a server error.
+func (d *Drive) do(req *http.Request) (*http.Response, error) {
+	delay := time.Second
+	for try := 1; ; try++ {
+		if d.Limiter != nil {
+			if err := d.Limiter.Wait(req.Context()); err != nil {
+				return nil, err
+			}
+		}
+		res, err := d.Client.Do(req.Clone(req.Context()))
+		if err != nil || try == maxDriveTries || !retryable(res) {
+			return res, err
+		}
+		// Drain a little of the body so the connection can be reused.
+		io.CopyN(io.Discard, res.Body, 4<<10)
+		res.Body.Close()
+		// Up to half again, so concurrent requests spread out.
+		wait := delay + time.Duration(rand.Int64N(int64(delay/2)))
+		t := time.NewTimer(wait)
+		select {
+		case <-t.C:
+		case <-req.Context().Done():
+			t.Stop()
+			return nil, req.Context().Err()
+		}
+		delay = min(2*delay, time.Minute)
+	}
+}
+
+// retryable reports whether res is Drive rejecting a request for
+// exceeding a rate limit, or a server error, for which the request should
+// be retried. It reads the start of res.Body, but leaves all of it to be
+// read.
+func retryable(res *http.Response) bool {
+	switch {
+	case res.StatusCode == http.StatusTooManyRequests, res.StatusCode >= 500:
+		return true
+	case res.StatusCode != http.StatusForbidden:
+		return false
+	}
+	// Drive also says 403 for rate limits, rather than 429.
+	start, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(start), res.Body), res.Body}
+	body := string(start)
+	return strings.Contains(body, "rateLimitExceeded") || strings.Contains(body, "RATE_LIMIT_EXCEEDED")
 }
 
 // driveFile is a file in a Drive API files.list response.
@@ -126,7 +194,7 @@ func (d *Drive) list(ctx context.Context, q string) ([]driveFile, error) {
 		if err != nil {
 			return nil, err
 		}
-		res, err := d.Client.Do(req)
+		res, err := d.do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -191,6 +259,35 @@ func (z *driveZip) readTOC(ctx context.Context) ([]byte, error) {
 	return toc, nil
 }
 
+// entryCacheFile returns the file to cache the contents of f in, or "".
+func (z *driveZip) entryCacheFile(f *ziputil.FileHeader) string {
+	if z.d.CacheDir == "" {
+		return ""
+	}
+	// The revision's contents never change, so an entry's offset in it
+	// identifies the entry.
+	return filepath.Join(z.d.CacheDir, "entries", url.PathEscape(z.rev), fmt.Sprintf("%d-%08x", f.HeaderOffset, f.CRC32))
+}
+
+func (z *driveZip) cachedEntry(f *ziputil.FileHeader) ([]byte, bool) {
+	name := z.entryCacheFile(f)
+	if name == "" {
+		return nil, false
+	}
+	data, err := os.ReadFile(name)
+	if err != nil || uint64(len(data)) != f.UncompressedSize64 || crc32.ChecksumIEEE(data) != f.CRC32 {
+		return nil, false
+	}
+	return data, true
+}
+
+func (z *driveZip) cacheEntry(f *ziputil.FileHeader, data []byte) {
+	if name := z.entryCacheFile(f); name != "" {
+		// The cache is only an optimization.
+		writeFileAtomic(name, data)
+	}
+}
+
 func writeFileAtomic(name string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 		return err
@@ -222,7 +319,7 @@ func (z *driveZip) openRange(ctx context.Context, off, n int64) (io.ReadCloser, 
 		return nil, err
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", off, off+n-1))
-	res, err := z.d.Client.Do(req)
+	res, err := z.d.do(req)
 	if err != nil {
 		return nil, err
 	}
