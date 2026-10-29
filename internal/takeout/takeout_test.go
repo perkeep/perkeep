@@ -292,6 +292,23 @@ func TestIsPhotosMedia(t *testing.T) {
 	}
 }
 
+func TestIsEdited(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Takeout/Google Photos/Trip/IMG_20140620_175629-edited.jpg":     true,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626-edited(1).jpg":   true,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626-edited(2).MP4":   true,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626.jpg":             false,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626(1).jpg":          false,
+		"Takeout/Google Photos/2013-06-26/my-edited-photos.jpg":         false,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626-edited(x).jpg":   false,
+		"Takeout/Google Photos/2013-06-26/IMG_20130626-edited.jpg.json": false,
+	} {
+		if got := IsEdited(name); got != want {
+			t.Errorf("IsEdited(%q) = %v; want %v", name, got, want)
+		}
+	}
+}
+
 func TestExportName(t *testing.T) {
 	for zipName, want := range map[string]string{
 		"takeout-20240101T120000Z-001.zip":   "takeout-20240101T120000Z",
