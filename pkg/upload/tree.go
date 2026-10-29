@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -87,6 +88,8 @@ type Tree struct {
 
 	mu       sync.Mutex
 	progress TreeProgress
+	inFlight map[*File]TreeFile // regular files being uploaded
+	recent   []TreeFileDone     // the last treeRecentFiles done, oldest first
 }
 
 // NewTree returns an upload of the directory tree at dir of fsys to c,
@@ -116,8 +119,75 @@ type TreeProgress struct {
 
 	FilesDone   int   // uploaded, or found in the Cache
 	FilesCached int   // of FilesDone, found in the Cache
+	FilesDup    int   // of FilesDone, whose contents the server had
 	DirsDone    int   // uploaded
 	BytesDone   int64 // of the regular files done
+
+	// BytesUploaded and ChunksUploaded are of the chunks of the files
+	// done that the server lacked, and ChunksPresent of those it had.
+	BytesUploaded  int64
+	ChunksUploaded int
+	ChunksPresent  int
+}
+
+// A TreeFile is a regular file that a Tree is uploading.
+type TreeFile struct {
+	Path     string // in the Tree's fs.FS
+	Size     int64
+	Started  time.Time
+	Progress Progress
+}
+
+// A TreeFileDone is a regular file that a Tree uploaded.
+type TreeFileDone struct {
+	Path          string
+	Size          int64
+	Started       time.Time
+	Done          time.Time
+	Dup           bool  // the server had its contents
+	BytesUploaded int64 // of its chunks the server lacked
+	Err           string
+}
+
+// treeRecentFiles is how many of the files it uploaded last a Tree keeps,
+// for Status.
+const treeRecentFiles = 100
+
+// TreeStatus is the detailed state of a Tree's upload, for showing it.
+type TreeStatus struct {
+	Progress TreeProgress
+	InFlight []TreeFile     // sorted by when they started
+	Recent   []TreeFileDone // newest first
+}
+
+// Status returns the upload's progress, with the files being uploaded
+// and those uploaded most recently. It's safe to call at any time,
+// including during Run.
+func (t *Tree) Status() TreeStatus {
+	t.mu.Lock()
+	st := TreeStatus{Progress: t.progress}
+	files := make(map[*File]TreeFile, len(t.inFlight))
+	for f, tf := range t.inFlight {
+		files[f] = tf
+	}
+	for i := len(t.recent) - 1; i >= 0; i-- {
+		st.Recent = append(st.Recent, t.recent[i])
+	}
+	t.mu.Unlock()
+	for f, tf := range files {
+		tf.Progress = f.Progress()
+		st.InFlight = append(st.InFlight, tf)
+	}
+	slices.SortFunc(st.InFlight, func(a, b TreeFile) int { return a.Started.Compare(b.Started) })
+	return st
+}
+
+// noteRecentLocked records a file done, for Status. t.mu must be held.
+func (t *Tree) noteRecentLocked(d TreeFileDone) {
+	if len(t.recent) == treeRecentFiles {
+		t.recent = slices.Delete(t.recent, 0, 1)
+	}
+	t.recent = append(t.recent, d)
 }
 
 // Progress returns the upload's progress. It's safe to call at any time,
@@ -324,7 +394,32 @@ func (t *Tree) uploadFile(ctx context.Context, s *client.UploadSession, n *treeN
 	opts := t.opts.File
 	opts.Session, opts.Limiter = s, t.lim
 	opts.WholeRefs, opts.ModTime = nil, time.Time{}
-	res, err := NewFile(t.c, n.fi, ra, &opts).Run(ctx)
+	file := NewFile(t.c, n.fi, ra, &opts)
+	started := time.Now()
+	t.mu.Lock()
+	if t.inFlight == nil {
+		t.inFlight = make(map[*File]TreeFile)
+	}
+	t.inFlight[file] = TreeFile{Path: n.path, Size: n.fi.Size(), Started: started}
+	t.mu.Unlock()
+	res, err := file.Run(ctx)
+	pr := file.Progress()
+	t.mu.Lock()
+	delete(t.inFlight, file)
+	done := TreeFileDone{Path: n.path, Size: n.fi.Size(), Started: started, Done: time.Now(), BytesUploaded: pr.BytesUploaded}
+	if err != nil {
+		done.Err = err.Error()
+	} else {
+		done.Dup = res.Dup
+		t.progress.BytesUploaded += pr.BytesUploaded
+		t.progress.ChunksUploaded += pr.ChunksUploaded
+		t.progress.ChunksPresent += pr.ChunksPresent
+		if res.Dup {
+			t.progress.FilesDup++
+		}
+	}
+	t.noteRecentLocked(done)
+	t.mu.Unlock()
 	if err != nil {
 		return err
 	}
