@@ -25,6 +25,7 @@ limitations under the License.
 package takeout // import "perkeep.org/internal/takeout"
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -320,7 +321,19 @@ func Upload(ctx context.Context, s Store, cs []*Content, workers int, result fun
 	return failed, err
 }
 
+// cachedPutMax is the size of entries up to which put reads them with
+// ReadAll, which may have them cached, such as sidecars that NewLibrary
+// read.
+const cachedPutMax = 1 << 20
+
 func put(ctx context.Context, s Store, e Entry) error {
+	if e.Size() <= cachedPutMax {
+		data, err := e.ReadAll(ctx)
+		if err != nil {
+			return err
+		}
+		return s.Put(ctx, e, bytes.NewReader(data))
+	}
 	rc, err := e.Open(ctx)
 	if err != nil {
 		return err

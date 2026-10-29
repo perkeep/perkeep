@@ -88,6 +88,7 @@ func (c *takeoutCmd) Usage() {
 	fmt.Fprintf(os.Stderr, `Usage: pk [globalopts] takeout [takeoutopts] list
        pk [globalopts] takeout [takeoutopts] stats <export>
        pk [globalopts] takeout [takeoutopts] upload <export>
+       pk [globalopts] takeout [takeoutopts] archive <export>
 
 Reads Google Takeout exports, from Google Drive or from a local directory
 of their zip files (-dir), and finds which of their Google Photos files the
@@ -95,6 +96,11 @@ server has, by their sizes and CRC-32s, which the zip files record and the
 server indexes. "stats" reports them; "upload" uploads the rest, reading
 only those files' parts of the zip files. An export is named by its zip
 files' common prefix, such as takeout-20240101T120000Z.
+
+"archive" keeps all of an export's files, of every kind: a directory of
+each zip file's files, in a directory of the export, which is the content
+of a permanode titled "Google Takeout Raw Zips (<export>)". Files the
+server has aren't read again.
 
 To read Google Drive, put a Google OAuth client ID for a desktop app, as
 downloaded from the Google Cloud console, in %s.
@@ -121,7 +127,7 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		if len(args) != 0 {
 			return cmdmain.UsageError("list takes no arguments")
 		}
-	case "stats", "upload":
+	case "stats", "upload", "archive":
 		if len(args) != 1 {
 			return cmdmain.UsageError(mode + " takes the name of an export")
 		}
@@ -160,7 +166,7 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if err := st.checkServer(ctx); err != nil {
 		return err
 	}
-	if st.permanodes || c.meta && !c.all {
+	if st.permanodes || c.meta && !c.all || mode == "archive" {
 		if st.signer, err = cl.Signer(); err != nil {
 			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false -meta=false): %w", err)
 		}
@@ -171,6 +177,11 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 
 	log.Printf("Reading the tables of contents of %d zip files...", len(exp.Zips))
 	if err := exp.LoadTOCs(ctx, c.workers); err != nil {
+		return err
+	}
+	if mode == "archive" {
+		a := &takeoutArchive{st: st, exp: exp, workers: c.workers, verbose: c.verbose}
+		_, err := a.run(ctx)
 		return err
 	}
 	var ents []takeout.Entry
