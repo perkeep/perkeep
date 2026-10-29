@@ -59,6 +59,11 @@ type UploadSession struct {
 	// early are blobs a flush reported durable before their Upload call
 	// noted them accepted.
 	early map[blob.Ref]bool
+	// wasDurable are the blobs flushes have reported durable. Once
+	// acknowledged, the server doesn't report them again, so one
+	// uploaded again (which the server accepts and skips, if it hasn't
+	// had the acknowledgment yet) mustn't wait to be.
+	wasDurable map[blob.Ref]bool
 	// failed are the blobs that failed or were lost, and haven't been
 	// uploaded again, for WaitDurable.
 	failed map[blob.Ref]error
@@ -111,6 +116,7 @@ func (c *Client) NewUploadSession(ctx context.Context) (*UploadSession, error) {
 		maxSending: httpGateSize(c.httpClient.Transport),
 		accepted:   make(map[blob.Ref]uint32),
 		early:      make(map[blob.Ref]bool),
+		wasDurable: make(map[blob.Ref]bool),
 		failed:     make(map[blob.Ref]error),
 	}, nil
 }
@@ -153,6 +159,12 @@ func (s *UploadSession) Upload(ctx context.Context, h *UploadHandle) error {
 	c := s.c
 	if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
 		return nil // durable already, as the have cache only has durable blobs
+	}
+	s.mu.Lock()
+	durable := s.wasDurable[h.BlobRef]
+	s.mu.Unlock()
+	if durable {
+		return nil
 	}
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
@@ -272,6 +284,8 @@ func (s *UploadSession) noteUploaded(h *UploadHandle, ures *protocol.UploadRespo
 		s.durable = append(s.durable, blob.SizedRef{Ref: h.BlobRef, Size: h.Size})
 	case s.early[h.BlobRef]:
 		delete(s.early, h.BlobRef) // a Flush already returned it
+	case s.wasDurable[h.BlobRef]:
+		// Uploaded again, after a flush reported it durable.
 	default:
 		s.accepted[h.BlobRef] = h.Size
 	}
@@ -419,6 +433,7 @@ func (s *UploadSession) flush(ctx context.Context) error {
 		return nil
 	}
 	for _, sb := range st.Durable {
+		s.wasDurable[sb.Ref] = true
 		if _, ok := s.accepted[sb.Ref]; ok {
 			delete(s.accepted, sb.Ref)
 		} else {
