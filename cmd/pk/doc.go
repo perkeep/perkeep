@@ -34,6 +34,7 @@ Modes:
 
 	index: Synchronize blobs for all discovered blobs storage - indexer pairs.
 	sync: Synchronize blobs from a source to a destination.
+	takeout: Upload the Google Photos files of Google Takeout exports that the server doesn't have.
 
 	debug: Show misc meta-info from the given file.
 
