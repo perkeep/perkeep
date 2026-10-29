@@ -1494,9 +1494,12 @@ func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRe
 func (s *storage) packFile(ctx context.Context, fileRef blob.Ref) (err error) {
 	s.Logf("Packing file %s ...", fileRef)
 	defer func() {
-		if err == nil {
+		switch {
+		case err == nil:
 			s.Logf("Packed file %s", fileRef)
-		} else {
+		case errors.Is(err, errChunksPacked):
+			s.Logf("Not packing file %s: %v", fileRef, err)
+		default:
 			s.Logf("Error packing file %s: %v", fileRef, err)
 		}
 	}()
@@ -1553,6 +1556,16 @@ var (
 func (pk *packer) pack(ctx context.Context) error {
 	if err := pk.scanChunks(ctx); err != nil {
 		return err
+	}
+
+	// If every chunk is packed already, as when the file schema gives
+	// another name to contents stored before, there's nothing to pack.
+	// Checking that first saves reading all the chunks back from large
+	// storage, below, only to find their wholeref packed.
+	if packed, err := pk.chunksPacked(); err != nil {
+		return err
+	} else if packed {
+		return errChunksPacked
 	}
 
 	// TODO: decide as a function of schemaRefs and dataRefs
@@ -1627,6 +1640,28 @@ MakingZips:
 	}
 
 	return nil
+}
+
+// errChunksPacked is the error of packing a file whose chunks are all
+// packed already.
+var errChunksPacked = errors.New("its chunks are all packed already")
+
+// chunksPacked reports whether every one of the file's chunks, found by
+// scanChunks, is packed.
+func (pk *packer) chunksPacked() (bool, error) {
+	if len(pk.dataRefs) == 0 {
+		return false, nil
+	}
+	for _, dr := range pk.dataRefs {
+		m, err := pk.s.getMetaRow(dr)
+		if err != nil {
+			return false, err
+		}
+		if !m.isPacked() {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (pk *packer) scanChunks(ctx context.Context) error {

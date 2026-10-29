@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -800,6 +801,76 @@ func TestPackTwoIdenticalfiles(t *testing.T) {
 		wantNumSmallBlobs(1), // just the "b.txt" file schema blob
 		okayWithoutMeta("sha224-8cafef47a63c2bb4f5dd6edc656c606cab803460360989c38ee2dc57"),
 	)
+}
+
+// TestPackRenamedFile checks that a file schema of packed contents, by
+// another name, isn't packed, without reading the contents back.
+func TestPackRenamedFile(t *testing.T) {
+	fileContents := randBytes(4 << 20) // several chunks
+	small, large := new(test.Fetcher), new(test.Fetcher)
+	sto := &storage{
+		small: small,
+		large: large,
+		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
+	}
+	sto.init()
+	if _, err := schema.WriteFileFromReader(ctxbg, sto, "a.txt", bytes.NewReader(fileContents)); err != nil {
+		t.Fatal(err)
+	}
+	numLarge := large.NumBlobs()
+	if numLarge == 0 {
+		t.Fatal("a.txt wasn't packed")
+	}
+
+	var largeFetches atomic.Int64
+	large.FetchErr = func() error {
+		largeFetches.Add(1)
+		return nil
+	}
+	b, err := schema.WriteFileFromReader(ctxbg, sto, "b.txt", bytes.NewReader(fileContents))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Packing b.txt reads its schema blobs, to find its chunks, but
+	// none of the chunks.
+	fetches := largeFetches.Load()
+	large.FetchErr = nil
+	fr, err := schema.NewFileReader(ctxbg, sto, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemas := make(map[blob.Ref]bool)
+	chunks := 0
+	if err := fr.ForeachChunk(ctxbg, func(schemaPath []blob.Ref, p schema.BytesPart) error {
+		for _, br := range schemaPath {
+			schemas[br] = true
+		}
+		chunks++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// scanChunks reads each schema blob twice: walking the file, and
+	// validating the blob.
+	if max := 2 * int64(len(schemas)); fetches > max {
+		t.Errorf("writing b.txt fetched from large storage %d times; want at most %d, for its %d schema blobs, not its %d chunks", fetches, max, len(schemas), chunks)
+	}
+	if n := large.NumBlobs(); n != numLarge {
+		t.Errorf("large storage has %d blobs after writing b.txt; want %d still", n, numLarge)
+	}
+	// And b.txt reads back.
+	fr, err = schema.NewFileReader(ctxbg, sto, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(fr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, fileContents) {
+		t.Error("b.txt's contents differ")
+	}
 }
 
 // packTest is the state kept while running func testPack.
