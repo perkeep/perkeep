@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
@@ -403,9 +404,11 @@ func (s *UploadSession) flush(ctx context.Context) error {
 		before[br] = true
 	}
 	form := url.Values{}
-	for _, br := range s.ack {
+	sent := min(len(s.ack), maxFlushAcks)
+	for _, br := range s.ack[:sent] {
 		form.Add("ack", br.String())
 	}
+	unsent := slices.Clone(s.ack[sent:])
 	s.mu.Unlock()
 
 	st, err := s.postFlush(ctx, form)
@@ -432,17 +435,32 @@ func (s *UploadSession) flush(ctx context.Context) error {
 		s.ack = nil
 		return nil
 	}
+	// The next flush acknowledges the blobs this one didn't have room
+	// for, and those reported durable, once each. The server reports
+	// blobs again until they're acknowledged, but they're durable only
+	// once, for WaitDurable and Flush.
+	ack := unsent
+	acking := make(map[blob.Ref]bool, len(unsent))
+	for _, br := range unsent {
+		acking[br] = true
+	}
 	for _, sb := range st.Durable {
-		s.wasDurable[sb.Ref] = true
 		if _, ok := s.accepted[sb.Ref]; ok {
 			delete(s.accepted, sb.Ref)
-		} else {
+		} else if !s.wasDurable[sb.Ref] {
 			// Its Upload hasn't noted it accepted yet.
 			s.early[sb.Ref] = true
 		}
-		s.c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
+		if !s.wasDurable[sb.Ref] {
+			s.wasDurable[sb.Ref] = true
+			s.c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
+			s.durable = append(s.durable, sb)
+		}
+		if !acking[sb.Ref] {
+			acking[sb.Ref] = true
+			ack = append(ack, sb.Ref)
+		}
 	}
-	s.durable = append(s.durable, st.Durable...)
 	for _, fb := range st.Failed {
 		fail(fb.BlobRef, fmt.Errorf("client: server failed to commit blob: %s", fb.Error))
 	}
@@ -453,12 +471,14 @@ func (s *UploadSession) flush(ctx context.Context) error {
 			fail(br, errLostBlob)
 		}
 	}
-	s.ack = s.ack[:0]
-	for _, sb := range st.Durable {
-		s.ack = append(s.ack, sb.Ref)
-	}
+	s.ack = ack
 	return nil
 }
+
+// maxFlushAcks is how many blobs a flush request acknowledges, at most.
+// Go servers parse at most 10,000 form values by default (see GODEBUG
+// urlmaxqueryparams), and reject requests with more.
+var maxFlushAcks = 5000
 
 // postFlush sends the flush request, with form's acknowledgements.
 func (s *UploadSession) postFlush(ctx context.Context, form url.Values) (*protocol.SessionStatusResponse, error) {
