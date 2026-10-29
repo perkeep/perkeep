@@ -59,6 +59,10 @@ type takeoutArchive struct {
 	sess       *client.UploadSession // or nil, if the server has none
 	flushEvery int                   // if non-zero, instead of archiveFlushEvery
 
+	// flushMu is held for reading by uploads into sess, and for writing
+	// while waiting for them to be durable.
+	flushMu sync.RWMutex
+
 	mu       sync.Mutex
 	uploaded map[blob.Ref]bool // uploaded already, as identical blobs repeat
 	pending  []blob.Ref        // uploaded into sess, to wait for
@@ -257,21 +261,30 @@ func (a *takeoutArchive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, 
 		_, err := a.st.c.Upload(ctx, h)
 		return b.BlobRef(), err
 	}
-	if err := a.sess.Upload(ctx, h); err != nil {
-		return blob.Ref{}, err
-	}
-	// The server holds only so many blobs in a session until they're
-	// acknowledged, which the session does as it flushes, so wait for
-	// them every so often.
+	// The server holds only so many blobs in a session, buffered or not
+	// yet acknowledged, which the session does as it flushes, so every
+	// so often, wait for those uploaded to be durable, with uploads
+	// paused, as small ones can otherwise outrun the server's commits.
+	a.flushMu.RLock()
+	err := a.sess.Upload(ctx, h)
 	a.mu.Lock()
-	a.pending = append(a.pending, b.BlobRef())
+	if err == nil {
+		a.pending = append(a.pending, b.BlobRef())
+	}
 	var batch []blob.Ref
 	if len(a.pending) >= cmp.Or(a.flushEvery, archiveFlushEvery) {
 		batch, a.pending = a.pending, nil
 	}
 	a.mu.Unlock()
+	a.flushMu.RUnlock()
+	if err != nil {
+		return blob.Ref{}, err
+	}
 	if batch != nil {
-		if err := a.sess.WaitDurable(ctx, batch); err != nil {
+		a.flushMu.Lock()
+		err := a.sess.WaitDurable(ctx, batch)
+		a.flushMu.Unlock()
+		if err != nil {
 			return blob.Ref{}, err
 		}
 	}
