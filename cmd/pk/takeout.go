@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"cmp"
 	"context"
 	"crypto/rand"
@@ -29,6 +30,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -87,7 +89,8 @@ files' common prefix, such as takeout-20240101T120000Z.
 
 To read Google Drive, put a Google OAuth client ID for a desktop app, as
 downloaded from the Google Cloud console, in %s.
-The first run opens a browser to authorize reading Google Drive.
+The first run prints a URL to open in a browser, on any machine, to
+authorize reading Google Drive.
 `, filepath.Join(takeoutConfigDir(), "takeout-oauth-client.json"))
 }
 
@@ -425,7 +428,7 @@ func takeoutDriveClient(ctx context.Context) (*http.Client, error) {
 			return nil, fmt.Errorf("parsing %s: %w", tokenFile, err)
 		}
 	} else {
-		tok, err = takeoutAuthorize(ctx, conf)
+		tok, err = takeoutAuthorize(ctx, conf, os.Stdin)
 		if err != nil {
 			return nil, err
 		}
@@ -441,8 +444,11 @@ func takeoutDriveClient(ctx context.Context) (*http.Client, error) {
 }
 
 // takeoutAuthorize gets an OAuth token for conf from the user in a
-// browser, which is redirected back to a server on localhost.
-func takeoutAuthorize(ctx context.Context, conf *oauth2.Config) (*oauth2.Token, error) {
+// browser. The browser is redirected to a server on localhost, which
+// gets the authorization code if the browser is on this machine. If it's
+// on another, the redirect fails to load there, and the user pastes its
+// URL into the terminal, read from stdin, instead.
+func takeoutAuthorize(ctx context.Context, conf *oauth2.Config, stdin io.Reader) (*oauth2.Token, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
@@ -459,35 +465,53 @@ func takeoutAuthorize(ctx context.Context, conf *oauth2.Config) (*oauth2.Token, 
 		err  error
 	}
 	resc := make(chan result, 1)
+	send := func(res result) {
+		select {
+		case resc <- res:
+		default: // already have one
+		}
+	}
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
-		var res result
-		switch {
-		case r.FormValue("state") != state:
-			res.err = errors.New("OAuth redirect with the wrong state")
-		case r.FormValue("error") != "":
-			res.err = fmt.Errorf("authorization failed: %s", r.FormValue("error"))
-		default:
-			res.code = r.FormValue("code")
-		}
-		if res.err != nil {
-			http.Error(w, res.err.Error(), http.StatusBadRequest)
+		code, err := takeoutAuthCode(r.URL.Query(), state)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		} else {
 			fmt.Fprintln(w, "Authorized. You can close this window.")
 		}
-		select {
-		case resc <- res:
-		default:
-		}
+		send(result{code, err})
 	})}
 	go srv.Serve(ln)
 	defer srv.Close()
+	go func() {
+		sc := bufio.NewScanner(stdin)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if line == "" {
+				continue
+			}
+			u, err := url.Parse(line)
+			if err != nil || !u.Query().Has("state") {
+				fmt.Fprintln(cmdmain.Stderr, "That's not the URL of the page that failed to load. Paste the whole URL from the browser's address bar:")
+				continue
+			}
+			code, err := takeoutAuthCode(u.Query(), state)
+			send(result{code, err})
+			return
+		}
+	}()
 
-	fmt.Fprintf(cmdmain.Stderr, "To let pk read Google Drive, open this URL in a browser on this machine:\n\n%s\n\n",
-		conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier)))
+	fmt.Fprintf(cmdmain.Stderr, `To let pk read Google Drive, open this URL in a browser and allow it:
+
+%s
+
+The browser then goes to a page at http://127.0.0.1:... If the browser is
+on another machine, that page fails to load; paste its URL from the
+browser's address bar here:
+`, conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier)))
 	var res result
 	select {
 	case res = <-resc:
@@ -498,4 +522,18 @@ func takeoutAuthorize(ctx context.Context, conf *oauth2.Config) (*oauth2.Token, 
 		return nil, res.err
 	}
 	return conf.Exchange(ctx, res.code, oauth2.VerifierOption(verifier))
+}
+
+// takeoutAuthCode returns the authorization code in q, the query
+// parameters of an OAuth redirect, which must have the given state.
+func takeoutAuthCode(q url.Values, state string) (string, error) {
+	switch {
+	case q.Get("state") != state:
+		return "", errors.New("OAuth redirect with the wrong state; is it from an earlier try?")
+	case q.Get("error") != "":
+		return "", fmt.Errorf("authorization failed: %s", q.Get("error"))
+	case q.Get("code") == "":
+		return "", errors.New("OAuth redirect without a code")
+	}
+	return q.Get("code"), nil
 }

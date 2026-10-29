@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,5 +197,27 @@ func TestTakeoutStore(t *testing.T) {
 	file := res.Describe.Meta[pn.Permanode.Attr.Get("camliContent")]
 	if file == nil || file.File == nil || file.File.FileName != "VID_0002.MP4" {
 		t.Errorf("permanode's camliContent = %+v; want the file VID_0002.MP4", file)
+	}
+}
+
+func TestTakeoutAuthCode(t *testing.T) {
+	for _, tt := range []struct {
+		pasted   string
+		code     string
+		errMatch string
+	}{
+		{"http://127.0.0.1:41234/?state=s1&code=4/abc&scope=https://www.googleapis.com/auth/drive.readonly", "4/abc", ""},
+		{"http://127.0.0.1:41234/?state=old&code=4/abc", "", "wrong state"},
+		{"http://127.0.0.1:41234/?state=s1&error=access_denied", "", "access_denied"},
+		{"http://127.0.0.1:41234/?state=s1", "", "without a code"},
+	} {
+		u, err := url.Parse(tt.pasted)
+		if err != nil {
+			t.Fatal(err)
+		}
+		code, err := takeoutAuthCode(u.Query(), "s1")
+		if code != tt.code || (err == nil) != (tt.errMatch == "") || err != nil && !strings.Contains(err.Error(), tt.errMatch) {
+			t.Errorf("takeoutAuthCode(%q) = %q, %v; want %q, error matching %q", tt.pasted, code, err, tt.code, tt.errMatch)
+		}
 	}
 }
