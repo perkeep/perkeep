@@ -933,6 +933,11 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
 	}
 
+	// A file with the same parts as one indexed already, such as a
+	// copy of it under another name, has the same contents, whose rows
+	// (by its wholeRef) are indexed, so it's not read whole again.
+	knownWhole, known := ix.knownContents(ctx, fetcher.(*missTrackFetcher).fetcher, b)
+
 	digester := newFileDigester()
 	var copyDest io.Writer = digester
 	var imageBuf *keepFirstN // or nil
@@ -947,7 +952,15 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	}
 	// MIME sniffing returns a MultiReader. Hide its WriterTo, which allocates
 	// fresh scratch even when io.CopyBuffer is given a reusable buffer.
-	size, err := copyWithBuffer(copyDest, struct{ io.Reader }{mr})
+	src := io.Reader(struct{ io.Reader }{mr})
+	if known {
+		// Just what the file's own rows need: its image prefix.
+		copyDest, src = io.Discard, io.LimitReader(src, 0)
+		if imageBuf != nil {
+			copyDest, src = imageBuf, io.LimitReader(struct{ io.Reader }{mr}, imagePrefixSize)
+		}
+	}
+	size, err := copyWithBuffer(copyDest, src)
 	if err != nil {
 		if tf.allErrNotExist() {
 			return errMissingDep
@@ -955,10 +968,13 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		return err
 	}
 	wholeRef := digester.wholeRef()
+	if known {
+		wholeRef, size = knownWhole, fr.Size()
+	}
 	// The whole file was read for its hash. A truncated prefix alone cannot
 	// rule out EXIF. If the complete JPEG byte stream has no APP1 marker,
 	// avoid the two redundant scans and the otherwise fruitless full-file retry.
-	noEXIF := isJPEG && size == fr.Size() && !app1.found
+	noEXIF := !known && isJPEG && size == fr.Size() && !app1.found
 
 	if imageBuf != nil {
 		conf, confErr := decodeImageConfig(imageBuf.Bytes, fetcher, b)
@@ -990,8 +1006,9 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 			indexEXIFData := func(r filePrefixReader) error {
 				return ix.indexEXIF(wholeRef, r, mm)
 			}
-			if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil {
-				if exifDebug {
+			// Known contents have their EXIF rows.
+			if !known {
+				if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil && exifDebug {
 					ix.printf("error parsing EXIF: %v", err)
 				}
 			}
@@ -1023,8 +1040,13 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mimeType, wholeRef))
-	setDigestRows(mm, wholeRef, digester.digests())
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
+	if known {
+		// The rows of the contents (digests, and media tags of audio
+		// and video) are indexed.
+		return nil
+	}
+	setDigestRows(mm, wholeRef, digester.digests())
 
 	if strings.HasPrefix(mimeType, "audio/") {
 		ix.indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
@@ -1034,6 +1056,49 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	}
 
 	return nil
+}
+
+// knownContentsCandidates is how many indexed files of the same size
+// knownContents compares a file's parts with, at most.
+const knownContentsCandidates = 16
+
+// knownContents returns the wholeRef of the contents of b, a file schema
+// blob, if a file indexed in the corpus has exactly b's parts, and so the
+// same contents, read with fetcher. Files no bigger than their image
+// prefix aren't worth the lookup; it's cheaper to read them.
+func (ix *Index) knownContents(ctx context.Context, fetcher blob.Fetcher, b *schema.Blob) (wholeRef blob.Ref, ok bool) {
+	size := b.PartsSize()
+	if ix.corpus == nil || size <= imagePrefixSize {
+		return blob.Ref{}, false
+	}
+	type cand struct{ file, whole blob.Ref }
+	var cands []cand
+	ix.RLock()
+	for _, f := range ix.corpus.AppendFilesOfSize(nil, size) {
+		if f == b.BlobRef() {
+			continue
+		}
+		if wr, ok := ix.corpus.GetWholeRef(ctx, f); ok {
+			cands = append(cands, cand{f, wr})
+		}
+		if len(cands) == knownContentsCandidates {
+			break
+		}
+	}
+	ix.RUnlock()
+	parts := b.ByteParts()
+	for _, c := range cands {
+		rc, _, err := fetcher.Fetch(ctx, c.file)
+		if err != nil {
+			continue
+		}
+		fb, err := schema.BlobFromReader(c.file, rc)
+		rc.Close()
+		if err == nil && fb.Type() == schema.TypeFile && slices.Equal(fb.ByteParts(), parts) {
+			return c.whole, true
+		}
+	}
+	return blob.Ref{}, false
 }
 
 func tagFormatString(tag *tiff.Tag) string {
