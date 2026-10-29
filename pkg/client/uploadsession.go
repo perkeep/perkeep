@@ -397,7 +397,26 @@ func (s *UploadSession) doneFlushing() { <-s.flushing }
 // WaitDurable and the next Flush. It returns an error only if the flush
 // failed as a whole, learning nothing; a lost session is recorded as the
 // loss of its blobs. The caller must hold the flushing token.
+//
+// A flush request acknowledges at most maxFlushAcks blobs, so while more
+// are to be acknowledged than one more request would, flush makes more,
+// lest blobs the server holds unacknowledged pile up past its limit.
 func (s *UploadSession) flush(ctx context.Context) error {
+	for {
+		if err := s.flushOnce(ctx); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		more := len(s.ack) > maxFlushAcks
+		s.mu.Unlock()
+		if !more {
+			return nil
+		}
+	}
+}
+
+// flushOnce is flush, with one flush request.
+func (s *UploadSession) flushOnce(ctx context.Context) error {
 	s.mu.Lock()
 	before := make(map[blob.Ref]bool, len(s.accepted))
 	for br := range s.accepted {
