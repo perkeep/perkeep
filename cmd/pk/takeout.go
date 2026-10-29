@@ -40,6 +40,7 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/time/rate"
 	"perkeep.org/internal/osutil"
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
@@ -54,6 +55,9 @@ type takeoutCmd struct {
 	driveFolder string
 	all         bool
 	edited      bool
+	meta        bool
+	driveRate   float64
+	slow        bool
 	workers     int
 	permanodes  bool
 	verbose     bool
@@ -66,6 +70,9 @@ func init() {
 		flags.StringVar(&cmd.driveFolder, "drive-folder", "", "The ID or URL of the Google Drive folder with the exports' zip files. If empty, the folders named Takeout in the root of Google Drive.")
 		flags.BoolVar(&cmd.all, "all", false, "Consider all of the exports' files, not just Google Photos' photos and videos.")
 		flags.BoolVar(&cmd.edited, "edited", false, "Include the edited copies of photos and videos that Google Photos exports beside their originals, named like IMG_1234-edited.jpg.")
+		flags.BoolVar(&cmd.meta, "meta", true, "Set attributes of the photos' permanodes from Google Photos' metadata (title, description, dates, location), and keep a set of each album's photos. With stats, report what would change.")
+		flags.Float64Var(&cmd.driveRate, "drive-rate", 10, "The most requests a second to make to Google Drive, which limits them per minute. Zero means no limit.")
+		flags.BoolVar(&cmd.slow, "slow", false, "Go easy on Google Drive's quota, leaving room for other users of it: like -drive-rate=2.")
 		flags.IntVar(&cmd.workers, "j", 8, "How many files to check or upload at once.")
 		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does.")
 		flags.BoolVar(&cmd.verbose, "v", false, "List the missing or uploaded files.")
@@ -153,9 +160,9 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if err := st.checkServer(ctx); err != nil {
 		return err
 	}
-	if st.permanodes {
+	if st.permanodes || c.meta && !c.all {
 		if st.signer, err = cl.Signer(); err != nil {
-			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false): %w", err)
+			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false -meta=false): %w", err)
 		}
 		if err := cl.UploadPublicKey(ctx); err != nil {
 			return err
@@ -206,14 +213,40 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 				fmt.Fprintf(out, "  missing %s (%s)\n", mc.Entries[0].File.Name, takeoutBytes(mc.Size))
 			}
 		}
-		return nil
+		return c.syncMeta(ctx, st, exp, cs, true)
 	}
 
+	if err := c.upload(ctx, st, missing); err != nil {
+		return err
+	}
+	return c.syncMeta(ctx, st, exp, cs, false)
+}
+
+// syncMeta applies the metadata of the photos cs of exp, and its albums,
+// to their permanodes, if c.meta, or with dryRun, reports what it would
+// do.
+func (c *takeoutCmd) syncMeta(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs []*takeout.Content, dryRun bool) error {
+	if !c.meta || c.all {
+		return nil
+	}
+	log.Printf("Reading the metadata of %d photos...", len(cs))
+	lib, err := takeout.NewLibrary(ctx, exp, cs, c.workers)
+	if err != nil {
+		return err
+	}
+	ms := &takeoutMetaSync{st: st, exp: exp, lib: lib, workers: c.workers, dryRun: dryRun, verbose: c.verbose}
+	err = ms.run(ctx)
+	fmt.Fprintf(cmdmain.Stdout, "  %s\n", ms.report())
+	return err
+}
+
+// upload uploads the missing contents.
+func (c *takeoutCmd) upload(ctx context.Context, st *takeoutStore, missing []*takeout.Content) error {
 	if len(missing) == 0 {
 		return nil
 	}
 	log.Printf("Uploading %d files (%s)...", len(missing), takeoutBytes(contentsSize(missing)))
-	pr = newTakeoutProgress(len(missing), contentsSize(missing))
+	pr := newTakeoutProgress(len(missing), contentsSize(missing))
 	done, doneBytes := 0, int64(0)
 	failed, err := takeout.Upload(ctx, st, missing, c.workers, func(mc *takeout.Content, err error) {
 		done++
@@ -246,6 +279,13 @@ func (c *takeoutCmd) exports(ctx context.Context) ([]*takeout.Export, error) {
 		return nil, err
 	}
 	d := &takeout.Drive{Client: hc, CacheDir: filepath.Join(osutil.CacheDir(), "takeout-toc")}
+	r := c.driveRate
+	if c.slow {
+		r = min(r, 2)
+	}
+	if r > 0 {
+		d.Limiter = rate.NewLimiter(rate.Limit(r), 1)
+	}
 	return d.Exports(ctx, c.driveFolder)
 }
 

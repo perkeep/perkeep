@@ -144,6 +144,44 @@ func (e Entry) Open(ctx context.Context) (io.ReadCloser, error) {
 	})
 }
 
+// maxReadAll is the largest entry that ReadAll reads.
+const maxReadAll = 16 << 20
+
+// entryCache is implemented by zip sources that cache the contents of
+// entries read with ReadAll.
+type entryCache interface {
+	cachedEntry(f *ziputil.FileHeader) ([]byte, bool)
+	cacheEntry(f *ziputil.FileHeader, data []byte)
+}
+
+// ReadAll returns the contents of a small entry, such as a JSON file. If
+// its zip file is in Google Drive and the Drive has a CacheDir, they're
+// cached there.
+func (e Entry) ReadAll(ctx context.Context) ([]byte, error) {
+	if e.Size() > maxReadAll {
+		return nil, fmt.Errorf("%s is too big to read whole, at %d bytes", e.File.Name, e.Size())
+	}
+	c, cached := e.Zip.src.(entryCache)
+	if cached {
+		if data, ok := c.cachedEntry(e.File); ok {
+			return data, nil
+		}
+	}
+	rc, err := e.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", e.File.Name, err)
+	}
+	if cached {
+		c.cacheEntry(e.File, data)
+	}
+	return data, nil
+}
+
 // photosPrefix is the directory of Google Photos' files in an export, in
 // English.
 const photosPrefix = "Takeout/Google Photos/"

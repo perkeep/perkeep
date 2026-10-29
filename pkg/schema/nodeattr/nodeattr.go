@@ -33,6 +33,9 @@ const (
 	// the "file" schema blob).
 	CamliContent = "camliContent"
 
+	// CamliMember is "camliMember", a multi-valued attribute of a set
+	// (unordered and unkeyed) with the blobref of each of its members.
+	CamliMember = "camliMember"
 	// CamliContentImage is "camliContentImage", for when CamliContent is
 	// already set to the blobref of a non-image.
 	CamliContentImage = "camliContentImage"
