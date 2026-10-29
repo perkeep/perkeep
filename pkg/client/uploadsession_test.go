@@ -266,9 +266,10 @@ func TestUploadSessionDuplicate(t *testing.T) {
 	}
 }
 
-// TestUploadSessionManyAcks checks that flushes acknowledge at most
-// maxFlushAcks blobs each, leaving the rest for later ones, and that
-// blobs the server reports again until then are durable only once.
+// TestUploadSessionManyAcks checks that flush requests acknowledge at
+// most maxFlushAcks blobs each, that a flush makes more requests while
+// more blobs are to be acknowledged than one more would, and that blobs
+// the server reports again until they're acknowledged are durable once.
 func TestUploadSessionManyAcks(t *testing.T) {
 	tstest.AssertNotParallel(t)
 	tstest.Replace(t, &maxFlushAcks, 2)
@@ -280,7 +281,7 @@ func TestUploadSessionManyAcks(t *testing.T) {
 	}
 	sessionUpload(t, s, tbs...)
 	var all []blob.SizedRef
-	for range 4 {
+	for range 2 {
 		durable, err := s.Flush(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -297,8 +298,29 @@ func TestUploadSessionManyAcks(t *testing.T) {
 	for _, a := range acks {
 		n = append(n, len(a))
 	}
+	// The first Flush makes requests until at most 2 are left to
+	// acknowledge, which the second one does.
 	if !slices.Equal(n, []int{0, 2, 2, 1}) {
-		t.Errorf("flushes acknowledged %v blobs; want [0 2 2 1]", n)
+		t.Errorf("flush requests acknowledged %v blobs; want [0 2 2 1]", n)
+	}
+
+	// Uploading more blobs between flushes than a flush request
+	// acknowledges doesn't pile up blobs to acknowledge.
+	for i := range 4 {
+		var more []*test.Blob
+		for j := range 5 {
+			more = append(more, &test.Blob{Contents: fmt.Sprintf("more %d %d", i, j)})
+		}
+		sessionUpload(t, s, more...)
+		if _, err := s.Flush(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		s.mu.Lock()
+		pending := len(s.ack)
+		s.mu.Unlock()
+		if pending > maxFlushAcks {
+			t.Fatalf("after flush %d, %d blobs to acknowledge; want at most %d", i, pending, maxFlushAcks)
+		}
 	}
 }
 
