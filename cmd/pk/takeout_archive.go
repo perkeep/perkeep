@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -55,10 +56,12 @@ type takeoutArchive struct {
 	workers int
 	verbose bool
 
-	sess *client.UploadSession // or nil, if the server has none
+	sess       *client.UploadSession // or nil, if the server has none
+	flushEvery int                   // if non-zero, instead of archiveFlushEvery
 
-	mu      sync.Mutex
-	pending []blob.Ref // uploaded into sess, to wait for
+	mu       sync.Mutex
+	uploaded map[blob.Ref]bool // uploaded already, as identical blobs repeat
+	pending  []blob.Ref        // uploaded into sess, to wait for
 }
 
 func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) {
@@ -236,8 +239,19 @@ func (a *takeoutArchive) contentParts(ctx context.Context, c *takeout.Content) (
 	return c.Size, fb.ByteParts(), nil
 }
 
-// upload uploads b, a small schema blob, into the session if any.
+// upload uploads b, a small schema blob, into the session if any, unless
+// it already has.
 func (a *takeoutArchive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, error) {
+	a.mu.Lock()
+	if a.uploaded == nil {
+		a.uploaded = make(map[blob.Ref]bool)
+	}
+	dup := a.uploaded[b.BlobRef()]
+	a.uploaded[b.BlobRef()] = true
+	a.mu.Unlock()
+	if dup {
+		return b.BlobRef(), nil
+	}
 	h := client.NewUploadHandleFromString(b.JSON())
 	if a.sess == nil {
 		_, err := a.st.c.Upload(ctx, h)
@@ -246,11 +260,28 @@ func (a *takeoutArchive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, 
 	if err := a.sess.Upload(ctx, h); err != nil {
 		return blob.Ref{}, err
 	}
+	// The server holds only so many blobs in a session until they're
+	// acknowledged, which the session does as it flushes, so wait for
+	// them every so often.
 	a.mu.Lock()
 	a.pending = append(a.pending, b.BlobRef())
+	var batch []blob.Ref
+	if len(a.pending) >= cmp.Or(a.flushEvery, archiveFlushEvery) {
+		batch, a.pending = a.pending, nil
+	}
 	a.mu.Unlock()
+	if batch != nil {
+		if err := a.sess.WaitDurable(ctx, batch); err != nil {
+			return blob.Ref{}, err
+		}
+	}
 	return b.BlobRef(), nil
 }
+
+// archiveFlushEvery is how many blobs takeoutArchive uploads into its
+// session between waiting for them to be durable: well under the
+// server's limit of blobs not acknowledged (100,000 by default).
+const archiveFlushEvery = 10_000
 
 // archiveDir is a directory to archive.
 type archiveDir struct {
