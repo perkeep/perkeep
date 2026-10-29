@@ -123,7 +123,8 @@ func TestTakeoutArchive(t *testing.T) {
 	if err := exp.LoadTOCs(ctx, 2); err != nil {
 		t.Fatal(err)
 	}
-	a := &takeoutArchive{st: st, exp: exp, workers: 4}
+	// Flushing the session often, as for many more files.
+	a := &takeoutArchive{st: st, exp: exp, workers: 4, flushEvery: 3}
 	root, err := a.run(ctx)
 	if err != nil {
 		t.Fatal(err)
