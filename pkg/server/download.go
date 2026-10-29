@@ -193,6 +193,54 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 	}, false, nil
 }
 
+// indexVerifies reports whether the search index says the file has the
+// contents wholeRef, and all of the file's chunks are stored, so that a
+// client asking to verify its contents (as before reusing the file's
+// chunks for a file with the same contents) needn't wait for them to be
+// read and hashed. The index hashed them when it indexed the file. If it
+// can't tell, the caller reads them.
+func (dh *DownloadHandler) indexVerifies(ctx context.Context, file, wholeRef blob.Ref) bool {
+	statter, ok := dh.Fetcher.(blobserver.BlobStatter)
+	if dh.Search == nil || !ok {
+		return false
+	}
+	des, err := dh.Search.Describe(ctx, &search.DescribeRequest{BlobRef: file})
+	if err != nil {
+		return false
+	}
+	db, ok := des.Meta[file.String()]
+	if !ok || db.File == nil || db.File.WholeRef != wholeRef {
+		return false
+	}
+	fr, err := schema.NewFileReader(ctx, dh.Fetcher, file)
+	if err != nil {
+		return false
+	}
+	defer fr.Close()
+	var chunks []blob.Ref
+	var size int64
+	err = fr.ForeachChunk(ctx, func(_ []blob.Ref, p schema.BytesPart) error {
+		if p.BlobRef.Valid() {
+			chunks = append(chunks, p.BlobRef)
+		}
+		size += int64(p.Size)
+		return nil
+	})
+	if err != nil || size != db.File.Size {
+		return false
+	}
+	found, err := blobserver.StatBlobs(ctx, statter, chunks)
+	if err != nil {
+		return false
+	}
+	for _, br := range chunks {
+		if _, ok := found[br]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // Fast path for blobpacked.
 func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r *http.Request, file blob.Ref) (packFileInfo fileInfo, ok bool) {
 	if sh == nil {
@@ -308,6 +356,13 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 		// Immutable, so any copy's a good copy.
 		w.WriteHeader(http.StatusNotModified)
 		return
+	}
+
+	if r.Method == "HEAD" && r.FormValue("verifycontents") != "" {
+		if vbr, ok := blob.Parse(r.FormValue("verifycontents")); ok && dh.indexVerifies(ctx, file, vbr) {
+			w.Header().Set("X-Camli-Contents", vbr.String())
+			return
+		}
 	}
 
 	dh.r = r
