@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -61,6 +63,8 @@ type fileCmd struct {
 
 	statcache bool
 
+	progressListen string // if non-empty, the address to serve progress on
+
 	// Go into in-memory stats mode only; doesn't actually upload.
 	memstats bool
 	histo    string // optional histogram output filename
@@ -87,6 +91,7 @@ func init() {
 		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
+		flags.StringVar(&cmd.progressListen, "progress-listen", "", "If non-empty, the address (such as :8080) to serve a page showing the progress of uploading directories on, over HTTP.")
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing ignoredFiles configs, mostly.")
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
@@ -149,6 +154,16 @@ func (c *fileCmd) RunCommand(args []string) error {
 	}
 
 	up := getUploader()
+	if c.progressListen != "" {
+		ln, err := net.Listen("tcp", c.progressListen)
+		if err != nil {
+			return fmt.Errorf("listening for -progress-listen: %w", err)
+		}
+		defer ln.Close()
+		up.progress = newProgressServer(up.Client)
+		go http.Serve(ln, up.progress)
+		cmdmain.Logf("Serving progress on http://%s/", ln.Addr())
+	}
 	if c.memstats {
 		sr := new(statspkg.Receiver)
 		up.altStatReceiver = sr

@@ -265,8 +265,14 @@ func TestTree(t *testing.T) {
 	want := TreeProgress{Walked: true, Files: 5, Dirs: 4, FilesDone: 5, DirsDone: 4}
 	want.Bytes = int64(len("hello") + 1<<20 + len("a") + 300<<10)
 	want.BytesDone = want.Bytes
-	if p != want {
+	// All of the regular files' chunks were new.
+	want.BytesUploaded, want.ChunksUploaded = want.Bytes, p.ChunksUploaded
+	if p != want || p.ChunksUploaded == 0 {
 		t.Errorf("Progress = %+v; want %+v", p, want)
+	}
+	st := tr.Status()
+	if len(st.InFlight) != 0 || len(st.Recent) != 4 || st.Recent[0].Done.Before(st.Recent[3].Done) {
+		t.Errorf("Status: %d in flight, %d recent (newest first?); want 0, and the 4 regular files", len(st.InFlight), len(st.Recent))
 	}
 	if len(cache.m) != 4 {
 		t.Errorf("cache has %d files; want the 4 regular ones: %v", len(cache.m), cache.m)

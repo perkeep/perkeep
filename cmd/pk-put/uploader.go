@@ -47,6 +47,8 @@ type Uploader struct {
 
 	fileOpts *fileOptions // per-file options; may be nil
 
+	progress *progressServer // or nil, if not serving progress
+
 	// for debugging; normally nil, but overrides Client if set
 	// TODO(bradfitz): clean this up? embed a StatReceiver instead
 	// of a Client?

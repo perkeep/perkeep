@@ -93,7 +93,14 @@ func (up *Uploader) uploadTree(ctx context.Context, dir string) (*client.PutResu
 			}
 		}
 	}()
+	var progressDone func(error)
+	if up.progress != nil {
+		progressDone = up.progress.add(dir, t)
+	}
 	res, err := t.Run(ctx)
+	if progressDone != nil {
+		progressDone(err)
+	}
 	if err != nil {
 		return nil, err
 	}
