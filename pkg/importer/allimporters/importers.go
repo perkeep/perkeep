@@ -33,6 +33,7 @@ import (
 	_ "perkeep.org/pkg/importer/runkeeper"
 	_ "perkeep.org/pkg/importer/strava"
 	_ "perkeep.org/pkg/importer/swarm"
+	_ "perkeep.org/pkg/importer/takeout"
 	_ "perkeep.org/pkg/importer/twitter"
 )
 
