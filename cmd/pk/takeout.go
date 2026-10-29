@@ -183,8 +183,8 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	}
 	cs := takeout.Contents(ents)
 	log.Printf("Asking the server about %d distinct contents of %d files...", len(cs), len(ents))
-	pr := newTakeoutProgress(len(cs))
-	have, missing, err := takeout.Check(ctx, st, cs, c.workers, pr.update)
+	pr := newTakeoutProgress(len(cs), 0)
+	have, missing, err := takeout.Check(ctx, st, cs, c.workers, func(done int) { pr.update(done, 0) })
 	if err != nil {
 		return err
 	}
@@ -213,17 +213,18 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		return nil
 	}
 	log.Printf("Uploading %d files (%s)...", len(missing), takeoutBytes(contentsSize(missing)))
-	pr = newTakeoutProgress(len(missing))
-	done := 0
+	pr = newTakeoutProgress(len(missing), contentsSize(missing))
+	done, doneBytes := 0, int64(0)
 	failed, err := takeout.Upload(ctx, st, missing, c.workers, func(mc *takeout.Content, err error) {
 		done++
+		doneBytes += mc.Size
 		name := mc.Entries[0].File.Name
 		if err != nil {
 			log.Printf("Error uploading %s: %v", name, err)
 		} else if c.verbose {
 			log.Printf("Uploaded %s (%s)", name, takeoutBytes(mc.Size))
 		}
-		pr.update(done)
+		pr.update(done, doneBytes)
 	})
 	if err != nil {
 		return err
@@ -304,27 +305,37 @@ func takeoutBytes(n int64) string {
 }
 
 // takeoutProgress logs progress through a number of items, at most every
-// few seconds.
+// few seconds. If they have sizes, its estimate of the time left is by
+// bytes, as their sizes vary a lot.
 type takeoutProgress struct {
-	total int
-	start time.Time
-	last  time.Time
+	total      int
+	totalBytes int64 // or zero, to estimate by items
+	start      time.Time
+	last       time.Time
 }
 
-func newTakeoutProgress(total int) *takeoutProgress {
+func newTakeoutProgress(total int, totalBytes int64) *takeoutProgress {
 	now := time.Now()
-	return &takeoutProgress{total: total, start: now, last: now}
+	return &takeoutProgress{total: total, totalBytes: totalBytes, start: now, last: now}
 }
 
-func (p *takeoutProgress) update(done int) {
+// update records that done items, of doneBytes bytes, are done.
+func (p *takeoutProgress) update(done int, doneBytes int64) {
 	now := time.Now()
 	if now.Sub(p.last) < 5*time.Second || done == p.total {
 		return
 	}
 	p.last = now
 	elapsed := now.Sub(p.start)
-	eta := time.Duration(float64(elapsed) / float64(done) * float64(p.total-done))
-	log.Printf("%d of %d done; about %v left", done, p.total, eta.Round(time.Second))
+	if p.totalBytes == 0 || doneBytes == 0 {
+		eta := time.Duration(float64(elapsed) / float64(done) * float64(p.total-done))
+		log.Printf("%d of %d done; about %v left", done, p.total, eta.Round(time.Second))
+		return
+	}
+	rate := float64(doneBytes) / elapsed.Seconds()
+	eta := time.Duration(float64(p.totalBytes-doneBytes) / rate * float64(time.Second))
+	log.Printf("%d of %d done, %s of %s (%s/s); about %v left", done, p.total,
+		takeoutBytes(doneBytes), takeoutBytes(p.totalBytes), takeoutBytes(int64(rate)), eta.Round(time.Second))
 }
 
 // takeoutStore is a takeout.Store of a Perkeep server.
