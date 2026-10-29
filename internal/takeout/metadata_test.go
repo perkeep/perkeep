@@ -70,6 +70,23 @@ func TestParsePhotoMetadata(t *testing.T) {
 	}
 }
 
+func TestParsePhotoMetadataNaN(t *testing.T) {
+	m, err := ParsePhotoMetadata([]byte(`{"title": "a.jpg", "geoData": {"latitude": 16.36, "longitude": -86.43, "altitude": "NaN"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.HasLocation || m.Latitude != 16.36 || m.Longitude != -86.43 || m.Altitude != 0 {
+		t.Errorf("location %v: %v, %v, %v; want 16.36, -86.43, and no altitude", m.HasLocation, m.Latitude, m.Longitude, m.Altitude)
+	}
+	m, err = ParsePhotoMetadata([]byte(`{"title": "a.jpg", "geoData": {"latitude": "NaN", "longitude": "NaN"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.HasLocation {
+		t.Errorf("NaN location is a location: %v, %v", m.Latitude, m.Longitude)
+	}
+}
+
 func TestParseAlbumMetadata(t *testing.T) {
 	m, err := ParseAlbumMetadata([]byte(`{"albumData": {"title": "Trip to Seattle", "description": "", "access": "protected", "location": "Seattle",
 		"date": {"timestamp": "1449213423"}, "geoData": {"latitude": 47.6, "longitude": -122.3}}}`))
@@ -126,6 +143,8 @@ func TestMatchSidecars(t *testing.T) {
 		"PXL_0003.jpg",
 		"renamed.jpg",
 		"IMG_0004-edited.jpg",
+		"2012-11-22.jpg",
+		"2013-10-10(7).jpg",
 	}
 	sidecars := []string{
 		"IMG_0001.JPG.json",
@@ -136,17 +155,21 @@ func TestMatchSidecars(t *testing.T) {
 		"PXL_0003.jpg.supplemental-me.json",
 		"odd.json", // its title says renamed.jpg
 		"metadata.json",
+		"2012-11-22.json",    // its title has no extension
+		"2013-10-10(7).json", // likewise
 	}
 	titles := map[string]string{"odd.json": "renamed.jpg"}
 	got := MatchSidecars(media, sidecars, func(sc string) string { return titles[sc] })
 	want := map[string]string{
-		"IMG_0001.JPG":    "IMG_0001.JPG.json",
-		"IMG_0990(1).JPG": "IMG_0990.JPG(1).json",
-		"IMG_0990.JPG":    "IMG_0990.JPG.json",
-		long:              long[:sidecarNameMax] + ".json",
-		"IMG_0002.HEIC":   "IMG_0002.HEIC.supplemental-metadata.json",
-		"PXL_0003.jpg":    "PXL_0003.jpg.supplemental-me.json",
-		"renamed.jpg":     "odd.json",
+		"IMG_0001.JPG":      "IMG_0001.JPG.json",
+		"IMG_0990(1).JPG":   "IMG_0990.JPG(1).json",
+		"IMG_0990.JPG":      "IMG_0990.JPG.json",
+		long:                long[:sidecarNameMax] + ".json",
+		"IMG_0002.HEIC":     "IMG_0002.HEIC.supplemental-metadata.json",
+		"PXL_0003.jpg":      "PXL_0003.jpg.supplemental-me.json",
+		"renamed.jpg":       "odd.json",
+		"2012-11-22.jpg":    "2012-11-22.json",
+		"2013-10-10(7).jpg": "2013-10-10(7).json",
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("MatchSidecars:\n got %q\nwant %q", got, want)
