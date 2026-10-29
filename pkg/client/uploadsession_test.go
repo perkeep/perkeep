@@ -35,6 +35,7 @@ import (
 	"perkeep.org/pkg/blobserver/handlers"
 	"perkeep.org/pkg/blobserver/uploadsession"
 	"perkeep.org/pkg/test"
+	"tailscale.com/tstest"
 )
 
 // sessionStorage is the storage of a sessionServer: a test.Fetcher that
@@ -262,6 +263,42 @@ func TestUploadSessionDuplicate(t *testing.T) {
 		if _, err := s.Flush(context.Background()); err != nil {
 			t.Fatalf("Flush after uploading a again: %v", err)
 		}
+	}
+}
+
+// TestUploadSessionManyAcks checks that flushes acknowledge at most
+// maxFlushAcks blobs each, leaving the rest for later ones, and that
+// blobs the server reports again until then are durable only once.
+func TestUploadSessionManyAcks(t *testing.T) {
+	tstest.AssertNotParallel(t)
+	tstest.Replace(t, &maxFlushAcks, 2)
+	c, srv := newSessionClient(t, true)
+	s := newSession(t, c)
+	var tbs []*test.Blob
+	for i := range 5 {
+		tbs = append(tbs, &test.Blob{Contents: fmt.Sprint(i)})
+	}
+	sessionUpload(t, s, tbs...)
+	var all []blob.SizedRef
+	for range 4 {
+		durable, err := s.Flush(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, durable...)
+	}
+	if want := sortedSizedRefs(tbs...); !slices.Equal(sortSizedRefs(all), want) {
+		t.Errorf("flushes returned %v; want each blob once: %v", all, want)
+	}
+	srv.mu.Lock()
+	acks := srv.acks
+	srv.mu.Unlock()
+	var n []int
+	for _, a := range acks {
+		n = append(n, len(a))
+	}
+	if !slices.Equal(n, []int{0, 2, 2, 1}) {
+		t.Errorf("flushes acknowledged %v blobs; want [0 2 2 1]", n)
 	}
 }
 
