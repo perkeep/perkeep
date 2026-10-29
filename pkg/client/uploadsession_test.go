@@ -239,6 +239,32 @@ func TestUploadSession(t *testing.T) {
 	}
 }
 
+// TestUploadSessionDuplicate checks that a blob uploaded again after a
+// flush reported it durable isn't then reported lost, as the next flush
+// acknowledges it and the server stops reporting it. The have cache,
+// which would skip the second upload, is off, as for clients without one.
+func TestUploadSessionDuplicate(t *testing.T) {
+	c, _ := newSessionClient(t, true)
+	c.SetHaveCache(noHaveCache{})
+	s := newSession(t, c)
+	a, b := &test.Blob{Contents: "a"}, &test.Blob{Contents: "b"}
+	sessionUpload(t, s, a)
+	if err := s.WaitDurable(context.Background(), []blob.Ref{a.BlobRef()}); err != nil {
+		t.Fatal(err)
+	}
+	// Uploaded again, with another blob, and waited for over more
+	// flushes, the first of which acknowledges a.
+	sessionUpload(t, s, a, b)
+	for range 2 {
+		if err := s.WaitDurable(context.Background(), []blob.Ref{a.BlobRef(), b.BlobRef()}); err != nil {
+			t.Fatalf("WaitDurable after uploading a again: %v", err)
+		}
+		if _, err := s.Flush(context.Background()); err != nil {
+			t.Fatalf("Flush after uploading a again: %v", err)
+		}
+	}
+}
+
 // TestUploadSessionUnsupported checks NewUploadSession's error for a
 // server without upload sessions.
 func TestUploadSessionUnsupported(t *testing.T) {
