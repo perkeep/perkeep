@@ -922,6 +922,17 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 	return multiCloser(hl.closers), nil
 }
 
+// DebugHandler returns a handler of the server's profiles, at
+// /debug/pprof/, and of its goroutines' stacks, at /debug/goroutines, for
+// a server that's still starting, before InstallHandlers has installed
+// them. It doesn't check that requests are authorized.
+func DebugHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/debug/pprof/", profileHandler{})
+	mux.HandleFunc("/debug/goroutines", dumpGoroutines)
+	return mux
+}
+
 func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, 2<<20)
 	buf = buf[:runtime.Stack(buf, true)]

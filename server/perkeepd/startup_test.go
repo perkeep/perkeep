@@ -27,6 +27,7 @@ import (
 
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/health"
+	"perkeep.org/pkg/serverinit"
 )
 
 func TestStartupLog(t *testing.T) {
@@ -55,7 +56,7 @@ func TestStartupHandler(t *testing.T) {
 	l := new(startupLog)
 	fmt.Fprintf(l, "loading <corpus>\n")
 	mon := health.New()
-	h := &startupHandler{log: l, start: time.Now(), healthz: http.HandlerFunc(mon.ServeHealthz)}
+	h := &startupHandler{log: l, start: time.Now(), healthz: http.HandlerFunc(mon.ServeHealthz), debug: serverinit.DebugHandler()}
 	get := func(path string, header ...string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest("GET", path, nil)
@@ -86,12 +87,20 @@ func TestStartupHandler(t *testing.T) {
 		t.Errorf("/healthz: got %d %q; want 503 %q", rec.Code, rec.Body, "starting\n")
 	}
 
-	// The page needs the owner's credentials.
-	if rec := get("/ui/"); rec.Code != http.StatusUnauthorized {
-		t.Errorf("unauthenticated /ui/: got %d; want 401", rec.Code)
+	// The page and the debug handlers need the owner's credentials.
+	for _, path := range []string{"/ui/", "/debug/goroutines", "/debug/pprof/goroutine?debug=1"} {
+		if rec := get(path); rec.Code != http.StatusUnauthorized {
+			t.Errorf("unauthenticated %s: got %d; want 401", path, rec.Code)
+		}
 	}
 
 	auth.SetMode(auth.None{})
+	if rec := get("/debug/goroutines"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "goroutine ") {
+		t.Errorf("/debug/goroutines: got %d; want 200 with goroutines' stacks", rec.Code)
+	}
+	if rec := get("/debug/pprof/goroutine?debug=1"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "goroutine profile") {
+		t.Errorf("/debug/pprof/goroutine: got %d; want 200 with a goroutine profile", rec.Code)
+	}
 	for _, path := range []string{"/", "/ui/"} {
 		rec := get(path)
 		if rec.Code != http.StatusServiceUnavailable {
