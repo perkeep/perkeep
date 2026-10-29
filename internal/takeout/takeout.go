@@ -32,6 +32,7 @@ import (
 	"io"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -161,6 +162,21 @@ func IsPhotosMedia(name string) bool {
 		return false
 	}
 	return true
+}
+
+// IsEdited reports whether name, the path of a Google Photos file in a
+// Takeout export, is an edited copy of a photo or video, which Google
+// Photos exports beside the original, named like "IMG_1234-edited.jpg"
+// (in English) or, if that's taken, "IMG_1234-edited(1).jpg".
+func IsEdited(name string) bool {
+	base := path.Base(name)
+	stem := strings.TrimSuffix(base, path.Ext(base))
+	if i := strings.LastIndexByte(stem, '('); i >= 0 && strings.HasSuffix(stem, ")") {
+		if _, err := strconv.Atoi(stem[i+1 : len(stem)-1]); err == nil {
+			stem = stem[:i]
+		}
+	}
+	return strings.HasSuffix(stem, "-edited")
 }
 
 // A Content is the contents of one or more entries with the same size

@@ -53,6 +53,7 @@ type takeoutCmd struct {
 	dir         string
 	driveFolder string
 	all         bool
+	edited      bool
 	workers     int
 	permanodes  bool
 	verbose     bool
@@ -64,6 +65,7 @@ func init() {
 		flags.StringVar(&cmd.dir, "dir", "", "Read the exports' zip files from this local directory, rather than from Google Drive.")
 		flags.StringVar(&cmd.driveFolder, "drive-folder", "", "The ID or URL of the Google Drive folder with the exports' zip files. If empty, the folders named Takeout in the root of Google Drive.")
 		flags.BoolVar(&cmd.all, "all", false, "Consider all of the exports' files, not just Google Photos' photos and videos.")
+		flags.BoolVar(&cmd.edited, "edited", false, "Include the edited copies of photos and videos that Google Photos exports beside their originals, named like IMG_1234-edited.jpg.")
 		flags.IntVar(&cmd.workers, "j", 8, "How many files to check or upload at once.")
 		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does.")
 		flags.BoolVar(&cmd.verbose, "v", false, "List the missing or uploaded files.")
@@ -165,10 +167,19 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		return err
 	}
 	var ents []takeout.Entry
+	skippedEdited := 0
 	for _, e := range exp.Entries() {
-		if c.all || takeout.IsPhotosMedia(e.File.Name) {
-			ents = append(ents, e)
+		if !c.all && !takeout.IsPhotosMedia(e.File.Name) {
+			continue
 		}
+		if !c.edited && takeout.IsEdited(e.File.Name) {
+			skippedEdited++
+			continue
+		}
+		ents = append(ents, e)
+	}
+	if skippedEdited > 0 {
+		log.Printf("Skipping %d edited copies (use -edited to include them).", skippedEdited)
 	}
 	cs := takeout.Contents(ents)
 	log.Printf("Asking the server about %d distinct contents of %d files...", len(cs), len(ents))
