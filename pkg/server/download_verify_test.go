@@ -32,9 +32,10 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// countingFetcher counts the fetches of one blob.
+// countingFetcher counts the fetches of one blob. Like the UI's caching
+// fetcher, it's only a blob.Fetcher, not a BlobStatter.
 type countingFetcher struct {
-	*test.Fetcher
+	f   blob.Fetcher
 	ref blob.Ref
 	n   atomic.Int64
 }
@@ -43,7 +44,7 @@ func (f *countingFetcher) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser
 	if br == f.ref {
 		f.n.Add(1)
 	}
-	return f.Fetcher.Fetch(ctx, br)
+	return f.f.Fetch(ctx, br)
 }
 
 // TestDownloadVerifyContents checks that verifying a file's contents
@@ -58,8 +59,8 @@ func TestDownloadVerifyContents(t *testing.T) {
 	contents := strings.Repeat("contents ", 1000)
 	file, whole := id.UploadFile("a.txt", contents, time.Unix(1700000000, 0))
 	h := search.NewHandler(id.Index, index.NewOwner(indextest.KeyID, id.SignerBlobRef))
-	f := &countingFetcher{Fetcher: id.BlobSource, ref: whole}
-	dh := &DownloadHandler{Fetcher: f, Search: h}
+	f := &countingFetcher{f: id.BlobSource, ref: whole}
+	dh := &DownloadHandler{Fetcher: f, Search: h, Storage: id.BlobSource}
 	verify := func(ref blob.Ref) string {
 		t.Helper()
 		rec := httptest.NewRecorder()
