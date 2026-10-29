@@ -538,6 +538,7 @@ func (ui *UIHandler) serveDownload(w http.ResponseWriter, r *http.Request) {
 		// than a blobserver.localdisk (which is what ui.Cache most likely is).
 		Fetcher: cacher.NewCachingFetcher(ui.Cache, ui.root.Storage),
 		Search:  ui.search,
+		Storage: ui.root.Storage,
 	}
 	dh.ServeHTTP(w, r)
 }

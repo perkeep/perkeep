@@ -65,6 +65,11 @@ type DownloadHandler struct {
 	// to get at a wholeref more efficiently. (e.g. blobpacked)
 	Search *search.Handler
 
+	// Storage is optional. If present, it's the storage that Fetcher
+	// reads from (as through a cache), used to check that a file's
+	// chunks are stored, without fetching them.
+	Storage blobserver.Storage
+
 	ForceMIME   string // optional
 	forceInline bool   // to force Content-Disposition to inline, when it was not set in the request
 
@@ -200,7 +205,13 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 // read and hashed. The index hashed them when it indexed the file. If it
 // can't tell, the caller reads them.
 func (dh *DownloadHandler) indexVerifies(ctx context.Context, file, wholeRef blob.Ref) bool {
+	// Read the file's schema blobs, and stat its chunks, from the
+	// storage, if known, rather than through a cache.
+	src := dh.Fetcher
 	statter, ok := dh.Fetcher.(blobserver.BlobStatter)
+	if dh.Storage != nil {
+		src, statter, ok = dh.Storage, dh.Storage, true
+	}
 	if dh.Search == nil || !ok {
 		return false
 	}
@@ -212,7 +223,7 @@ func (dh *DownloadHandler) indexVerifies(ctx context.Context, file, wholeRef blo
 	if !ok || db.File == nil || db.File.WholeRef != wholeRef {
 		return false
 	}
-	fr, err := schema.NewFileReader(ctx, dh.Fetcher, file)
+	fr, err := schema.NewFileReader(ctx, src, file)
 	if err != nil {
 		return false
 	}
