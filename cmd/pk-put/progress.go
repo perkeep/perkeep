@@ -212,12 +212,16 @@ h2 { margin-top: 1.2em; }
 {{with .Client}}<p>HTTP: {{.UploadRequests.Blobs}} blobs asked to upload ({{bytes .UploadRequests.Bytes}}); {{.Uploads.Blobs}} sent ({{bytes .Uploads.Bytes}}).</p>{{end}}
 {{range .Trees}}{{$now := $.Now}}
 <h2>{{.Dir}}</h2>
+{{$inFlight := .BytesInFlight}}{{$nInFlight := len .Status.InFlight}}
 {{with .Status.Progress}}
 <table>
-<tr><th>Files</th><td class=n>{{.FilesDone}} / {{.Files}}{{if not .Walked}}+ (still walking){{end}}</td><td class=n>{{pcti .FilesDone .Files}}</td><td>{{.FilesCached}} from the stat cache, {{.FilesDup}} the server had</td></tr>
-<tr><th>Bytes</th><td class=n>{{bytes .BytesDone}} / {{bytes .Bytes}}</td><td class=n>{{pct .BytesDone .Bytes}}</td><td>of files done</td></tr>
-<tr><th>Directories</th><td class=n>{{.DirsDone}} / {{.Dirs}}</td><td class=n>{{pcti .DirsDone .Dirs}}</td><td></td></tr>
-<tr><th>Uploaded</th><td class=n>{{bytes .BytesUploaded}}</td><td></td><td>{{.ChunksUploaded}} chunks sent, {{.ChunksPresent}} the server had</td></tr>
+<tr><th>Files done</th><td class=n>{{.FilesDone}} / {{.Files}}{{if not .Walked}}+ (still walking){{end}}</td><td class=n>{{pcti .FilesDone .Files}}</td>
+<td>including {{.FilesCached}} unchanged since an earlier run (from the stat cache), and {{.FilesDup}} whose contents the server had</td></tr>
+<tr><th>Their sizes</th><td class=n>{{bytes .BytesDone}} / {{bytes .Bytes}}</td><td class=n>{{pct .BytesDone .Bytes}}</td>
+<td>of all the files' contents, counting files once done; the {{$nInFlight}} in flight have {{bytes $inFlight}} read so far</td></tr>
+<tr><th>Directories done</th><td class=n>{{.DirsDone}} / {{.Dirs}}</td><td class=n>{{pcti .DirsDone .Dirs}}</td><td>each done once all of its contents are</td></tr>
+<tr><th>Sent</th><td class=n>{{bytes .BytesUploaded}}</td><td></td>
+<td>of the done files' contents, that the server didn't have: {{.ChunksUploaded}} chunks sent; {{.ChunksPresent}} more chunks the server had</td></tr>
 </table>
 {{end}}
 <p>
