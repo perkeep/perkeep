@@ -18,6 +18,8 @@ package takeout
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"path"
 	"regexp"
 	"strconv"
@@ -62,13 +64,40 @@ func (t *takeoutTime) time() time.Time {
 }
 
 type takeoutGeo struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Altitude  float64 `json:"altitude"`
+	Latitude  jsonFloat `json:"latitude"`
+	Longitude jsonFloat `json:"longitude"`
+	Altitude  jsonFloat `json:"altitude"`
 }
 
 func (g *takeoutGeo) valid() bool {
-	return g != nil && (g.Latitude != 0 || g.Longitude != 0)
+	return g != nil && g.Latitude.finite() && g.Longitude.finite() && (g.Latitude != 0 || g.Longitude != 0)
+}
+
+// jsonFloat is a number in JSON, which Takeout sometimes writes as a
+// string, such as "NaN".
+type jsonFloat float64
+
+func (f *jsonFloat) UnmarshalJSON(b []byte) error {
+	s := string(b)
+	if unq, err := strconv.Unquote(s); err == nil {
+		s = unq
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("invalid number %s", b)
+	}
+	*f = jsonFloat(v)
+	return nil
+}
+
+func (f jsonFloat) finite() bool { return !math.IsNaN(float64(f)) && !math.IsInf(float64(f), 0) }
+
+// value returns f, or 0 if it's not finite.
+func (f jsonFloat) value() float64 {
+	if !f.finite() {
+		return 0
+	}
+	return float64(f)
 }
 
 // ParsePhotoMetadata parses a photo's sidecar.
@@ -105,7 +134,7 @@ func ParsePhotoMetadata(data []byte) (*PhotoMetadata, error) {
 	for _, g := range []*takeoutGeo{j.GeoData, j.GeoDataExif} {
 		if g.valid() {
 			m.HasLocation = true
-			m.Latitude, m.Longitude, m.Altitude = g.Latitude, g.Longitude, g.Altitude
+			m.Latitude, m.Longitude, m.Altitude = g.Latitude.value(), g.Longitude.value(), g.Altitude.value()
 			break
 		}
 	}
@@ -166,7 +195,7 @@ func ParseAlbumMetadata(data []byte) (*AlbumMetadata, error) {
 		m.Title, m.Description, m.Access, m.Date = j.Title, strings.TrimSpace(j.Description), j.Access, j.Date.time()
 	}
 	if a.GeoData.valid() {
-		m.HasLocation, m.Latitude, m.Longitude = true, a.GeoData.Latitude, a.GeoData.Longitude
+		m.HasLocation, m.Latitude, m.Longitude = true, a.GeoData.Latitude.value(), a.GeoData.Longitude.value()
 	}
 	return m, nil
 }
@@ -265,12 +294,25 @@ func MatchSidecars(media, sidecars []string, title func(sidecar string) string) 
 		unmatched = append(unmatched, sc)
 	}
 	// Names cut short, or otherwise mangled: by the sidecar's title, or
-	// the one media file whose name starts with the sidecar's stem.
+	// the one media file whose name, less its extension, is the sidecar's
+	// stem (as when a photo's title has no extension, and Takeout adds
+	// one to the file's name, but not the sidecar's), or else starts with
+	// it.
 	for _, sc := range unmatched {
 		if t := title(sc); t != "" && match(t, sc) {
 			continue
 		}
 		stem := strings.TrimSuffix(sc, ".json")
+		var exts []string
+		for _, m := range media {
+			if _, ok := matched[m]; !ok && strings.TrimSuffix(m, path.Ext(m)) == stem {
+				exts = append(exts, m)
+			}
+		}
+		if len(exts) == 1 {
+			match(exts[0], sc)
+			continue
+		}
 		if len(stem) < sidecarNameMax {
 			continue
 		}
