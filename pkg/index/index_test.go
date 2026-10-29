@@ -134,6 +134,7 @@ var (
 		"export_test.go",
 		"index_test.go",
 		"keys_test.go",
+		"known_contents_test.go",
 		"missing_cleanup_test.go",
 		"multiclaim_internal_test.go",
 		"multiclaim_test.go",
