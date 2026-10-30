@@ -177,6 +177,11 @@ func (r *run) discoverActivities(boundary time.Time) ([]activity, error) {
 			summaries = append(summaries, a)
 		}
 	}
+	if boundary.IsZero() {
+		r.Logf("Found %d activities", len(summaries))
+	} else {
+		r.Logf("Found %d activities since %s", len(summaries), boundary.Format(time.DateOnly))
+	}
 	// Equal timestamps can span pages and are a single checkpoint unit.
 	sort.SliceStable(summaries, func(i, j int) bool {
 		if summaries[i].StartDate.Equal(summaries[j].StartDate) {

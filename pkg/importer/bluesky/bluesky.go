@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -368,7 +367,7 @@ func (r *run) importRepo(since string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("bluesky: fetching repo of %s from %s (since %q)", r.did, pds.Host, since)
+	r.Logf("fetching repo of %s from %s (since %q)", r.did, pds.Host, since)
 	carBytes, err := atproto.SyncGetRepo(ctx, pds, r.did.String(), since)
 	if err != nil {
 		return fmt.Errorf("bluesky: getRepo: %w", err)
@@ -377,7 +376,7 @@ func (r *run) importRepo(since string) error {
 	if errors.Is(err, errNoCommitBlock) && since != "" && commitCID.String() == r.AccountNode().Attr(acctAttrCommit) {
 		// When nothing has changed since the last import, the PDS
 		// returns just a CAR header naming the same commit.
-		log.Printf("bluesky: repo of %s unchanged since rev %s", r.did, since)
+		r.Logf("repo of %s unchanged since rev %s", r.did, since)
 		return nil
 	}
 	if err != nil {
@@ -400,7 +399,7 @@ func (r *run) importRepo(since string) error {
 	}); err != nil {
 		return fmt.Errorf("bluesky: walking repo: %w", err)
 	}
-	log.Printf("bluesky: repo of %s at rev %s has %d new or changed records", r.did, commit.Rev, len(recs))
+	r.Logf("repo of %s at rev %s has %d new or changed records", r.did, commit.Rev, len(recs))
 
 	h := &hydrator{
 		posts:    map[string][]pendingRef{},
@@ -571,7 +570,7 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) error {
 	if dv, err := lexutil.CborDecodeValue(rec.data); err == nil {
 		val = dv
 	} else if !errors.Is(err, lexutil.ErrUnrecognizedType) {
-		log.Printf("bluesky: decoding %s: %v; importing generically", rec.uri(r.did), err)
+		r.Logf("decoding %s: %v; importing generically", rec.uri(r.did), err)
 	}
 
 	var more []string
@@ -696,7 +695,7 @@ func (r *run) postAttrs(n *importer.Object, did syntax.DID, post *bsky.FeedPost)
 		if err != nil {
 			// Don't fail the whole import for one missing blob
 			// (e.g. a deleted account's PDS is gone).
-			log.Printf("bluesky: fetching %s of post %s: %v", name, n.PermanodeRef(), err)
+			r.Logf("fetching %s of post %s: %v", name, n.PermanodeRef(), err)
 			continue
 		}
 		if i == 0 && m.kind != "video" {
@@ -836,7 +835,7 @@ func (r *run) profileRecordAttrs(n *importer.Object, p *bsky.ActorProfile) ([]st
 		}
 		ref, err := r.importMedia(n, m.kind, r.did, m)
 		if err != nil {
-			log.Printf("bluesky: fetching profile %s: %v", m.kind, err)
+			r.Logf("fetching profile %s: %v", m.kind, err)
 			continue
 		}
 		if m.kind == "avatar" {
@@ -854,7 +853,7 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 		uris = append(uris, uri)
 	}
 	slices.Sort(uris)
-	log.Printf("bluesky: fetching %d liked or reposted posts", len(uris))
+	r.Logf("fetching %d liked or reposted posts", len(uris))
 	for batch := range slices.Chunk(uris, hydrateBatchSize) {
 		if err := r.Context().Err(); err != nil {
 			return err
@@ -885,7 +884,7 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 			if !found[uri] {
 				// Deleted, or its author is gone or private. The like
 				// or repost node still has the subject URI.
-				log.Printf("bluesky: post %s not found", uri)
+				r.Logf("post %s not found", uri)
 				if err := markDone(posts[uri]); err != nil {
 					return err
 				}
@@ -985,7 +984,7 @@ func (r *run) hydrateProfiles(profiles map[string][]pendingRef) error {
 		dids = append(dids, did)
 	}
 	slices.Sort(dids)
-	log.Printf("bluesky: fetching %d followed profiles", len(dids))
+	r.Logf("fetching %d followed profiles", len(dids))
 	for batch := range slices.Chunk(dids, hydrateBatchSize) {
 		if err := r.Context().Err(); err != nil {
 			return err
@@ -1014,7 +1013,7 @@ func (r *run) hydrateProfiles(profiles map[string][]pendingRef) error {
 		}
 		for _, did := range batch {
 			if !found[did] {
-				log.Printf("bluesky: profile %s not found", did)
+				r.Logf("profile %s not found", did)
 				if err := markDone(profiles[did]); err != nil {
 					return err
 				}
@@ -1051,7 +1050,7 @@ func (r *run) importProfileView(p *bsky.ActorDefs_ProfileViewDetailed, follows [
 	if p.Avatar != nil && n.Attr(nodeattr.CamliContentImage) == "" {
 		ref, err := r.fetchURL(*p.Avatar, "avatar.jpg")
 		if err != nil {
-			log.Printf("bluesky: fetching avatar of %s: %v", p.Did, err)
+			r.Logf("fetching avatar of %s: %v", p.Did, err)
 		} else {
 			attrs = append(attrs, nodeattr.CamliContentImage, ref.String())
 		}
@@ -1059,7 +1058,7 @@ func (r *run) importProfileView(p *bsky.ActorDefs_ProfileViewDetailed, follows [
 	if p.Banner != nil && n.Attr(attrBanner) == "" {
 		ref, err := r.fetchURL(*p.Banner, "banner.jpg")
 		if err != nil {
-			log.Printf("bluesky: fetching banner of %s: %v", p.Did, err)
+			r.Logf("fetching banner of %s: %v", p.Did, err)
 		} else {
 			attrs = append(attrs, attrBanner, ref.String())
 		}

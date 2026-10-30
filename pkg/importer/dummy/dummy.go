@@ -19,7 +19,6 @@ package dummy // import "perkeep.org/pkg/importer/dummy"
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -154,9 +153,9 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 }
 
 func (im *imp) Run(ctx *importer.RunContext) (err error) {
-	log.Printf("Running dummy importer.")
+	ctx.Logf("Running importer.")
 	defer func() {
-		log.Printf("Dummy importer returned: %v", err)
+		ctx.Logf("Importer returned: %v", err)
 	}()
 	root := ctx.RootNode()
 	fileRef, err := schema.WriteFileFromReader(ctx.Context(), ctx.Host.Target(), "foo.txt", strings.NewReader("Some file.\n"))

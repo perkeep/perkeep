@@ -213,7 +213,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 }
 
 func (r *run) errorf(format string, args ...any) {
-	log.Printf(format, args...)
+	r.Logf(format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.anyErr = true
@@ -235,7 +235,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	res, err := ctxutil.Client(r.Context()).Get(urlstr)
 	if err != nil {
-		log.Printf("swarm: couldn't fetch image %q: %v", urlstr, err)
+		r.Logf("couldn't fetch image %q: %v", urlstr, err)
 		return ""
 	}
 	defer res.Body.Close()
@@ -257,9 +257,9 @@ func (r *run) importCheckins() error {
 	continueRequests := true
 
 	if r.RunContext.UsePaidAPI() {
-		log.Printf("swarm: importing photos will be done via paid API")
+		r.Logf("importing photos will be done via paid API")
 	} else {
-		log.Printf("swarm: will skip importing photos via paid API")
+		r.Logf("will skip importing photos via paid API")
 	}
 
 	checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
@@ -287,9 +287,9 @@ func (r *run) importCheckins() error {
 		if err := r.importPhotos(placeNode, dup); err != nil {
 			if errors.Is(err, ErrPaymentRequired) {
 				sawPaidErr = true
-				r.errorf("Foursquare importer: error importing photos: API calls require payment: %v", err)
+				r.errorf("error importing photos: API calls require payment: %v", err)
 			} else {
-				r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
+				r.errorf("error importing photos for checkin %s: %v", checkin.Id, err)
 			}
 		}
 	}
@@ -314,7 +314,7 @@ func (r *run) importCheckins() error {
 		slices.SortFunc(items, func(a, b *checkinItem) int {
 			return cmp.Compare(b.CreatedAt, a.CreatedAt) // most recent first
 		})
-		log.Printf("swarm: importing %d checkins (offset %d, %v)", itemCount, offset, time.Unix(items[0].CreatedAt, 0).Format(time.RFC3339))
+		r.Logf("importing %d checkins (offset %d, %v)", itemCount, offset, time.Unix(items[0].CreatedAt, 0).Format(time.RFC3339))
 
 		sawOldItem := false
 		sawNewItem := false
@@ -336,7 +336,7 @@ func (r *run) importCheckins() error {
 						backfilled++
 						placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 						if err != nil {
-							r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
+							r.errorf("error importing place %s: %v", checkin.Venue.Id, err)
 							continue
 						}
 						importPhotos(checkin, placeNode, true)
@@ -347,26 +347,26 @@ func (r *run) importCheckins() error {
 
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
+				r.errorf("error importing place %s: %v", checkin.Venue.Id, err)
 				continue
 			}
 
 			companionRefs, err := r.importCompanions(pplNode, checkin.With)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing companions for checkin %s: %v", checkin.Id, err)
+				r.errorf("error importing companions for checkin %s: %v", checkin.Id, err)
 				continue
 			}
 
 			_, dup, err := r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef(), companionRefs)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing checkin %s: %v", checkin.Id, err)
+				r.errorf("error importing checkin %s: %v", checkin.Id, err)
 				continue
 			}
 
 			checkinTime := time.Unix(checkin.CreatedAt, 0)
 			if dup {
 				sawOldItem = true
-				log.Printf("swarm: checkin %s from %v already imported; skipping", checkin.Id, checkinTime.Format(time.RFC3339))
+				r.Logf("checkin %s from %v already imported; skipping", checkin.Id, checkinTime.Format(time.RFC3339))
 			} else {
 				sawNewItem = true
 			}
@@ -374,7 +374,7 @@ func (r *run) importCheckins() error {
 			importPhotos(checkin, placeNode, dup)
 		}
 		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion && !r.forceFullRun {
-			log.Printf("swarm: all checkins in this page are old; stopping import")
+			r.Logf("all checkins in this page are old; stopping import")
 			break
 		}
 	}
@@ -430,14 +430,14 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 
 	if len(need) > 0 {
 		venueTitle := placeNode.Attr(nodeattr.Title)
-		log.Printf("swarm: importing %d photos for venue %s", len(need), venueTitle)
+		r.Logf("importing %d photos for venue %s", len(need), venueTitle)
 		for _, photo := range need {
 			attr := "camliPath:" + photo.Id + filepath.Ext(photo.Suffix)
 			if photosNode.Attr(attr) != "" {
 				continue
 			}
 			url := photo.Prefix + "original" + photo.Suffix
-			log.Printf("swarm: importing photo for venue %s: %s", venueTitle, url)
+			r.Logf("importing photo for venue %s: %s", venueTitle, url)
 			ref := r.urlFileRef(url, "")
 			if ref == "" {
 				r.errorf("Error slurping photo: %s", url)
@@ -674,7 +674,6 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	token, err := oauthConfig.Exchange(ctx, code)
-	log.Printf("Token = %#v, error %v", token, err)
 	if err != nil {
 		log.Printf("Token Exchange error: %v", err)
 		http.Error(w, "token exchange error", 500)

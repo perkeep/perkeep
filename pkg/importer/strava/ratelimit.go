@@ -163,6 +163,9 @@ func (e *rateLimitError) Error() string {
 		reason, e.reset.UTC().Format(time.RFC3339))
 }
 
+// RetryAfter returns when a run can go on; see importer.RetryAfterError.
+func (e *rateLimitError) RetryAfter() time.Time { return e.reset }
+
 // blockedUntil returns the latest applicable reset, since all four quotas and
 // the cooldown must permit a request. Equality permits the last request.
 func (l *rateLimiter) blockedUntil() time.Time {
