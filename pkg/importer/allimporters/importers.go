@@ -25,6 +25,7 @@ import (
 	_ "perkeep.org/pkg/importer/flickr"
 	_ "perkeep.org/pkg/importer/gphotos"
 	_ "perkeep.org/pkg/importer/instapaper"
+	_ "perkeep.org/pkg/importer/livejournal"
 	_ "perkeep.org/pkg/importer/mastodon"
 	_ "perkeep.org/pkg/importer/picasa"
 	_ "perkeep.org/pkg/importer/pinboard"
