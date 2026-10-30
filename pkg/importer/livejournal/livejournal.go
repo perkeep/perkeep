@@ -54,12 +54,13 @@ func init() {
 	importer.Register("livejournal", imp{})
 }
 
-// Attributes of the importer's account permanodes. The user is in
+// Attributes of the importer's account permanodes, which pk livejournal
+// also makes (see lj.LinkImporterAccount). The user is in
 // importer.AcctAttrUserName.
 const (
-	acctAttrPasswordFile = "livejournalPasswordFile"
-	acctAttrTimeZone     = "livejournalTimeZone"
-	acctAttrServer       = "livejournalServer" // if not LiveJournal's own
+	acctAttrPasswordFile = lj.AcctAttrPasswordFile
+	acctAttrTimeZone     = lj.AcctAttrTimeZone
+	acctAttrServer       = lj.AcctAttrServer // if not LiveJournal's own
 )
 
 type imp struct {
@@ -237,8 +238,8 @@ func (im imp) Run(rc *importer.RunContext) error {
 	log.Printf("livejournal: %d entries, %d comments: changed %d of %d permanodes (%d new), with %d attribute changes",
 		len(j.Entries), len(j.Comments), res.Changed, res.Permanodes, res.Created, res.AttrChanges)
 	return rc.RootNode().SetAttrs(
-		nodeattr.Title, "LiveJournal data for "+c.user,
-		"camliPath:journal", res.Journal.String(),
+		nodeattr.Title, lj.RootTitle(c.user),
+		"camliPath:"+lj.RootPathJournal, res.Journal.String(),
 	)
 }
 
@@ -256,4 +257,8 @@ func (s hostStore) Upload(ctx context.Context, signed string) error {
 
 func (s hostStore) Describe(ctx context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
 	return s.h.Searcher().Describe(ctx, req)
+}
+
+func (s hostStore) Query(ctx context.Context, req *search.SearchQuery) (*search.SearchResult, error) {
+	return s.h.Searcher().Query(ctx, req)
 }

@@ -63,7 +63,10 @@ func (c *livejournalCmd) Usage() {
 Reads all the entries of a LiveJournal user's journal, including private
 ones, and all the comments on them, and keeps a permanode of each, under a
 set titled "LiveJournal - <user>". Running it again updates them. The
-server's LiveJournal importer keeps the same permanodes.
+server's LiveJournal importer keeps the same permanodes, and sync makes
+(or finds) the importer's account for the user, with the set in its
+import root, so the server's importer pages list it. To run imports from
+there too, set up the account's password file on the server.
 
 "stats" reports what sync would change, without changing anything.
 
@@ -138,6 +141,24 @@ func (c *livejournalCmd) RunCommand(args []string) error {
 	fmt.Fprintf(cmdmain.Stdout, "%s %d of %d permanodes (%d new), with %d attribute changes.\n",
 		verb, res.Changed, res.Permanodes, res.Created, res.AttrChanges)
 	fmt.Fprintf(cmdmain.Stdout, "Journal: %s\n", res.Journal)
+	if dryRun {
+		return nil
+	}
+	// List the journal with the server's importer accounts, as if its
+	// LiveJournal importer had imported it.
+	tz := c.tz
+	if tz == "Local" {
+		tz = "" // which would mean the server's zone, not necessarily this one
+	}
+	acct, changed, err := livejournal.LinkImporterAccount(ctx, ljClientStore{cl, signer}, c.user, tz, res.Journal)
+	if err != nil {
+		return fmt.Errorf("linking the server's LiveJournal importer account: %w", err)
+	}
+	if changed {
+		fmt.Fprintf(cmdmain.Stdout, "Importer account: %s (updated)\n", acct)
+	} else {
+		fmt.Fprintf(cmdmain.Stdout, "Importer account: %s\n", acct)
+	}
 	return nil
 }
 
@@ -156,4 +177,8 @@ func (s ljClientStore) Upload(ctx context.Context, signed string) error {
 
 func (s ljClientStore) Describe(ctx context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
 	return s.c.Describe(ctx, req)
+}
+
+func (s ljClientStore) Query(ctx context.Context, req *search.SearchQuery) (*search.SearchResult, error) {
+	return s.c.Query(ctx, req)
 }
