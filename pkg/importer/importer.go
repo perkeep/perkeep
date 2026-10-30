@@ -1018,6 +1018,10 @@ func (h *Host) BlobSource() blob.Fetcher {
 
 func (h *Host) Searcher() search.QueryDescriber { return h.search }
 
+// Signer returns the signer of the host's permanodes and claims, for
+// importers that sign their own, such as planned permanodes.
+func (h *Host) Signer() *schema.Signer { return h.signer }
+
 // importer is an importer for a certain site, but not a specific account on that site.
 type importer struct {
 	cacheOnce  sync.Once
