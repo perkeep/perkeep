@@ -207,7 +207,6 @@ func TestHighLevelCredentialFiles(t *testing.T) {
 		}, []string{"/index/", "handlerArgs", "storage", "password"}},
 		{"immich.password", func(c *serverconfig.Config, v string) { c.Immich.Password = v }, []string{"/immich/api/", "handlerArgs", "password"}},
 		{"flickr", func(c *serverconfig.Config, v string) { c.Flickr = v }, []string{"/importer/", "handlerArgs", "flickr", "clientSecret"}},
-		{"picasa", func(c *serverconfig.Config, v string) { c.Picasa = v }, []string{"/importer/", "handlerArgs", "picasa", "clientSecret"}},
 		{"instapaper", func(c *serverconfig.Config, v string) { c.Instapaper = v }, []string{"/importer/", "handlerArgs", "instapaper", "clientSecret"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

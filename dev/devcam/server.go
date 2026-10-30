@@ -74,8 +74,6 @@ type serverCmd struct {
 	openBrowser      bool
 	flickrAPIKey     string
 	foursquareAPIKey string
-	gphotosAPIKey    string
-	picasaAPIKey     string
 	plaidAPIKey      string
 	twitterAPIKey    string
 	instapaperAPIKey string
@@ -124,8 +122,6 @@ func init() {
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
-		flags.StringVar(&cmd.gphotosAPIKey, "gphotoskey", "", "The username and password to use with the Google Photos importer. Formatted as '<clientID>:<clientSecret>'.")
-		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
 		flags.StringVar(&cmd.plaidAPIKey, "plaidkey", "", "The client_id and secret to use with the Plaid importer. Formatted as '<client_id>:<secret>'.")
 		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")
 		flags.StringVar(&cmd.instapaperAPIKey, "instapaperkey", "", "The key and secret to use with the Instapaper importer. Formatted as '<clientID>:<clientSecret>'.")
@@ -324,10 +320,6 @@ func (c *serverCmd) setEnvVars() error {
 	if c.foursquareAPIKey != "" {
 		setenv("CAMLI_FOURSQUARE_ENABLED", "true")
 		setenv("CAMLI_FOURSQUARE_API_KEY", c.foursquareAPIKey)
-	}
-	if c.picasaAPIKey != "" {
-		setenv("CAMLI_PICASA_ENABLED", "true")
-		setenv("CAMLI_PICASA_API_KEY", c.picasaAPIKey)
 	}
 	if c.plaidAPIKey != "" {
 		setenv("CAMLI_PLAID_ENABLED", "true")

@@ -38,7 +38,6 @@ require (
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	github.com/studio-b12/gowebdav v0.13.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d
-	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	github.com/whyrusleeping/cbor-gen v0.2.1-0.20241030202151-b7a6831be65e
 	go4.org v0.0.0-20261028031214-ed6929a230fe
 	golang.org/x/crypto v0.58.0

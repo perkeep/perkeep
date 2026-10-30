@@ -138,21 +138,3 @@ func TestLocalSetupNavigation(t *testing.T) {
 		})
 	}
 }
-
-func TestPicasaSetupNavigation(t *testing.T) {
-	r := httptest.NewRequest("GET", "https://vpn.example/base/custom-imports/picasa", nil)
-	w := httptest.NewRecorder()
-	navigationHandler(t).ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d: %s", w.Code, w.Body)
-	}
-	for _, want := range []string{
-		`href='/base/custom-imports/gphotos'`,
-		`Authorized JavaScript origins: <b>https://canonical.example</b>`,
-		`Authorized Redirect URI: <b>https://canonical.example/base/custom-imports/picasa/callback</b>`,
-	} {
-		if !strings.Contains(w.Body.String(), want) {
-			t.Errorf("setup page missing %q:\n%s", want, w.Body)
-		}
-	}
-}
