@@ -88,7 +88,7 @@ type Importer interface {
 	// CallbackRequestAccount extracts the blobref of the importer account from
 	// the callback URL parameters of r. For example, it will be encoded as:
 	// For Twitter (OAuth1), in its own URL parameter: "acct=sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
-	// For Picasa: (OAuth2), in the OAuth2 "state" parameter: "state=acct:sha1-97911b1a5887eb5862d1c81666ba839fc1363ea1"
+	// For OAuth2 importers, in the OAuth2 "state" parameter: "state=acct:sha1-97911b1a5887eb5862d1c81666ba839fc1363ea1"
 	CallbackRequestAccount(r *http.Request) (acctRef blob.Ref, err error)
 
 	// CallbackURLParameters uses the input importer account blobRef to build
@@ -178,6 +178,11 @@ type ImporterSetupHTMLer interface {
 var (
 	importers           = map[string]Importer{}
 	reservedImporterKey = map[string]bool{}
+
+	// removedImporters are importers that no longer exist, as the
+	// services' APIs they used are gone, whose configuration in an
+	// importer handler's arguments is ignored, rather than an error.
+	removedImporters = []string{"gphotos", "picasa"}
 )
 
 // All returns the map of importer implementation name to implementation. This
@@ -358,6 +363,11 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 			}
 			ClientId[k] = clientId
 			ClientSecret[k] = clientSecret
+		}
+	}
+	for _, k := range removedImporters {
+		if cfg.OptionalObject(k) != nil {
+			log.Printf("importer: ignoring the configuration of the %q importer, which no longer exists", k)
 		}
 	}
 	if err := cfg.Validate(); err != nil {

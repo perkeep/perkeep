@@ -63,7 +63,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr,
 		`Usage: pk-devimport <importerType> <accountNodeRef>
 
--importerType is one of the supported importers: feed, flickr, foursquare, gphotos, pinboard, plaid, twitter.
+-importerType is one of the supported importers: feed, flickr, foursquare, pinboard, plaid, twitter.
 -accountNodeRef is the permanode of camliNodeType importerAccount representing the account to import.
 `)
 }

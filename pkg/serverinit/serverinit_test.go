@@ -279,6 +279,34 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 	}
 }
 
+func TestRemovedPicasaConfigIgnored(t *testing.T) {
+	srcRoot, err := osutil.PkSourceRoot()
+	if err != nil {
+		t.Fatalf("source root folder not found: %v", err)
+	}
+	t.Setenv("TMP_SECRING", filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	conf, err := serverinit.Load([]byte(`
+{
+    "auth": "localhost",
+    "listen": ":4430",
+    "https": false,
+    "identity": "26F5ABDA",
+    "identitySecretRing": ["_env", "${TMP_SECRING}"],
+    "memoryStorage": true,
+    "memoryIndex": true,
+    "picasa": "client:secret"
+}
+`))
+	if err != nil {
+		t.Fatalf("a configuration with picasa didn't load: %v", err)
+	}
+	if got := fmt.Sprintf("%#v", conf); strings.Contains(got, "picasa") || strings.Contains(got, "client:secret") {
+		t.Errorf("low-level configuration has the removed importer's configuration: %s", got)
+	}
+}
+
 func TestImmichPrefix(t *testing.T) {
 	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
 	t.Setenv("CAMLI_CONFIG_DIR", "whatever")

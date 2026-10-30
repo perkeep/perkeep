@@ -120,8 +120,12 @@ type Config struct {
 
 	// TODO(mpl): map of importers instead?
 	Flickr     string `json:"flickr,omitempty"`     // flicker importer.
-	Picasa     string `json:"picasa,omitempty"`     // picasa importer.
 	Instapaper string `json:"instapaper,omitempty"` // instapaper importer.
+
+	// Picasa is ignored, as the Picasa importer is gone, along with the
+	// Picasa API it used. It's still a valid name in configuration files
+	// that have it.
+	Picasa string `json:"picasa,omitempty"`
 }
 
 // Immich configures the opt-in Immich-compatible API. The native index and

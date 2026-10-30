@@ -107,8 +107,8 @@ This syntax is supported in:
 * Passwords in `auth`'s `userpass`, `basic`, and development-only `devauth`
   modes, including `userpass`'s `vivify=@path` option. This also works anywhere
   else an auth string is parsed, including low-level configurations.
-* `immich.password`, and the entire `flickr`, `picasa`, and `instapaper`
-  importer secret values.
+* `immich.password`, and the entire `flickr` and `instapaper` importer secret
+  values.
 
 Files are read during configuration setup, not on each request. Leading and
 trailing whitespace (including a final newline) is removed. File contents
@@ -278,7 +278,6 @@ Perkeep has several built-in importers, including:
  * Feeds (RSS, Atom, and RDF)
  * Flickr
  * Foursquare
- * Picasa
  * Pinboard
  * Twitter
  * Instapaper

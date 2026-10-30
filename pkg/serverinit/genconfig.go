@@ -867,9 +867,11 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		importerArgs["cacheRoot"] = filepath.Join(b.high.BlobPath, "importer-cache")
 		importerArgs["cacheType"] = b.kvFileType()
 	}
+	if b.high.Picasa != "" {
+		log.Printf("Ignoring the high-level configuration's %q, as the Picasa importer no longer exists", "picasa")
+	}
 	for _, importer := range []struct{ name, clientSecret string }{
 		{"flickr", b.high.Flickr},
-		{"picasa", b.high.Picasa},
 		{"instapaper", b.high.Instapaper},
 	} {
 		if importer.clientSecret == "" {

@@ -276,13 +276,9 @@ These variables are yet to be documented:
 
 `CAMLI_FAKE_STATUS_ERROR` (todo)
 
-`CAMLI_GPHOTOS_FULL_IMPORT` (todo)
-
 `CAMLI_MORE_FLAGS` (todo)
 
 `CAMLI_MORE_FLAGS` (todo)
-
-`CAMLI_PICASA_FULL_IMPORT` (todo)
 
 `CAMLI_QUIET` (todo)
 

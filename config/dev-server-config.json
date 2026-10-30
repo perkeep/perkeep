@@ -352,9 +352,6 @@
 				"flickr": {
 					"clientSecret": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
 				},
-				"picasa": {
-					"clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
-				},
 				"plaid": {
 					"clientSecret": ["_env", "${CAMLI_PLAID_API_KEY}", ""]
 				},
