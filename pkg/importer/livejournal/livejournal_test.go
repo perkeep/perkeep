@@ -18,7 +18,6 @@ package livejournal
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,79 +31,15 @@ import (
 	"perkeep.org/internal/livejournal/ljtest"
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/importer"
-	"perkeep.org/pkg/index"
-	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/schema"
+	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema/nodeattr"
-	pksearch "perkeep.org/pkg/search"
 )
 
-// indexingStorage is memory storage that also indexes what it receives.
-type indexingStorage struct {
-	*memory.Storage
-	ix *index.Index
-}
-
-func (s indexingStorage) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (blob.SizedRef, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return blob.SizedRef{}, err
-	}
-	sb, err := s.Storage.ReceiveBlob(ctx, br, strings.NewReader(string(b)))
-	if err != nil {
-		return sb, err
-	}
-	_, err = s.ix.ReceiveBlob(ctx, br, strings.NewReader(string(b)))
-	return sb, err
-}
-
-// newTestHost returns an importer host on memory storage, with an
-// in-memory index, whose HTTP requests go to the fake LiveJournal s.
+// newTestHost returns an importer host whose HTTP requests go to the
+// fake LiveJournal s.
 func newTestHost(t *testing.T, s *ljtest.Server) *importer.Host {
-	t.Helper()
-	ctx := context.Background()
-	entity, err := jsonsign.EntityFromSecring("26F5ABDA", "../../jsonsign/testdata/test-secring.gpg")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pub, err := jsonsign.ArmoredPublicKey(entity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pubRef := blob.RefFromString(pub)
-	signer, err := schema.NewSigner(pubRef, strings.NewReader(pub), entity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mem := new(memory.Storage)
-	ix := index.NewMemoryIndex()
-	t.Cleanup(func() { ix.Close() })
-	ix.InitBlobSource(mem)
-	corpus, err := ix.KeepInMemory()
-	if err != nil {
-		t.Fatal(err)
-	}
-	st := indexingStorage{mem, ix}
-	if _, err := st.ReceiveBlob(ctx, pubRef, strings.NewReader(pub)); err != nil {
-		t.Fatal(err)
-	}
-	sh := pksearch.NewHandler(ix, index.NewOwner(signer.KeyIDLong(), pubRef))
-	sh.SetCorpus(corpus)
-	h, err := importer.NewHost(importer.HostConfig{
-		BaseURL:    "https://perkeep.example",
-		Prefix:     "/importer/",
-		Target:     st,
-		BlobSource: mem,
-		Signer:     signer,
-		Search:     sh,
-		HTTPClient: s.HTTPClient(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return h
+	return imptest.NewMemoryHost(t, importer.HostConfig{HTTPClient: s.HTTPClient()})
 }
 
 func writeFile(t *testing.T, name, contents string) string {
