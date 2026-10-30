@@ -302,6 +302,12 @@ func NewHost(hc HostConfig) (*Host, error) {
 			}
 			return template.HTML(fmt.Sprintf("<a href=\"%s/%s\">%s</a>", h.uiPrefix, br, br))
 		},
+		"bloburl": func(br blob.Ref) string {
+			if h.uiPrefix == "" {
+				return ""
+			}
+			return h.uiPrefix + "/" + br.String()
+		},
 	})
 	for k, impl := range importers {
 		h.importers = append(h.importers, k)
@@ -770,6 +776,16 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Serves list of importers at http://host/importer/
 func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		// The form to add an account names its importer.
+		imp, ok := h.imp[r.FormValue("importer")]
+		if !ok || r.FormValue("mode") != "newacct" {
+			http.Error(w, "unknown importer", http.StatusBadRequest)
+			return
+		}
+		h.serveNewAccount(w, r, imp)
+		return
+	}
 	body := importersRootBody{
 		Host:      h,
 		Importers: make([]*importer, 0, len(h.imp)),
@@ -780,6 +796,17 @@ func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(body.Importers, func(i, j int) bool {
 		return body.Importers[i].Title() < body.Importers[j].Title()
 	})
+	for _, im := range body.Importers {
+		if im.props.TODOIssue != 0 {
+			continue
+		}
+		rows, err := im.accountRows()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		body.Accounts = append(body.Accounts, rows...)
+	}
 	h.execTemplate(w, r, importersRootPage{
 		Title: "Importers",
 		Body:  body,
@@ -794,24 +821,46 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 	}
 
 	var setup string
-	node, _ := imp.Node()
-	if setuper, ok := imp.impl.(ImporterSetupHTMLer); ok && node != nil {
+	if setuper, ok := imp.impl.(ImporterSetupHTMLer); ok && imp.ShowClientAuthEditForm() {
 		setup = setuper.AccountSetupHTML(h)
+	}
+	accounts, err := imp.accountRows()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	isTailscale := webserver.TailscaleCtxKey.Value(r.Context())
 	isTLS := r.TLS != nil
 
 	h.execTemplate(w, r, importerPage{
-		Title: "Importer - " + imp.Name(),
+		Title: imp.Title(),
 		Body: importerBody{
 			Host:                       h,
 			ShowSecureTransportWarning: !isTailscale && !isTLS,
 			Importer:                   imp,
+			Accounts:                   accounts,
 			SetupHelp:                  template.HTML(setup),
 			ArchiveUpload:              imp.archiveUpload(nil),
 		},
 	})
+}
+
+// serveNewAccount starts the setup of a new account of imp. The account
+// isn't stored until its setup is saved. An importer that needs an API
+// key it doesn't have, or whose accounts come only from archives, gets
+// its own page instead, to configure it or upload an archive.
+func (h *Host) serveNewAccount(w http.ResponseWriter, r *http.Request, imp *importer) {
+	if imp.props.ArchiveOnly || !imp.CanAddNewAccount() {
+		http.Redirect(w, r, imp.URL(), http.StatusSeeOther)
+		return
+	}
+	ia, err := imp.newPendingAccount()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	ia.setup(w, r)
 }
 
 // Serves oauth callback at http://host/importer/TYPE/callback
@@ -847,18 +896,7 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 	default:
 		http.Error(w, "Unknown mode.", http.StatusBadRequest)
 	case "newacct":
-		if imp.props.ArchiveOnly {
-			// An archive supplies the identity used to find or create its
-			// account. Do not create an empty account before inspection.
-			http.Redirect(w, r, imp.URL(), http.StatusSeeOther)
-			return
-		}
-		ia, err := imp.newAccount()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		ia.setup(w, r)
+		h.serveNewAccount(w, r, imp)
 		return
 	case "saveclientidsecret":
 		n, err := imp.Node()
@@ -1057,6 +1095,9 @@ type importer struct {
 	acctmu    sync.Mutex
 	acct      map[blob.Ref]*importerAcct // key: account permanode
 	allLoaded bool
+	// pending are the new accounts whose permanodes aren't stored yet
+	// (see newPendingAccount), by account permanode.
+	pending map[blob.Ref]*importerAcct
 
 	archiveMu sync.Mutex // serializes archive account resolution and creation
 }
@@ -1130,11 +1171,11 @@ func (im *importer) Status() (status string, err error) {
 	if im.StaticConfig() {
 		return "API key configured on server", nil
 	}
-	n, err := im.Node()
+	n, err := im.existingNode()
 	if err != nil {
 		return
 	}
-	if n.Attr(attrClientID) != "" && n.Attr(attrClientSecret) != "" {
+	if n != nil && n.Attr(attrClientID) != "" && n.Attr(attrClientSecret) != "" {
 		return "API key configured on node", nil
 	}
 	return "API key (client ID & Secret) not configured", nil
@@ -1144,9 +1185,9 @@ func (im *importer) credentials() (clientID, clientSecret string, err error) {
 	if im.StaticConfig() {
 		return im.clientID, im.clientSecret, nil
 	}
-	n, err := im.Node()
-	if err != nil {
-		return
+	n, err := im.existingNode()
+	if err != nil || n == nil {
+		return "", "", err
 	}
 	return n.Attr(attrClientID), n.Attr(attrClientSecret), nil
 }
@@ -1160,6 +1201,9 @@ func (im *importer) deleteAccount(acctRef blob.Ref) {
 func (im *importer) account(nodeRef blob.Ref) (*importerAcct, error) {
 	im.acctmu.Lock()
 	ia, ok := im.acct[nodeRef]
+	if !ok {
+		ia, ok = im.pending[nodeRef]
+	}
 	im.acctmu.Unlock()
 	if ok {
 		return ia, nil
@@ -1215,6 +1259,100 @@ func (im *importer) newAccount() (*importerAcct, error) {
 	return im.newAccountWithAttrs()
 }
 
+// accountAttrs returns the attributes of a new account permanode with
+// import root root, followed by attrs.
+func (im *importer) accountAttrs(root blob.Ref, attrs ...string) []string {
+	return append([]string{
+		"title", fmt.Sprintf("%s account", im.name),
+		attrNodeType, nodeTypeImporterAccount,
+		attrImporterType, im.ImporterType(),
+		attrImportRoot, root.String(),
+	}, attrs...)
+}
+
+// Pending accounts are kept for pendingAccountTTL, and at most
+// maxPendingAccounts of them.
+const (
+	pendingAccountTTL  = time.Hour
+	maxPendingAccounts = 100
+)
+
+// newPendingAccount returns a new account, for its setup, whose
+// permanode (and import root's) isn't stored until its first write,
+// such as when its setup is saved. Until then it isn't listed, and
+// it's forgotten after pendingAccountTTL.
+func (im *importer) newPendingAccount() (*importerAcct, error) {
+	acct, err := im.host.newPendingObject()
+	if err != nil {
+		return nil, err
+	}
+	root, err := im.host.newPendingObject()
+	if err != nil {
+		return nil, err
+	}
+	base := im.accountAttrs(root.PermanodeRef())
+	acct.attr = make(map[string][]string)
+	for i := 0; i < len(base); i += 2 {
+		acct.attr[base[i]] = []string{base[i+1]}
+	}
+	ia := &importerAcct{im: im, acct: acct, root: root, pendingSince: time.Now()}
+	storeAcct := acct.store
+	acct.store = func(ctx context.Context) error {
+		if err := root.storeIfPending(ctx); err != nil {
+			return err
+		}
+		if err := storeAcct(ctx); err != nil {
+			return err
+		}
+		var claims []*schema.Builder
+		for i := 0; i < len(base); i += 2 {
+			claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, base[i], base[i+1]))
+		}
+		if err := acct.uploadAttributeClaims(ctx, claims); err != nil {
+			return err
+		}
+		im.acctmu.Lock()
+		defer im.acctmu.Unlock()
+		delete(im.pending, acct.PermanodeRef())
+		im.addAccountLocked(ia)
+		return nil
+	}
+
+	im.acctmu.Lock()
+	defer im.acctmu.Unlock()
+	if im.pending == nil {
+		im.pending = make(map[blob.Ref]*importerAcct)
+	}
+	for ref, p := range im.pending {
+		if time.Since(p.pendingSince) > pendingAccountTTL {
+			delete(im.pending, ref)
+		}
+	}
+	for len(im.pending) >= maxPendingAccounts {
+		var oldest *importerAcct
+		for _, p := range im.pending {
+			if oldest == nil || p.pendingSince.Before(oldest.pendingSince) {
+				oldest = p
+			}
+		}
+		delete(im.pending, oldest.acct.PermanodeRef())
+	}
+	im.pending[acct.PermanodeRef()] = ia
+	return ia, nil
+}
+
+// forgetPending forgets ia, if it's a pending account, and reports
+// whether it was.
+func (im *importer) forgetPending(ia *importerAcct) bool {
+	if !ia.acct.isPending() {
+		return false
+	}
+	im.acctmu.Lock()
+	defer im.acctmu.Unlock()
+	delete(im.pending, ia.acct.PermanodeRef())
+	return true
+}
+
 func (im *importer) newAccountWithAttrs(attrs ...string) (*importerAcct, error) {
 	acct, err := im.host.NewObject()
 	if err != nil {
@@ -1224,12 +1362,7 @@ func (im *importer) newAccountWithAttrs(attrs ...string) (*importerAcct, error) 
 	if err != nil {
 		return nil, err
 	}
-	attrs = append([]string{
-		"title", fmt.Sprintf("%s account", im.name),
-		attrNodeType, nodeTypeImporterAccount,
-		attrImporterType, im.ImporterType(),
-		attrImportRoot, root.PermanodeRef().String(),
-	}, attrs...)
+	attrs = im.accountAttrs(root.PermanodeRef(), attrs...)
 	if err := acct.SetAttrs(attrs...); err != nil {
 		return nil, err
 	}
@@ -1301,7 +1434,15 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 //
 //	authClientID:     "xxx"    // e.g. api token
 //	authClientSecret: "sdkojfsldfjlsdkf"
-func (im *importer) Node() (*Object, error) {
+//
+// Node makes it if it doesn't exist.
+func (im *importer) Node() (*Object, error) { return im.node(true) }
+
+// existingNode is like Node, but returns nil if the node doesn't exist,
+// rather than make it, so that merely looking doesn't write anything.
+func (im *importer) existingNode() (*Object, error) { return im.node(false) }
+
+func (im *importer) node(create bool) (*Object, error) {
 	im.nodemu.Lock()
 	defer im.nodemu.Unlock()
 	if im.nodeCache != nil {
@@ -1327,6 +1468,9 @@ func (im *importer) Node() (*Object, error) {
 	if best != nil {
 		im.nodeCache = best
 		return best, nil
+	}
+	if !create {
+		return nil, nil
 	}
 
 	o, err := im.host.NewObject()
@@ -1403,6 +1547,9 @@ type importerAcct struct {
 	lastRunStart time.Time
 	lastRunDone  time.Time
 	lastArchive  *camtypes.ArchiveImportStatus
+	// pendingSince, for an account whose permanode isn't stored yet
+	// (see importer.newPendingAccount), is when it was made.
+	pendingSince time.Time
 }
 
 func (ia *importerAcct) String() string {
@@ -1410,6 +1557,10 @@ func (ia *importerAcct) String() string {
 }
 
 func (ia *importerAcct) delete() error {
+	if ia.im.forgetPending(ia) {
+		// It was never stored, so there's nothing to mark deleted.
+		return nil
+	}
 	// Archive resolution, deletion and starting an account share this order:
 	// importer archiveMu, then account mu, then Object attribute locks.
 	ia.im.archiveMu.Lock()
@@ -1489,12 +1640,13 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ia.serveHTTPPost(w, r)
 		return
 	}
+	status, _, _ := ia.status()
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	body := acctBody{
 		Acct:          ia,
 		Importer:      ia.im,
-		AcctType:      fmt.Sprintf("%T", ia.im.impl),
+		Status:        status,
 		ArchiveUpload: ia.im.archiveUpload(ia),
 		ArchiveOnly:   ia.im.props.ArchiveOnly,
 	}
@@ -1505,15 +1657,9 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if run := ia.current; run != nil {
 		body.Running = true
-		body.StartedAgo = time.Since(ia.lastRunStart)
 		run.mu.Lock()
 		body.LastStatus = fmt.Sprintf("%+v", run.lastProgress)
 		run.mu.Unlock()
-	} else if !ia.lastRunDone.IsZero() {
-		body.LastAgo = time.Since(ia.lastRunDone)
-		if ia.lastRunErr != nil {
-			body.LastError = ia.lastRunErr.Error()
-		}
 	}
 	title := fmt.Sprintf("%s account: ", ia.im.name)
 	if summary := ia.im.impl.SummarizeAccount(ia.acct); summary != "" {
@@ -1769,6 +1915,56 @@ type Object struct {
 	mu      sync.RWMutex
 	attr    map[string][]string
 	modtime time.Time
+	// store, if non-nil, stores the object's permanode (and whatever
+	// else it was made with), which isn't stored yet. The object's
+	// first write calls it, with mu held. See Host.newPendingObject.
+	store func(context.Context) error
+}
+
+// newPendingObject returns an object of a new permanode that isn't
+// stored until the object's first write, so that a form, say, can refer
+// to it without leaving an empty permanode behind if it's never saved.
+func (h *Host) newPendingObject() (*Object, error) {
+	signed, err := schema.NewUnsignedPermanode().Sign(context.TODO(), h.signer)
+	if err != nil {
+		return nil, err
+	}
+	o := &Object{h: h, pn: blob.RefFromString(signed)}
+	o.store = func(ctx context.Context) error {
+		_, err := blobserver.ReceiveString(ctx, h.target, signed)
+		return err
+	}
+	return o, nil
+}
+
+// isPending reports whether o's permanode isn't stored yet.
+func (o *Object) isPending() bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.store != nil
+}
+
+// storeIfPending stores o's permanode, if it isn't yet.
+func (o *Object) storeIfPending(ctx context.Context) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.prepareWriteLocked(ctx)
+}
+
+// prepareWriteLocked stores o's permanode before a write, if it isn't
+// stored yet. o.mu must be held.
+func (o *Object) prepareWriteLocked(ctx context.Context) error {
+	store := o.store
+	if store == nil {
+		return nil
+	}
+	// Clear it first, so that store can write to o.
+	o.store = nil
+	if err := store(ctx); err != nil {
+		o.store = store
+		return err
+	}
+	return nil
 }
 
 // PermanodeRef returns the permanode that this object wraps.
@@ -1815,6 +2011,9 @@ func (o *Object) DelAttr(key, value string) error {
 	ctx := context.TODO()
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if err := o.prepareWriteLocked(ctx); err != nil {
+		return err
+	}
 	_, err := o.h.upload(ctx, schema.NewDelAttributeClaim(o.pn, key, value))
 	if err != nil {
 		return err
@@ -1848,6 +2047,9 @@ func (o *Object) SetAttr(key, value string) error {
 	}
 	if old == value {
 		return nil
+	}
+	if err := o.prepareWriteLocked(ctx); err != nil {
+		return err
 	}
 	_, err := o.h.upload(ctx, schema.NewSetAttributeClaim(o.pn, key, value))
 	if err != nil {
@@ -1985,6 +2187,9 @@ func (o *Object) SetAttrValues(key string, attrs []string) error {
 func (o *Object) uploadAttributeClaims(ctx context.Context, claims []*schema.Builder) error {
 	if len(claims) == 0 {
 		return nil
+	}
+	if err := o.prepareWriteLocked(ctx); err != nil {
+		return err
 	}
 	claim := claims[0]
 	if len(claims) == 1 {
