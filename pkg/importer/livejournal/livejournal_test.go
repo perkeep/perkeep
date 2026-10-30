@@ -179,3 +179,55 @@ func TestRun(t *testing.T) {
 		}
 	}
 }
+
+// TestLinkImporterAccount checks that the importer account that
+// pk livejournal makes for a journal it keeps (with
+// lj.LinkImporterAccount, as clients can't use package importer) is one
+// that the importer pages list, with the journal in its root.
+func TestLinkImporterAccount(t *testing.T) {
+	if lj.AcctAttrUserName != importer.AcctAttrUserName {
+		t.Errorf("lj.AcctAttrUserName = %q; want %q", lj.AcctAttrUserName, importer.AcctAttrUserName)
+	}
+	s := ljtest.New(t)
+	h := newTestHost(t, s)
+	ctx := context.Background()
+	journal := blob.RefFromString("journal")
+	acct, changed, err := lj.LinkImporterAccount(ctx, hostStore{h}, "brad", "UTC", journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Error("making the account changed nothing")
+	}
+	// Doing it again finds the same account, and changes nothing.
+	again, changed, err := lj.LinkImporterAccount(ctx, hostStore{h}, "brad", "UTC", journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != acct || changed {
+		t.Errorf("second link = %v, changed %v; want %v, unchanged", again, changed, acct)
+	}
+
+	req := httptest.NewRequest("GET", "/importer/livejournal", nil)
+	req.Header.Set(httputil.PathSuffixHeader, "livejournal")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if !strings.Contains(w.Body.String(), acct.String()) {
+		t.Fatalf("importer page doesn't list the account %v:\n%s", acct, w.Body)
+	}
+	res, err := h.Searcher().Describe(ctx, &search.DescribeRequest{BlobRef: acct})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, ok := blob.Parse(res.Meta.Get(acct).Permanode.Attr.Get("importRoot"))
+	if !ok {
+		t.Fatalf("account has no import root: %v", res.Meta.Get(acct).Permanode.Attr)
+	}
+	res, err = h.Searcher().Describe(ctx, &search.DescribeRequest{BlobRef: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Meta.Get(root).Permanode.Attr.Get("camliPath:" + lj.RootPathJournal); got != journal.String() {
+		t.Errorf("root's journal = %q; want %v", got, journal)
+	}
+}
