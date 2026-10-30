@@ -69,6 +69,13 @@ const (
 	checkinsRequestLimit = 100 // max number of checkins we will ask for in a checkins list request
 	photosRequestLimit   = 5
 
+	// With the paid API, a run also gets photos of the venues of the
+	// last backfillPhotosMax checkins in the last backfillPhotosMaxAge
+	// that were imported already, if their venues have none, as a run
+	// without the paid API imports checkins but not photos.
+	backfillPhotosMax    = 100
+	backfillPhotosMaxAge = 31 * 24 * time.Hour
+
 	attrFoursquareId             = "foursquareId"
 	attrFoursquareVenuePermanode = "foursquareVenuePermanode"
 	attrFoursquareCategoryName   = "foursquareCategoryName"
@@ -271,6 +278,22 @@ func (r *run) importCheckins() error {
 	}
 
 	var sawPaidErr bool
+	// importPhotos imports photos of the venue of a checkin with the
+	// paid API, if it's used, until it fails for want of payment.
+	importPhotos := func(checkin *checkinItem, placeNode *importer.Object, dup bool) {
+		if !r.RunContext.UsePaidAPI() || sawPaidErr {
+			return
+		}
+		if err := r.importPhotos(placeNode, dup); err != nil {
+			if errors.Is(err, ErrPaymentRequired) {
+				sawPaidErr = true
+				r.errorf("Foursquare importer: error importing photos: API calls require payment: %v", err)
+			} else {
+				r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
+			}
+		}
+	}
+	backfilled := 0
 	for continueRequests {
 		resp := checkinsList{}
 		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(checkinsRequestLimit), "offset", strconv.Itoa(offset)); err != nil {
@@ -304,6 +327,20 @@ func (r *run) importCheckins() error {
 			if checkin.CreatedAt < r.ignoreCreatedAtBeforeSec {
 				sawOldItem = true
 				if !r.forceFullRun {
+					// An earlier run without the paid API imported
+					// the checkin but not its venue's photos, so
+					// get those of recent checkins' venues that
+					// have none.
+					if r.RunContext.UsePaidAPI() && backfilled < backfillPhotosMax &&
+						time.Since(time.Unix(checkin.CreatedAt, 0)) < backfillPhotosMaxAge {
+						backfilled++
+						placeNode, err := r.importPlace(placesNode, &checkin.Venue)
+						if err != nil {
+							r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
+							continue
+						}
+						importPhotos(checkin, placeNode, true)
+					}
 					continue
 				}
 			}
@@ -334,19 +371,7 @@ func (r *run) importCheckins() error {
 				sawNewItem = true
 			}
 
-			if r.RunContext.UsePaidAPI() && !sawPaidErr {
-				err = r.importPhotos(placeNode, dup)
-				if err != nil {
-					isPaidErr := errors.Is(err, ErrPaymentRequired)
-					if isPaidErr {
-						sawPaidErr = true
-						r.errorf("Foursquare importer: error importing photos: API calls require payment: %v", err)
-					} else {
-						r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
-					}
-					continue
-				}
-			}
+			importPhotos(checkin, placeNode, dup)
 		}
 		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion && !r.forceFullRun {
 			log.Printf("swarm: all checkins in this page are old; stopping import")
