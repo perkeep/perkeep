@@ -26,10 +26,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -316,4 +318,53 @@ func TestAPIRateLimiterCapsTimeoutWithoutChangingSharedClient(t *testing.T) {
 	if client.Timeout != 2*time.Minute || client.CheckRedirect != nil {
 		t.Fatal("limiter changed shared HTTP client")
 	}
+}
+
+func TestMain(m *testing.M) {
+	// Most tests exercise failing at a quota, not waiting it out.
+	maxRateLimitWait = 0
+	os.Exit(m.Run())
+}
+
+func TestAPIClientWaitsOutShortWindow(t *testing.T) {
+	maxRateLimitWait = rateLimitInterval
+	t.Cleanup(func() { maxRateLimitWait = 0 })
+	synctest.Test(t, func(t *testing.T) {
+		l := newRateLimiter(time.Now)
+		var requests atomic.Int32
+		var logs []string
+		c := &apiClient{accessToken: "x", limiter: l,
+			logf: func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) },
+			httpClient: &http.Client{Transport: rateTestTransport(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return rateTestResponse(200, make(http.Header)), nil
+			})},
+		}
+		start := time.Now()
+		reset := shortBucket(start).Add(rateLimitInterval)
+		l.state.Short.ReadUsage = l.state.Short.ReadLimit
+		if _, _, err := c.getActivity(context.Background(), 42); err != nil {
+			t.Fatal(err)
+		}
+		if got := time.Now(); got.Before(reset) || requests.Load() != 1 || len(logs) != 1 || !strings.Contains(logs[0], "waiting") {
+			t.Fatalf("at %v (reset %v): %d requests, logs %q", got.Sub(start), reset.Sub(start), requests.Load(), logs)
+		}
+
+		// It doesn't wait for the daily quota.
+		l.state.Daily.ReadUsage = l.state.Daily.ReadLimit
+		_, _, err := c.getActivity(context.Background(), 42)
+		rateTestQuotaError(t, err, dailyBucket(time.Now()).Add(24*time.Hour))
+		if requests.Load() != 1 {
+			t.Errorf("%d requests; want no more", requests.Load())
+		}
+
+		// Nor past cancellation.
+		l.state.Daily.ReadUsage = 0
+		l.state.Short.ReadUsage = l.state.Short.ReadLimit
+		ctx, cancel := context.WithCancel(context.Background())
+		time.AfterFunc(time.Minute, cancel)
+		if _, _, err := c.getActivity(ctx, 42); !errors.Is(err, context.Canceled) {
+			t.Errorf("canceled wait: %v", err)
+		}
+	})
 }

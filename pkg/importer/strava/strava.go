@@ -336,7 +336,7 @@ func (r *run) client() (*apiClient, error) {
 	}
 	return &apiClient{
 		httpClient: r.Host.HTTPClient(), accessToken: acct.Attr(importer.AcctAttrAccessToken),
-		limiter: rateLimiterForApp(id),
+		limiter: rateLimiterForApp(id), logf: r.Logf,
 	}, nil
 }
 

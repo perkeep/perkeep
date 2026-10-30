@@ -42,7 +42,15 @@ type apiClient struct {
 	httpClient  *http.Client
 	accessToken string
 	limiter     *rateLimiter
+	// logf, if non-nil, makes get wait out a quota reset of up to
+	// maxRateLimitWait, saying so with logf, rather than fail.
+	logf func(format string, args ...any)
 }
+
+// maxRateLimitWait is the longest apiClient.get waits for a quota to reset:
+// one short window, so it paces a long import through 15-minute limits but
+// still stops for the daily one. It's a variable for tests.
+var maxRateLimitWait = rateLimitInterval
 
 type activity struct {
 	ID                 int64     `json:"id"`
@@ -171,6 +179,30 @@ func (c *apiClient) getStreams(ctx context.Context, id int64) (streams, json.Raw
 }
 
 func (c *apiClient) get(ctx context.Context, path string, allowNotFound bool) (json.RawMessage, bool, error) {
+	for {
+		raw, missing, err := c.getOnce(ctx, path, allowNotFound)
+		var quotaErr *rateLimitError
+		if c.logf == nil || !errors.As(err, &quotaErr) {
+			return raw, missing, err
+		}
+		// The wait is here, not in rateLimitedTransport, since the
+		// http.Client's timeout covers its RoundTrip.
+		wait := time.Until(quotaErr.reset)
+		if wait > maxRateLimitWait {
+			return nil, false, err
+		}
+		c.logf("Strava rate limit reached; waiting %v, until %s", wait.Round(time.Second), quotaErr.reset.Local().Format("15:04:05"))
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return nil, false, ctx.Err()
+		case <-t.C:
+		}
+	}
+}
+
+func (c *apiClient) getOnce(ctx context.Context, path string, allowNotFound bool) (json.RawMessage, bool, error) {
 	if strings.TrimSpace(c.accessToken) == "" {
 		return nil, false, errors.New("strava: missing access token")
 	}
