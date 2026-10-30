@@ -20,12 +20,15 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/server"
 )
 
 // startupLogLines is how many of the most recent log lines a startupLog keeps.
@@ -78,18 +81,36 @@ func (l *startupLog) Lines() []string {
 // shows the startup log at / and /ui/ to the server's owner, passes
 // /healthz to the health handler, and debug requests from the owner (for
 // profiles and goroutines' stacks, as of a server stuck starting) to the
-// debug handler, and tells all other requests to try again soon.
+// debug handler, serves the Web UI's images, scripts, and stylesheets,
+// and tells all other requests to try again soon.
 type startupHandler struct {
 	log     *startupLog
 	start   time.Time
 	healthz http.Handler // or nil
 	debug   http.Handler // or nil; see serverinit.DebugHandler
+	// static, if non-nil, has the Web UI's static files, as served at
+	// /ui/ once the server has started. They're in the binary, and the
+	// same for every server, so they can be served before it's
+	// configured.
+	static fs.FS
 }
+
+// startupStaticFile matches the names of the files of startupHandler.static
+// to serve while starting: not its pages, which need the server, nor
+// deps.js, which the UI handler makes.
+var startupStaticFile = regexp.MustCompile(`^[a-zA-Z0-9_.-]+\.(js|css|png|jpg|gif|svg)$`)
 
 func (h *startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/healthz" && h.healthz != nil {
 		h.healthz.ServeHTTP(w, r)
 		return
+	}
+	if name, ok := strings.CutPrefix(r.URL.Path, "/ui/"); ok && h.static != nil &&
+		(r.Method == "GET" || r.Method == "HEAD") && name != "deps.js" && startupStaticFile.MatchString(name) {
+		if _, err := fs.Stat(h.static, name); err == nil {
+			server.ServeStaticFile(w, r, h.static, name)
+			return
+		}
 	}
 	if h.debug != nil && (strings.HasPrefix(r.URL.Path, "/debug/pprof/") || r.URL.Path == "/debug/goroutines") {
 		// Only the owner, as for the startup log. Until the auth

@@ -47,6 +47,7 @@ import (
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/webserver"
+	uistatic "perkeep.org/server/perkeepd/ui"
 
 	// VM environments:
 	// for init side-effects + LogWriter
@@ -492,7 +493,7 @@ func main() {
 	}
 	healthz := http.HandlerFunc(mon.ServeHealthz)
 	ws.Handle("/healthz", healthz)
-	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz, debug: serverinit.DebugHandler()})
+	ws.SetStartupHandler(&startupHandler{log: startLog, start: time.Now(), healthz: healthz, debug: serverinit.DebugHandler(), static: uistatic.Files})
 	listened := make(chan string, 1) // the base URL, once listening
 	go func() {
 		baseURL, err := listen(ws, config)
