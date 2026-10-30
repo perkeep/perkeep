@@ -59,6 +59,9 @@ const (
 	attrClientSecret = "authClientSecret"
 	attrImportRoot   = "importRoot"
 	attrImportAuto   = "importAuto" // => time.Duration value ("30m") or "" for off
+	// attrUsePaidAPI is "true" on the accounts of importers with
+	// Properties.HasSomePaidAPI whose runs use the paid API(s).
+	attrUsePaidAPI = "importUsePaidAPI"
 )
 
 // An Importer imports from a third-party site.
@@ -1389,7 +1392,6 @@ type importerAcct struct {
 	lastRunErr   error
 	lastRunStart time.Time
 	lastRunDone  time.Time
-	usePaidAPI   bool // whether to use the paid API(s) when retrieving data
 	lastArchive  *camtypes.ArchiveImportStatus
 }
 
@@ -1457,9 +1459,19 @@ func (ia *importerAcct) RefreshInterval() time.Duration {
 	return d
 }
 
-// UsePaidAPI reports whether the importer is going to use the paid API(s) when retrieving data.
+// UsePaidAPI reports whether the importer is going to use the paid API(s)
+// when retrieving data, as set on the account's page and kept on its
+// permanode.
 func (ia *importerAcct) UsePaidAPI() bool {
-	return ia.usePaidAPI
+	return ia.im.props.HasSomePaidAPI && ia.acct.Attr(attrUsePaidAPI) == "true"
+}
+
+// setUsePaidAPI sets whether the account's runs use the paid API(s).
+func (ia *importerAcct) setUsePaidAPI(use bool) error {
+	if use {
+		return ia.acct.SetAttrs(attrUsePaidAPI, "true")
+	}
+	return ia.acct.SetAttrsWithDeletes([]string{attrUsePaidAPI})
 }
 
 func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -1528,10 +1540,14 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "togglepaidapi":
-		ia.mu.Lock()
-		ia.usePaidAPI = r.FormValue("usePaidAPI") == "on"
-		// TODO(bradfitz,radkat): persist this to the account permanode
-		ia.mu.Unlock()
+		if !ia.im.props.HasSomePaidAPI {
+			http.Error(w, "importer has no paid API", http.StatusBadRequest)
+			return
+		}
+		if err := ia.setUsePaidAPI(r.FormValue("usePaidAPI") == "on"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 	case "delete":
 		ia.stop() // can't hurt
 		if err := ia.delete(); err != nil {
