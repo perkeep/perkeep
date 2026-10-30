@@ -93,6 +93,38 @@ cam.IndexPage = React.createClass({
 		cam.BlobItemGenericContent.getHandler
 	],
 
+	// The attributes of a permanode that give it a time of its own.
+	DATE_ATTRS_: ['startDate', 'dateCreated', 'datePublished', 'dateModified', 'paymentDueDate'],
+
+	// isDatelessGeneric_ reports whether the blob blobref of the search
+	// session ss is a permanode that would show as a generic box (no
+	// image or other specific rendering) and has no date of its own, nor
+	// does its content. The default view, without a search, leaves them
+	// out: their only time is when their permanodes were last changed,
+	// which is mostly when they were imported, so they'd crowd out what
+	// has a real date.
+	isDatelessGeneric_: function(blobref, ss) {
+		var m = ss.getMeta(blobref);
+		if (!m || m.camliType != 'permanode' || !m.permanode) {
+			return false;
+		}
+		var generic = cam.BlobItemGenericContent.getHandler;
+		var specific = this.BLOB_ITEM_HANDLERS_.some(function(h) {
+			return h != generic && h(blobref, ss, '');
+		});
+		if (specific) {
+			return false;
+		}
+		var dated = this.DATE_ATTRS_.some(function(attr) {
+			return !!cam.permanodeUtils.getSingleAttr(m.permanode, attr);
+		});
+		var rm = ss.getResolvedMeta(blobref);
+		if (rm && rm.file && rm.file.time) {
+			dated = true;
+		}
+		return !dated;
+	},
+
 	BLOBREF_PATTERN_: new RegExp('^' + cam.blobref.PATTERN + '$'),
 
 	propTypes: {
@@ -761,6 +793,9 @@ cam.IndexPage = React.createClass({
 		console.log('Creating new search session for query %s', queryString);
 		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query,
 			this.handleSearchQueryError_.bind(this), opt_targetBlobref, opt_sort);
+		if (!opt_query) {
+			ss.setHiddenFilter(this.isDatelessGeneric_.bind(this));
+		}
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
 			this.ensureTargetMeta_(ss);
 			this.forceUpdate();

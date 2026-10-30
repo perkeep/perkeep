@@ -139,7 +139,8 @@ cam.SearchSession.prototype.getCurrentResults = function() {
 
 // Returns the current result blobs, like getCurrentResults().blobs, but
 // without the videos of Live Photos whose still images are also
-// results, since the stills show their videos.
+// results, since the stills show their videos, nor the blobs that the
+// filter set with setHiddenFilter hides.
 cam.SearchSession.prototype.getVisibleBlobs = function() {
 	var blobs = this.data_.blobs;
 	if (this.visibleBlobsOf_ === blobs) {
@@ -154,10 +155,20 @@ cam.SearchSession.prototype.getVisibleBlobs = function() {
 	}, this);
 	this.visibleBlobs_ = blobs.filter(function(b) {
 		var rm = this.getResolvedMeta(b.blob);
-		return !(rm && shownVideos[rm.blobRef]);
+		if (rm && shownVideos[rm.blobRef]) {
+			return false;
+		}
+		return !(this.hiddenFilter_ && this.hiddenFilter_(b.blob, this));
 	}, this);
 	this.visibleBlobsOf_ = blobs;
 	return this.visibleBlobs_;
+};
+
+// Sets fn, called with a result's blobref and this session, to report
+// whether to leave the result out of getVisibleBlobs.
+cam.SearchSession.prototype.setHiddenFilter = function(fn) {
+	this.hiddenFilter_ = fn;
+	this.visibleBlobsOf_ = null;
 };
 
 // Returns the description of the video of the Live Photo whose still
