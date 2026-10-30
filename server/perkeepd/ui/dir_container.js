@@ -250,6 +250,13 @@ cam.FakeSearchSession.prototype.getResolvedMeta = function(blobref) {
 	return meta;
 };
 
+// Like cam.SearchSession.prototype.getLivePhotoVideoMeta.
+cam.FakeSearchSession.prototype.getLivePhotoVideoMeta = function(rm) {
+	var video = rm && rm.livePhoto && rm.livePhoto.video;
+	var vm = video && this.getMeta(video);
+	return (vm && vm.file) ? vm : null;
+};
+
 cam.FakeSearchSession.prototype.getTitle = function(blobref) {
 	var meta = this.getMeta(blobref);
 	if (meta.camliType == 'permanode') {
