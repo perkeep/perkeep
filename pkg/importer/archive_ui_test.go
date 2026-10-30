@@ -118,7 +118,7 @@ func TestArchiveAccountPageRetainsInput(t *testing.T) {
 			t.Errorf("account page missing %q:\n%s", want, body)
 		}
 	}
-	for _, bad := range []string{`Re-login`, `Toggle auto`, `Start Import`, `<li>Running:`, `Previous run:`} {
+	for _, bad := range []string{`value="login"`, `value="toggleauto"`, `value="start"`, `<li>Running:`, `Previous run:`} {
 		if strings.Contains(body, bad) {
 			t.Errorf("archive-only account contains %q", bad)
 		}
@@ -156,7 +156,7 @@ func TestArchiveCapabilityDoesNotHideAPISetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	w = archiveUIRequest(handler, "GET", "/custom-imports/"+archiveTestName+"/"+ia.acct.PermanodeRef().String(), "")
-	for _, want := range []string{"Re-login", "Toggle auto", `id="archive-import"`} {
+	for _, want := range []string{`value="login"`, `value="toggleauto"`, `id="archive-import"`} {
 		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), want) {
 			t.Fatalf("hybrid account lost %q: %d\n%s", want, w.Code, w.Body)
 		}
