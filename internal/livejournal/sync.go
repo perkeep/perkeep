@@ -48,7 +48,7 @@ func (c *Client) Fetch(ctx context.Context, logf func(format string, args ...any
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	logf("livejournal: listing %s's entries...", c.User)
+	logf("listing %s's entries...", c.User)
 	items, err := c.SyncItems(ctx)
 	if err != nil {
 		return nil, err
@@ -57,12 +57,12 @@ func (c *Client) Fetch(ctx context.Context, logf func(format string, args ...any
 	if err != nil {
 		return nil, err
 	}
-	logf("livejournal: got %d entries; getting the comments on them...", len(entries))
+	logf("got %d entries; getting the comments on them...", len(entries))
 	comments, err := c.Comments(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	logf("livejournal: got %d comments", len(comments))
+	logf("got %d comments", len(comments))
 	return &Journal{User: c.User, Entries: entries, Comments: comments}, nil
 }
 
@@ -366,13 +366,13 @@ func Sync(ctx context.Context, st Store, j *Journal, opts SyncOptions) (*SyncRes
 		}
 	}
 
-	logf("livejournal: reading the current attributes of %d permanodes...", len(nodes))
+	logf("reading the current attributes of %d permanodes...", len(nodes))
 	cur, err := describeAttrs(ctx, st, nodes)
 	if err != nil {
 		return nil, err
 	}
 
-	logf("livejournal: updating them...")
+	logf("updating them...")
 	var mu sync.Mutex
 	done := 0
 	now := time.Now()
@@ -392,7 +392,7 @@ func Sync(ctx context.Context, st Store, j *Journal, opts SyncOptions) (*SyncRes
 		}
 		done++
 		if done%5000 == 0 {
-			logf("livejournal: permanodes: %d/%d", done, len(nodes))
+			logf("permanodes: %d/%d", done, len(nodes))
 		}
 		mu.Unlock()
 		if opts.DryRun {

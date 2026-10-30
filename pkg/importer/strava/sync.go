@@ -19,7 +19,6 @@ package strava
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"strconv"
 	"time"
 
@@ -69,7 +68,7 @@ func (r *run) syncActivities(activities *importer.Object, progress importProgres
 	var err error
 	s.cache, err = r.AccountCache()
 	if err != nil {
-		log.Printf("strava: sync cache unavailable; checking without scheduling hints: %v", err)
+		r.Logf("sync cache unavailable; checking without scheduling hints: %v", err)
 		s.cache = nil
 	}
 	s.loadSchedule()
@@ -212,7 +211,7 @@ func (s *activitySyncer) freshlyFetched(id int64) bool {
 	}
 	fetched, err := time.Parse(time.RFC3339Nano, raw)
 	if err != nil || fetched.After(s.now()) {
-		log.Printf("strava: ignoring invalid cached full-refresh timestamp")
+		s.r.Logf("ignoring invalid cached full-refresh timestamp")
 		return false
 	}
 	return fetched.After(s.now().Add(-syncDailyInterval))
@@ -230,7 +229,7 @@ func (s *activitySyncer) loadSchedule() {
 		state.NextDaily.After(s.now().Add(syncDailyInterval)) ||
 		state.MostRecentID < 0 || (state.MostRecentID == 0) != (state.MostRecentHash == "") ||
 		(state.MostRecentHash != "" && len(state.MostRecentHash) != 64) {
-		log.Printf("strava: ignoring invalid cached sync schedule")
+		s.r.Logf("ignoring invalid cached sync schedule")
 		return
 	}
 	s.schedule = state
@@ -239,7 +238,7 @@ func (s *activitySyncer) loadSchedule() {
 func (s *activitySyncer) saveSchedule() {
 	raw, err := json.Marshal(s.schedule)
 	if err != nil {
-		log.Printf("strava: could not encode sync schedule: %v", err)
+		s.r.Logf("could not encode sync schedule: %v", err)
 		return
 	}
 	s.cacheSet(syncCacheKey, string(raw))
@@ -254,7 +253,7 @@ func (s *activitySyncer) cacheGet(key string) (string, bool) {
 		return "", false
 	}
 	if err != nil {
-		log.Printf("strava: ignoring unreadable sync cache: %v", err)
+		s.r.Logf("ignoring unreadable sync cache: %v", err)
 		return "", false
 	}
 	return raw, true
@@ -263,7 +262,7 @@ func (s *activitySyncer) cacheGet(key string) (string, bool) {
 func (s *activitySyncer) cacheSet(key, value string) {
 	if s.cache != nil {
 		if err := s.cache.Set(key, value); err != nil {
-			log.Printf("strava: could not save sync cache: %v", err)
+			s.r.Logf("could not save sync cache: %v", err)
 		}
 	}
 }

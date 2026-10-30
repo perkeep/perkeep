@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -391,17 +390,17 @@ func (im imp) runAt(rc *importer.RunContext, now func() time.Time) (err error) {
 	limiter := rateLimiterForApp(id)
 	cache, cacheErr := rc.ImporterCache()
 	if cacheErr != nil {
-		log.Printf("strava: quota cache unavailable; using in-memory budget: %v", cacheErr)
+		rc.Logf("quota cache unavailable; using in-memory budget: %v", cacheErr)
 	} else {
 		if restoreErr := restoreRateLimit(cache, id, limiter); restoreErr != nil {
-			log.Printf("strava: ignoring quota cache; using in-memory budget: %v", restoreErr)
+			rc.Logf("ignoring quota cache; using in-memory budget: %v", restoreErr)
 		}
 		// Save consumed budgets even on rate-limit, HTTP, or import failures.
 		// Scratch state only avoids rediscovering usage after a restart:
 		// missing or broken caches must not fail an otherwise valid import.
 		defer func() {
 			if persistErr := persistRateLimit(cache, id, limiter); persistErr != nil {
-				log.Printf("strava: could not save quota cache: %v", persistErr)
+				rc.Logf("could not save quota cache: %v", persistErr)
 			}
 		}()
 	}
@@ -557,6 +556,7 @@ func (r *run) importActivityWithForce(parent *importer.Object, summary *activity
 	if err := obj.SetAttrsWithDeletes(deletes, sets...); err != nil {
 		return false, err
 	}
+	r.Logf("Imported activity %d, %s: %q", summary.ID, summary.StartDate.Format(time.DateOnly), summary.Name)
 	return true, nil
 }
 
