@@ -912,13 +912,24 @@ func (k isPost) Description() string {
 	return "matches tweets, status updates, blog posts, etc"
 }
 
+// postNodeTypes are the camliNodeType values of post permanodes.
+var postNodeTypes = []string{
+	"twitter.com:tweet",
+	"mastodon:status",
+	"livejournal.com:entry",
+}
+
 func (k isPost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	return &Constraint{
-		Permanode: &PermanodeConstraint{
-			Attr:  nodeattr.Type,
-			Value: "twitter.com:tweet",
-		},
-	}, nil
+	var c *Constraint
+	for _, typ := range postNodeTypes {
+		tc := permWithAttr(nodeattr.Type, typ)
+		if c == nil {
+			c = tc
+		} else {
+			c = orConst(c, tc)
+		}
+	}
+	return c, nil
 }
 
 type isLike struct {

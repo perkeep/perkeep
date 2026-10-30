@@ -2206,6 +2206,22 @@ func TestIsBookmarkQuery(t *testing.T) {
 	})
 }
 
+func TestIsPostQuery(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		tweet := id.NewDeterministicPermanodeForTest("tweet")
+		id.SetAttribute(tweet, "camliNodeType", "twitter.com:tweet")
+		toot := id.NewDeterministicPermanodeForTest("toot")
+		id.SetAttribute(toot, "camliNodeType", "mastodon:status")
+		entry := id.NewDeterministicPermanodeForTest("entry")
+		id.SetAttribute(entry, "camliNodeType", "livejournal.com:entry")
+		comment := id.NewDeterministicPermanodeForTest("comment")
+		id.SetAttribute(comment, "camliNodeType", "livejournal.com:comment")
+
+		qt.wantRes(&SearchQuery{Expression: "is:post", Limit: -1}, tweet, toot, entry)
+	})
+}
+
 func TestIsBookmarkQuerySource(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
