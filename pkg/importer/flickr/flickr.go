@@ -196,19 +196,19 @@ func (r *run) importPhotosets() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Importing %d sets", len(resp.Photosets.Photoset))
+	r.Logf("Importing %d sets", len(resp.Photosets.Photoset))
 
 	for _, item := range resp.Photosets.Photoset {
 		select {
 		case <-r.Context().Done():
-			log.Printf("Flickr importer: interrupted")
+			r.Logf("interrupted")
 			return r.Context().Err()
 		default:
 		}
 		for page := 1; page >= 1; {
 			page, err = r.importPhotoset(setsNode, item, page)
 			if err != nil {
-				log.Printf("Flickr importer: error importing photoset %s: %s", item.Id, err)
+				r.Logf("error importing photoset %s: %s", item.Id, err)
 				continue
 			}
 		}
@@ -240,7 +240,7 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 		return 0, err
 	}
 
-	log.Printf("Importing page %d from photoset %s", page, photoset.Id)
+	r.Logf("Importing page %d from photoset %s", page, photoset.Id)
 
 	photosNode, err := r.getPhotosNode()
 	if err != nil {
@@ -251,12 +251,12 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 		filename := fmt.Sprintf("%s.%s", item.Id, item.OriginalFormat)
 		photoNode, err := photosNode.ChildPathObject(filename)
 		if err != nil {
-			log.Printf("Flickr importer: error finding photo node %s for addition to photoset %s: %s",
+			r.Logf("error finding photo node %s for addition to photoset %s: %s",
 				item.Id, photoset.Id, err)
 			continue
 		}
 		if err := photosetNode.SetAttr("camliPath:"+filename, photoNode.PermanodeRef().String()); err != nil {
-			log.Printf("Flickr importer: error adding photo %s to photoset %s: %s",
+			r.Logf("error adding photo %s to photoset %s: %s",
 				item.Id, photoset.Id, err)
 		}
 	}
@@ -349,11 +349,11 @@ func (r *run) importPhotosPage(page int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	log.Printf("Importing %d photos on page %d of %d", len(resp.Photos.Photo), page, resp.Photos.Pages)
+	r.Logf("Importing %d photos on page %d of %d", len(resp.Photos.Photo), page, resp.Photos.Pages)
 
 	for _, item := range resp.Photos.Photo {
 		if err := r.importPhoto(photosNode, item); err != nil {
-			log.Printf("Flickr importer: error importing %s: %s", item.Id, err)
+			r.Logf("error importing %s: %s", item.Id, err)
 			continue
 		}
 	}
@@ -382,7 +382,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	dateTaken, err := time.ParseInLocation("2006-01-02 15:04:05", photo.DateTaken, schema.UnknownLocation)
 	if err != nil {
 		// default to the published date otherwise
-		log.Printf("Flickr importer: problem with date taken of photo %v, defaulting to published date instead.", photo.Id)
+		r.Logf("problem with date taken of photo %v, defaulting to published date instead.", photo.Id)
 		seconds, err := strconv.ParseInt(photo.DateUpload, 10, 64)
 		if err != nil {
 			return fmt.Errorf("could not parse date upload time %q for image %v: %w", photo.DateUpload, photo.Id, err)
@@ -427,7 +427,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	form.Set("user_id", r.userID)
 	res, err := r.fetch(photo.URL, form)
 	if err != nil {
-		log.Printf("Flickr importer: Could not fetch %s: %s", photo.URL, err)
+		r.Logf("Could not fetch %s: %s", photo.URL, err)
 		return err
 	}
 	defer res.Body.Close()

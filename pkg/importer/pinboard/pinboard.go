@@ -47,7 +47,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -177,7 +176,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 }
 
 func (im imp) Run(ctx *importer.RunContext) (err error) {
-	log.Printf("pinboard: Running importer.")
+	ctx.Logf("Running importer.")
 	r := &run{
 		RunContext:  ctx,
 		im:          im,
@@ -188,7 +187,7 @@ func (im imp) Run(ctx *importer.RunContext) (err error) {
 		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 	}
 	err = r.importPosts()
-	log.Printf("pinboard: Importer returned %v.", err)
+	r.Logf("Importer returned %v.", err)
 	if err != nil {
 		return err
 	}
@@ -224,7 +223,7 @@ func (r *run) getPostsNode() (*importer.Object, error) {
 	username := extractUsername(r.AccountNode().Attr(attrAuthToken))
 	root := r.RootNode()
 	rootTitle := fmt.Sprintf("%s's Pinboard Account", username)
-	log.Printf("pinboard: root title = %q; want %q.", root.Attr(nodeattr.Title), rootTitle)
+	r.Logf("root title = %q; want %q.", root.Attr(nodeattr.Title), rootTitle)
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
@@ -272,7 +271,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	// block until we either get canceled or until it is time to run
 	select {
 	case <-r.Context().Done():
-		log.Printf("pinboard: Importer interrupted.")
+		r.Logf("Importer interrupted.")
 		return false, r.Context().Err()
 	case <-time.After(sleepDuration):
 		// just proceed
@@ -314,7 +313,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		return false, nil
 	}
 
-	log.Printf("pinboard: Importing %d posts...", postCount)
+	r.Logf("Importing %d posts...", postCount)
 	var (
 		allDupMu sync.Mutex
 		allDups  = true
@@ -323,7 +322,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	for _, post := range postBatch {
 		select {
 		case <-r.Context().Done():
-			log.Printf("pinboard: Importer interrupted")
+			r.Logf("Importer interrupted")
 			return false, r.Context().Err()
 		default:
 		}
@@ -345,10 +344,10 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	if err := grp.Err(); err != nil {
 		return false, err
 	}
-	log.Printf("pinboard: Imported batch of %d posts in %s.", postCount, time.Since(start))
+	r.Logf("Imported batch of %d posts in %s.", postCount, time.Since(start))
 
 	if r.incremental && allDups {
-		log.Printf("pinboard: incremental import found end batch")
+		r.Logf("incremental import found end batch")
 		return false, nil
 	}
 

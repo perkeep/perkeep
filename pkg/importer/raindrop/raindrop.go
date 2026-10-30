@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -125,7 +124,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 func (im imp) Run(ctx *importer.RunContext) (err error) {
 	lastUpdateCursor := ctx.AccountNode().Attr(attrLastUpdateCursor)
 
-	log.Printf("raindrop: Running importer.")
+	ctx.Logf("Running importer.")
 	r := &run{
 		RunContext:       ctx,
 		im:               im,
@@ -135,7 +134,7 @@ func (im imp) Run(ctx *importer.RunContext) (err error) {
 			lastUpdateCursor != "",
 	}
 	err = r.importBookmarks()
-	log.Printf("raindrop: Importer returned %v.", err)
+	r.Logf("Importer returned %v.", err)
 	if err != nil {
 		return err
 	}
@@ -161,7 +160,7 @@ func (r *run) getBookmarksNode() (*importer.Object, error) {
 	username := r.AccountNode().Attr(importer.AcctAttrUserName)
 	root := r.RootNode()
 	rootTitle := fmt.Sprintf("%s's Raindrop Account", username)
-	log.Printf("raindrop: root title = %q; want %q.", root.Attr(nodeattr.Title), rootTitle)
+	r.Logf("root title = %q; want %q.", root.Attr(nodeattr.Title), rootTitle)
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
@@ -257,7 +256,7 @@ func cloudflareFetch(ctx context.Context, url string) (*http.Response, error) {
 func (r *run) importBatch(page int, authToken string, parent *importer.Object) (bool, error) {
 	// Check if context is done before proceeding
 	if ctx := r.Context(); ctx.Err() != nil {
-		log.Printf("raindrop: Importer interrupted.")
+		r.Logf("Importer interrupted.")
 		return false, ctx.Err()
 	}
 	start := time.Now()
@@ -285,20 +284,20 @@ func (r *run) importBatch(page int, authToken string, parent *importer.Object) (
 		return false, nil
 	}
 
-	log.Printf("raindrop: Importing %d bookmarks...", count)
+	r.Logf("Importing %d bookmarks...", count)
 	for _, bookmark := range bookmarkBatch.Items {
 		if err := r.importBookmark(&bookmark, parent); err != nil {
 			return false, err
 		}
 	}
 
-	log.Printf("raindrop: Imported batch of %d bookmarks in %s.", count, time.Since(start))
+	r.Logf("Imported batch of %d bookmarks in %s.", count, time.Since(start))
 
 	return true, nil
 }
 
 func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error {
-	log.Printf("raindrop: Importing bookmark %s...", bookmark.Link)
+	r.Logf("Importing bookmark %s...", bookmark.Link)
 	bookmarkNode, err := parent.ChildPathObject(fmt.Sprint(bookmark.ID))
 	if err != nil {
 		return err
@@ -354,7 +353,7 @@ func (r *run) importCover(bookmark *Bookmark) (blob.Ref, error) {
 			resp.Body.Close()
 			err = fmt.Errorf("status %v", resp.Status)
 		}
-		log.Printf("raindrop: fetching cover image for %s failed (%v); retrying via rdl.ink", bookmark.Link, err)
+		r.Logf("fetching cover image for %s failed (%v); retrying via rdl.ink", bookmark.Link, err)
 		coverURL = "https://rdl.ink/render/" + url.QueryEscape(coverURL)
 		resp, err = cloudflareFetch(ctx, coverURL)
 	}
@@ -368,7 +367,7 @@ func (r *run) importCover(bookmark *Bookmark) (blob.Ref, error) {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return blob.Ref{}, ctxErr
 		}
-		log.Printf("raindrop: skipping cover image for %s: %v", bookmark.Link, err)
+		r.Logf("skipping cover image for %s: %v", bookmark.Link, err)
 		return blob.Ref{}, nil
 	}
 

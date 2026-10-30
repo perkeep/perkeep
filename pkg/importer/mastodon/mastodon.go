@@ -301,7 +301,7 @@ func (r *run) importStatuses(userID mastodon.ID) error {
 		return err
 	}
 
-	log.Printf("mastodon: Beginning statuses import for %s", r.userAddress)
+	r.Logf("Beginning statuses import for %s", r.userAddress)
 
 	var pg mastodon.Pagination
 
@@ -313,9 +313,9 @@ func (r *run) importStatuses(userID mastodon.ID) error {
 		}
 
 		if pg.MaxID != "" {
-			log.Printf("mastodon: fetching batch for %s, from %s", r.userAddress, pg.MaxID)
+			r.Logf("fetching batch for %s, from %s", r.userAddress, pg.MaxID)
 		} else {
-			log.Printf("mastodon: fetching batch for %s", r.userAddress)
+			r.Logf("fetching batch for %s", r.userAddress)
 		}
 
 		batch, err := r.cl.GetAccountStatuses(r.Context(), userID, &pg)
@@ -324,7 +324,7 @@ func (r *run) importStatuses(userID mastodon.ID) error {
 		}
 
 		if len(batch) == 0 {
-			log.Printf("mastodon: got empty batch, assuming end of statuses for %s", r.userAddress)
+			r.Logf("got empty batch, assuming end of statuses for %s", r.userAddress)
 			return nil
 		}
 
@@ -371,12 +371,12 @@ func (r *run) importStatuses(userID mastodon.ID) error {
 		}
 
 		if !anyNew && !allReblogs {
-			log.Printf("mastodon: reached the end for incremental import for %s", r.userAddress)
+			r.Logf("reached the end for incremental import for %s", r.userAddress)
 			return nil
 		}
 
 		if pg.MaxID == "" {
-			log.Printf("mastodon: reached the end of statuses for %s", r.userAddress)
+			r.Logf("reached the end of statuses for %s", r.userAddress)
 			return nil
 		}
 
@@ -452,13 +452,13 @@ func (r *run) importStatus(listNode *importer.Object, st *mastodon.Status) (bool
 			attrs = append(attrs, "camliContentImage", fileRef.String())
 		}
 
-		log.Printf("mastodon: adding attachment %s to permanode %s for status %s", fileRef.String(), statusNode.PermanodeRef(), st.URI)
+		r.Logf("adding attachment %s to permanode %s for status %s", fileRef.String(), statusNode.PermanodeRef(), st.URI)
 
 	}
 
 	changed, err := statusNode.SetAttrs2(attrs...)
 	if err == nil && changed {
-		log.Printf("mastodon: Imported status %s to %s", st.URI, statusNode.PermanodeRef())
+		r.Logf("Imported status %s to %s", st.URI, statusNode.PermanodeRef())
 	}
 
 	return !changed, err

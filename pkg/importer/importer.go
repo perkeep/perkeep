@@ -452,9 +452,8 @@ type RunContext struct {
 
 	ia *importerAcct
 
-	mu           sync.Mutex // guards following
-	lastProgress *ProgressMessage
-	archiveJob   *camtypes.ArchiveImportStatus
+	mu         sync.Mutex // guards following
+	archiveJob *camtypes.ArchiveImportStatus
 }
 
 // UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
@@ -1550,6 +1549,8 @@ type importerAcct struct {
 	// pendingSince, for an account whose permanode isn't stored yet
 	// (see importer.newPendingAccount), is when it was made.
 	pendingSince time.Time
+
+	log accountLog // of its runs, for its page
 }
 
 func (ia *importerAcct) String() string {
@@ -1640,26 +1641,21 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ia.serveHTTPPost(w, r)
 		return
 	}
-	status, _, _ := ia.status()
+	if v := r.FormValue("log"); v != "" {
+		ia.serveLog(w, v)
+		return
+	}
+	status, running, _ := ia.status()
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	body := acctBody{
-		Acct:          ia,
-		Importer:      ia.im,
-		Status:        status,
-		ArchiveUpload: ia.im.archiveUpload(ia),
-		ArchiveOnly:   ia.im.props.ArchiveOnly,
-	}
-
-	if ia.im.props.HasSomePaidAPI {
-		body.HasSomePaidAPI = true
-	}
-
-	if run := ia.current; run != nil {
-		body.Running = true
-		run.mu.Lock()
-		body.LastStatus = fmt.Sprintf("%+v", run.lastProgress)
-		run.mu.Unlock()
+		Acct:           ia,
+		Importer:       ia.im,
+		Status:         status,
+		Running:        running,
+		HasSomePaidAPI: ia.im.props.HasSomePaidAPI,
+		ArchiveUpload:  ia.im.archiveUpload(ia),
+		ArchiveOnly:    ia.im.props.ArchiveOnly,
 	}
 	title := fmt.Sprintf("%s account: ", ia.im.name)
 	if summary := ia.im.impl.SummarizeAccount(ia.acct); summary != "" {
@@ -1774,16 +1770,16 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 	go func() {
 		defer h.work.Done()
 		defer rc.cancel()
-		log.Printf("Starting %v: %s", ia, ia.AccountLinkSummary())
+		ia.logf("Starting import: %s", ia.AccountLinkSummary())
 		err := rc.runManaged()
 		if err == nil {
 			err = rc.Context().Err()
 		}
 		err = rc.finishArchive(err)
 		if err != nil {
-			log.Printf("%v error: %v", ia, err)
+			ia.logf("Import failed: %v", err)
 		} else {
-			log.Printf("%v finished.", ia)
+			ia.logf("Import finished.")
 		}
 		ia.mu.Lock()
 		defer ia.mu.Unlock()
@@ -1826,12 +1822,12 @@ func (ia *importerAcct) run() error {
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
-	log.Printf("Starting %v: %s", ia, ia.AccountLinkSummary())
+	ia.logf("Starting import: %s", ia.AccountLinkSummary())
 	err := ia.im.impl.Run(rc)
 	if err != nil {
 		return err
 	}
-	log.Printf("%v finished.", ia)
+	ia.logf("Import finished.")
 	ia.current = nil
 	ia.stopped = false
 	ia.lastRunDone = time.Now()

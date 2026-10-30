@@ -19,11 +19,9 @@ package feed // import "perkeep.org/pkg/importer/feed"
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -106,7 +104,7 @@ func (r *run) importFeed() error {
 	if err != nil {
 		return err
 	}
-	body, err := doGet(r.Context(), feedURL.String())
+	body, err := r.doGet(feedURL.String())
 	if err != nil {
 		return err
 	}
@@ -118,13 +116,13 @@ func (r *run) importFeed() error {
 			if autoURL.Host == "" {
 				autoURL.Host = feedURL.Host
 			}
-			body, err = doGet(r.Context(), autoURL.String())
+			body, err = r.doGet(autoURL.String())
 			if err != nil {
 				return err
 			}
 		}
 	}
-	feed, err := parseFeed(body, feedURL.String())
+	feed, err := parseFeed(body, feedURL.String(), r.Logf)
 	if err != nil {
 		return err
 	}
@@ -143,7 +141,7 @@ func (r *run) importFeed() error {
 	}
 	for _, item := range feed.Items {
 		if err := r.importItem(itemsNode, item); err != nil {
-			log.Printf("Feed importer: error importing item %s %v", item.ID, err)
+			r.Logf("error importing item %s %v", item.ID, err)
 			continue
 		}
 	}
@@ -218,14 +216,14 @@ func autoDiscover(body []byte) (feedURL string, err error) {
 	return "", fmt.Errorf("No feed link found")
 }
 
-func doGet(ctx context.Context, url string) ([]byte, error) {
+func (r *run) doGet(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	res, err := ctxutil.Client(ctx).Do(req)
+	res, err := ctxutil.Client(r.Context()).Do(req)
 	if err != nil {
-		log.Printf("Error fetching %s: %v", url, err)
+		r.Logf("Error fetching %s: %v", url, err)
 		return nil, err
 	}
 	defer res.Body.Close()

@@ -21,7 +21,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html"
-	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -51,7 +50,7 @@ type item struct {
 	MediaContent string
 }
 
-func parseFeed(body []byte, feedURL string) (*feed, error) {
+func parseFeed(body []byte, feedURL string, logf func(format string, args ...any)) (*feed, error) {
 	var f *feed
 	var atomerr, rsserr, rdferr error
 	f, atomerr = parseAtom(body)
@@ -62,9 +61,9 @@ func parseFeed(body []byte, feedURL string) (*feed, error) {
 		f, rdferr = parseRDF(body)
 	}
 	if f == nil {
-		log.Printf("atom parse error: %s", atomerr.Error())
-		log.Printf("xml parse error: %s", rsserr.Error())
-		log.Printf("rdf parse error: %s", rdferr.Error())
+		logf("atom parse error: %s", atomerr.Error())
+		logf("xml parse error: %s", rsserr.Error())
+		logf("rdf parse error: %s", rdferr.Error())
 		return nil, fmt.Errorf("Could not parse feed data")
 	}
 	return f, nil

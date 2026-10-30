@@ -35,7 +35,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -222,19 +221,19 @@ func (im imp) Run(rc *importer.RunContext) error {
 	if err != nil {
 		return err
 	}
-	j, err := cl.Fetch(ctx, log.Printf)
+	j, err := cl.Fetch(ctx, rc.Logf)
 	if err != nil {
 		return err
 	}
 	res, err := lj.Sync(ctx, hostStore{rc.Host}, j, lj.SyncOptions{
 		Location: c.loc,
 		Workers:  8,
-		Logf:     log.Printf,
+		Logf:     rc.Logf,
 	})
 	if err != nil {
 		return err
 	}
-	log.Printf("livejournal: %d entries, %d comments: changed %d of %d permanodes (%d new), with %d attribute changes",
+	rc.Logf("%d entries, %d comments: changed %d of %d permanodes (%d new), with %d attribute changes",
 		len(j.Entries), len(j.Comments), res.Changed, res.Permanodes, res.Created, res.AttrChanges)
 	return rc.RootNode().SetAttrs(
 		nodeattr.Title, "LiveJournal data for "+c.user,

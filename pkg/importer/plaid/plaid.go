@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -148,9 +147,9 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 }
 
 func (im *imp) Run(ctx *importer.RunContext) (err error) {
-	log.Printf("Running plaid importer.")
+	ctx.Logf("Running importer.")
 	defer func() {
-		log.Printf("plaid importer returned: %v", err)
+		ctx.Logf("Importer returned: %v", err)
 	}()
 
 	clientID, secret, err := ctx.Credentials()

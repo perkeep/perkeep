@@ -18,6 +18,7 @@ package importer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -74,7 +75,6 @@ type acctBody struct {
 	Importer       *importer
 	Status         string
 	Running        bool
-	LastStatus     string
 	HasSomePaidAPI bool
 	ArchiveUpload  *archiveUploadData
 	ArchiveOnly    bool
@@ -133,6 +133,17 @@ func (ia *importerAcct) status() (status string, running, failed bool) {
 	case ia.current != nil:
 		return "Running for " + roughDuration(time.Since(ia.lastRunStart)), true, false
 	case !ia.lastRunDone.IsZero() && ia.lastRunErr != nil:
+		var rae RetryAfterError
+		if errors.As(ia.lastRunErr, &rae) {
+			s := "Paused by the service's rate limit"
+			if t := rae.RetryAfter(); t.After(time.Now()) {
+				s += " until " + t.Local().Format("Jan 2 15:04 MST")
+			}
+			if ia.RefreshInterval() > 0 {
+				return s + "; the next automatic import goes on", false, false
+			}
+			return s + "; start the import again then to go on", false, false
+		}
 		return fmt.Sprintf("Failed %s ago: %v", roughDuration(time.Since(ia.lastRunDone)), ia.lastRunErr), false, true
 	case !ia.lastRunDone.IsZero():
 		return fmt.Sprintf("Imported %s ago", roughDuration(time.Since(ia.lastRunDone))), false, false
@@ -240,6 +251,8 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
    dl.props dt {color: #6a737d;}
    dl.props dd {margin: 0;}
    .warning {color: #b42318; font-weight: 600;}
+   pre.log {max-height: 32em; overflow: auto; margin: 0; padding: .6em .8em; background: #f6f8fa; border-radius: 6px; font: .82em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere;}
+   pre.log:empty {display: none;}
    </style>
 </head>
 <body>
@@ -391,7 +404,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 <section class="card">
   {{if .Acct.IsPending}}<p class="muted">This account isn't saved yet: <a href="#" onclick="document.getElementById('setup').submit(); return false">finish setting it up</a> to keep it.</p>{{end}}
   <dl class="props">
-    <dt>Status</dt><dd{{if .Running}} class="running"{{end}}>{{.Status}}{{if .Running}} ({{.LastStatus}}){{end}}</dd>
+    <dt>Status</dt><dd id="acct-status"{{if .Running}} class="running"{{end}}>{{.Status}}</dd>
     {{if .ArchiveOnly}}
     <dt>Imports</dt><dd>From manual archive uploads</dd>
     {{else}}
@@ -442,6 +455,43 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
     </form>
   </div>
 </section>
+
+<section class="card">
+  <h2>Log</h2>
+  <pre id="acct-log" class="log"></pre>
+  <p id="acct-log-empty" class="muted">Nothing logged since the server started.</p>
+</section>
+<script>
+(function() {
+	var pre = document.getElementById("acct-log");
+	var empty = document.getElementById("acct-log-empty");
+	var status = document.getElementById("acct-status");
+	var next = 0;
+	function poll() {
+		fetch(location.pathname + "?log=" + next, {cache: "no-store"}).then(function(res) {
+			return res.json();
+		}).then(function(res) {
+			var atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
+			if (res.text) {
+				pre.textContent += res.text;
+				empty.hidden = true;
+				if (atBottom) {
+					pre.scrollTop = pre.scrollHeight;
+				}
+			}
+			next = res.next;
+			status.textContent = res.status;
+			status.className = res.running ? "running" : "";
+			// Poll often while running, and now and then otherwise, to
+			// notice a run that starts.
+			setTimeout(poll, res.running ? 1000 : 10000);
+		}).catch(function() {
+			setTimeout(poll, 10000);
+		});
+	}
+	poll();
+})();
+</script>
 
 {{if .ArchiveUpload}}
   {{template "archiveUpload" .ArchiveUpload}}
