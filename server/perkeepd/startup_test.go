@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"perkeep.org/pkg/auth"
@@ -56,7 +57,12 @@ func TestStartupHandler(t *testing.T) {
 	l := new(startupLog)
 	fmt.Fprintf(l, "loading <corpus>\n")
 	mon := health.New()
-	h := &startupHandler{log: l, start: time.Now(), healthz: http.HandlerFunc(mon.ServeHealthz), debug: serverinit.DebugHandler()}
+	h := &startupHandler{log: l, start: time.Now(), healthz: http.HandlerFunc(mon.ServeHealthz), debug: serverinit.DebugHandler(),
+		static: fstest.MapFS{
+			"logo.png":   {Data: []byte("\x89PNG fake")},
+			"index.html": {Data: []byte("<html>")},
+			"deps.js":    {Data: []byte("goog.addDependency")},
+		}}
 	get := func(path string, header ...string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest("GET", path, nil)
@@ -85,6 +91,17 @@ func TestStartupHandler(t *testing.T) {
 	// The health summary is public, and says the server is starting.
 	if rec := get("/healthz"); rec.Code != http.StatusServiceUnavailable || rec.Body.String() != "starting\n" {
 		t.Errorf("/healthz: got %d %q; want 503 %q", rec.Code, rec.Body, "starting\n")
+	}
+
+	// The UI's static images, scripts, and stylesheets are served, to
+	// anyone, but not its pages, deps.js, or missing files.
+	if rec := get("/ui/logo.png"); rec.Code != http.StatusOK || rec.Body.String() != "\x89PNG fake" {
+		t.Errorf("/ui/logo.png: got %d %q; want 200 with the file", rec.Code, rec.Body)
+	}
+	for _, path := range []string{"/ui/index.html", "/ui/deps.js", "/ui/missing.png", "/logo.png"} {
+		if rec := get(path); rec.Code == http.StatusOK {
+			t.Errorf("%s: got 200; want it not served while starting", path)
+		}
 	}
 
 	// The page and the debug handlers need the owner's credentials.
