@@ -71,8 +71,8 @@ func navigationHandler(t *testing.T) http.Handler {
 		Target:       new(memory.Storage),
 		Signer:       signer,
 		Search:       navigationSearch{},
-		ClientId:     map[string]string{"instapaper": "id", "plaid": "id"},
-		ClientSecret: map[string]string{"instapaper": "secret", "plaid": "secret"},
+		ClientId:     map[string]string{"instapaper": "id", "plaid": "id", "dummy": "id"},
+		ClientSecret: map[string]string{"instapaper": "secret", "plaid": "secret", "dummy": "secret"},
 		HTTPClient:   &http.Client{Transport: navigationNoNetwork{t}},
 	})
 	if err != nil {
