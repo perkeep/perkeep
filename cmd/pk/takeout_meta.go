@@ -29,11 +29,11 @@ import (
 	"sync"
 	"time"
 
+	"perkeep.org/internal/attrclaims"
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
-	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
@@ -486,22 +486,16 @@ func (s *takeoutMetaSync) report() string {
 // plannedPermanodeRef returns the ref of the planned permanode with key,
 // signed as pk-put -filenodes signs it.
 func (s *takeoutStore) plannedPermanodeRef(ctx context.Context, key string) (blob.Ref, error) {
-	signed, err := schema.NewPlannedPermanode(key).SignAt(ctx, s.signer, time.Unix(0, 0))
-	if err != nil {
-		return blob.Ref{}, err
-	}
-	return blob.RefFromString(signed), nil
+	_, ref, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
+	return ref, err
 }
 
 // plannedPermanode uploads, unless dryRun, and returns the planned
 // permanode with key.
 func (s *takeoutStore) plannedPermanode(ctx context.Context, key string, dryRun bool) (blob.Ref, error) {
-	signed, err := schema.NewPlannedPermanode(key).SignAt(ctx, s.signer, time.Unix(0, 0))
-	if err != nil {
-		return blob.Ref{}, fmt.Errorf("signing planned permanode: %w", err)
-	}
-	if dryRun {
-		return blob.RefFromString(signed), nil
+	signed, ref, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
+	if err != nil || dryRun {
+		return ref, err
 	}
 	res, err := s.c.Upload(ctx, client.NewUploadHandleFromString(signed))
 	if err != nil {
@@ -511,41 +505,23 @@ func (s *takeoutStore) plannedPermanode(ctx context.Context, key string, dryRun 
 }
 
 // applyChanges uploads the claims, dated claimTime, of changes to pn,
-// unless dryRun.
+// unless dryRun. (See attrclaims.Sign.)
 func (s *takeoutStore) applyChanges(ctx context.Context, pn blob.Ref, changes []attrChange, claimTime time.Time, dryRun bool) error {
 	if len(changes) == 0 || dryRun {
 		return nil
 	}
-	var claims []*schema.Builder
-	for _, c := range changes {
-		var cl *schema.Builder
-		switch c.op {
-		case "set":
-			cl = schema.NewSetAttributeClaim(pn, c.attr, c.value)
-		case "add":
-			cl = schema.NewAddAttributeClaim(pn, c.attr, c.value)
-		case "del":
-			cl = schema.NewDelAttributeClaim(pn, c.attr, c.value)
-		default:
-			panic("unknown op " + c.op)
-		}
-		claims = append(claims, cl)
+	cs := make([]attrclaims.Change, len(changes))
+	for i, c := range changes {
+		cs[i] = attrclaims.Change{Op: c.op, Attr: c.attr, Value: c.value}
 	}
-	claim := claims[0]
-	if len(claims) > 1 {
-		var err error
-		if claim, err = schema.NewMultiClaim(claims...); err != nil {
-			return err
-		}
-		claim.SetMultiClaimPermanode(pn)
-	}
-	claim.SetClaimDate(claimTime)
-	signed, err := claim.SignAt(ctx, s.signer, claimTime)
+	signed, err := attrclaims.Sign(ctx, s.signer, pn, cs, claimTime)
 	if err != nil {
-		return fmt.Errorf("signing claim: %w", err)
+		return err
 	}
-	if _, err := s.c.Upload(ctx, client.NewUploadHandleFromString(signed)); err != nil {
-		return fmt.Errorf("uploading claim: %w", err)
+	for _, claim := range signed {
+		if _, err := s.c.Upload(ctx, client.NewUploadHandleFromString(claim)); err != nil {
+			return fmt.Errorf("uploading claim: %w", err)
+		}
 	}
 	return nil
 }

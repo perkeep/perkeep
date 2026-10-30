@@ -33,6 +33,7 @@ import (
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
@@ -334,5 +335,39 @@ func TestTakeoutMetaSync(t *testing.T) {
 	}
 	if ms.stats.photosChanged != 0 {
 		t.Errorf("older export changed %d photos; want 0", ms.stats.photosChanged)
+	}
+}
+
+func TestApplyChangesSplitsClaims(t *testing.T) {
+	st := newTakeoutTestStore(t)
+	ctx := context.Background()
+	pn, err := st.plannedPermanode(ctx, "big set", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// More members than fit in one claim, between a set and an add of
+	// another attribute, which must still apply in order.
+	changes := []attrChange{{"set", "tag", "first"}}
+	var members []string
+	for i := range 10000 {
+		m := blob.RefFromString(fmt.Sprintf("member %d", i)).String()
+		members = append(members, m)
+		changes = append(changes, attrChange{"add", "camliMember", m})
+	}
+	changes = append(changes, attrChange{"add", "tag", "second"})
+	if err := st.applyChanges(ctx, pn, changes, time.Now(), false); err != nil {
+		t.Fatal(err)
+	}
+	attrs := permanodeAttrs(t, st, pn)
+	if got := len(attrs["camliMember"]); got != len(members) {
+		t.Errorf("got %d members; want %d", got, len(members))
+	}
+	if got, want := attrs["tag"], []string{"first", "second"}; !slices.Equal(got, want) {
+		t.Errorf("tags = %q; want %q", got, want)
+	}
+
+	huge := strings.Repeat("x", schema.MaxSchemaBlobSize)
+	if err := st.applyChanges(ctx, pn, []attrChange{{"set", "content", huge}}, time.Now(), false); err == nil {
+		t.Error("applyChanges of a value too large for a claim succeeded")
 	}
 }
