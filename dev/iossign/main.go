@@ -26,8 +26,8 @@ limitations under the License.
 //
 // Usage:
 //
-//	iossign install [-device name-or-udid] [-y] Perkeep.app
-//	iossign upload [-build N] [-ipa file] [-no-upload] [-y] Perkeep.app
+//	iossign install [-device name-or-udid] [-y] [-keep] Perkeep.app
+//	iossign upload [-build N] [-ipa file] [-no-upload] [-y] [-keep] Perkeep.app
 //
 // Configuration is read from iossign.json in the perkeep directory under
 // os.UserConfigDir (~/Library/Application Support/perkeep on macOS):
@@ -98,7 +98,7 @@ func loadConfig() (*config, error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage:\n\tiossign install [-device name-or-udid] [-y] Perkeep.app\n\tiossign upload [-build N] [-ipa file] [-no-upload] [-y] Perkeep.app\n")
+	fmt.Fprintf(os.Stderr, "usage:\n\tiossign install [-device name-or-udid] [-y] [-keep] Perkeep.app\n\tiossign upload [-build N] [-ipa file] [-no-upload] [-y] [-keep] Perkeep.app\n")
 	os.Exit(2)
 }
 
@@ -129,6 +129,7 @@ type job struct {
 	buildNumber string // if non-empty, replaces CFBundleVersion
 	target      string // human description of where it's going
 	yes         bool   // don't prompt
+	keep        bool   // keep work dir
 
 	asc   *ascClient
 	ident signingIdentity
@@ -177,9 +178,14 @@ func (j *job) prepare() error {
 }
 
 func (j *job) cleanup() {
-	if j.work != "" {
-		os.RemoveAll(j.work)
+	if j.work == "" {
+		return
 	}
+	if j.keep {
+		fmt.Printf("Kept work directory %s\n", j.work)
+		return
+	}
+	os.RemoveAll(j.work)
 }
 
 // confirm describes the signing operation and asks the user to approve
@@ -223,7 +229,11 @@ func (j *job) confirm() error {
 
 // sign embeds profile and signs the prepared app.
 func (j *job) sign(profile []byte) error {
-	if err := os.WriteFile(filepath.Join(j.app, "embedded.mobileprovision"), profile, 0o644); err != nil {
+	profilePath := filepath.Join(j.app, "embedded.mobileprovision")
+	if err := os.WriteFile(profilePath, profile, 0o644); err != nil {
+		return err
+	}
+	if err := checkProfile(profilePath, j.work, j.cfg.TeamID, j.cfg.BundleID, j.development); err != nil {
 		return err
 	}
 	ent := filepath.Join(j.work, "entitlements.plist")
@@ -241,6 +251,7 @@ func cmdInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	devFlag := fs.String("device", "", "device name or UDID; required if more than one is paired")
 	yes := fs.Bool("y", false, "don't ask for confirmation")
+	keep := fs.Bool("keep", false, "keep the work directory with the signed app, for debugging")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		usage()
@@ -255,6 +266,7 @@ func cmdInstall(args []string) error {
 	}
 	defer j.cleanup()
 	j.yes = *yes
+	j.keep = *keep
 
 	dev, err := pickDevice(*devFlag)
 	if err != nil {
@@ -307,6 +319,7 @@ func cmdUpload(args []string) error {
 	ipa := fs.String("ipa", "", "also write the signed IPA to this file")
 	noUpload := fs.Bool("no-upload", false, "sign and write the IPA (requires -ipa) but don't upload it")
 	yes := fs.Bool("y", false, "don't ask for confirmation")
+	keep := fs.Bool("keep", false, "keep the work directory with the signed app, for debugging")
 	fs.Parse(args)
 	if fs.NArg() != 1 || (*noUpload && *ipa == "") {
 		usage()
@@ -321,6 +334,7 @@ func cmdUpload(args []string) error {
 	}
 	defer j.cleanup()
 	j.yes = *yes
+	j.keep = *keep
 	j.buildNumber = *build
 	if j.buildNumber == "" {
 		j.buildNumber = time.Now().UTC().Format("200601021504")
