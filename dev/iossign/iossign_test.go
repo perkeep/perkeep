@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -33,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -159,6 +161,72 @@ func TestCheckProfileEntitlements(t *testing.T) {
 		if (err == nil) != tt.ok {
 			t.Errorf("%s: err = %v; want ok=%v", tt.name, err, tt.ok)
 		}
+	}
+}
+
+func TestFindIssuer(t *testing.T) {
+	now := time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
+	newCA := func(name string, notAfter time.Time) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
+		k := testKey(t)
+		tmpl := &x509.Certificate{
+			SerialNumber:          big.NewInt(1),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             now.AddDate(-5, 0, 0),
+			NotAfter:              notAfter,
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+			KeyUsage:              x509.KeyUsageCertSign,
+		}
+		der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &k.PublicKey, k)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, _ := x509.ParseCertificate(der)
+		return c, k, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	}
+	// An expired CA and a current one with the same name, as with
+	// Apple's WWDR generations.
+	_, _, oldPEM := newCA("WWDR", now.AddDate(-1, 0, 0))
+	ca, caKey, curPEM := newCA("WWDR", now.AddDate(5, 0, 0))
+	_, _, otherPEM := newCA("Other", now.AddDate(5, 0, 0))
+
+	leafKey := testKey(t)
+	leafDER, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "Apple Development: test"},
+		NotBefore:    now.AddDate(0, 0, -1),
+		NotAfter:     now.AddDate(1, 0, 0),
+	}, ca, &leafKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, _ := x509.ParseCertificate(leafDER)
+
+	if !findIssuer(leaf, slices.Concat(otherPEM, oldPEM, curPEM), now) {
+		t.Error("didn't find current issuer")
+	}
+	if findIssuer(leaf, slices.Concat(otherPEM, oldPEM), now) {
+		t.Error("found issuer with only an unrelated CA")
+	}
+	if findIssuer(leaf, curPEM, now.AddDate(10, 0, 0)) {
+		t.Error("found expired issuer")
+	}
+}
+
+func TestCheckChain(t *testing.T) {
+	good := `Executable=/x/Perkeep.app/Perkeep
+Identifier=org.perkeep.mobile
+Authority=Apple Development: Created via API (ABC)
+Authority=Apple Worldwide Developer Relations Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=TEAM
+`
+	if err := checkChain(good); err != nil {
+		t.Errorf("good chain: %v", err)
+	}
+	leafOnly := "Identifier=org.perkeep.mobile\nAuthority=Apple Development: Created via API (ABC)\nTeamIdentifier=TEAM\n"
+	if err := checkChain(leafOnly); err == nil {
+		t.Error("leaf-only chain: no error")
 	}
 }
 

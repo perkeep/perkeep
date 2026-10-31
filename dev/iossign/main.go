@@ -57,6 +57,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -240,11 +241,51 @@ func (j *job) sign(profile []byte) error {
 	if err := os.WriteFile(ent, entitlementsPlist(j.cfg.TeamID, j.cfg.BundleID, j.development), 0o644); err != nil {
 		return err
 	}
+	if err := ensureIssuer(j.ident.der); err != nil {
+		return err
+	}
 	if err := run("codesign", "--force", "--sign", j.ident.sha1,
 		"--entitlements", ent, "--generate-entitlement-der", "--timestamp=none", j.app); err != nil {
 		return err
 	}
-	return run("codesign", "--verify", "--strict", "--verbose=1", j.app)
+	if err := run("codesign", "--verify", "--strict", "--verbose=1", j.app); err != nil {
+		return err
+	}
+	info, err := signatureInfo(j.app)
+	if err != nil {
+		return err
+	}
+	return checkChain(info)
+}
+
+// diagnoseLaunch prints what might explain iOS refusing to launch the
+// signed app: its signature, its entitlements, and the device's log.
+func (j *job) diagnoseLaunch(udid string) {
+	j.keep = true
+	fmt.Printf("\n==> Diagnosing launch failure\n")
+	if info, err := signatureInfo(j.app); err == nil {
+		fmt.Print(info)
+	}
+	if out, err := exec.Command("codesign", "-d", "--entitlements", "-", "--xml", j.app).Output(); err == nil {
+		fmt.Printf("Entitlements: %s\n", out)
+	}
+
+	archive := filepath.Join(j.work, "device.logarchive")
+	fmt.Printf("\n==> Collecting the device's log (log collect needs sudo)\n")
+	if err := run("sudo", "/usr/bin/log", "collect", "--device-udid", udid, "--last", "3m", "--output", archive); err != nil {
+		fmt.Printf("Couldn't collect device log: %v\n", err)
+		return
+	}
+	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--style", "compact", "--predicate",
+		`process == "amfid" OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "`+j.cfg.BundleID+`"`).CombinedOutput()
+	if err != nil {
+		fmt.Printf("log show: %v\n", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) > 80 {
+		lines = lines[len(lines)-80:]
+	}
+	fmt.Printf("\n==> Relevant device log lines (full log in %s)\n%s\n", archive, strings.Join(lines, "\n"))
 }
 
 func cmdInstall(args []string) error {
@@ -282,9 +323,6 @@ func cmdInstall(args []string) error {
 	}
 
 	ctx := context.Background()
-	if err := ensureWWDR(); err != nil {
-		return err
-	}
 	bundleID, err := j.asc.ensureBundleID(ctx, cfg.BundleID)
 	if err != nil {
 		return err
@@ -310,7 +348,11 @@ func cmdInstall(args []string) error {
 	if err := run("xcrun", "devicectl", "device", "install", "app", "--device", dev.UDID, j.app); err != nil {
 		return err
 	}
-	return run("xcrun", "devicectl", "device", "process", "launch", "--device", dev.UDID, cfg.BundleID)
+	if err := run("xcrun", "devicectl", "device", "process", "launch", "--device", dev.UDID, cfg.BundleID); err != nil {
+		j.diagnoseLaunch(dev.UDID)
+		return err
+	}
+	return nil
 }
 
 func cmdUpload(args []string) error {
@@ -352,9 +394,6 @@ func cmdUpload(args []string) error {
 	}
 
 	ctx := context.Background()
-	if err := ensureWWDR(); err != nil {
-		return err
-	}
 	bundleID, err := j.asc.ensureBundleID(ctx, cfg.BundleID)
 	if err != nil {
 		return err

@@ -33,6 +33,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 )
 
 // entitlementsPlist returns the entitlements to sign the app with.
@@ -246,6 +248,7 @@ type signingIdentity struct {
 	certID string // App Store Connect certificate ID
 	sha1   string // uppercase hex; what codesign -s takes
 	name   string
+	der    []byte // the certificate
 }
 
 // ensureIdentity finds a certificate of type certType (DEVELOPMENT or
@@ -264,7 +267,7 @@ func ensureIdentity(ctx context.Context, c *ascClient, certType string) (signing
 		sum := sha1.Sum(cert.DER)
 		h := strings.ToUpper(hex.EncodeToString(sum[:]))
 		if name, ok := local[h]; ok {
-			return signingIdentity{certID: cert.ID, sha1: h, name: name}, nil
+			return signingIdentity{certID: cert.ID, sha1: h, name: name, der: cert.DER}, nil
 		}
 	}
 
@@ -287,7 +290,7 @@ func ensureIdentity(ctx context.Context, c *ascClient, certType string) (signing
 		return signingIdentity{}, fmt.Errorf("created certificate %s but failed to import it: %w", cert.ID, err)
 	}
 	sum := sha1.Sum(cert.DER)
-	return signingIdentity{certID: cert.ID, sha1: strings.ToUpper(hex.EncodeToString(sum[:])), name: cert.Name}, nil
+	return signingIdentity{certID: cert.ID, sha1: strings.ToUpper(hex.EncodeToString(sum[:])), name: cert.Name, der: cert.DER}, nil
 }
 
 // importIdentity imports a private key and its certificate into the
@@ -326,30 +329,109 @@ func importIdentity(key *rsa.PrivateKey, certDER []byte) error {
 		"-P", pass, "-T", "/usr/bin/codesign")
 }
 
-const wwdrG3URL = "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"
-
-// ensureWWDR makes sure Apple's intermediate certificate, which codesign
-// needs to build a chain for Apple-issued signing certificates, is in
-// the keychain. Xcode normally installs it.
-func ensureWWDR() error {
-	if err := exec.Command("security", "find-certificate", "-c", "Apple Worldwide Developer Relations Certification Authority").Run(); err == nil {
-		return nil
-	}
-	fmt.Println("Installing Apple WWDR G3 intermediate certificate")
-	dir, err := os.MkdirTemp("", "iossign-wwdr")
+// ensureIssuer makes sure the keychain has a valid certificate for the
+// intermediate CA (Apple WWDR) that issued leafDER. Without it codesign
+// can't embed the chain in the signature, and iOS refuses to launch the
+// app even though the signature verifies on the Mac. Xcode normally
+// installs it, but there are several WWDR generations and old
+// keychains often have only expired ones.
+func ensureIssuer(leafDER []byte) error {
+	leaf, err := x509.ParseCertificate(leafDER)
 	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-	f := filepath.Join(dir, "AppleWWDRCAG3.cer")
-	if err := run("curl", "-fsSL", "-o", f, wwdrG3URL); err != nil {
 		return err
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	return run("security", "import", f, "-k", filepath.Join(home, "Library/Keychains/login.keychain-db"))
+	login := filepath.Join(home, "Library/Keychains/login.keychain-db")
+	out, err := output("security", "find-certificate", "-a", "-p", login, "/Library/Keychains/System.keychain")
+	if err != nil {
+		return err
+	}
+	if findIssuer(leaf, out, time.Now()) {
+		return nil
+	}
+	if len(leaf.IssuingCertificateURL) == 0 {
+		return fmt.Errorf("no valid certificate for %q in the keychain, and the signing certificate doesn't say where to get one", leaf.Issuer)
+	}
+	u := leaf.IssuingCertificateURL[0]
+	fmt.Printf("Installing intermediate certificate %q from %s\n", leaf.Issuer.CommonName, u)
+	res, err := http.Get(u)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	der, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		return fmt.Errorf("fetching %s: %s", u, res.Status)
+	}
+	issuer, err := x509.ParseCertificate(der)
+	if err != nil {
+		return fmt.Errorf("fetching %s: %w", u, err)
+	}
+	// It may have come over plain HTTP, so make sure it's really the issuer.
+	if err := leaf.CheckSignatureFrom(issuer); err != nil {
+		return fmt.Errorf("certificate from %s didn't issue the signing certificate: %w", u, err)
+	}
+	dir, err := os.MkdirTemp("", "iossign-ca")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	f := filepath.Join(dir, "issuer.cer")
+	if err := os.WriteFile(f, der, 0o644); err != nil {
+		return err
+	}
+	return run("security", "import", f, "-k", login)
+}
+
+// findIssuer reports whether pemCerts contains a certificate that's
+// valid at now and issued leaf.
+func findIssuer(leaf *x509.Certificate, pemCerts []byte, now time.Time) bool {
+	for rest := pemCerts; ; {
+		var b *pem.Block
+		b, rest = pem.Decode(rest)
+		if b == nil {
+			return false
+		}
+		c, err := x509.ParseCertificate(b.Bytes)
+		if err != nil || now.Before(c.NotBefore) || now.After(c.NotAfter) {
+			continue
+		}
+		if leaf.CheckSignatureFrom(c) == nil {
+			return true
+		}
+	}
+}
+
+// signatureInfo returns codesign's description of app's signature.
+func signatureInfo(app string) (string, error) {
+	// codesign -d writes to stderr.
+	out, err := exec.Command("codesign", "-d", "-vv", app).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("codesign -d: %v: %s", err, out)
+	}
+	return string(out), nil
+}
+
+// checkChain verifies that codesign's description of a signature (from
+// signatureInfo) shows a certificate chain up to Apple's root, as iOS
+// requires.
+func checkChain(info string) error {
+	var chain []string
+	for line := range strings.Lines(info) {
+		if a, ok := strings.CutPrefix(strings.TrimSpace(line), "Authority="); ok {
+			chain = append(chain, a)
+		}
+	}
+	if len(chain) < 3 || chain[len(chain)-1] != "Apple Root CA" {
+		return fmt.Errorf("signature's certificate chain is %q; want signing cert, Apple WWDR intermediate, Apple Root CA", chain)
+	}
+	return nil
 }
 
 // device is an iOS device paired with this Mac.
