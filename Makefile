@@ -39,14 +39,16 @@ web-push-staging:
 # iossign fetches an unsigned iOS device build (from
 # clients/mobile/ios/build.sh device) from the credential-free build Mac,
 # then signs it and installs it on a paired iPhone. Run it on a Mac with
-# Apple credentials; see clients/mobile/README.md.
+# Apple credentials; see clients/mobile/README.md. Set IOS_DEVICE to a
+# device name or UDID if more than one is paired.
 IOS_BUILD_HOST ?= runner@10.2.201.85
 IOS_SIGN_DIR ?= /tmp/perkeep-iossign
+IOS_DEVICE ?=
 
 iossign:
 	rm -rf $(IOS_SIGN_DIR)
 	mkdir -p $(IOS_SIGN_DIR)
 	scp -r $(IOS_BUILD_HOST):perkeep/clients/mobile/ios/build/device/Perkeep.app $(IOS_SIGN_DIR)/
-	go run ./dev/iossign install $(IOS_SIGN_DIR)/Perkeep.app
+	go run ./dev/iossign install $(if $(IOS_DEVICE),-device "$(IOS_DEVICE)") $(IOS_SIGN_DIR)/Perkeep.app
 
 .PHONY: iossign
