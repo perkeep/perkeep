@@ -263,6 +263,9 @@ func TestEnsureBundleID(t *testing.T) {
 	if len(f.created) != 1 || f.created[0].attr("identifier") != "org.example.other" {
 		t.Errorf("created %v", f.created)
 	}
+	if got, want := f.created[0].attr("name"), "Perkeep org example other"; got != want {
+		t.Errorf("name = %q; want %q", got, want)
+	}
 }
 
 func TestEnsureProfile(t *testing.T) {
