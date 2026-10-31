@@ -35,3 +35,18 @@ web-push-prod:
 
 web-push-staging:
 	flyctl deploy -a perkeep-staging
+
+# iossign fetches an unsigned iOS device build (from
+# clients/mobile/ios/build.sh device) from the credential-free build Mac,
+# then signs it and installs it on a paired iPhone. Run it on a Mac with
+# Apple credentials; see clients/mobile/README.md.
+IOS_BUILD_HOST ?= runner@10.2.201.85
+IOS_SIGN_DIR ?= /tmp/perkeep-iossign
+
+iossign:
+	rm -rf $(IOS_SIGN_DIR)
+	mkdir -p $(IOS_SIGN_DIR)
+	scp -r $(IOS_BUILD_HOST):perkeep/clients/mobile/ios/build/device/Perkeep.app $(IOS_SIGN_DIR)/
+	go run ./dev/iossign install $(IOS_SIGN_DIR)/Perkeep.app
+
+.PHONY: iossign
