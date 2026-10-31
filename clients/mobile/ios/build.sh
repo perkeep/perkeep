@@ -64,9 +64,21 @@ xcrun --sdk "$SDK" swiftc \
 	-lresolv -framework CoreFoundation -framework Security \
 	-o "$APP/Perkeep"
 
+echo "==> Compiling asset catalog"
+xcrun actool "$IOS_DIR/Assets.xcassets" \
+	--compile "$APP" \
+	--platform "$SDK" \
+	--minimum-deployment-target "$MIN_IOS" \
+	--target-device iphone --target-device ipad \
+	--app-icon AppIcon \
+	--output-partial-info-plist "$OUT/assets-Info.plist" \
+	--errors --warnings --output-format human-readable-text
+
 echo "==> Writing Info.plist"
 PLIST="$APP/Info.plist"
 cp "$IOS_DIR/Info.plist" "$PLIST"
+# Add the icon keys (CFBundleIcons) that actool generated.
+/usr/libexec/PlistBuddy -c "Merge $OUT/assets-Info.plist" "$PLIST"
 # Keys that Xcode normally adds and App Store validation expects.
 plutil -insert MinimumOSVersion -string "$MIN_IOS" "$PLIST"
 plutil -insert CFBundleSupportedPlatforms -json "[\"$PLATFORM\"]" "$PLIST"
