@@ -131,6 +131,7 @@ type job struct {
 	target      string // human description of where it's going
 	yes         bool   // don't prompt
 	keep        bool   // keep work dir
+	udid        string // for development builds, the device to install on
 
 	asc   *ascClient
 	ident signingIdentity
@@ -234,7 +235,7 @@ func (j *job) sign(profile []byte) error {
 	if err := os.WriteFile(profilePath, profile, 0o644); err != nil {
 		return err
 	}
-	if err := checkProfile(profilePath, j.work, j.cfg.TeamID, j.cfg.BundleID, j.development); err != nil {
+	if err := checkProfile(profilePath, j.work, j.cfg.TeamID, j.cfg.BundleID, j.development, j.udid); err != nil {
 		return err
 	}
 	ent := filepath.Join(j.work, "entitlements.plist")
@@ -259,8 +260,9 @@ func (j *job) sign(profile []byte) error {
 }
 
 // diagnoseLaunch prints what might explain iOS refusing to launch the
-// signed app: its signature, its entitlements, and the device's log.
-func (j *job) diagnoseLaunch(udid string) {
+// signed app: its signature, its entitlements, and the device's log
+// since the install started at since.
+func (j *job) diagnoseLaunch(udid string, since time.Time) {
 	j.keep = true
 	fmt.Printf("\n==> Diagnosing launch failure\n")
 	if info, err := signatureInfo(j.app); err == nil {
@@ -272,25 +274,27 @@ func (j *job) diagnoseLaunch(udid string) {
 
 	archive := filepath.Join(j.work, "device.logarchive")
 	fmt.Printf("\n==> Collecting the device's log (log collect needs sudo)\n")
-	if err := run("sudo", "/usr/bin/log", "collect", "--device-udid", udid, "--last", "3m", "--output", archive); err != nil {
+	// Allow for some clock skew between the Mac and the device.
+	start := since.Add(-5 * time.Second).Format("2006-01-02 15:04:05")
+	if err := run("sudo", "/usr/bin/log", "collect", "--device-udid", udid, "--start", start, "--output", archive); err != nil {
 		fmt.Printf("Couldn't collect device log: %v\n", err)
 		return
 	}
-	// Look for messages about signatures, profiles, and trust from the
-	// processes that decide whether an app may run. Install progress
-	// messages mention the bundle ID too but aren't interesting.
-	predicate := `process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard", "kernel"}` +
-		` AND (eventMessage CONTAINS[c] "` + j.cfg.BundleID + `" OR eventMessage CONTAINS[c] "iossign"` +
-		` OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "signature" OR eventMessage CONTAINS[c] "trust"` +
-		` OR eventMessage CONTAINS[c] "profile" OR eventMessage CONTAINS[c] "entitlement")` +
+	// Show everything since the install from the processes that decide
+	// whether an app may run, except routine install bookkeeping. The
+	// kernel is too chatty to include except for AMFI, which enforces
+	// code signing.
+	predicate := `(process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard", "lsd", "runningboardd"}` +
+		` OR (process == "kernel" AND eventMessage CONTAINS "AMFI"))` +
 		` AND NOT eventMessage CONTAINS "MILaunchServicesOperationManager"`
-	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--style", "compact", "--predicate", predicate).CombinedOutput()
+	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--start", start,
+		"--style", "compact", "--predicate", predicate).CombinedOutput()
 	if err != nil {
 		fmt.Printf("log show: %v\n", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) > 200 {
-		lines = lines[:200]
+	if len(lines) > 400 {
+		lines = lines[:400]
 	}
 	fmt.Printf("\n==> Relevant device log lines (full log in %s)\n%s\n", archive, strings.Join(lines, "\n"))
 }
@@ -321,6 +325,7 @@ func cmdInstall(args []string) error {
 		return err
 	}
 	j.target = fmt.Sprintf("install on %q (%s)", dev.Name, dev.UDID)
+	j.udid = dev.UDID
 
 	if err := j.prepare(); err != nil {
 		return err
@@ -352,11 +357,12 @@ func cmdInstall(args []string) error {
 	if err := j.sign(profile); err != nil {
 		return err
 	}
+	installStart := time.Now()
 	if err := run("xcrun", "devicectl", "device", "install", "app", "--device", dev.UDID, j.app); err != nil {
 		return err
 	}
 	if err := run("xcrun", "devicectl", "device", "process", "launch", "--device", dev.UDID, cfg.BundleID); err != nil {
-		j.diagnoseLaunch(dev.UDID)
+		j.diagnoseLaunch(dev.UDID, installStart)
 		return err
 	}
 	return nil

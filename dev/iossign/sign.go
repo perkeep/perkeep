@@ -74,18 +74,22 @@ func entitlementsPlist(teamID, bundleID string, development bool) []byte {
 
 // checkProfile verifies that the provisioning profile at path grants the
 // entitlements iossign signs with, so a mismatch fails here with a clear
-// error rather than as a vague launch failure on the device. tmpDir is
-// for scratch files.
-func checkProfile(path, tmpDir, teamID, bundleID string, development bool) error {
+// error rather than as a vague launch failure on the device. If udid is
+// non-empty, the profile must also list that device. tmpDir is for
+// scratch files.
+func checkProfile(path, tmpDir, teamID, bundleID string, development bool, udid string) error {
 	decoded := filepath.Join(tmpDir, "profile.plist")
 	if _, err := output("security", "cms", "-D", "-i", path, "-o", decoded); err != nil {
 		return err
 	}
 	// The whole profile can't be converted to JSON (it has dates and
 	// data), but these parts can.
-	var teams []string
-	var ents map[string]any
-	for key, dst := range map[string]any{"TeamIdentifier": &teams, "Entitlements": &ents} {
+	var p profileInfo
+	parts := map[string]any{"TeamIdentifier": &p.teams, "Entitlements": &p.ents}
+	if udid != "" {
+		parts["ProvisionedDevices"] = &p.devices
+	}
+	for key, dst := range parts {
 		j, err := output("plutil", "-extract", key, "json", "-o", "-", decoded)
 		if err != nil {
 			return err
@@ -94,7 +98,21 @@ func checkProfile(path, tmpDir, teamID, bundleID string, development bool) error
 			return fmt.Errorf("profile %s: %w", key, err)
 		}
 	}
-	return checkProfileEntitlements(teams, ents, teamID, bundleID, development)
+	return p.check(teamID, bundleID, development, udid)
+}
+
+// profileInfo is the part of a provisioning profile that iossign checks.
+type profileInfo struct {
+	teams   []string
+	ents    map[string]any
+	devices []string
+}
+
+func (p profileInfo) check(teamID, bundleID string, development bool, udid string) error {
+	if udid != "" && !slices.Contains(p.devices, udid) {
+		return fmt.Errorf("provisioning profile doesn't include device %s; it has %q", udid, p.devices)
+	}
+	return checkProfileEntitlements(p.teams, p.ents, teamID, bundleID, development)
 }
 
 func checkProfileEntitlements(teams []string, ents map[string]any, teamID, bundleID string, development bool) error {

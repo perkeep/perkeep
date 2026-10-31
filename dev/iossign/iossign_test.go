@@ -162,6 +162,14 @@ func TestCheckProfileEntitlements(t *testing.T) {
 			t.Errorf("%s: err = %v; want ok=%v", tt.name, err, tt.ok)
 		}
 	}
+
+	p := profileInfo{teams: []string{"TEAM"}, ents: ents("TEAM.org.example.app", true), devices: []string{"U1", "U2"}}
+	if err := p.check("TEAM", "org.example.app", true, "U2"); err != nil {
+		t.Errorf("listed device: %v", err)
+	}
+	if err := p.check("TEAM", "org.example.app", true, "U3"); err == nil {
+		t.Error("unlisted device: no error")
+	}
 }
 
 func TestFindIssuer(t *testing.T) {
