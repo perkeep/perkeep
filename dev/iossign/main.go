@@ -398,6 +398,10 @@ func cmdInstall(args []string) error {
 		return err
 	}
 	if err := run("xcrun", "devicectl", "device", "process", "launch", "--device", dev.UDID, cfg.BundleID); err != nil {
+		fmt.Printf("\nThe app is installed but didn't launch. If this is the first install with a new\n" +
+			"signing certificate, iOS has to verify the developer with Apple first; tapping\n" +
+			"the app shows \"Unable to Verify App\" until it has. That can take a few minutes\n" +
+			"after the certificate is created: wait, then tap the app again.\n")
 		j.diagnoseLaunch(dev.UDID, installStart)
 		return err
 	}
