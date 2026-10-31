@@ -34,6 +34,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const ascBaseURL = "https://api.appstoreconnect.apple.com"
@@ -218,7 +219,7 @@ func (c *ascClient) ensureBundleID(ctx context.Context, identifier string) (stri
 		Type: "bundleIds",
 		Attributes: map[string]any{
 			"identifier": identifier,
-			"name":       "Perkeep " + identifier,
+			"name":       bundleIDName(identifier),
 			"platform":   "IOS",
 		},
 	}, &r)
@@ -227,6 +228,17 @@ func (c *ascClient) ensureBundleID(ctx context.Context, identifier string) (stri
 	}
 	fmt.Printf("Registered bundle ID %s\n", identifier)
 	return r.ID, nil
+}
+
+// bundleIDName returns the display name to register identifier with.
+// Apple allows only letters, digits, and spaces in it.
+func bundleIDName(identifier string) string {
+	return "Perkeep " + strings.Map(func(r rune) rune {
+		if r < 0x80 && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
+			return r
+		}
+		return ' '
+	}, identifier)
 }
 
 // ensureDevice returns the API ID of the device with the given UDID,
