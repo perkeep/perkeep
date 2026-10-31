@@ -28,6 +28,10 @@ limitations under the License.
 //
 //	iossign install [-device name-or-udid] [-y] [-keep] Perkeep.app
 //	iossign upload [-build N] [-ipa file] [-no-upload] [-y] [-keep] Perkeep.app
+//	iossign devlog [-device name-or-udid] [-last 2m]
+//
+// devlog prints the device's recent log messages about code signing and
+// developer trust, for debugging apps that won't launch.
 //
 // Configuration is read from iossign.json in the perkeep directory under
 // os.UserConfigDir (~/Library/Application Support/perkeep on macOS):
@@ -99,7 +103,7 @@ func loadConfig() (*config, error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage:\n\tiossign install [-device name-or-udid] [-y] [-keep] Perkeep.app\n\tiossign upload [-build N] [-ipa file] [-no-upload] [-y] [-keep] Perkeep.app\n")
+	fmt.Fprintf(os.Stderr, "usage:\n\tiossign install [-device name-or-udid] [-y] [-keep] Perkeep.app\n\tiossign upload [-build N] [-ipa file] [-no-upload] [-y] [-keep] Perkeep.app\n\tiossign devlog [-device name-or-udid] [-last 2m]\n")
 	os.Exit(2)
 }
 
@@ -114,6 +118,8 @@ func main() {
 		err = cmdInstall(os.Args[2:])
 	case "upload":
 		err = cmdUpload(os.Args[2:])
+	case "devlog":
+		err = cmdDevlog(os.Args[2:])
 	default:
 		usage()
 	}
@@ -272,31 +278,61 @@ func (j *job) diagnoseLaunch(udid string, since time.Time) {
 		fmt.Printf("Entitlements: %s\n", out)
 	}
 
-	archive := filepath.Join(j.work, "device.logarchive")
+	if err := showDeviceLog(udid, since, filepath.Join(j.work, "device.logarchive")); err != nil {
+		fmt.Printf("Couldn't get device log: %v\n", err)
+	}
+}
+
+// showDeviceLog collects the device's log since the given time into
+// archive and prints the messages about code signing and developer trust.
+func showDeviceLog(udid string, since time.Time, archive string) error {
 	fmt.Printf("\n==> Collecting the device's log (log collect needs sudo)\n")
 	// Allow for some clock skew between the Mac and the device.
 	start := since.Add(-5 * time.Second).Format("2006-01-02 15:04:05")
 	if err := run("sudo", "/usr/bin/log", "collect", "--device-udid", udid, "--start", start, "--output", archive); err != nil {
-		fmt.Printf("Couldn't collect device log: %v\n", err)
-		return
+		return err
 	}
-	// Show everything since the install from the processes that decide
-	// whether an app may run, except routine install bookkeeping. The
-	// kernel is too chatty to include except for AMFI, which enforces
-	// code signing.
-	predicate := `(process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard"}` +
-		` OR (process == "kernel" AND eventMessage CONTAINS "AMFI"))` +
-		` AND NOT eventMessage CONTAINS "MILaunchServicesOperationManager"`
+	// amfid and the kernel's AMFI enforce code signing; misagent and
+	// online-auth-agent check provisioning profiles and verify developer
+	// trust with Apple. SpringBoard and installd are chatty, so only
+	// include their messages that look relevant.
+	predicate := `process IN {"amfid", "misagent", "online-auth-agent"}` +
+		` OR (process == "kernel" AND eventMessage CONTAINS "AMFI")` +
+		` OR eventMessage CONTAINS[c] "ppq"` +
+		` OR (process IN {"SpringBoard", "installd"} AND (eventMessage CONTAINS[c] "perkeep"` +
+		` OR eventMessage CONTAINS[c] "trust" OR eventMessage CONTAINS[c] "verif")` +
+		` AND NOT eventMessage CONTAINS "MILaunchServicesOperationManager")`
 	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--start", start,
 		"--style", "compact", "--predicate", predicate).CombinedOutput()
 	if err != nil {
-		fmt.Printf("log show: %v\n", err)
+		return fmt.Errorf("log show: %v: %s", err, out)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) > 400 {
-		lines = lines[:400]
+		fmt.Printf("(showing the last 400 of %d lines)\n", len(lines))
+		lines = lines[len(lines)-400:]
 	}
 	fmt.Printf("\n==> Relevant device log lines (full log in %s)\n%s\n", archive, strings.Join(lines, "\n"))
+	return nil
+}
+
+func cmdDevlog(args []string) error {
+	fs := flag.NewFlagSet("devlog", flag.ExitOnError)
+	devFlag := fs.String("device", "", "device name or UDID; required if more than one is paired")
+	last := fs.Duration("last", 2*time.Minute, "how far back to look")
+	fs.Parse(args)
+	if fs.NArg() != 0 {
+		usage()
+	}
+	dev, err := pickDevice(*devFlag)
+	if err != nil {
+		return err
+	}
+	dir, err := os.MkdirTemp("", "iossign-devlog")
+	if err != nil {
+		return err
+	}
+	return showDeviceLog(dev.UDID, time.Now().Add(-*last), filepath.Join(dir, "device.logarchive"))
 }
 
 func cmdInstall(args []string) error {

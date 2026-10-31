@@ -51,4 +51,9 @@ iossign:
 	scp -r $(IOS_BUILD_HOST):perkeep/clients/mobile/ios/build/device/Perkeep.app $(IOS_SIGN_DIR)/
 	go run ./dev/iossign install $(if $(IOS_DEVICE),-device "$(IOS_DEVICE)") $(IOS_SIGN_DIR)/Perkeep.app
 
-.PHONY: iossign
+# iosdevlog prints the paired iPhone's recent log messages about code
+# signing and developer trust.
+iosdevlog:
+	go run ./dev/iossign devlog $(if $(IOS_DEVICE),-device "$(IOS_DEVICE)")
+
+.PHONY: iossign iosdevlog
