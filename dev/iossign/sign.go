@@ -37,6 +37,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -67,6 +68,46 @@ func entitlementsPlist(teamID, bundleID string, development bool) []byte {
 	}
 	b.WriteString("</dict>\n</plist>\n")
 	return b.Bytes()
+}
+
+// checkProfile verifies that the provisioning profile at path grants the
+// entitlements iossign signs with, so a mismatch fails here with a clear
+// error rather than as a vague launch failure on the device. tmpDir is
+// for scratch files.
+func checkProfile(path, tmpDir, teamID, bundleID string, development bool) error {
+	decoded := filepath.Join(tmpDir, "profile.plist")
+	if _, err := output("security", "cms", "-D", "-i", path, "-o", decoded); err != nil {
+		return err
+	}
+	// The whole profile can't be converted to JSON (it has dates and
+	// data), but these parts can.
+	var teams []string
+	var ents map[string]any
+	for key, dst := range map[string]any{"TeamIdentifier": &teams, "Entitlements": &ents} {
+		j, err := output("plutil", "-extract", key, "json", "-o", "-", decoded)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(j, dst); err != nil {
+			return fmt.Errorf("profile %s: %w", key, err)
+		}
+	}
+	return checkProfileEntitlements(teams, ents, teamID, bundleID, development)
+}
+
+func checkProfileEntitlements(teams []string, ents map[string]any, teamID, bundleID string, development bool) error {
+	if !slices.Contains(teams, teamID) {
+		return fmt.Errorf("provisioning profile is for team %v, but iossign.json has teamID %q", teams, teamID)
+	}
+	appID, _ := ents["application-identifier"].(string)
+	want := teamID + "." + bundleID
+	if appID != want && !(strings.HasSuffix(appID, ".*") && strings.HasPrefix(want, strings.TrimSuffix(appID, "*"))) {
+		return fmt.Errorf("provisioning profile is for application-identifier %q, not %q", appID, want)
+	}
+	if got, _ := ents["get-task-allow"].(bool); got != development {
+		return fmt.Errorf("provisioning profile has get-task-allow=%v; want %v", got, development)
+	}
+	return nil
 }
 
 // checkApp verifies that dir looks like an app bundle iossign knows how

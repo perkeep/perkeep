@@ -135,6 +135,33 @@ func TestEntitlements(t *testing.T) {
 	}
 }
 
+func TestCheckProfileEntitlements(t *testing.T) {
+	ents := func(appID string, gta bool) map[string]any {
+		return map[string]any{"application-identifier": appID, "get-task-allow": gta}
+	}
+	tests := []struct {
+		name  string
+		teams []string
+		ents  map[string]any
+		dev   bool
+		ok    bool
+	}{
+		{"exact dev", []string{"TEAM"}, ents("TEAM.org.example.app", true), true, true},
+		{"exact store", []string{"TEAM"}, ents("TEAM.org.example.app", false), false, true},
+		{"wildcard", []string{"TEAM"}, ents("TEAM.org.example.*", true), true, true},
+		{"wrong team", []string{"OTHER"}, ents("TEAM.org.example.app", true), true, false},
+		{"app ID prefix differs", []string{"TEAM"}, ents("PREFIX.org.example.app", true), true, false},
+		{"other app", []string{"TEAM"}, ents("TEAM.org.example.other", true), true, false},
+		{"store profile for dev", []string{"TEAM"}, ents("TEAM.org.example.app", false), true, false},
+	}
+	for _, tt := range tests {
+		err := checkProfileEntitlements(tt.teams, tt.ents, "TEAM", "org.example.app", tt.dev)
+		if (err == nil) != tt.ok {
+			t.Errorf("%s: err = %v; want ok=%v", tt.name, err, tt.ok)
+		}
+	}
+}
+
 func TestParseIdentities(t *testing.T) {
 	out := `  1) 0123456789ABCDEF0123456789ABCDEF01234567 "Apple Development: Jane Doe (ABC123)"
   2) 89ABCDEF0123456789ABCDEF0123456789ABCDEF "Apple Distribution: Jane Doe (TEAM)"
