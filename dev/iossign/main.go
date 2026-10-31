@@ -276,14 +276,21 @@ func (j *job) diagnoseLaunch(udid string) {
 		fmt.Printf("Couldn't collect device log: %v\n", err)
 		return
 	}
-	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--style", "compact", "--predicate",
-		`process IN {"amfid", "misagent"} OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "`+j.cfg.BundleID+`"`).CombinedOutput()
+	// Look for messages about signatures, profiles, and trust from the
+	// processes that decide whether an app may run. Install progress
+	// messages mention the bundle ID too but aren't interesting.
+	predicate := `process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard", "kernel"}` +
+		` AND (eventMessage CONTAINS[c] "` + j.cfg.BundleID + `" OR eventMessage CONTAINS[c] "iossign"` +
+		` OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "signature" OR eventMessage CONTAINS[c] "trust"` +
+		` OR eventMessage CONTAINS[c] "profile" OR eventMessage CONTAINS[c] "entitlement")` +
+		` AND NOT eventMessage CONTAINS "MILaunchServicesOperationManager"`
+	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--style", "compact", "--predicate", predicate).CombinedOutput()
 	if err != nil {
 		fmt.Printf("log show: %v\n", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) > 80 {
-		lines = lines[len(lines)-80:]
+	if len(lines) > 200 {
+		lines = lines[:200]
 	}
 	fmt.Printf("\n==> Relevant device log lines (full log in %s)\n%s\n", archive, strings.Join(lines, "\n"))
 }
