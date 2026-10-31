@@ -284,7 +284,7 @@ func (j *job) diagnoseLaunch(udid string, since time.Time) {
 	// whether an app may run, except routine install bookkeeping. The
 	// kernel is too chatty to include except for AMFI, which enforces
 	// code signing.
-	predicate := `(process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard", "lsd", "runningboardd"}` +
+	predicate := `(process IN {"amfid", "misagent", "online-auth-agent", "installd", "SpringBoard"}` +
 		` OR (process == "kernel" AND eventMessage CONTAINS "AMFI"))` +
 		` AND NOT eventMessage CONTAINS "MILaunchServicesOperationManager"`
 	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--start", start,
