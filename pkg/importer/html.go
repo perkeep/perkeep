@@ -273,7 +273,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
   {{range .Rows}}
     <tr>
       {{if $.ShowType}}<td><a href="{{.Importer.URL}}">{{.Importer.Title}}</a></td>{{end}}
-      <td><a href="{{.Acct.AccountURL}}">{{.Name}}</a></td>
+      <td><a href="{{.Acct.AccountURL}}">{{or .Name "(unnamed)"}}</a></td>
       <td><input type="checkbox" disabled{{if .Auto}} checked title="Imports every {{.Auto}}"{{else}} title="Imports only when started"{{end}}></td>
       <td{{if .Running}} class="running"{{else if .Failed}} class="failed"{{end}}>{{.Status}}</td>
       <td>{{if .Root.Valid}}{{$root := .Root}}{{with bloburl $root}}<a class="ref" href="{{.}}">{{shortref $root}}</a>{{else}}<span class="ref">{{shortref $root}}</span>{{end}}{{end}}</td>

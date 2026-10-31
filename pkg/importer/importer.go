@@ -300,13 +300,13 @@ func NewHost(hc HostConfig) (*Host, error) {
 			if h.uiPrefix == "" {
 				return template.HTML(br.String())
 			}
-			return template.HTML(fmt.Sprintf("<a href=\"%s/%s\">%s</a>", h.uiPrefix, br, br))
+			return template.HTML(fmt.Sprintf("<a href=\"%s%s\">%s</a>", h.uiPrefix, br, br))
 		},
 		"bloburl": func(br blob.Ref) string {
 			if h.uiPrefix == "" {
 				return ""
 			}
-			return h.uiPrefix + "/" + br.String()
+			return h.uiPrefix + br.String()
 		},
 	})
 	for k, impl := range importers {
@@ -548,7 +548,7 @@ type Host struct {
 	blobSource    blob.Fetcher // e.g. twitter reading zip file
 	search        search.QueryDescriber
 	signer        *schema.Signer
-	uiPrefix      string          // or empty if no UI handler
+	uiPrefix      string          // with a trailing slash, or empty if no UI handler
 	health        *health.Monitor // or nil; no runs start while it's read-only
 
 	cache     sorted.KeyValue // explicitly injected caller-owned backing; otherwise nil
