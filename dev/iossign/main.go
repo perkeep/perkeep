@@ -277,7 +277,7 @@ func (j *job) diagnoseLaunch(udid string) {
 		return
 	}
 	out, err := exec.Command("sudo", "/usr/bin/log", "show", archive, "--style", "compact", "--predicate",
-		`process == "amfid" OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "`+j.cfg.BundleID+`"`).CombinedOutput()
+		`process IN {"amfid", "misagent"} OR eventMessage CONTAINS "AMFI" OR eventMessage CONTAINS[c] "`+j.cfg.BundleID+`"`).CombinedOutput()
 	if err != nil {
 		fmt.Printf("log show: %v\n", err)
 	}
