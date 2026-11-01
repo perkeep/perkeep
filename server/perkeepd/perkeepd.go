@@ -515,6 +515,11 @@ func main() {
 	config.SetReindex(*flagReindex)
 	config.SetKeepGoing(*flagKeepGoing)
 	config.SetHealth(mon)
+	if dir, err := osutil.CamliVarDir(); err != nil {
+		log.Printf("access: no Access page: %v", err)
+	} else {
+		config.SetAccessStateFile(filepath.Join(dir, "tailcat.json"))
+	}
 
 	// Finally, install the handlers. This also does the final config
 	// validation. Only handlers that need the base URL while they're

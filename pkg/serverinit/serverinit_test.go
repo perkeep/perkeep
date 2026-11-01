@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -36,6 +37,7 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
+	"golang.org/x/net/xsrftoken"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
@@ -741,5 +743,100 @@ func TestInstallHandlersLazyBaseURL(t *testing.T) {
 	hi.ServeHTTP(rec, req)
 	if rec.Code == http.StatusInternalServerError {
 		t.Errorf("blob handler: got %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestAccessPage(t *testing.T) {
+	srcRoot, err := osutil.PkSourceRoot()
+	if err != nil {
+		t.Fatalf("source root folder not found: %v", err)
+	}
+	conf := serverinit.DefaultBaseConfig
+	conf.Auth = "userpass:owner:pw"
+	conf.Identity = "26F5ABDA"
+	conf.IdentitySecretRing = filepath.Join(srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
+	conf.MemoryStorage = true
+	conf.MemoryIndex = true
+	confData, err := json.Marshal(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	lowConf, err := serverinit.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lowConf.SetAccessStateFile(filepath.Join(t.TempDir(), "tailcat.json"))
+	mux := http.NewServeMux()
+	shutdown, err := lowConf.InstallHandlers(mux, "http://example.invalid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { shutdown.Close() })
+
+	get := func(path, user, pass string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", path, nil)
+		if user != "" {
+			r.SetBasicAuth(user, pass)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		return w
+	}
+	if w := get(serverinit.AccessPath, "", ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("without auth: %v; want 401", w.Code)
+	}
+	if w := get(serverinit.AccessPath, "owner", "pw"); w.Code != 200 || !strings.Contains(w.Body.String(), "Access keys") {
+		t.Errorf("with auth: %v: %s", w.Code, w.Body)
+	}
+	// The tailcat listener's health check is on the status page.
+	if w := get("/status/", "owner", "pw"); w.Code != 200 || !strings.Contains(w.Body.String(), "access.tailcat[access]") {
+		t.Errorf("status page lacks the tailcat health check: %v: %s", w.Code, w.Body)
+	}
+
+	// Create an access key on the page, as the owner.
+	form := url.Values{
+		"action": {"create"},
+		"name":   {"phone"},
+		"perm":   {"upload"},
+		"token":  {xsrftoken.Generate(auth.Token(), "user", "access")},
+	}
+	r := httptest.NewRequest("POST", serverinit.AccessPath, strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.SetBasicAuth("owner", "pw")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusFound {
+		t.Fatalf("creating access key: %v: %s", w.Code, w.Body)
+	}
+	page := get(w.Header().Get("Location"), "owner", "pw").Body.String()
+	m := regexp.MustCompile(`class="secret" readonly value="([^"]+)"`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("no access key secret in page: %s", page)
+	}
+	secret := m[1]
+
+	// On the usual listener, the key allows discovery, but discovery
+	// doesn't give it the web UI's token, which allows everything.
+	discoToken := func(user, pass string) string {
+		t.Helper()
+		w := get("/?camli.mode=config", user, pass)
+		if w.Code != 200 {
+			t.Fatalf("discovery as %q: %v: %s", user, w.Code, w.Body)
+		}
+		var d struct{ AuthToken string }
+		if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
+			t.Fatalf("discovery as %q: %v: %s", user, err, w.Body)
+		}
+		return d.AuthToken
+	}
+	if tok := discoToken("owner", "pw"); tok == "" {
+		t.Error("discovery as the owner has no auth token")
+	}
+	if tok := discoToken("anyone", secret); tok != "" {
+		t.Errorf("discovery with an access key has auth token %q", tok)
+	}
+	if w := get(serverinit.AccessPath, "anyone", secret); w.Code != http.StatusUnauthorized {
+		t.Errorf("Client access page with an access key: %v; want 401", w.Code)
 	}
 }
