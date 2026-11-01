@@ -63,6 +63,11 @@ type Metadata struct {
 	// Rotation is how many degrees clockwise the main video track is
 	// rotated for display: 0, 90, 180, or 270.
 	Rotation int
+
+	// Created is when the movie was recorded, or zero if unknown: its
+	// KeyCreationDate item, which is in the time zone it was recorded
+	// in, or else its movie header's creation time.
+	Created time.Time
 }
 
 // ErrNoMovie is returned by ReadMetadata when the input has no movie
@@ -110,6 +115,7 @@ func findMovie(r io.ReaderAt, size int64) (io.Reader, error) {
 func readMovie(moov io.Reader) (*Metadata, error) {
 	md := &Metadata{}
 	var tracks []*track
+	var headerCreated time.Time
 	br := bmff.NewReader(moov)
 	for {
 		b, err := br.ReadBox()
@@ -117,6 +123,10 @@ func readMovie(moov io.Reader) (*Metadata, error) {
 			if t := mainVideoTrack(tracks); t != nil {
 				md.Width, md.Height = t.displaySize()
 				md.Rotation = t.rotation
+			}
+			md.Created = parseCreationDate(md.Items[KeyCreationDate])
+			if md.Created.IsZero() {
+				md.Created = headerCreated
 			}
 			return md, nil
 		}
@@ -129,7 +139,9 @@ func readMovie(moov io.Reader) (*Metadata, error) {
 			if err != nil {
 				return nil, fmt.Errorf("quicktime: %w", err)
 			}
-			md.Duration = duration(pb.(*bmff.MovieHeaderBox))
+			mh := pb.(*bmff.MovieHeaderBox)
+			md.Duration = duration(mh)
+			headerCreated = headerTime(mh.CreationTime)
 		case b.Type() == bmff.TypeMeta && b.Size() > 0 && b.Size() <= maxMetaSize:
 			pb, err := b.Parse()
 			if err != nil {
@@ -161,6 +173,33 @@ func duration(mh *bmff.MovieHeaderBox) time.Duration {
 		return 0
 	}
 	return time.Duration(secs * float64(time.Second))
+}
+
+// quickTimeEpoch is the time that movie headers' times count seconds
+// from.
+var quickTimeEpoch = time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// headerTime returns the time of a movie header's creation or
+// modification time, secs. Writers that don't know it write zero, and
+// some count from 1970 rather than 1904, which comes out before 1970,
+// so those are zero too, rather than guessed at.
+func headerTime(secs uint64) time.Time {
+	const unix1970 = 2082844800 // 1970-01-01, in seconds since 1904
+	if secs <= unix1970 || secs > math.MaxInt64/uint64(time.Second) {
+		return time.Time{}
+	}
+	return quickTimeEpoch.Add(time.Duration(secs) * time.Second)
+}
+
+// parseCreationDate parses a KeyCreationDate item, such as
+// "2024-05-30T18:48:50-0700", returning zero if it can't.
+func parseCreationDate(s string) time.Time {
+	for _, layout := range []string{"2006-01-02T15:04:05Z0700", time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 // metaItems returns the items of an "mdta" metadata box, or nil if mb

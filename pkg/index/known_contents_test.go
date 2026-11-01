@@ -19,6 +19,7 @@ package index_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -46,8 +47,8 @@ func newKnownContentsDeps(t *testing.T) *indextest.IndexDeps {
 }
 
 // uploadRenamed indexes a file schema named name with the same parts as
-// the file fileRef.
-func uploadRenamed(t *testing.T, id *indextest.IndexDeps, fileRef blob.Ref, name string) blob.Ref {
+// the file fileRef, and modTime, unless it's zero.
+func uploadRenamed(t *testing.T, id *indextest.IndexDeps, fileRef blob.Ref, name string, modTime time.Time) blob.Ref {
 	t.Helper()
 	ctx := context.Background()
 	rc, _, err := id.BlobSource.Fetch(ctx, fileRef)
@@ -59,7 +60,10 @@ func uploadRenamed(t *testing.T, id *indextest.IndexDeps, fileRef blob.Ref, name
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := schema.NewFileMap(name).SetModTime(time.Unix(1800000000, 0))
+	m := schema.NewFileMap(name)
+	if !modTime.IsZero() {
+		m.SetModTime(modTime)
+	}
 	if err := m.PopulateParts(orig.PartsSize(), orig.ByteParts()); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +93,7 @@ func TestKnownContents(t *testing.T) {
 	if err := id.BlobSource.RemoveBlobs(ctx, []blob.Ref{whole}); err != nil {
 		t.Fatal(err)
 	}
-	b := uploadRenamed(t, id, a, "b.bin")
+	b := uploadRenamed(t, id, a, "b.bin", time.Unix(1800000000, 0))
 	fi, err := id.Index.GetFileInfo(ctx, b)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +125,7 @@ func TestKnownContentsImage(t *testing.T) {
 		t.Fatalf("test JPEG is only %d bytes; want more than the image prefix", buf.Len())
 	}
 	a, whole := id.UploadFile("a.jpg", buf.String(), time.Unix(1700000000, 0))
-	b := uploadRenamed(t, id, a, "b.jpg")
+	b := uploadRenamed(t, id, a, "b.jpg", time.Unix(1800000000, 0))
 
 	fi, err := id.Index.GetFileInfo(ctx, b)
 	if err != nil {
@@ -136,5 +140,58 @@ func TestKnownContentsImage(t *testing.T) {
 	}
 	if ii.Width != 1200 || ii.Height != 900 {
 		t.Errorf("b.jpg's image info = %+v; want 1200x900", ii)
+	}
+}
+
+// quickTimeMovie returns a QuickTime movie of the given media data size
+// whose com.apple.quicktime.creationdate is created.
+func quickTimeMovie(mdatSize int, created string) []byte {
+	box := func(typ string, body ...[]byte) []byte {
+		b := bytes.Join(body, nil)
+		return append(append(binary.BigEndian.AppendUint32(nil, uint32(8+len(b))), typ...), b...)
+	}
+	u32 := func(v uint32) []byte { return binary.BigEndian.AppendUint32(nil, v) }
+	const key = "com.apple.quicktime.creationdate"
+	meta := box("meta",
+		box("hdlr", make([]byte, 8), []byte("mdta"), make([]byte, 12)),
+		box("keys", u32(0), u32(1), u32(8+uint32(len(key))), []byte("mdta"+key)),
+		box("ilst", box(string(u32(1)), box("data", u32(1), u32(0), []byte(created)))),
+	)
+	mvhd := box("mvhd", u32(0), u32(0), u32(0), u32(600), u32(600), make([]byte, 80))
+	return bytes.Join([][]byte{
+		box("ftyp", []byte("qt  "), u32(0), []byte("qt  ")),
+		box("mdat", make([]byte, mdatSize)),
+		box("moov", mvhd, meta),
+	}, nil)
+}
+
+// TestKnownContentsVideoTime checks that a video's time is when it was
+// recorded, even for a file without a modtime whose contents are known.
+func TestKnownContentsVideoTime(t *testing.T) {
+	ctx := context.Background()
+	id := newKnownContentsDeps(t)
+	movie := quickTimeMovie(1<<20, "2024-05-30T18:48:50-0700")
+	recorded := time.Date(2024, 5, 31, 1, 48, 50, 0, time.UTC)
+	exported := time.Date(2026, 10, 31, 17, 28, 2, 0, time.UTC)
+	a, _ := id.UploadFile("a.mov", string(movie), exported)
+	b := uploadRenamed(t, id, a, "b.mov", time.Time{})
+	for _, tt := range []struct {
+		file          blob.Ref
+		time, modTime time.Time
+	}{
+		{a, recorded, exported},
+		{b, recorded, time.Time{}},
+	} {
+		fi, err := id.Index.GetFileInfo(ctx, tt.file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Time == nil || !time.Time(*fi.Time).Equal(tt.time) {
+			t.Errorf("%s's time = %v; want %v", fi.FileName, fi.Time, tt.time)
+		}
+		gotMod := fi.ModTime != nil
+		if gotMod != !tt.modTime.IsZero() || gotMod && !time.Time(*fi.ModTime).Equal(tt.modTime) {
+			t.Errorf("%s's modtime = %v; want %v", fi.FileName, fi.ModTime, tt.modTime)
+		}
 	}
 }
