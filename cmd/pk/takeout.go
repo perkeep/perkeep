@@ -425,11 +425,13 @@ func (s *takeoutStore) Has(ctx context.Context, size int64, crc32 uint32) (bool,
 	return len(res.Blobs) > 0, nil
 }
 
+// Put uploads the contents r of e. It records no modification time:
+// Takeout's zip files give each entry the time the export was made,
+// which says nothing of the photo. Its date is in its sidecar, which
+// syncing metadata sets on its permanode.
 func (s *takeoutStore) Put(ctx context.Context, e takeout.Entry, r io.Reader) error {
-	modTime := e.File.Modified
 	res, err := upload.NewFileFromReader(s.c, path.Base(e.File.Name), r, &upload.Options{
 		Limiter: s.lim,
-		ModTime: modTime,
 	}).Run(ctx)
 	if err != nil {
 		return err
@@ -440,10 +442,7 @@ func (s *takeoutStore) Put(ctx context.Context, e takeout.Entry, r io.Reader) er
 	if len(res.WholeRefs) == 0 {
 		return fmt.Errorf("no whole-file ref for %v to make its permanode", res.FileRef)
 	}
-	if modTime.IsZero() {
-		modTime = time.Now()
-	}
-	return s.putPermanode(ctx, res.WholeRefs[0].String(), res.FileRef.String(), modTime)
+	return s.putPermanode(ctx, res.WholeRefs[0].String(), res.FileRef.String(), time.Now())
 }
 
 // putPermanode uploads the planned permanode of contents with the

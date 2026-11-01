@@ -64,6 +64,10 @@ func readArchiveTree(t *testing.T, st *takeoutStore, dir blob.Ref) (files map[st
 				walk(m, prefix+name+"/")
 			}
 		case schema.TypeFile:
+			// Its zip entry's time is when the export was made.
+			if mt := b.ModTime(); !mt.IsZero() {
+				t.Errorf("%s%s has modtime %v, from its zip entry; want none", prefix, name, mt)
+			}
 			fr, err := schema.NewFileReader(ctx, st.c, br)
 			if err != nil {
 				t.Fatal(err)
