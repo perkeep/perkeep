@@ -32,10 +32,15 @@ import (
 	"perkeep.org/pkg/schema"
 )
 
+// digestsSchemaVersion is the index schema version that addDigests
+// upgrades version 10 indexes to.
+const digestsSchemaVersion = 11
+
 // isDigestsUpgrade reports whether an index of schemaVersion can be
-// upgraded to the required version by addDigests, without a reindex.
+// upgraded to the required version by addDigests, and the upgrades after
+// it, without a reindex.
 func isDigestsUpgrade(schemaVersion int) bool {
-	return schemaVersion == 10 && requiredSchemaVersion == 11
+	return schemaVersion == 10 && isVideoTimesUpgrade(digestsSchemaVersion)
 }
 
 var errMissingDigests = errors.New("index: missing the file digest rows of index schema version 11")
@@ -62,7 +67,7 @@ func (x *Index) addDigests(ctx context.Context, fetcher blob.Fetcher) (err error
 		panic("addDigests should only be used when upgrading from v10 to v11 of the index schema")
 	}
 	start := time.Now()
-	x.logf("upgrading index schema from version 10 to %d by adding file digests...", requiredSchemaVersion)
+	x.logf("upgrading index schema from version 10 to %d by adding file digests...", digestsSchemaVersion)
 	defer func() {
 		if err != nil {
 			x.logf("adding file digests failed: %v", err)
@@ -157,10 +162,10 @@ func (x *Index) addDigests(ctx context.Context, fetcher blob.Fetcher) (err error
 	if err := commit(); err != nil {
 		return err
 	}
-	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion)); err != nil {
-		return fmt.Errorf("could not write index schema version %d: %w", requiredSchemaVersion, err)
+	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(digestsSchemaVersion)); err != nil {
+		return fmt.Errorf("could not write index schema version %d: %w", digestsSchemaVersion, err)
 	}
-	x.logf("upgraded index schema to version %d in %v; %d file contents failed", requiredSchemaVersion, time.Since(start).Round(time.Millisecond), failed.Load())
+	x.logf("upgraded index schema to version %d in %v; %d file contents failed", digestsSchemaVersion, time.Since(start).Round(time.Millisecond), failed.Load())
 	return nil
 }
 

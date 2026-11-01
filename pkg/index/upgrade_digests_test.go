@@ -66,7 +66,7 @@ func TestAddDigests(t *testing.T) {
 		fileRefs[f.name] = file.BlobRef()
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "11"
+	want[keySchemaVersion.name] = "12"
 	for _, data := range []string{"hello", "already has digests"} {
 		wantDigestRows := make(map[string]string)
 		addWantDigestRows(wantDigestRows, []byte(data))
@@ -119,9 +119,7 @@ func TestAddDigests(t *testing.T) {
 	if fetched, _ := sto.Stats(); fetched-fetched0 != 4 {
 		t.Errorf("addDigests fetched %d blobs; want 4", fetched-fetched0)
 	}
-	if _, err := New(kv); err != nil {
-		t.Fatalf("New after upgrade: %v", err)
-	}
+	upgradeVideoTimes(t, kv, sto)
 
 	got := make(map[string]string)
 	it := kv.Find("", "")

@@ -36,9 +36,10 @@ import (
 // Version 9: video sizes as media tags, and 3GPP and AVI video media tags.
 // Version 10: HEIC files recognized by any of their HEVC brands, major or compatible.
 // Version 11: digests of file contents (see DigestTypes).
+// Version 12: QuickTime and MP4 videos' recording times in their file times.
 // Versions 7 to 9 are upgraded at startup, by addMediaTags, and then
-// version 10 by addDigests.
-const requiredSchemaVersion = 11
+// version 10 by addDigests, and version 11 by addVideoTimes.
+const requiredSchemaVersion = 12
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)

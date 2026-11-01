@@ -1026,28 +1026,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		}
 	}
 
-	var sortTimes []time.Time
-	for _, t := range times {
-		if !t.IsZero() {
-			sortTimes = append(sortTimes, t)
-		}
-	}
-	sort.Sort(types.ByTime(sortTimes))
-	var time3339s string
-	switch {
-	case len(sortTimes) == 1:
-		time3339s = types.Time3339(sortTimes[0]).String()
-	case len(sortTimes) >= 2:
-		oldest, newest := sortTimes[0], sortTimes[len(sortTimes)-1]
-		// Common enough exception: unset creation time from an MSDOS
-		// system (which is the default in zip files). So if we have
-		// another time to use, just ignore the MSDOS epoch one.
-		if oldest.After(msdosEpochTime) {
-			time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
-		} else {
-			time3339s = types.Time3339(newest).String()
-		}
-	}
+	time3339s := fileTimesValue(times)
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mimeType, wholeRef))
@@ -1075,6 +1054,33 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 // knownContentsCandidates is how many indexed files of the same size
 // knownContents compares a file's parts with, at most.
 const knownContentsCandidates = 16
+
+// fileTimesValue returns a file's keyFileTimes value, given its creation
+// and modification times, some of which may be zero: its oldest and
+// newest times, or its one time, or "" without any.
+func fileTimesValue(times []time.Time) string {
+	var sortTimes []time.Time
+	for _, t := range times {
+		if !t.IsZero() {
+			sortTimes = append(sortTimes, t)
+		}
+	}
+	sort.Sort(types.ByTime(sortTimes))
+	switch {
+	case len(sortTimes) == 1:
+		return types.Time3339(sortTimes[0]).String()
+	case len(sortTimes) >= 2:
+		oldest, newest := sortTimes[0], sortTimes[len(sortTimes)-1]
+		// Common enough exception: unset creation time from an MSDOS
+		// system (which is the default in zip files). So if we have
+		// another time to use, just ignore the MSDOS epoch one.
+		if oldest.After(msdosEpochTime) {
+			return types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
+		}
+		return types.Time3339(newest).String()
+	}
+	return ""
+}
 
 // knownContents returns the wholeRef of the contents of b, a file schema
 // blob, if a file indexed in the corpus has exactly b's parts, and so the
