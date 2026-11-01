@@ -63,16 +63,40 @@ struct UploadView: View {
                             .contentTransition(.numericText())
                     }
                 }
-                if model.counted && !model.items.isEmpty {
-                    let done = model.items.count - model.toUpload
-                    ProgressView(value: Double(done), total: Double(model.items.count))
-                    Text("\(done.formatted()) of \(model.items.count.formatted()) on the server")
+                if let p = progress {
+                    ProgressView(value: p.value, total: max(p.total, 1))
+                    Text(p.label)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }
             }
-            .animation(.default, value: model.toUpload)
+            .animation(.default, value: progress?.label)
+        }
+    }
+
+    /// progress is the progress of the phase running, or else how many of
+    /// the items are on the server, or nil if there's nothing to show.
+    private var progress: (value: Double, total: Double, label: String)? {
+        let n = model.items.count
+        switch model.phase {
+        case .counting where model.assetCount > 0:
+            return (Double(model.assetsSeen), Double(model.assetCount),
+                    "\(model.assetsSeen.formatted()) of \(model.assetCount.formatted()) photos and videos looked at")
+        case .counting, .connecting:
+            return nil
+        case .hashing:
+            return (Double(model.hashedBytes), Double(model.totalBytes),
+                    "\(model.hashedCount.formatted()) of \(n.formatted()) files hashed · "
+                        + "\(Self.bytes(model.hashedBytes)) of \(Self.bytes(model.totalBytes))")
+        case .finding:
+            let asked = model.onServer.count + model.missing.count
+            return (Double(asked), Double(model.hashedCount),
+                    "\(asked.formatted()) of \(model.hashedCount.formatted()) hashed files checked")
+        case .idle, .uploading:
+            guard model.counted, n > 0 else { return nil }
+            let done = n - model.toUpload
+            return (Double(done), Double(n), "\(done.formatted()) of \(n.formatted()) on the server")
         }
     }
 
@@ -112,8 +136,7 @@ struct UploadView: View {
                 statHeader("On this phone")
                 GridRow {
                     Text("Photos & videos")
-                    Text((model.phase == .counting ? model.assetsSeen : model.assetCount).formatted())
-                        .gridColumnAlignment(.trailing)
+                    Self.number((model.phase == .counting ? model.assetsSeen : model.assetCount).formatted())
                     Text(model.phase == .counting && model.assetCount > 0 ? "of \(model.assetCount.formatted())" : "")
                         .foregroundStyle(.secondary)
                 }
@@ -137,23 +160,18 @@ struct UploadView: View {
                 }
                 GridRow {
                     Text("Sent")
-                    Text(Self.bytes(model.totals.bytesUploaded))
-                        .gridColumnAlignment(.trailing)
+                    Self.number(Self.bytes(model.totals.bytesUploaded))
                     Text("\(model.totals.chunksUploaded.formatted()) chunks")
                         .foregroundStyle(.secondary)
                 }
                 GridRow {
                     Text("Skipped")
-                    Text("")
+                    Self.number("")
                     Text("\(model.totals.chunksPresent.formatted()) chunks there")
                         .foregroundStyle(.secondary)
                 }
             }
             .font(.subheadline.monospacedDigit())
-            .contentTransition(.numericText())
-            .animation(.default, value: model.totals.bytesUploaded)
-            .animation(.default, value: model.hashedCount)
-            .animation(.default, value: model.uploaded.count)
         } footer: {
             if model.counted {
                 Text("Files include Live Photos' videos, and both versions of edited photos."
@@ -173,11 +191,24 @@ struct UploadView: View {
     private func stat(_ label: String, _ n: Int, _ bytes: Int64?, note: String? = nil) -> some View {
         GridRow {
             Text(label)
-            Text(n.formatted())
-                .gridColumnAlignment(.trailing)
+            Self.number(n.formatted())
             Text([bytes.map(Self.bytes), note].compactMap { $0 }.joined(separator: " · "))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// number is a grid cell of a number, right-aligned in a column as wide
+    /// as the widest number expected, so the grid's columns don't move as
+    /// the numbers change.
+    private static func number(_ s: String) -> some View {
+        ZStack(alignment: .trailing) {
+            Text("888,888").hidden()
+            Text("888.8 MB").hidden()
+            Text(s)
+                .contentTransition(.numericText())
+                .animation(.default, value: s)
+        }
+        .gridColumnAlignment(.trailing)
     }
 
     static func bytes(_ n: Int64) -> String {

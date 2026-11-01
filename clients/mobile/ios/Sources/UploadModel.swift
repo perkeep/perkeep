@@ -271,8 +271,10 @@ final class UploadModel: ObservableObject {
         try await find(items.filter { refs[$0.id] != nil && !onServer.contains($0.id) })
     }
 
-    /// find asks the server which of the hashed items it has.
-    private func find(_ batch: [MediaItem]) async throws {
+    /// find asks the server which of the hashed items it has. It returns
+    /// false if the server couldn't say, as without the Search permission.
+    @discardableResult
+    private func find(_ batch: [MediaItem]) async throws -> Bool {
         struct Item: Encodable, Sendable { var key: String; var refs: [String] }
         struct Req: Encodable, Sendable { var items: [Item] }
         struct Resp: Decodable { var present: [String]; var missing: [String]; var error: String? }
@@ -288,23 +290,146 @@ final class UploadModel: ObservableObject {
                 // Without search, uploading still works: the server's
                 // chunks are found as they're uploaded.
                 notice = e
-                return
+                return false
+            }
+        }
+        return true
+    }
+
+    // The upload pipeline's state. Upload hashes items ahead of uploading
+    // them, at full speed, asks the server about them in batches as
+    // they're hashed, and uploads those it lacks. Upload workers with
+    // nothing to upload take an unhashed item and do all three.
+    private var hashCursor = 0             // into items: those before it are hashed or taken
+    private var taken: Set<String> = []    // items being hashed or uploaded
+    private var toCheck: [MediaItem] = []  // hashed, not yet asked about
+    private var uploadQueue: [MediaItem] = []
+    private var hashingDone = false
+    private var searchFailed = false
+
+    /// checkBatchSize is how many newly hashed items are asked about at once.
+    private static let checkBatchSize = 50
+
+    private func uploadAll() async throws {
+        try await prepare()
+        phase = .uploading
+        MediaLibrary.clearTemp()
+        hashCursor = 0
+        taken = []
+        toCheck = []
+        hashingDone = false
+        searchFailed = false
+        uploadQueue = items.filter { missing.contains($0.id) && !uploaded.contains($0.id) }
+        let poller = Task { await pollUploads() }
+        defer { poller.cancel() }
+        try await withThrowingTaskGroup(of: Void.self) { g in
+            g.addTask { try await self.hashAhead() }
+            for _ in 0..<Self.maxUploads {
+                g.addTask { try await self.uploadWorker() }
+            }
+            try await g.waitForAll()
+        }
+    }
+
+    /// hashAhead hashes the items not yet hashed and asks the server about
+    /// them, queueing those it lacks for uploading.
+    private func hashAhead() async throws {
+        defer { hashingDone = true }
+        // First, those hashed before but not yet asked about.
+        try await check(items.filter {
+            refs[$0.id] != nil && !onServer.contains($0.id) && !missing.contains($0.id) && !uploaded.contains($0.id)
+        })
+        try await withThrowingTaskGroup(of: Void.self) { g in
+            for _ in 0..<Self.maxHashing {
+                g.addTask { try await self.hashWorker() }
+            }
+            try await g.waitForAll()
+        }
+        try await flushChecks()
+    }
+
+    /// hashWorker hashes items until there are none left, asking the
+    /// server about them in batches.
+    private func hashWorker() async throws {
+        while let item = nextToHash() {
+            try await skippingFailure(item) {
+                let url = try await MediaLibrary.export(item)
+                defer { try? FileManager.default.removeItem(at: url) }
+                _ = try await self.hash(item, file: url)
+            }
+            taken.remove(item.id)
+            if refs[item.id] != nil {
+                toCheck.append(item)
+            }
+            if toCheck.count >= Self.checkBatchSize {
+                try await flushChecks()
             }
         }
     }
 
-    private func uploadAll() async throws {
-        try await prepare()
-        phase = .finding
-        try await find(items.filter { refs[$0.id] != nil && !onServer.contains($0.id) && !missing.contains($0.id) })
-        phase = .uploading
-        MediaLibrary.clearTemp()
-        let poller = Task { await pollUploads() }
-        defer { poller.cancel() }
-        let todo = items.filter { !onServer.contains($0.id) && !uploaded.contains($0.id) }
-        try await forEach(todo, limit: Self.maxUploads) { item in
-            try await self.skippingFailure(item) { try await self.uploadOne(item) }
+    /// nextToHash takes the next item that isn't hashed, or returns nil if
+    /// there are none left.
+    private func nextToHash() -> MediaItem? {
+        while hashCursor < items.count {
+            let item = items[hashCursor]
+            hashCursor += 1
+            if refs[item.id] == nil && !taken.contains(item.id) && !uploaded.contains(item.id) {
+                taken.insert(item.id)
+                return item
+            }
         }
+        return nil
+    }
+
+    private func flushChecks() async throws {
+        let batch = toCheck
+        toCheck = []
+        try await check(batch)
+    }
+
+    /// check asks the server about the hashed items, and queues those it
+    /// lacks for uploading: all of them, if it can't say.
+    private func check(_ batch: [MediaItem]) async throws {
+        guard !batch.isEmpty else { return }
+        if !searchFailed, try await !find(batch) {
+            searchFailed = true
+        }
+        for item in batch where !onServer.contains(item.id) && !uploaded.contains(item.id) {
+            if searchFailed || missing.contains(item.id) {
+                uploadQueue.append(item)
+            }
+        }
+    }
+
+    /// uploadWorker uploads queued items until there are none left and
+    /// hashing is done, helping hash when there's nothing to upload yet.
+    private func uploadWorker() async throws {
+        while true {
+            try Task.checkCancellation()
+            if let item = nextToUpload() {
+                try await skippingFailure(item) { try await self.uploadOne(item) }
+                taken.remove(item.id)
+            } else if let item = nextToHash() {
+                // Nothing to upload yet: hash one, and upload it if needed.
+                try await skippingFailure(item) { try await self.uploadOne(item) }
+                taken.remove(item.id)
+            } else if hashingDone && toCheck.isEmpty {
+                return
+            } else {
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    private func nextToUpload() -> MediaItem? {
+        while !uploadQueue.isEmpty {
+            let item = uploadQueue.removeFirst()
+            if !uploaded.contains(item.id) && !onServer.contains(item.id) && !taken.contains(item.id) {
+                taken.insert(item.id)
+                return item
+            }
+        }
+        return nil
     }
 
     /// uploadOne exports, hashes (if needed), checks, and uploads one item.
@@ -324,7 +449,9 @@ final class UploadModel: ObservableObject {
         if itemRefs == nil {
             setInFlight(item.id, phase: "hashing")
             itemRefs = try await hash(item, file: url)
-            try await find([item])
+            if !searchFailed, try await !find([item]) {
+                searchFailed = true
+            }
             if onServer.contains(item.id) {
                 return
             }
