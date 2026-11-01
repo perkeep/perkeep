@@ -44,10 +44,12 @@ import (
 	"time"
 )
 
-// entitlementsPlist returns the entitlements to sign the app with.
-// They're derived only from iossign's own configuration, never from the
-// artifact being signed.
-func entitlementsPlist(teamID, bundleID string, development bool) []byte {
+// entitlementsPlist returns the entitlements to sign a bundle (the app
+// or an extension) with. They're derived only from iossign's own
+// configuration, never from the artifact being signed. keychainGroup is
+// the keychain access group the app and its extensions share, which is
+// first, so where their keychain items go by default.
+func entitlementsPlist(teamID, bundleID, keychainGroup string, development bool) []byte {
 	var b bytes.Buffer
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -64,6 +66,9 @@ func entitlementsPlist(teamID, bundleID string, development bool) []byte {
 	}
 	str("application-identifier", teamID+"."+bundleID)
 	str("com.apple.developer.team-identifier", teamID)
+	b.WriteString("\t<key>keychain-access-groups</key>\n\t<array>\n\t\t<string>")
+	xml.EscapeText(&b, []byte(keychainGroup))
+	b.WriteString("</string>\n\t</array>\n")
 	boolean("get-task-allow", development)
 	if !development {
 		boolean("beta-reports-active", true)
@@ -77,7 +82,7 @@ func entitlementsPlist(teamID, bundleID string, development bool) []byte {
 // error rather than as a vague launch failure on the device. If udid is
 // non-empty, the profile must also list that device. tmpDir is for
 // scratch files.
-func checkProfile(path, tmpDir, teamID, bundleID string, development bool, udid string) error {
+func checkProfile(path, tmpDir, teamID, bundleID, keychainGroup string, development bool, udid string) error {
 	decoded := filepath.Join(tmpDir, "profile.plist")
 	if _, err := output("security", "cms", "-D", "-i", path, "-o", decoded); err != nil {
 		return err
@@ -98,7 +103,7 @@ func checkProfile(path, tmpDir, teamID, bundleID string, development bool, udid 
 			return fmt.Errorf("profile %s: %w", key, err)
 		}
 	}
-	return p.check(teamID, bundleID, development, udid)
+	return p.check(teamID, bundleID, keychainGroup, development, udid)
 }
 
 // profileInfo is the part of a provisioning profile that iossign checks.
@@ -108,14 +113,14 @@ type profileInfo struct {
 	devices []string
 }
 
-func (p profileInfo) check(teamID, bundleID string, development bool, udid string) error {
+func (p profileInfo) check(teamID, bundleID, keychainGroup string, development bool, udid string) error {
 	if udid != "" && !slices.Contains(p.devices, udid) {
 		return fmt.Errorf("provisioning profile doesn't include device %s; it has %q", udid, p.devices)
 	}
-	return checkProfileEntitlements(p.teams, p.ents, teamID, bundleID, development)
+	return checkProfileEntitlements(p.teams, p.ents, teamID, bundleID, keychainGroup, development)
 }
 
-func checkProfileEntitlements(teams []string, ents map[string]any, teamID, bundleID string, development bool) error {
+func checkProfileEntitlements(teams []string, ents map[string]any, teamID, bundleID, keychainGroup string, development bool) error {
 	if !slices.Contains(teams, teamID) {
 		return fmt.Errorf("provisioning profile is for team %v, but iossign.json has teamID %q", teams, teamID)
 	}
@@ -127,11 +132,27 @@ func checkProfileEntitlements(teams []string, ents map[string]any, teamID, bundl
 	if got, _ := ents["get-task-allow"].(bool); got != development {
 		return fmt.Errorf("provisioning profile has get-task-allow=%v; want %v", got, development)
 	}
+	groups, _ := ents["keychain-access-groups"].([]any)
+	if !slices.ContainsFunc(groups, func(g any) bool { return g == teamID+".*" || g == keychainGroup }) {
+		return fmt.Errorf("provisioning profile's keychain-access-groups %v don't allow %q", groups, keychainGroup)
+	}
 	return nil
 }
 
+// extensionID returns the bundle ID to sign an app extension built with
+// bundle ID builtExtID as, in an app built as builtAppID and signed as
+// appID: appID with the extension's suffix, as Apple requires.
+func extensionID(builtAppID, builtExtID, appID string) (string, error) {
+	suffix, ok := strings.CutPrefix(builtExtID, builtAppID+".")
+	if !ok || suffix == "" {
+		return "", fmt.Errorf("extension's bundle ID %q isn't under the app's, %q", builtExtID, builtAppID)
+	}
+	return appID + "." + suffix, nil
+}
+
 // checkApp verifies that dir looks like an app bundle iossign knows how
-// to sign, and returns its file list.
+// to sign, and returns its file list. The only nested code it may have
+// is app extensions in PlugIns, with none of their own.
 func checkApp(dir string) ([]string, error) {
 	if !strings.HasSuffix(dir, ".app") {
 		return nil, fmt.Errorf("%s: not a .app bundle", dir)
@@ -142,13 +163,19 @@ func checkApp(dir string) ([]string, error) {
 			return err
 		}
 		rel, _ := filepath.Rel(dir, path)
+		parts := strings.Split(rel, string(filepath.Separator))
+		base := parts[len(parts)-1]
+		inExt := len(parts) >= 2 && parts[0] == "PlugIns" && strings.HasSuffix(parts[1], ".appex")
 		switch {
 		case d.Type()&fs.ModeSymlink != 0:
 			return fmt.Errorf("%s: symlinks not allowed", rel)
-		case d.IsDir() && (rel == "Frameworks" || rel == "PlugIns" || strings.HasSuffix(rel, ".appex") || strings.HasSuffix(rel, ".framework")):
-			return fmt.Errorf("%s: nested code isn't supported yet", rel)
-		case rel == "_CodeSignature" || rel == "embedded.mobileprovision":
+		case d.IsDir() && (rel == "PlugIns" || len(parts) == 2 && inExt):
+		case d.IsDir() && (base == "Frameworks" || base == "PlugIns" || strings.HasSuffix(base, ".appex") || strings.HasSuffix(base, ".framework")):
+			return fmt.Errorf("%s: nested code other than app extensions isn't supported yet", rel)
+		case base == "_CodeSignature" || base == "embedded.mobileprovision":
 			return fmt.Errorf("%s: artifact is already signed; want an unsigned build", rel)
+		case parts[0] == "PlugIns" && !inExt:
+			return fmt.Errorf("%s: unexpected file in PlugIns", rel)
 		case d.Type().IsRegular():
 			files = append(files, rel)
 		case !d.IsDir():

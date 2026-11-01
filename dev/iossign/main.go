@@ -139,11 +139,22 @@ type job struct {
 	keep        bool   // keep work dir
 	udid        string // for development builds, the device to install on
 
-	asc   *ascClient
-	ident signingIdentity
-	work  string // temp dir
-	app   string // signed copy of src under work
+	asc     *ascClient
+	ident   signingIdentity
+	work    string   // temp dir
+	app     string   // signed copy of src under work
+	bundles []bundle // to sign, in order: the app's extensions, then the app
 }
+
+// bundle is the app or one of its extensions, to be signed.
+type bundle struct {
+	dir string // in the prepared copy
+	id  string // bundle ID to sign it as
+}
+
+// keychainGroup is the keychain access group the app and its extensions
+// share.
+func (j *job) keychainGroup() string { return j.cfg.TeamID + "." + j.cfg.BundleID }
 
 func newJob(cfg *config, src string, development bool) (*job, error) {
 	src = filepath.Clean(src)
@@ -157,8 +168,9 @@ func newJob(cfg *config, src string, development bool) (*job, error) {
 	return &job{cfg: cfg, src: src, development: development, asc: c}, nil
 }
 
-// prepare copies the app to a work directory and sets its bundle ID and
-// build number.
+// prepare copies the app to a work directory and sets its bundle IDs and
+// build numbers: the app's to the configured ones, and its extensions'
+// to match.
 func (j *job) prepare() error {
 	var err error
 	j.work, err = os.MkdirTemp("", "iossign")
@@ -174,6 +186,10 @@ func (j *job) prepare() error {
 		return err
 	}
 	plist := filepath.Join(j.app, "Info.plist")
+	builtID, err := plistGet(plist, "CFBundleIdentifier")
+	if err != nil {
+		return err
+	}
 	if err := plistSet(plist, "CFBundleIdentifier", j.cfg.BundleID); err != nil {
 		return err
 	}
@@ -182,6 +198,38 @@ func (j *job) prepare() error {
 			return err
 		}
 	}
+	version, err := plistGet(plist, "CFBundleShortVersionString")
+	if err != nil {
+		return err
+	}
+	build, err := plistGet(plist, "CFBundleVersion")
+	if err != nil {
+		return err
+	}
+	exts, err := filepath.Glob(filepath.Join(j.app, "PlugIns", "*.appex"))
+	if err != nil {
+		return err
+	}
+	j.bundles = nil
+	for _, ext := range exts {
+		ep := filepath.Join(ext, "Info.plist")
+		builtExtID, err := plistGet(ep, "CFBundleIdentifier")
+		if err != nil {
+			return err
+		}
+		id, err := extensionID(builtID, builtExtID, j.cfg.BundleID)
+		if err != nil {
+			return err
+		}
+		// Extensions' versions must match the app's.
+		for k, v := range map[string]string{"CFBundleIdentifier": id, "CFBundleShortVersionString": version, "CFBundleVersion": build} {
+			if err := plistSet(ep, k, v); err != nil {
+				return err
+			}
+		}
+		j.bundles = append(j.bundles, bundle{dir: ext, id: id})
+	}
+	j.bundles = append(j.bundles, bundle{dir: j.app, id: j.cfg.BundleID})
 	return nil
 }
 
@@ -200,28 +248,30 @@ func (j *job) cleanup() {
 // it. It's called before iossign changes anything at Apple.
 func (j *job) confirm() error {
 	plist := filepath.Join(j.app, "Info.plist")
-	exe, err := plistGet(plist, "CFBundleExecutable")
-	if err != nil {
-		return err
-	}
-	if exe == "" || strings.ContainsAny(exe, `/\`) {
-		return fmt.Errorf("bad CFBundleExecutable %q", exe)
-	}
 	version, _ := plistGet(plist, "CFBundleShortVersionString")
 	build, _ := plistGet(plist, "CFBundleVersion")
 	files, err := checkApp(j.app)
 	if err != nil {
 		return err
 	}
-	sum, err := fileSHA256(filepath.Join(j.app, exe))
-	if err != nil {
-		return err
-	}
 	fmt.Printf("\nAbout to sign:\n")
 	fmt.Printf("  source:     %s\n", j.src)
-	fmt.Printf("  bundle ID:  %s\n", j.cfg.BundleID)
 	fmt.Printf("  version:    %s (%s)\n", version, build)
-	fmt.Printf("  executable: %s sha256:%s\n", exe, sum)
+	for _, b := range j.bundles {
+		exe, err := plistGet(filepath.Join(b.dir, "Info.plist"), "CFBundleExecutable")
+		if err != nil {
+			return err
+		}
+		if exe == "" || strings.ContainsAny(exe, `/\`) {
+			return fmt.Errorf("bad CFBundleExecutable %q", exe)
+		}
+		sum, err := fileSHA256(filepath.Join(b.dir, exe))
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  bundle ID:  %s\n", b.id)
+		fmt.Printf("  executable: %s sha256:%s\n", exe, sum)
+	}
 	fmt.Printf("  files:      %s\n", strings.Join(files, ", "))
 	fmt.Printf("  for:        %s\n", j.target)
 	if j.yes {
@@ -235,34 +285,60 @@ func (j *job) confirm() error {
 	return nil
 }
 
-// sign embeds profile and signs the prepared app.
-func (j *job) sign(profile []byte) error {
-	profilePath := filepath.Join(j.app, "embedded.mobileprovision")
-	if err := os.WriteFile(profilePath, profile, 0o644); err != nil {
-		return err
+// profiles registers each bundle's ID and returns provisioning profiles
+// for them, by bundle ID: of type profileType, named with namePrefix and
+// the ID, for j.ident's certificate and deviceIDs.
+func (j *job) profiles(ctx context.Context, namePrefix, profileType string, deviceIDs []string, nameSuffix string) (map[string][]byte, error) {
+	profiles := map[string][]byte{}
+	for _, b := range j.bundles {
+		apiID, err := j.asc.ensureBundleID(ctx, b.id)
+		if err != nil {
+			return nil, err
+		}
+		p, err := j.asc.ensureProfile(ctx, namePrefix+b.id+nameSuffix, profileType, apiID, j.ident.certID, deviceIDs)
+		if err != nil {
+			return nil, err
+		}
+		profiles[b.id] = p
 	}
-	if err := checkProfile(profilePath, j.work, j.cfg.TeamID, j.cfg.BundleID, j.development, j.udid); err != nil {
-		return err
-	}
-	ent := filepath.Join(j.work, "entitlements.plist")
-	if err := os.WriteFile(ent, entitlementsPlist(j.cfg.TeamID, j.cfg.BundleID, j.development), 0o644); err != nil {
-		return err
-	}
+	return profiles, nil
+}
+
+// sign embeds each bundle's profile and signs it, extensions first.
+func (j *job) sign(profiles map[string][]byte) error {
 	if err := ensureIssuer(j.ident.der); err != nil {
 		return err
 	}
-	if err := run("codesign", "--force", "--sign", j.ident.sha1,
-		"--entitlements", ent, "--generate-entitlement-der", "--timestamp=none", j.app); err != nil {
+	for _, b := range j.bundles {
+		profilePath := filepath.Join(b.dir, "embedded.mobileprovision")
+		if err := os.WriteFile(profilePath, profiles[b.id], 0o644); err != nil {
+			return err
+		}
+		if err := checkProfile(profilePath, j.work, j.cfg.TeamID, b.id, j.keychainGroup(), j.development, j.udid); err != nil {
+			return fmt.Errorf("%s: %w", b.id, err)
+		}
+		ent := filepath.Join(j.work, b.id+".entitlements.plist")
+		if err := os.WriteFile(ent, entitlementsPlist(j.cfg.TeamID, b.id, j.keychainGroup(), j.development), 0o644); err != nil {
+			return err
+		}
+		if err := run("codesign", "--force", "--sign", j.ident.sha1,
+			"--entitlements", ent, "--generate-entitlement-der", "--timestamp=none", b.dir); err != nil {
+			return err
+		}
+	}
+	if err := run("codesign", "--verify", "--strict", "--deep", "--verbose=1", j.app); err != nil {
 		return err
 	}
-	if err := run("codesign", "--verify", "--strict", "--verbose=1", j.app); err != nil {
-		return err
+	for _, b := range j.bundles {
+		info, err := signatureInfo(b.dir)
+		if err != nil {
+			return err
+		}
+		if err := checkChain(info); err != nil {
+			return fmt.Errorf("%s: %w", b.id, err)
+		}
 	}
-	info, err := signatureInfo(j.app)
-	if err != nil {
-		return err
-	}
-	return checkChain(info)
+	return nil
 }
 
 // diagnoseLaunch prints what might explain iOS refusing to launch the
@@ -371,10 +447,6 @@ func cmdInstall(args []string) error {
 	}
 
 	ctx := context.Background()
-	bundleID, err := j.asc.ensureBundleID(ctx, cfg.BundleID)
-	if err != nil {
-		return err
-	}
 	deviceID, err := j.asc.ensureDevice(ctx, dev.UDID, dev.Name)
 	if err != nil {
 		return err
@@ -382,15 +454,13 @@ func cmdInstall(args []string) error {
 	if j.ident, err = ensureIdentity(ctx, j.asc, "DEVELOPMENT"); err != nil {
 		return err
 	}
-	profile, err := j.asc.ensureProfile(ctx,
-		"iossign dev "+cfg.BundleID+" "+dev.UDID, "IOS_APP_DEVELOPMENT",
-		bundleID, j.ident.certID, []string{deviceID})
+	profiles, err := j.profiles(ctx, "iossign dev ", "IOS_APP_DEVELOPMENT", []string{deviceID}, " "+dev.UDID)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Signing as %s\n", j.ident.name)
-	if err := j.sign(profile); err != nil {
+	if err := j.sign(profiles); err != nil {
 		return err
 	}
 	installStart := time.Now()
@@ -447,22 +517,16 @@ func cmdUpload(args []string) error {
 	}
 
 	ctx := context.Background()
-	bundleID, err := j.asc.ensureBundleID(ctx, cfg.BundleID)
-	if err != nil {
-		return err
-	}
 	if j.ident, err = ensureIdentity(ctx, j.asc, "DISTRIBUTION"); err != nil {
 		return err
 	}
-	profile, err := j.asc.ensureProfile(ctx,
-		"iossign store "+cfg.BundleID, "IOS_APP_STORE",
-		bundleID, j.ident.certID, nil)
+	profiles, err := j.profiles(ctx, "iossign store ", "IOS_APP_STORE", nil, "")
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Signing as %s\n", j.ident.name)
-	if err := j.sign(profile); err != nil {
+	if err := j.sign(profiles); err != nil {
 		return err
 	}
 	out := filepath.Join(j.work, "Perkeep.ipa")

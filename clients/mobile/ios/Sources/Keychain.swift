@@ -7,7 +7,9 @@ struct Secrets: Codable, Equatable {
     var tailcat = ""  // tailcat address, which holds a WireGuard pre-shared key
 }
 
-/// Keychain stores account secrets, keyed by account ID.
+/// Keychain stores account secrets, keyed by account ID, and other small
+/// data. The app and its share extension share it: both are signed with
+/// the app's keychain access group first, where items go by default.
 enum Keychain {
     private static let service = "org.perkeep.mobile.account"
 
@@ -26,23 +28,16 @@ enum Keychain {
         ]
     }
 
-    static func secrets(account: String) -> Secrets? {
+    static func data(account: String) -> Data? {
         var q = query(account)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let data = out as? Data else {
-            return nil
-        }
-        if let s = try? JSONDecoder().decode(Secrets.self, from: data) {
-            return s
-        }
-        // Items saved before tailcat support are just the password.
-        return Secrets(password: String(decoding: data, as: UTF8.self))
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess else { return nil }
+        return out as? Data
     }
 
-    static func setSecrets(_ secrets: Secrets, account: String) throws {
-        let data = try JSONEncoder().encode(secrets)
+    static func setData(_ data: Data, account: String) throws {
         let status = SecItemUpdate(query(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
         if status == errSecItemNotFound {
             var q = query(account)
@@ -58,7 +53,24 @@ enum Keychain {
         }
     }
 
-    static func deleteSecrets(account: String) {
+    static func delete(account: String) {
         SecItemDelete(query(account) as CFDictionary)
+    }
+
+    static func secrets(account: String) -> Secrets? {
+        guard let data = data(account: account) else { return nil }
+        if let s = try? JSONDecoder().decode(Secrets.self, from: data) {
+            return s
+        }
+        // Items saved before tailcat support are just the password.
+        return Secrets(password: String(decoding: data, as: UTF8.self))
+    }
+
+    static func setSecrets(_ secrets: Secrets, account: String) throws {
+        try setData(JSONEncoder().encode(secrets), account: account)
+    }
+
+    static func deleteSecrets(account: String) {
+        delete(account: account)
     }
 }

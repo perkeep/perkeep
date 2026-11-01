@@ -104,9 +104,10 @@ func TestToken(t *testing.T) {
 }
 
 func TestEntitlements(t *testing.T) {
-	dev := string(entitlementsPlist("TEAM", "org.example.app", true))
+	dev := string(entitlementsPlist("TEAM", "org.example.app.share", "TEAM.org.example.app", true))
 	for _, want := range []string{
-		"<string>TEAM.org.example.app</string>",
+		"<key>application-identifier</key>\n\t<string>TEAM.org.example.app.share</string>",
+		"<key>keychain-access-groups</key>\n\t<array>\n\t\t<string>TEAM.org.example.app</string>\n\t</array>",
 		"<key>get-task-allow</key>\n\t<true/>",
 	} {
 		if !strings.Contains(dev, want) {
@@ -116,7 +117,7 @@ func TestEntitlements(t *testing.T) {
 	if strings.Contains(dev, "beta-reports-active") {
 		t.Error("development entitlements have beta-reports-active")
 	}
-	store := string(entitlementsPlist("TEAM", "org.example.app", false))
+	store := string(entitlementsPlist("TEAM", "org.example.app", "TEAM.org.example.app", false))
 	for _, want := range []string{
 		"<key>get-task-allow</key>\n\t<false/>",
 		"<key>beta-reports-active</key>\n\t<true/>",
@@ -139,8 +140,11 @@ func TestEntitlements(t *testing.T) {
 
 func TestCheckProfileEntitlements(t *testing.T) {
 	ents := func(appID string, gta bool) map[string]any {
-		return map[string]any{"application-identifier": appID, "get-task-allow": gta}
+		return map[string]any{"application-identifier": appID, "get-task-allow": gta,
+			"keychain-access-groups": []any{"TEAM.*", "com.apple.token"}}
 	}
+	noKeychain := ents("TEAM.org.example.app", true)
+	noKeychain["keychain-access-groups"] = []any{"com.apple.token"}
 	tests := []struct {
 		name  string
 		teams []string
@@ -155,19 +159,20 @@ func TestCheckProfileEntitlements(t *testing.T) {
 		{"app ID prefix differs", []string{"TEAM"}, ents("PREFIX.org.example.app", true), true, false},
 		{"other app", []string{"TEAM"}, ents("TEAM.org.example.other", true), true, false},
 		{"store profile for dev", []string{"TEAM"}, ents("TEAM.org.example.app", false), true, false},
+		{"no keychain group", []string{"TEAM"}, noKeychain, true, false},
 	}
 	for _, tt := range tests {
-		err := checkProfileEntitlements(tt.teams, tt.ents, "TEAM", "org.example.app", tt.dev)
+		err := checkProfileEntitlements(tt.teams, tt.ents, "TEAM", "org.example.app", "TEAM.org.example.app", tt.dev)
 		if (err == nil) != tt.ok {
 			t.Errorf("%s: err = %v; want ok=%v", tt.name, err, tt.ok)
 		}
 	}
 
 	p := profileInfo{teams: []string{"TEAM"}, ents: ents("TEAM.org.example.app", true), devices: []string{"U1", "U2"}}
-	if err := p.check("TEAM", "org.example.app", true, "U2"); err != nil {
+	if err := p.check("TEAM", "org.example.app", "TEAM.org.example.app", true, "U2"); err != nil {
 		t.Errorf("listed device: %v", err)
 	}
-	if err := p.check("TEAM", "org.example.app", true, "U3"); err == nil {
+	if err := p.check("TEAM", "org.example.app", "TEAM.org.example.app", true, "U3"); err == nil {
 		t.Error("unlisted device: no error")
 	}
 }
@@ -279,7 +284,14 @@ func TestCheckApp(t *testing.T) {
 	if files, err := checkApp(mk(t, "X")); err != nil || strings.Join(files, ",") != "Info.plist,X" {
 		t.Errorf("plain app: files %v, err %v", files, err)
 	}
-	for _, bad := range []string{"_CodeSignature/CodeResources", "embedded.mobileprovision", "Frameworks/F.framework/F", "PlugIns/E.appex/E"} {
+	if files, err := checkApp(mk(t, "X", "PlugIns/E.appex/E", "PlugIns/E.appex/Info.plist")); err != nil || len(files) != 4 {
+		t.Errorf("app with extension: files %v, err %v", files, err)
+	}
+	for _, bad := range []string{
+		"_CodeSignature/CodeResources", "embedded.mobileprovision", "Frameworks/F.framework/F",
+		"PlugIns/E.appex/_CodeSignature/CodeResources", "PlugIns/E.appex/embedded.mobileprovision",
+		"PlugIns/E.appex/PlugIns/F.appex/F", "PlugIns/E.appex/Frameworks/F.framework/F", "PlugIns/stray",
+	} {
 		if _, err := checkApp(mk(t, bad)); err == nil {
 			t.Errorf("app with %s: no error", bad)
 		}
@@ -408,5 +420,26 @@ func TestAPIError(t *testing.T) {
 	err := c.do(context.Background(), "GET", "/v1/nope", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "Not found: no such thing") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestExtensionID(t *testing.T) {
+	for _, tt := range []struct{ app, ext, appID, want string }{
+		{"org.perkeep.mobile", "org.perkeep.mobile.share", "com.example.pk", "com.example.pk.share"},
+		{"org.perkeep.mobile", "org.perkeep.mobile.share.more", "com.example.pk", "com.example.pk.share.more"},
+		{"org.perkeep.mobile", "org.perkeep.mobileshare", "com.example.pk", ""},
+		{"org.perkeep.mobile", "org.perkeep.mobile.", "com.example.pk", ""},
+		{"org.perkeep.mobile", "com.evil.share", "com.example.pk", ""},
+	} {
+		got, err := extensionID(tt.app, tt.ext, tt.appID)
+		if tt.want == "" {
+			if err == nil {
+				t.Errorf("extensionID(%q, %q) = %q; want error", tt.app, tt.ext, got)
+			}
+			continue
+		}
+		if err != nil || got != tt.want {
+			t.Errorf("extensionID(%q, %q) = %q, %v; want %q", tt.app, tt.ext, got, err, tt.want)
+		}
 	}
 }

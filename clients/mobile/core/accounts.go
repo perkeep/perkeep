@@ -213,3 +213,17 @@ func (l *accountList) save(dir string) error {
 func newAccountID() string {
 	return strings.ToLower(rand.Text()[:16])
 }
+
+// validAccountID reports whether id can be an account ID: as it's used
+// in file names, only lowercase letters and digits.
+func validAccountID(id string) bool {
+	if id == "" || len(id) > 64 {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}

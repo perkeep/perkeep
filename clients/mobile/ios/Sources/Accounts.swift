@@ -182,6 +182,10 @@ final class AccountStore: ObservableObject {
     func reload() {
         do {
             list = try Core.json("GET", "/accounts")
+            SharedAccounts.save(SharedAccounts.List(current: list.current, accounts: list.accounts.map {
+                SharedAccounts.Account(id: $0.id, name: $0.name, server: $0.server, tailcat: $0.tailcat,
+                                       certfp: $0.certfp, username: $0.username)
+            }))
         } catch {
             lastError = error.localizedDescription
         }

@@ -1,5 +1,6 @@
 #!/bin/bash
-# build.sh builds the Perkeep iOS app without an Xcode project.
+# build.sh builds the Perkeep iOS app, with its share extension, without
+# an Xcode project.
 #
 # Usage: clients/mobile/ios/build.sh sim|device
 #
@@ -37,10 +38,11 @@ IOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$IOS_DIR/../../.." && pwd)"
 OUT="$IOS_DIR/build/$TARGET"
 APP="$OUT/Perkeep.app"
+EXT="$APP/PlugIns/PerkeepShare.appex"
 SDK_PATH="$(xcrun --sdk "$SDK" --show-sdk-path)"
 
 rm -rf "$OUT"
-mkdir -p "$APP"
+mkdir -p "$APP" "$EXT"
 
 echo "==> Building Go core ($TRIPLE)"
 (
@@ -58,16 +60,50 @@ echo "==> Building Go core ($TRIPLE)"
 		-o "$OUT/libpkcore.a" ./clients/mobile/core
 )
 
-echo "==> Compiling Swift"
-xcrun --sdk "$SDK" swiftc \
-	-target "$TRIPLE" \
-	-sdk "$SDK_PATH" \
-	-O -parse-as-library \
-	-import-objc-header "$OUT/libpkcore.h" \
-	"$IOS_DIR"/Sources/*.swift \
-	"$OUT/libpkcore.a" \
-	-lresolv -framework CoreFoundation -framework Security \
-	-o "$APP/Perkeep"
+# simEntitlements writes the entitlements of a simulator build of the
+# bundle with ID id, and prints linker flags embedding them, as Xcode does
+# for the simulator, rather than signing with them. The app and the
+# extension share a keychain access group, as on a device; see
+# dev/iossign.
+simEntitlements() {
+	[ "$TARGET" = sim ] || return 0
+	local id="$1" f="$OUT/$1.entitlements"
+	cat >"$f" <<EOF2
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+	<key>application-identifier</key><string>SIMULATOR.$id</string>
+	<key>keychain-access-groups</key><array><string>SIMULATOR.org.perkeep.mobile</string></array>
+</dict></plist>
+EOF2
+	echo -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker "$f"
+}
+
+# swift compiles and links Swift sources with the Go core.
+swift() {
+	xcrun --sdk "$SDK" swiftc \
+		-target "$TRIPLE" \
+		-sdk "$SDK_PATH" \
+		-O -parse-as-library \
+		-import-objc-header "$OUT/libpkcore.h" \
+		"$@" \
+		"$OUT/libpkcore.a" \
+		-lresolv -framework CoreFoundation -framework Security
+}
+
+echo "==> Compiling the app"
+swift -module-name Perkeep "$IOS_DIR"/Sources/*.swift $(simEntitlements org.perkeep.mobile) -o "$APP/Perkeep"
+
+echo "==> Compiling the share extension"
+# The extension shares the app's code for the core, keychain, and
+# accounts. Its executable starts at NSExtensionMain, as Xcode links
+# extensions.
+swift -module-name PerkeepShare -application-extension \
+	"$IOS_DIR"/ShareExtension/*.swift \
+	"$IOS_DIR"/Sources/{Core,Keychain,Accounts,SharedAccounts}.swift \
+	-Xlinker -e -Xlinker _NSExtensionMain \
+	$(simEntitlements org.perkeep.mobile.share) \
+	-o "$EXT/PerkeepShare"
 
 echo "==> Compiling asset catalog"
 xcrun actool "$IOS_DIR/Assets.xcassets" \
@@ -79,24 +115,32 @@ xcrun actool "$IOS_DIR/Assets.xcassets" \
 	--output-partial-info-plist "$OUT/assets-Info.plist" \
 	--errors --warnings --output-format human-readable-text
 
-echo "==> Writing Info.plist"
-PLIST="$APP/Info.plist"
-cp "$IOS_DIR/Info.plist" "$PLIST"
+# plist writes the bundle's Info.plist from src, with the keys Xcode
+# normally adds and App Store validation expects.
+plist() {
+	local src="$1" dst="$2"
+	cp "$src" "$dst"
+	plutil -insert MinimumOSVersion -string "$MIN_IOS" "$dst"
+	plutil -insert CFBundleSupportedPlatforms -json "[\"$PLATFORM\"]" "$dst"
+	plutil -insert DTPlatformName -string "$SDK" "$dst"
+	plutil -insert DTPlatformVersion -string "$(xcrun --sdk "$SDK" --show-sdk-version)" "$dst"
+	plutil -insert DTSDKName -string "$SDK$(xcrun --sdk "$SDK" --show-sdk-version)" "$dst"
+	plutil -insert DTSDKBuild -string "$(xcrun --sdk "$SDK" --show-sdk-build-version)" "$dst"
+	plutil -insert DTXcode -string "$(xcodebuild -version | awk '/^Xcode/ {split($2, v, "."); printf "%d%d%d", v[1], v[2], v[3]}')" "$dst"
+	plutil -insert DTXcodeBuild -string "$(xcodebuild -version | awk '/^Build version/ {print $3}')" "$dst"
+}
+
+echo "==> Writing Info.plists"
+plist "$IOS_DIR/Info.plist" "$APP/Info.plist"
 # Add the icon keys (CFBundleIcons) that actool generated.
-/usr/libexec/PlistBuddy -c "Merge $OUT/assets-Info.plist" "$PLIST"
-# Keys that Xcode normally adds and App Store validation expects.
-plutil -insert MinimumOSVersion -string "$MIN_IOS" "$PLIST"
-plutil -insert CFBundleSupportedPlatforms -json "[\"$PLATFORM\"]" "$PLIST"
-plutil -insert DTPlatformName -string "$SDK" "$PLIST"
-plutil -insert DTPlatformVersion -string "$(xcrun --sdk "$SDK" --show-sdk-version)" "$PLIST"
-plutil -insert DTSDKName -string "$SDK$(xcrun --sdk "$SDK" --show-sdk-version)" "$PLIST"
-plutil -insert DTSDKBuild -string "$(xcrun --sdk "$SDK" --show-sdk-build-version)" "$PLIST"
-plutil -insert DTXcode -string "$(xcodebuild -version | awk '/^Xcode/ {split($2, v, "."); printf "%d%d%d", v[1], v[2], v[3]}')" "$PLIST"
-plutil -insert DTXcodeBuild -string "$(xcodebuild -version | awk '/^Build version/ {print $3}')" "$PLIST"
-plutil -convert binary1 "$PLIST"
+/usr/libexec/PlistBuddy -c "Merge $OUT/assets-Info.plist" "$APP/Info.plist"
+plutil -convert binary1 "$APP/Info.plist"
 printf 'APPL????' >"$APP/PkgInfo"
+plist "$IOS_DIR/ShareExtension/Info.plist" "$EXT/Info.plist"
+plutil -convert binary1 "$EXT/Info.plist"
 
 if [ "$TARGET" = sim ]; then
+	codesign --force --sign - --timestamp=none "$EXT"
 	codesign --force --sign - --timestamp=none "$APP"
 fi
 

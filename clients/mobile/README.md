@@ -48,7 +48,12 @@ Then, with the device build copied from the build machine:
 `make iossign` copies the device build from `IOS_BUILD_HOST` and runs
 `iossign install` on it.
 
-On first use, iossign registers the bundle ID and device, creates an
-Apple signing certificate whose private key stays in your login keychain,
-and creates provisioning profiles. Uploading also needs an app record for
-the bundle ID in App Store Connect (Apps → +).
+On first use, iossign registers the bundle IDs (the app's, and its share
+extension's, which is the app's with `.share` added) and the device,
+creates an Apple signing certificate whose private key stays in your
+login keychain, and creates provisioning profiles. Uploading also needs
+an app record for the bundle ID in App Store Connect (Apps → +).
+
+The share extension, which uploads photos shared from other apps, can't
+read the app's files, so it has its own Go core and finds the app's
+accounts in the keychain, which the two share.
