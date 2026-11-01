@@ -53,32 +53,46 @@ final class UploadModel: ObservableObject {
     @Published var notice: String? // why it stopped, or a warning
     @Published var confirmCellular = false
 
-    // Counting.
     @Published private(set) var counted = false // a count has finished
-    @Published private(set) var assetsSeen = 0
-    @Published private(set) var assetCount = 0 // photos and videos; items are their files
     @Published private(set) var countSummary: String?
-    @Published private(set) var items: [MediaItem] = []
-    @Published private(set) var totalBytes: Int64 = 0
-
-    // Hashing.
-    @Published private(set) var refs: [String: [String]] = [:] // by item key
-    @Published private(set) var hashedBytes: Int64 = 0 // of items
-
-    // Finding missing.
-    @Published private(set) var onServer: Set<String> = []
-    @Published private(set) var missing: Set<String> = []
-
-    // Uploading.
-    @Published private(set) var uploaded: Set<String> = []
-    @Published private(set) var uploadedBytes: Int64 = 0 // of the items' sizes
-    @Published private(set) var failed = 0
     @Published private(set) var inFlight: [InFlight] = []
-    @Published private(set) var totals = Totals()
-    @Published private(set) var bytesPerSecond = 0.0
+
+    /// stats is a snapshot of the pipeline's progress, published a few
+    /// times a second while running, rather than as the pipeline goes,
+    /// which would redraw the screen far too often.
+    @Published private(set) var stats = Stats()
+
+    /// Stats are the counts and sizes the upload screen shows.
+    struct Stats: Equatable {
+        var assetsSeen = 0, assetCount = 0 // while counting, and in all
+        var files = 0, totalBytes: Int64 = 0
+        var hashed = 0, hashedBytes: Int64 = 0
+        var onServer = 0
+        var missing = 0, missingBytes: Int64 = 0
+        var uploaded = 0, uploadedBytes: Int64 = 0
+        var inFlight = 0, inFlightBytes: Int64 = 0
+        var toUpload = 0, toUploadBytes: Int64 = 0 // not known to be on the server
+        var failed = 0
+        var totals = Totals()
+        var bytesPerSecond = 0.0
+    }
+
+    // The pipeline's state, which stats summarizes.
+    private var assetsSeen = 0
+    private var assetCount = 0 // photos and videos; items are their files
+    private var items: [MediaItem] = []
+    private var totalBytes: Int64 = 0
+    private var refs: [String: [String]] = [:] // by item key
+    private var onServer: Set<String> = []
+    private var missing: Set<String> = []
+    private var uploaded: Set<String> = []
+    private var uploadedBytes: Int64 = 0 // of the items' sizes
+    private var failed = 0
+    private var totals = Totals()
+    private var bytesPerSecond = 0.0
 
     /// Totals are the core's counts of the connection's uploads.
-    struct Totals: Decodable {
+    struct Totals: Decodable, Equatable {
         var filesDone = 0
         var filesDup = 0
         var filesFailed = 0
@@ -146,13 +160,37 @@ final class UploadModel: ObservableObject {
 
     // MARK: Stats
 
-    var hashedCount: Int { items.lazy.filter { self.refs[$0.id] != nil }.count }
-    var unhashedBytes: Int64 { totalBytes - hashedBytes }
-    var missingBytes: Int64 { items.lazy.filter { self.missing.contains($0.id) }.reduce(0) { $0 + $1.size } }
-    /// toUpload is how many items aren't known to be on the server yet.
-    var toUpload: Int { items.lazy.filter { !self.onServer.contains($0.id) && !self.uploaded.contains($0.id) }.count }
-    var toUploadBytes: Int64 {
-        items.lazy.filter { !self.onServer.contains($0.id) && !self.uploaded.contains($0.id) }.reduce(0) { $0 + $1.size }
+    /// updateStats publishes the pipeline's progress, if it's changed.
+    private func updateStats() {
+        var st = Stats(assetsSeen: assetsSeen, assetCount: assetCount, files: items.count, totalBytes: totalBytes,
+                       uploadedBytes: uploadedBytes, failed: failed, totals: totals, bytesPerSecond: bytesPerSecond)
+        for item in items {
+            let k = item.id
+            if refs[k] != nil {
+                st.hashed += 1
+                st.hashedBytes += item.size
+            }
+            let there = onServer.contains(k), up = uploaded.contains(k)
+            if there {
+                st.onServer += 1
+            }
+            if up {
+                st.uploaded += 1
+            }
+            if missing.contains(k) {
+                st.missing += 1
+                st.missingBytes += item.size
+            }
+            if !there && !up {
+                st.toUpload += 1
+                st.toUploadBytes += item.size
+            }
+        }
+        st.inFlight = inFlight.count
+        st.inFlightBytes = inFlight.reduce(0) { $0 + $1.item.size }
+        if st != stats {
+            stats = st
+        }
     }
 
     // MARK: Actions
@@ -182,7 +220,17 @@ final class UploadModel: ObservableObject {
         notice = nil
         startedOnCellular = onCellular && cellularOK
         UIApplication.shared.isIdleTimerDisabled = true
+        let refresher = Task {
+            while !Task.isCancelled {
+                updateStats()
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
         work = Task {
+            defer {
+                refresher.cancel()
+                updateStats()
+            }
             do {
                 try await run(to: target)
             } catch is CancellationError {
@@ -215,7 +263,6 @@ final class UploadModel: ObservableObject {
         failed = 0
         items = []
         totalBytes = 0
-        hashedBytes = 0
         assetsSeen = 0
         phase = .counting
         MediaLibrary.clearTemp()
@@ -292,7 +339,6 @@ final class UploadModel: ObservableObject {
         for item in batch {
             totalBytes += item.size
             guard refs[item.id] != nil else { continue }
-            hashedBytes += item.size
             if uploaded.contains(item.id) || onServer.contains(item.id) {
                 continue
             }
@@ -399,7 +445,6 @@ final class UploadModel: ObservableObject {
         struct Resp: Decodable { var refs: [String] }
         let r: Resp = try await core("POST", "/hashes/file", ["key": item.id, "path": file.path])
         refs[item.id] = r.refs
-        hashedBytes += item.size
         return r.refs
     }
 

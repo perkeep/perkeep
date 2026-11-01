@@ -25,12 +25,12 @@ struct UploadView: View {
                         InFlightRow(f: f)
                     }
                 }
+                .animation(.default, value: model.inFlight.map(\.id))
             }
             stats
         }
         .navigationTitle("Upload Photos")
         .navigationBarTitleDisplayMode(.inline)
-        .animation(.default, value: model.inFlight.map(\.id))
         .confirmationDialog("Upload over cellular data?", isPresented: $model.confirmCellular, titleVisibility: .visible) {
             Button("Upload Anyway") { model.upload(confirmedCellular: true) }
             Button("Cancel", role: .cancel) {}
@@ -56,11 +56,10 @@ struct UploadView: View {
                     Text(model.running ? model.phase.rawValue + "…" : (model.counted ? "Ready" : "Not counted yet"))
                         .font(.headline)
                     Spacer()
-                    if model.phase == .uploading && model.bytesPerSecond > 0 {
-                        Text(Self.bytes(Int64(model.bytesPerSecond)) + "/s")
+                    if model.phase == .uploading && model.stats.bytesPerSecond > 0 {
+                        Text(Self.bytes(Int64(model.stats.bytesPerSecond)) + "/s")
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
-                            .contentTransition(.numericText())
                     }
                 }
                 if let p = progress {
@@ -68,35 +67,34 @@ struct UploadView: View {
                     Text(p.label)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
                 }
             }
-            .animation(.default, value: progress?.label)
         }
     }
 
     /// progress is the progress of the phase running, or else how many of
     /// the items are on the server, or nil if there's nothing to show.
     private var progress: (value: Double, total: Double, label: String)? {
-        let n = model.items.count
+        let st = model.stats
+        let n = st.files
         switch model.phase {
-        case .counting where model.assetCount > 0:
-            return (Double(model.assetsSeen), Double(model.assetCount),
-                    "\(model.assetsSeen.formatted()) of \(model.assetCount.formatted()) photos and videos looked at")
+        case .counting where st.assetCount > 0:
+            return (Double(st.assetsSeen), Double(st.assetCount),
+                    "\(st.assetsSeen.formatted()) of \(st.assetCount.formatted()) photos and videos looked at")
         case .counting:
             return nil
         case .hashing:
-            return (Double(model.hashedBytes), Double(model.totalBytes),
-                    "\(model.hashedCount.formatted()) of \(n.formatted()) files hashed · "
-                        + "\(Self.bytes(model.hashedBytes)) of \(Self.bytes(model.totalBytes))")
+            return (Double(st.hashedBytes), Double(st.totalBytes),
+                    "\(st.hashed.formatted()) of \(n.formatted()) files hashed · "
+                        + "\(Self.bytes(st.hashedBytes)) of \(Self.bytes(st.totalBytes))")
         case .finding:
             // Finding hashes what isn't hashed, too.
-            let asked = model.onServer.count + model.missing.count
+            let asked = st.onServer + st.missing
             return (Double(asked), Double(n),
-                    "\(asked.formatted()) of \(n.formatted()) files checked · \(model.hashedCount.formatted()) hashed")
+                    "\(asked.formatted()) of \(n.formatted()) files checked · \(st.hashed.formatted()) hashed")
         case .idle, .uploading:
             guard model.counted, n > 0 else { return nil }
-            let done = n - model.toUpload
+            let done = n - st.toUpload
             return (Double(done), Double(n), "\(done.formatted()) of \(n.formatted()) on the server")
         }
     }
@@ -133,41 +131,42 @@ struct UploadView: View {
 
     private var stats: some View {
         Section {
+            let st = model.stats
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
                 statHeader("On this phone")
                 GridRow {
                     Text("Photos & videos")
-                    Self.number((model.phase == .counting ? model.assetsSeen : model.assetCount).formatted())
-                    Text(model.phase == .counting && model.assetCount > 0 ? "of \(model.assetCount.formatted())" : "")
+                    Self.number((model.phase == .counting ? st.assetsSeen : st.assetCount).formatted())
+                    Text(model.phase == .counting && st.assetCount > 0 ? "of \(st.assetCount.formatted())" : "")
                         .foregroundStyle(.secondary)
                 }
-                stat("Files", model.items.count, model.totalBytes)
+                stat("Files", st.files, st.totalBytes)
                 Divider()
                 statHeader("Hashing")
-                stat("Hashed", model.hashedCount, model.hashedBytes)
-                stat("To hash", model.items.count - model.hashedCount, model.unhashedBytes)
+                stat("Hashed", st.hashed, st.hashedBytes)
+                stat("To hash", st.files - st.hashed, st.totalBytes - st.hashedBytes)
                 Divider()
                 statHeader("Server")
-                stat("Already there", model.onServer.count, nil)
-                stat("Missing", model.missing.count, model.missingBytes)
+                stat("Already there", st.onServer, nil)
+                stat("Missing", st.missing, st.missingBytes)
                 Divider()
                 statHeader("Uploading")
-                stat("Done", model.uploaded.count, model.uploadedBytes)
-                stat("In flight", model.inFlight.count, model.inFlight.reduce(0) { $0 + $1.item.size })
-                stat("Remaining", model.toUpload, model.toUploadBytes)
-                if model.failed > 0 {
-                    stat("Failed", model.failed, nil)
+                stat("Done", st.uploaded, st.uploadedBytes)
+                stat("In flight", st.inFlight, st.inFlightBytes)
+                stat("Remaining", st.toUpload, st.toUploadBytes)
+                if st.failed > 0 {
+                    stat("Failed", st.failed, nil)
                 }
                 GridRow {
                     Text("Sent")
-                    Self.number(Self.bytes(model.totals.bytesUploaded))
-                    Text("\(model.totals.chunksUploaded.formatted()) chunks")
+                    Self.number(Self.bytes(st.totals.bytesUploaded))
+                    Text("\(st.totals.chunksUploaded.formatted()) chunks")
                         .foregroundStyle(.secondary)
                 }
                 GridRow {
                     Text("Skipped")
                     Self.number("")
-                    Text("\(model.totals.chunksPresent.formatted()) chunks there")
+                    Text("\(st.totals.chunksPresent.formatted()) chunks there")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -209,8 +208,6 @@ struct UploadView: View {
             Text("888,888").hidden()
             Text("888.8 MB").hidden()
             Text(s)
-                .contentTransition(.numericText())
-                .animation(.default, value: s)
         }
         .gridColumnAlignment(.trailing)
     }
