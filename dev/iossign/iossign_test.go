@@ -284,11 +284,12 @@ func TestCheckApp(t *testing.T) {
 	if files, err := checkApp(mk(t, "X")); err != nil || strings.Join(files, ",") != "Info.plist,X" {
 		t.Errorf("plain app: files %v, err %v", files, err)
 	}
-	if files, err := checkApp(mk(t, "X", "PlugIns/E.appex/E", "PlugIns/E.appex/Info.plist")); err != nil || len(files) != 4 {
-		t.Errorf("app with extension: files %v, err %v", files, err)
+	if files, err := checkApp(mk(t, "X", "PlugIns/E.appex/E", "PlugIns/E.appex/Info.plist", "Frameworks/F.framework/F")); err != nil || len(files) != 5 {
+		t.Errorf("app with extension and framework: files %v, err %v", files, err)
 	}
 	for _, bad := range []string{
-		"_CodeSignature/CodeResources", "embedded.mobileprovision", "Frameworks/F.framework/F",
+		"_CodeSignature/CodeResources", "embedded.mobileprovision", "Frameworks/stray",
+		"Frameworks/F.framework/_CodeSignature/CodeResources", "Frameworks/F.framework/Frameworks/G.framework/G",
 		"PlugIns/E.appex/_CodeSignature/CodeResources", "PlugIns/E.appex/embedded.mobileprovision",
 		"PlugIns/E.appex/PlugIns/F.appex/F", "PlugIns/E.appex/Frameworks/F.framework/F", "PlugIns/stray",
 	} {

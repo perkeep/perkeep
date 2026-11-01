@@ -1,6 +1,6 @@
 #!/bin/bash
 # build.sh builds the Perkeep iOS app, with its share extension, without
-# an Xcode project.
+# an Xcode project. The two share the Go core, as a framework.
 #
 # Usage: clients/mobile/ios/build.sh sim|device
 #
@@ -39,10 +39,11 @@ REPO_ROOT="$(cd "$IOS_DIR/../../.." && pwd)"
 OUT="$IOS_DIR/build/$TARGET"
 APP="$OUT/Perkeep.app"
 EXT="$APP/PlugIns/PerkeepShare.appex"
+FW="$APP/Frameworks/PKCore.framework"
 SDK_PATH="$(xcrun --sdk "$SDK" --show-sdk-path)"
 
 rm -rf "$OUT"
-mkdir -p "$APP" "$EXT"
+mkdir -p "$APP" "$EXT" "$FW"
 
 echo "==> Building Go core ($TRIPLE)"
 (
@@ -59,6 +60,18 @@ echo "==> Building Go core ($TRIPLE)"
 	go build -buildmode=c-archive -trimpath -ldflags="-s -w" -tags="$TAGS" \
 		-o "$OUT/libpkcore.a" ./clients/mobile/core
 )
+
+echo "==> Linking the Go core into a framework"
+# Go can't build shared libraries for iOS (-buildmode=c-shared), so link
+# its static library into one, exporting only the core's C API.
+printf '_PKCall\n_PKFree\n' >"$OUT/exports.txt"
+xcrun --sdk "$SDK" clang -dynamiclib \
+	-target "$TRIPLE" -isysroot "$SDK_PATH" \
+	-Wl,-all_load "$OUT/libpkcore.a" \
+	-Wl,-exported_symbols_list,"$OUT/exports.txt" \
+	-install_name @rpath/PKCore.framework/PKCore \
+	-lresolv -framework CoreFoundation -framework Security \
+	-o "$FW/PKCore"
 
 # simEntitlements writes the entitlements of a simulator build of the
 # bundle with ID id, and prints linker flags embedding them, as Xcode does
@@ -79,7 +92,7 @@ EOF2
 	echo -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker "$f"
 }
 
-# swift compiles and links Swift sources with the Go core.
+# swift compiles and links Swift sources with the Go core's framework.
 swift() {
 	xcrun --sdk "$SDK" swiftc \
 		-target "$TRIPLE" \
@@ -87,12 +100,14 @@ swift() {
 		-O -parse-as-library \
 		-import-objc-header "$OUT/libpkcore.h" \
 		"$@" \
-		"$OUT/libpkcore.a" \
-		-lresolv -framework CoreFoundation -framework Security
+		"$FW/PKCore"
 }
 
 echo "==> Compiling the app"
-swift -module-name Perkeep "$IOS_DIR"/Sources/*.swift $(simEntitlements org.perkeep.mobile) -o "$APP/Perkeep"
+swift -module-name Perkeep "$IOS_DIR"/Sources/*.swift \
+	-Xlinker -rpath -Xlinker @executable_path/Frameworks \
+	$(simEntitlements org.perkeep.mobile) \
+	-o "$APP/Perkeep"
 
 echo "==> Compiling the share extension"
 # The extension shares the app's code for the core, keychain, and
@@ -102,6 +117,7 @@ swift -module-name PerkeepShare -application-extension \
 	"$IOS_DIR"/ShareExtension/*.swift \
 	"$IOS_DIR"/Sources/{Core,Keychain,Accounts,SharedAccounts}.swift \
 	-Xlinker -e -Xlinker _NSExtensionMain \
+	-Xlinker -rpath -Xlinker @executable_path/../../Frameworks \
 	$(simEntitlements org.perkeep.mobile.share) \
 	-o "$EXT/PerkeepShare"
 
@@ -138,8 +154,11 @@ plutil -convert binary1 "$APP/Info.plist"
 printf 'APPL????' >"$APP/PkgInfo"
 plist "$IOS_DIR/ShareExtension/Info.plist" "$EXT/Info.plist"
 plutil -convert binary1 "$EXT/Info.plist"
+plist "$IOS_DIR/PKCore-Info.plist" "$FW/Info.plist"
+plutil -convert binary1 "$FW/Info.plist"
 
 if [ "$TARGET" = sim ]; then
+	codesign --force --sign - --timestamp=none "$FW"
 	codesign --force --sign - --timestamp=none "$EXT"
 	codesign --force --sign - --timestamp=none "$APP"
 fi

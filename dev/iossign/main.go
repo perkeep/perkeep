@@ -143,13 +143,14 @@ type job struct {
 	ident   signingIdentity
 	work    string   // temp dir
 	app     string   // signed copy of src under work
-	bundles []bundle // to sign, in order: the app's extensions, then the app
+	bundles []bundle // to sign, in order: frameworks, extensions, then the app
 }
 
-// bundle is the app or one of its extensions, to be signed.
+// bundle is the app or code nested in it, to be signed.
 type bundle struct {
-	dir string // in the prepared copy
-	id  string // bundle ID to sign it as
+	dir       string // in the prepared copy
+	id        string // bundle ID to sign it as
+	framework bool   // signed without a profile or entitlements
 }
 
 // keychainGroup is the keychain access group the app and its extensions
@@ -211,6 +212,17 @@ func (j *job) prepare() error {
 		return err
 	}
 	j.bundles = nil
+	fws, err := filepath.Glob(filepath.Join(j.app, "Frameworks", "*.framework"))
+	if err != nil {
+		return err
+	}
+	for _, fw := range fws {
+		id, err := plistGet(filepath.Join(fw, "Info.plist"), "CFBundleIdentifier")
+		if err != nil {
+			return err
+		}
+		j.bundles = append(j.bundles, bundle{dir: fw, id: id, framework: true})
+	}
 	for _, ext := range exts {
 		ep := filepath.Join(ext, "Info.plist")
 		builtExtID, err := plistGet(ep, "CFBundleIdentifier")
@@ -291,6 +303,9 @@ func (j *job) confirm() error {
 func (j *job) profiles(ctx context.Context, namePrefix, profileType string, deviceIDs []string, nameSuffix string) (map[string][]byte, error) {
 	profiles := map[string][]byte{}
 	for _, b := range j.bundles {
+		if b.framework {
+			continue // frameworks are signed without profiles
+		}
 		apiID, err := j.asc.ensureBundleID(ctx, b.id)
 		if err != nil {
 			return nil, err
@@ -304,12 +319,20 @@ func (j *job) profiles(ctx context.Context, namePrefix, profileType string, devi
 	return profiles, nil
 }
 
-// sign embeds each bundle's profile and signs it, extensions first.
+// sign embeds each bundle's profile and signs it: frameworks, then
+// extensions, then the app, so each one's signature covers the nested
+// ones' signed code.
 func (j *job) sign(profiles map[string][]byte) error {
 	if err := ensureIssuer(j.ident.der); err != nil {
 		return err
 	}
 	for _, b := range j.bundles {
+		if b.framework {
+			if err := run("codesign", "--force", "--sign", j.ident.sha1, "--timestamp=none", b.dir); err != nil {
+				return err
+			}
+			continue
+		}
 		profilePath := filepath.Join(b.dir, "embedded.mobileprovision")
 		if err := os.WriteFile(profilePath, profiles[b.id], 0o644); err != nil {
 			return err
