@@ -163,10 +163,13 @@ struct AccountEditView: View {
         if let owner = r.ownerName, !owner.isEmpty {
             parts.append("Owner: \(owner)")
         }
+        if let perms = r.client?.permissions {
+            parts.append("Can: " + (perms.isEmpty ? "nothing" : perms.joined(separator: ", ")))
+        }
         if r.status != 0 {
             parts.append("HTTP \(r.status)")
         }
-        parts.append(String(format: "%.1fs", r.seconds))
+        parts.append(r.durationText)
         return parts.joined(separator: " · ")
     }
 

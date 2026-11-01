@@ -5,6 +5,7 @@ import SwiftUI
 struct AccountsView: View {
     @EnvironmentObject private var accounts: AccountStore
     @EnvironmentObject private var router: Router
+    @State private var hello: [String: String] = [:]
 
     var body: some View {
         List {
@@ -52,6 +53,15 @@ struct AccountsView: View {
                     Label("Add Server", systemImage: "plus")
                 }
             }
+            Section("About") {
+                ForEach(["goVersion", "goos", "goarch", "build"], id: \.self) { k in
+                    LabeledContent(k, value: hello[k] ?? "")
+                        .font(.footnote.monospaced())
+                }
+            }
+        }
+        .onAppear {
+            hello = (try? Core.json("GET", "/hello")) ?? [:]
         }
         .navigationTitle("Accounts")
         .toolbar {

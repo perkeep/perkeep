@@ -74,15 +74,62 @@ struct ServerFields: Equatable {
 /// Conn is how to reach a server; see conn in clients/mobile/core/check.go.
 struct Conn: Encodable {
     var server, certfp, tailcat, username, password: String
+    var timeout: Double? // seconds, for checks
 }
 
-/// CheckResult is the result of checking a server's credentials.
+/// CheckResult is the result of checking a server's credentials, with
+/// what its discovery says about them. See doc/protocol/discovery.md.
 struct CheckResult: Decodable {
     var ok: Bool
     var status: Int
     var message: String
     var ownerName: String?
     var seconds: Double
+    var client: Client?
+    var storage: Storage?
+
+    struct Client: Decodable {
+        var serverName: String?
+        var accessKeyName: String?
+        var permissions: [String]?
+    }
+
+    struct Storage: Decodable {
+        var approxBlobs: Int64?
+        var approxBytes: Int64?
+    }
+
+    /// durationText is how long the check took, like "45 ms" or "1.2 s".
+    var durationText: String {
+        seconds < 1 ? "\(Int((seconds * 1000).rounded())) ms" : String(format: "%.1f s", seconds)
+    }
+}
+
+/// Permission is a permission an access key can have.
+enum Permission: String, CaseIterable, Identifiable {
+    case upload, sign, search, download, stats
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .upload: "Upload"
+        case .sign: "Make claims"
+        case .search: "Search"
+        case .download: "Download"
+        case .stats: "Server stats"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .upload: "icloud.and.arrow.up"
+        case .sign: "signature"
+        case .search: "magnifyingglass"
+        case .download: "icloud.and.arrow.down"
+        case .stats: "chart.bar"
+        }
+    }
 }
 
 /// AlbumStates is the core's report of which of the device's albums an
@@ -121,6 +168,10 @@ final class AccountStore: ObservableObject {
 
     @Published private(set) var list = List(current: "", accounts: [])
     @Published var lastError: String?
+
+    init() {
+        reload()
+    }
 
     var current: Account? { account(list.current) }
 
@@ -196,9 +247,11 @@ final class AccountStore: ObservableObject {
     }
 
     /// check checks that the server in f is reachable and accepts its
-    /// credentials. It can take a while, especially over tailcat.
-    nonisolated func check(_ f: ServerFields) async throws -> CheckResult {
-        let conn = f.conn
+    /// credentials, waiting at most timeout seconds, if given, or else
+    /// the core's default. It can take a while, especially over tailcat.
+    nonisolated func check(_ f: ServerFields, timeout: Double? = nil) async throws -> CheckResult {
+        var conn = f.conn
+        conn.timeout = timeout
         return try await Task.detached {
             try Core.json("POST", "/check", conn) as CheckResult
         }.value

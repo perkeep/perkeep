@@ -97,7 +97,9 @@ func fakePerkeep(password string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/javascript")
-		w.Write([]byte(`{"blobRoot": "/bs/", "ownerName": "Test Owner"}`))
+		w.Write([]byte(`{"blobRoot": "/bs/", "ownerName": "Test Owner",
+			"client": {"serverName": "pk.example.com", "accessKeyName": "My phone", "permissions": ["upload", "stats"]},
+			"storage": {"approxBlobs": 1234, "approxBytes": 5678}}`))
 	})
 }
 
@@ -132,9 +134,32 @@ func TestCheck(t *testing.T) {
 		if got.OK != tt.wantOK || got.Status != tt.wantStatus || !strings.Contains(got.Message, tt.wantMessage) {
 			t.Errorf("%s: got %+v; want ok=%v, status %d, message containing %q", tt.name, got, tt.wantOK, tt.wantStatus, tt.wantMessage)
 		}
-		if tt.wantOK && got.OwnerName != "Test Owner" {
-			t.Errorf("%s: owner = %q", tt.name, got.OwnerName)
+		if tt.wantOK {
+			if got.OwnerName != "Test Owner" {
+				t.Errorf("%s: owner = %q", tt.name, got.OwnerName)
+			}
+			if c := got.Client; c == nil || c.ServerName != "pk.example.com" || c.AccessKeyName != "My phone" || strings.Join(c.Permissions, ",") != "upload,stats" {
+				t.Errorf("%s: client = %+v", tt.name, got.Client)
+			}
+			if st := got.Storage; st == nil || st.ApproxBlobs != 1234 || st.ApproxBytes != 5678 {
+				t.Errorf("%s: storage = %+v", tt.name, got.Storage)
+			}
 		}
+	}
+}
+
+func TestCheckTimeout(t *testing.T) {
+	unblock := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-unblock
+	}))
+	defer ts.Close()
+	defer close(unblock)
+
+	var got checkResult
+	do(t, newServer(), "POST", "/check", map[string]any{"server": ts.URL, "timeout": 0.05}, http.StatusOK, &got)
+	if got.OK || !strings.Contains(got.Message, "within 50ms") {
+		t.Errorf("got %+v; want timeout after 50ms", got)
 	}
 }
 
