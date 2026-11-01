@@ -203,8 +203,7 @@ func TestReindexSessionFinalization(t *testing.T) {
 				if success && !s.view.cacheClosed {
 					t.Error("Finish(true) called before the deletion iterator closed")
 				}
-				ix.RLock()
-				defer ix.RUnlock()
+				defer ix.RLock()()
 				if ix.inFlight.Len() != 0 || ix.readyWorkerDone != nil || ix.readyReindex.Len() != 0 {
 					t.Error("session finalized with indexing workers still active")
 				}
@@ -442,8 +441,7 @@ func testReindexSessionDrain(t *testing.T, enumErr, readyErr, missingErr error) 
 		if !slices.Equal(s.view.finishes, []bool{wantFinish}) || ix.s != s {
 			t.Errorf("Finish=%v, storage=%T; want Finish(%v) and restored original", s.view.finishes, ix.s, wantFinish)
 		}
-		ix.RLock()
-		defer ix.RUnlock()
+		defer ix.RLock()()
 		if ix.inFlight.Len() != 0 || ix.readyWorkerDone != nil || ix.readyReindex.Len() != 0 || len(ix.needs) != 0 {
 			t.Error("Reindex returned before all worker/dependency state drained")
 		}

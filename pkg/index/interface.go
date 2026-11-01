@@ -11,8 +11,9 @@ import (
 
 type Interface interface {
 	sync.Locker
-	RLock()
-	RUnlock()
+	// RLock read-locks the index, and returns the func that unlocks it,
+	// which must be called exactly once.
+	RLock() (unlock func())
 
 	// os.ErrNotExist should be returned if the blob isn't known
 	GetBlobMeta(context.Context, blob.Ref) (camtypes.BlobMeta, error)

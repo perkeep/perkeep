@@ -474,8 +474,7 @@ func TestReindexWaitsForWorkersOnEnumerationError(t *testing.T) {
 				t.Errorf("have:%v = %q, %v; want indexed", b.BlobRef(), value, err)
 			}
 		}
-		ix.RLock()
-		defer ix.RUnlock()
+		defer ix.RLock()()
 		if ix.inFlight.Len() != 0 || ix.readyWorkerDone != nil || len(ix.needs) != 0 {
 			t.Errorf("undrained indexing state: inFlight=%d, readyWorkerDone=%v, needs=%d",
 				ix.inFlight.Len(), ix.readyWorkerDone, len(ix.needs))
@@ -637,7 +636,7 @@ func TestReadyReindexWorkerRecoversFromFetchError(t *testing.T) {
 			default:
 				t.Error("idle worker did not close its completion channel")
 			}
-			ix.RLock()
+			unlock := ix.RLock()
 			wantFailed := attempt == 0
 			if got := ix.readyFailed.Contains(ref); got != wantFailed {
 				t.Errorf("attempt %d: readyFailed.Contains(%v) = %v; want %v", attempt, ref, got, wantFailed)
@@ -648,7 +647,7 @@ func TestReadyReindexWorkerRecoversFromFetchError(t *testing.T) {
 			if ix.readyWorkerDone != nil || ix.readyReindex.Len() != 0 || ix.inFlight.Len() != 0 {
 				t.Error("worker did not reset drained indexing state")
 			}
-			ix.RUnlock()
+			unlock()
 			previousDone = done
 		}
 		if fetches != 2 {

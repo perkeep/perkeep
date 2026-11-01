@@ -518,11 +518,11 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	}()
 	go func() {
 		for range 10 {
-			idx.RLock()
+			unlock := idx.RLock()
 			enumFunc(c, func(m camtypes.BlobMeta) bool {
 				return true
 			})
-			idx.RUnlock()
+			unlock()
 		}
 		donec <- struct{}{}
 	}()

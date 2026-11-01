@@ -201,9 +201,9 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 		switch i {
 		case 0:
 			if h.idx != nil {
-				h.idx.RLock()
+				unlock := h.idx.RLock()
 				isDeleted := h.idx.IsDeleted(br)
-				h.idx.RUnlock()
+				unlock()
 				if isDeleted {
 					return unauthorized(shareDeleted, "Share was deleted")
 				}

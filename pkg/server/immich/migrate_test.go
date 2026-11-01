@@ -443,9 +443,9 @@ func TestImmichLegacyMigrationMissingPrimary(t *testing.T) {
 				ref = a.PermanodeRef
 			case "claim":
 				ix := h.search.Index()
-				ix.RLock()
+				unlock := ix.RLock()
 				claims, err := ix.AppendClaims(context.Background(), nil, a.PermanodeRef, h.signer.KeyIDLong(), "camliContent")
-				ix.RUnlock()
+				unlock()
 				if err != nil || len(claims) == 0 {
 					t.Fatalf("owner content claims: %v, %v", claims, err)
 				}

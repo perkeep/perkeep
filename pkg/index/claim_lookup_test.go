@@ -111,8 +111,7 @@ func newClaimLookupIndex(t *testing.T, corpus bool, ordinal int) (*Index, *claim
 
 func lookupClaim(t *testing.T, ix *Index, ctx context.Context, cl camtypes.Claim) (bool, error) {
 	t.Helper()
-	ix.RLock()
-	defer ix.RUnlock()
+	defer ix.RLock()()
 	return ix.HasClaim(ctx, cl)
 }
 

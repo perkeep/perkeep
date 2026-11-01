@@ -121,9 +121,9 @@ func TestGetEXIF(t *testing.T) {
 				{Directory: "GPS", Tag: "010f", Name: "Unknown tag", Type: "string", Values: []string{"Not a camera make"}},
 			}
 			for _, ref := range []blob.Ref{file, copyFile} {
-				x.RLock()
+				unlock := x.RLock()
 				got, err := x.GetEXIF(context.Background(), ref)
-				x.RUnlock()
+				unlock()
 				want := &camtypes.EXIFInfo{FileRef: ref, WholeRef: whole, Tags: wantTags}
 				if err != nil || !reflect.DeepEqual(got, want) {
 					t.Errorf("GetEXIF(%s) = %#v, %v; want %#v", ref, got, err, want)
@@ -133,26 +133,26 @@ func TestGetEXIF(t *testing.T) {
 				}
 			}
 			for _, ref := range []blob.Ref{emptyFile, noWhole} {
-				x.RLock()
+				unlock := x.RLock()
 				got, err := x.GetEXIF(context.Background(), ref)
-				x.RUnlock()
+				unlock()
 				if err != nil || got == nil || got.Tags == nil || len(got.Tags) != 0 {
 					t.Errorf("GetEXIF(empty %s) = %+v, %v; want non-nil empty tags", ref, got, err)
 				}
 			}
 			for _, ref := range []blob.Ref{dir, whole, blob.RefFromString("missing"), {}} {
-				x.RLock()
+				unlock := x.RLock()
 				_, err := x.GetEXIF(context.Background(), ref)
-				x.RUnlock()
+				unlock()
 				if !errors.Is(err, os.ErrNotExist) {
 					t.Errorf("GetEXIF(%v) error = %v; want os.ErrNotExist", ref, err)
 				}
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			x.RLock()
+			unlock := x.RLock()
 			_, err := x.GetEXIF(ctx, file)
-			x.RUnlock()
+			unlock()
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("canceled GetEXIF error = %v", err)
 			}

@@ -731,8 +731,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 		loc: make(map[blob.Ref]camtypes.Location),
 	}
 
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	ctx, cancelSearch := context.WithCancel(ctx)
 	defer cancelSearch()

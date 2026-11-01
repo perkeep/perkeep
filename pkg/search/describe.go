@@ -47,8 +47,7 @@ const verboseDescribe = false
 // Describe returns a response for the given describe request. It acquires RLock
 // on the Handler's index.
 func (h *Handler) Describe(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	return h.DescribeLocked(ctx, dr)
 }
