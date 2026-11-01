@@ -145,7 +145,7 @@ func TestAddMediaTags(t *testing.T) {
 		}
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "11"
+	want[keySchemaVersion.name] = "12"
 
 	// The test needs files with new rows to upgrade: both Apple images
 	// (including the HEIC, with its EXIF item), the videos, and the heix
@@ -260,9 +260,7 @@ func TestAddMediaTags(t *testing.T) {
 			if err := old.addDigests(ctx, sto); err != nil {
 				t.Fatalf("addDigests: %v", err)
 			}
-			if _, err := New(kv); err != nil {
-				t.Fatalf("New after upgrade: %v", err)
-			}
+			upgradeVideoTimes(t, kv, sto)
 
 			got := make(map[string]string)
 			it := kv.Find("", "")

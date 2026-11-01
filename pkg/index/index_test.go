@@ -150,6 +150,7 @@ var (
 		"sniff_test.go",
 		"upgrade_digests_test.go",
 		"upgrade_media_test.go",
+		"upgrade_video_times_test.go",
 		"util_test.go",
 	}
 	// A map is used in hasAllRequiredTests to note which required
