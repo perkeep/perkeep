@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
@@ -205,7 +206,15 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		{"set", nodeattr.DateCreated, takeoutTime(a.exp.Time)},
 		{"set", attrTakeoutExport, a.exp.Name},
 	}, cur[nodeattr.CamliMember])
-	if err := a.st.applyChanges(ctx, pn, changes, a.exp.Time); err != nil {
+	// Its claims are dated by the export, like its other attributes,
+	// unless it's archived already, as another directory (by an older
+	// pk takeout): a claim of the old one might be dated the same, and
+	// then win.
+	claimTime := a.exp.Time
+	if old := cur[nodeattr.CamliContent]; len(old) > 0 && !slices.Equal(old, []string{rootDir.String()}) {
+		claimTime = time.Now()
+	}
+	if err := a.st.applyChanges(ctx, pn, changes, claimTime); err != nil {
 		return blob.Ref{}, err
 	}
 	log.Printf("Archived %s as directory %v, the content of permanode %v.", a.exp.Name, rootDir, pn)

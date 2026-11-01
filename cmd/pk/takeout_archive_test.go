@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
@@ -259,5 +260,42 @@ func TestTakeoutImportPhotos(t *testing.T) {
 	if after := st.c.Stats().UploadRequests; after.Blobs-before.Blobs > 1 {
 		t.Errorf("importing again requested %d more uploads (%d bytes); want just the albums' root permanode",
 			after.Blobs-before.Blobs, after.Bytes-before.Bytes)
+	}
+}
+
+// TestTakeoutArchiveReplacesOldArchive checks that archiving an export
+// archived as another directory (as by an older pk takeout, its claim
+// dated by the export or later) makes the new one its permanode's
+// contents.
+func TestTakeoutArchiveReplacesOldArchive(t *testing.T) {
+	st := newTakeoutTestStore(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
+		"Takeout/Google Photos/2018-07-13/A.JPG": strings.Repeat("photo ", 1000),
+	})
+	exps, err := takeout.LocalExports(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := exps[0]
+	if err := exp.LoadTOCs(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	pn, err := st.plannedPermanode(ctx, exportPermanodeKeyPrefix+exp.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := blob.RefFromString("an older archive's directory")
+	if err := st.applyChanges(ctx, pn, []attrChange{{"set", "camliContent", old.String()}}, exp.Time.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	root, err := (&takeoutArchive{st: st, exp: exp, workers: 2}).run(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := permanodeAttrs(t, st, pn).Get("camliContent"); got != root.String() {
+		t.Errorf("export's camliContent = %s; want the new archive, %v (old %v)", got, root, old)
 	}
 }
