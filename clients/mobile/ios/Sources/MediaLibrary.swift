@@ -18,9 +18,9 @@ struct MediaItem: Identifiable {
 
 /// MediaCount is the result of counting the media to back up.
 struct MediaCount {
-    var assets = 0              // photos and videos
-    var items: [MediaItem] = [] // their files
-    var lookedUp = 0            // assets whose files weren't in the cache
+    var assets = 0   // photos and videos
+    var files = 0    // their files
+    var lookedUp = 0 // assets whose files weren't in the cache
 }
 
 /// MediaLibrary finds the media to back up.
@@ -29,49 +29,59 @@ enum MediaLibrary {
     private static let originalTypes: Set<PHAssetResourceType> = [.photo, .video, .pairedVideo, .alternatePhoto, .audio]
     private static let editedTypes: Set<PHAssetResourceType> = [.fullSizePhoto, .fullSizeVideo, .fullSizePairedVideo]
 
+    /// countBatch is how many assets' files count passes to onBatch at once.
+    private static let countBatch = 200
+
     /// count finds the files of the assets that the account's album rules
-    /// select, newest first. progress is called with the number of assets
-    /// looked at so far, and their total.
-    static func count(accountID: String, store: AccountStore, progress: @escaping @Sendable (Int, Int) -> Void) async throws -> MediaCount {
+    /// select, newest first, passing them to onBatch as it goes, so later
+    /// work can start before counting is done. onStart is called with the
+    /// number of assets, once known.
+    static func count(accountID: String, store: AccountStore,
+                      onStart: @MainActor (Int) -> Void,
+                      onBatch: @MainActor ([MediaItem], _ assetsDone: Int) async throws -> Void) async throws -> MediaCount {
         let albums = PhotoAlbums.list().map(\.album)
         let states = try await store.albumStates(accountID, albums: albums)
         let included = states.albums.filter { $0.state == .include }.map(\.album.id)
         let excluded = states.albums.filter { $0.state == .exclude }.map(\.album.id)
-        return await Task.detached(priority: .userInitiated) {
-            var excludedAssets = Set<String>()
-            for c in collections(excluded) {
-                PHAsset.fetchAssets(in: c, options: nil).enumerateObjects { a, _, _ in
-                    excludedAssets.insert(a.localIdentifier)
+        var excludedAssets = Set<String>()
+        for c in collections(excluded) {
+            PHAsset.fetchAssets(in: c, options: nil).enumerateObjects { a, _, _ in
+                excludedAssets.insert(a.localIdentifier)
+            }
+        }
+        var seen = Set<String>()
+        var assets: [PHAsset] = []
+        for c in collections(included) {
+            PHAsset.fetchAssets(in: c, options: nil).enumerateObjects { a, _, _ in
+                if !excludedAssets.contains(a.localIdentifier), seen.insert(a.localIdentifier).inserted {
+                    assets.append(a)
                 }
             }
-            var seen = Set<String>()
-            var assets: [PHAsset] = []
-            for c in collections(included) {
-                PHAsset.fetchAssets(in: c, options: nil).enumerateObjects { a, _, _ in
-                    if !excludedAssets.contains(a.localIdentifier), seen.insert(a.localIdentifier).inserted {
-                        assets.append(a)
-                    }
-                }
+        }
+        assets.sort { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) }
+        await onStart(assets.count)
+        var cache = ResourceCache.load()
+        var res = MediaCount(assets: assets.count)
+        var batch: [MediaItem] = []
+        for (i, a) in assets.enumerated() {
+            try Task.checkCancellation()
+            let (items, cached) = mediaItems(a, cache: &cache)
+            batch += items
+            if !cached {
+                res.lookedUp += 1
             }
-            assets.sort { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) }
-            var cache = ResourceCache.load()
-            var res = MediaCount(assets: assets.count)
-            for (i, a) in assets.enumerated() {
-                let (items, cached) = mediaItems(a, cache: &cache)
-                res.items += items
-                if !cached {
-                    res.lookedUp += 1
-                }
-                if i % 200 == 0 {
-                    progress(i, assets.count)
-                }
+            if (i + 1) % countBatch == 0 || i == assets.count - 1 {
+                res.files += batch.count
+                try await onBatch(batch, i + 1)
+                batch = []
             }
-            progress(assets.count, assets.count)
-            if res.lookedUp > 0 {
-                cache.save()
-            }
-            return res
-        }.value
+        }
+        // Counting finished, so the cache can forget assets no longer here.
+        cache.prune(keeping: seen)
+        if res.lookedUp > 0 || cache.pruned {
+            cache.save()
+        }
+        return res
     }
 
     private static func collections(_ ids: [String]) -> [PHAssetCollection] {
@@ -208,6 +218,16 @@ struct ResourceCache: Codable {
     }
 
     private var entries: [String: Entry] = [:]
+    private(set) var pruned = false // whether prune removed any
+
+    private enum CodingKeys: String, CodingKey { case entries }
+
+    /// prune forgets the assets not in keep.
+    mutating func prune(keeping keep: Set<String>) {
+        let n = entries.count
+        entries = entries.filter { keep.contains($0.key) }
+        pruned = entries.count != n
+    }
 
     private static var url: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
