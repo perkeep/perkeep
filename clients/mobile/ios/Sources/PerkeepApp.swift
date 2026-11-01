@@ -25,6 +25,7 @@ enum Route: Hashable {
     case addAccount(AccessInfo?) // prefilled from an access URL, if any
     case editAccount(String) // account ID
     case albums(String)      // account ID
+    case upload(String)      // account ID
 }
 
 /// Router holds the navigation stack.
@@ -53,6 +54,7 @@ final class Router: ObservableObject {
         case "accounts": return [.accounts]
         case "add": return [.accounts, .addAccount(nil)]
         case "account" where !current.isEmpty: return [.account(current)]
+        case "upload" where !current.isEmpty: return [.account(current), .upload(current)]
         case "edit" where !current.isEmpty: return [.accounts, .editAccount(current)]
         case "albums" where !current.isEmpty: return [.accounts, .editAccount(current), .albums(current)]
         default: return []
@@ -74,6 +76,7 @@ struct ContentView: View {
                 case .addAccount(let ai): AccountEditView(accountID: nil, prefill: ai)
                 case .editAccount(let id): AccountEditView(accountID: id)
                 case .albums(let id): AlbumsView(accountID: id)
+                case .upload(let id): UploadView(accountID: id, store: accounts)
                 }
             }
         }

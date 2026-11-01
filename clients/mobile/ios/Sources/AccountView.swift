@@ -127,16 +127,18 @@ struct AccountView: View {
                 Label("Check", systemImage: "arrow.clockwise")
             }
             .disabled(checking)
+            NavigationLink(value: Route.upload(a.id)) {
+                Label("Upload Photos", systemImage: "icloud.and.arrow.up")
+            }
+            .disabled(perms.map { !$0.contains(Permission.upload.rawValue) } ?? false)
             // Not done yet.
-            Label("Upload Photos", systemImage: "icloud.and.arrow.up")
-                .foregroundStyle(.secondary)
             Label("Query", systemImage: "magnifyingglass")
                 .foregroundStyle(.secondary)
         } footer: {
             if let perms, !perms.contains(Permission.upload.rawValue) {
-                Text("This access key can't upload. Uploading and querying aren't done yet.")
+                Text("This access key can't upload. Querying isn't done yet.")
             } else {
-                Text("Uploading and querying aren't done yet.")
+                Text("Querying isn't done yet.")
             }
         }
     }

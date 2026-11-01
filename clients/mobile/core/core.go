@@ -36,12 +36,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
 
 	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/client"
 )
 
 func main() {}
@@ -58,6 +60,14 @@ type server struct {
 
 	tailcatMu sync.Mutex
 	tailcats  map[string]*tailcatTransport // by tailcat address
+
+	hashes *logCache[[]string] // whole-file refs by item key; nil until initialized
+
+	connMu sync.Mutex
+	conns  map[string]*accountConn // by account ID
+
+	// testClient, if non-nil, makes the Perkeep clients for accounts.
+	testClient func(Account) (*client.Client, error)
 }
 
 func newServer() *server {
@@ -73,6 +83,13 @@ func newServer() *server {
 	s.mux.HandleFunc("POST /accounts/{id}/select", s.withAccount(s.serveSelectAccount))
 	s.mux.HandleFunc("POST /accounts/{id}/albumstates", s.withAccount(s.serveAlbumStates))
 	s.mux.HandleFunc("PUT /accounts/{id}/albums", s.withAccount(s.serveSetAlbum))
+	s.mux.HandleFunc("POST /accounts/{id}/connect", s.uploadHandler(s.serveConnect))
+	s.mux.HandleFunc("POST /accounts/{id}/hashes/lookup", s.connHandler(s.serveHashLookup))
+	s.mux.HandleFunc("POST /accounts/{id}/hashes/file", s.connHandler(s.serveHashFile))
+	s.mux.HandleFunc("POST /accounts/{id}/findmissing", s.connHandler(s.serveFindMissing))
+	s.mux.HandleFunc("POST /accounts/{id}/uploads", s.connHandler(s.serveStartUpload))
+	s.mux.HandleFunc("GET /accounts/{id}/uploads", s.connHandler(s.serveUploads))
+	s.mux.HandleFunc("DELETE /accounts/{id}/uploads", s.connHandler(s.serveCancelUploads))
 	return s
 }
 
@@ -142,10 +159,19 @@ func (s *server) serveInit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	hashes, err := openLogCache[[]string](filepath.Join(req.DataDir, hashesFile))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dataDir = req.DataDir
 	s.accounts = accounts
+	if s.hashes != nil {
+		s.hashes.close()
+	}
+	s.hashes = hashes
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -286,6 +312,8 @@ func (s *server) serveDeleteAccount(w http.ResponseWriter, r *http.Request, a *A
 	if err := l.save(s.dataDir); err != nil {
 		return err
 	}
+	s.dropConn(a.ID)
+	os.Remove(filepath.Join(s.dataDir, haveFile(a.ID)))
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
