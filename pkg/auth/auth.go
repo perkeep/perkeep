@@ -32,6 +32,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/secret"
+	"tailscale.com/util/ctxkey"
 )
 
 // Operation represents a bitmask of operations. See the OpX constants.
@@ -379,9 +380,56 @@ func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool {
 	return am.AllowedAccess(req)&op == op
 }
 
+// GrantCtxKey holds the operations granted to a request accepted by a
+// listener that authorizes requests itself, such as the tailcat listener
+// for access keys. When a request's context has it, even with no
+// operations, [Allowed] consults it alone and ignores the auth modes, so
+// that credentials meant for the server's main listener (like being on
+// localhost, or the web UI's token) grant nothing there.
+var GrantCtxKey = ctxkey.New("auth-grant", Operation(0))
+
+// HasGrant reports whether req's context has a [GrantCtxKey] value, meaning
+// it came from a listener that authorizes requests itself.
+func HasGrant(req *http.Request) bool {
+	return GrantCtxKey.Has(req.Context())
+}
+
+// A ScopedMode is an AuthMode that allows only particular requests, such
+// as those its credentials' permissions cover, even if it allows them
+// all operations. Requests it allows mustn't be given credentials that
+// allow more, such as the web UI's token; see [AllowedUnscoped].
+type ScopedMode interface {
+	AuthMode
+	ScopedOnly()
+}
+
+// AllowedUnscoped is like [Allowed], but only counts the auth modes that
+// aren't ScopedModes, and allows nothing to requests with a grant (see
+// [GrantCtxKey]).
+func AllowedUnscoped(req *http.Request, op Operation) bool {
+	if HasGrant(req) {
+		return false
+	}
+	for _, m := range modes() {
+		if _, ok := m.(ScopedMode); ok {
+			continue
+		}
+		if AllowedWithAuth(m, req, op) {
+			return true
+		}
+	}
+	return false
+}
+
 // Allowed returns whether the given request
 // has access to perform all the operations in op.
 func Allowed(req *http.Request, op Operation) bool {
+	if granted, ok := GrantCtxKey.ValueOk(req.Context()); ok {
+		if op&OpUpload != 0 {
+			op |= OpVivify // as in AllowedWithAuth
+		}
+		return granted&op == op
+	}
 	for _, m := range modes() {
 		if AllowedWithAuth(m, req, op) {
 			return true

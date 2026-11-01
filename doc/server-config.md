@@ -343,6 +343,62 @@ such as:
 }
 ```
 
+## Access keys and the tailcat listener {#access}
+
+The web UI's Client access page (`/access/`, in its top-left menu)
+manages access keys, which let clients such as mobile apps use the server
+with only the permissions you give them: to upload blobs, make claims
+(the server signs them, so clients don't need the GPG private key),
+search, download blobs, and get the server's status. Clients send a key
+as the password of HTTP basic auth, with any username. Keys work on the
+server's usual listeners, in addition to the `auth` setting's
+credentials.
+
+The page can also enable a [tailcat](https://github.com/tailscale/tailcat)
+listener, in addition to however else the server listens. It lets clients
+reach the server through an encrypted WireGuard tunnel, relayed through a
+DERP server until a direct connection works, without a VPN or Tailscale
+account. Enabling it the first time makes its identity, with a fixed
+tailcat address that uses the nearest of tailcat's free DERP relays.
+Disabling it keeps that identity until you forget it on the page. The
+tailcat listener serves plain HTTP inside the tunnel, on port 80, and only
+to access keys; the server's `auth` setting doesn't apply to it.
+
+For each key, the page shows its secret, and a QR code for clients to
+scan, and a link for them to open, of a `perkeep://access` URL, described
+in [Client access URLs](/doc/access-url.md). It sends clients through the
+tailcat listener, if it's enabled, or else to the server's base URL, which
+must then be HTTPS; with a self-signed certificate, the URL has its
+fingerprint, for clients to check it by. The URL also has the name clients
+show for the server, which you can change on the page. By default, it's
+the name of the server's TLS certificate, if it has one, or else the
+machine's hostname.
+
+While it's enabled, the listener checks every five minutes that a client
+can reach it through its DERP relay, and reports the result on the
+Client access page and as the `access.tailcat[access]` check on the
+status page.
+
+The server keeps the tailcat identity and the access keys in
+`tailcat.json` in its var directory. The tailcat address and the access
+keys are secrets.
+
+To use a [DERP server you run](https://github.com/tailscale/tailscale/tree/main/cmd/derper#derp)
+instead of tailcat's, enable the listener once to make its identity, stop
+the server, and in `tailcat.json`, replace the identity's `regionID` with
+`derpHost`, set to the DERP server's hostname:
+
+```json
+"identity": {
+    "key": "privkey:...",
+    "presharedKey": "...",
+    "derpHost": "derp.example.com"
+}
+```
+
+Then start the server again. The listener's tailcat address changes, so
+clients need its new QR code.
+
 ## Windows {#windows}
 
 The default SQLite indexer works on Windows. Its pure-Go driver does not

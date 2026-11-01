@@ -870,7 +870,7 @@ cam.IndexPage = React.createClass({
 				pendingQuery: this.state.pendingQuery,
 				height: 38,
 				helpURL: this.baseURL_.resolve(new goog.Uri(this.props.config.helpRoot)),
-				mobileSetupURL: this.baseURL_.resolve(new goog.Uri("/mobile-setup")),
+				accessURL: this.baseURL_.resolve(new goog.Uri("/access/")),
 				homeURL: this.baseURL_,
 				importersURL: this.baseURL_.resolve(new goog.Uri(this.props.config.importerRoot)),
 				mainControls: chooser.map(function(val, idx) {

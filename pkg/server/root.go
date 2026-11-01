@@ -251,6 +251,11 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		// serverinit serves upload sessions for every blob root.
 		UploadSessions: rh.BlobRoot != "",
 	}
+	if !auth.AllowedUnscoped(req, auth.OpDiscovery) {
+		// The token grants everything, beyond what an access key,
+		// say, allows.
+		d.AuthToken = ""
+	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()
 		if err != nil {

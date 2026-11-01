@@ -48,6 +48,8 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 * [Architecture](/doc/arch.md): the pieces, layers, and how they interact
 * [Schema](/doc/schema/): how we model data in Perkeep
 * [Protocol](/doc/protocol/): HTTP APIs (discovery, blob storage, JSON signing, ...)
+* [Client access URLs](/doc/access-url.md): the `perkeep://access` URLs
+  that clients such as mobile apps scan or open to add a server
 * [JSON Signing](/doc/json-signing/)
 * [Sharing](/doc/sharing.md)
 * [Environment Variables](/doc/environment-vars.md)

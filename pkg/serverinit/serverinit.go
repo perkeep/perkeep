@@ -52,6 +52,7 @@ import (
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/server/access"
 	"perkeep.org/pkg/server/app"
 	_ "perkeep.org/pkg/server/immich" // Register the optional mobile upload handler.
 	"perkeep.org/pkg/types/serverconfig"
@@ -439,6 +440,34 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	hl.installer.Handle(prefix, wrappedHandler)
 }
 
+// newAccessHandler returns the handler of the Client access page, whose
+// access keys allow parts of the handlers that discovery lists. If
+// non-empty, tlsCertFile is the certificate that the server's HTTPS base
+// URL serves.
+func (hl *handlerLoader) newAccessHandler(stateFile, tlsCertFile string) (*access.Handler, error) {
+	serve, ok := hl.installer.(http.Handler)
+	if !ok {
+		return nil, fmt.Errorf("the Access page needs a handler installer that's an http.Handler, not %T", hl.installer)
+	}
+	var roots access.Roots
+	if _, h, err := hl.FindHandlerByType("root"); err == nil {
+		if rh, ok := h.(*server.RootHandler); ok {
+			roots.Blob, roots.Search, roots.Sign = rh.BlobRoot, rh.SearchRoot, rh.JSONSignRoot
+		}
+	}
+	roots.Status, _, _ = hl.FindHandlerByType("status")
+	roots.UI, _, _ = hl.FindHandlerByType("ui")
+	return access.New(access.Config{
+		Prefix:      AccessPath,
+		StateFile:   stateFile,
+		Roots:       roots,
+		Serve:       serve,
+		Health:      hl.health,
+		BaseURL:     hl.baseURL,
+		TLSCertFile: tlsCertFile,
+	})
+}
+
 type unauthorizedHandler struct{}
 
 func (unauthorizedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -486,6 +515,8 @@ type Config struct {
 	signHandler *signhandler.Handler
 
 	health *health.Monitor // or nil; see SetHealth
+
+	accessStateFile string // or empty; see SetAccessStateFile
 }
 
 // UIPath returns the relative path to the server's user interface
@@ -717,6 +748,19 @@ func (c *Config) SetHealth(m *health.Monitor) {
 	c.health = m
 }
 
+// AccessPath is where InstallHandlers installs the Access page, if
+// SetAccessStateFile was called.
+const AccessPath = "/access/"
+
+// SetAccessStateFile has InstallHandlers install the Access page at
+// [AccessPath], to manage the server's optional tailcat listener and its
+// access keys, which it keeps in the JSON file at path. The installer
+// given to InstallHandlers must be an http.Handler too, which serves the
+// tailcat listener's requests.
+func (c *Config) SetAccessStateFile(path string) {
+	c.accessStateFile = path
+}
+
 // SetKeepGoing changes each configured prefix to set "keepGoing" to true. This
 // indicates that validation, reindexing, or recovery behavior should not cause
 // the process to end.
@@ -908,6 +952,23 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 				return nil, fmt.Errorf("Error calling InitHandler on %s: %w", pfx, err)
 			}
 		}
+	}
+
+	if config.accessStateFile != "" {
+		var certFile string
+		if config.HTTPS() {
+			certFile = config.HTTPSCert()
+		}
+		ah, err := hl.newAccessHandler(config.accessStateFile, certFile)
+		if err != nil {
+			return nil, err
+		}
+		// Access keys work on the server's usual listeners, too, but
+		// never for the Client access page itself, which their
+		// permissions don't cover.
+		auth.AddMode(ah)
+		hi.Handle(AccessPath, auth.RequireAuth(ah, auth.OpAll))
+		hl.closers = append([]io.Closer{ah}, hl.closers...)
 	}
 
 	hl.startScrubs(hl.startCensus())
