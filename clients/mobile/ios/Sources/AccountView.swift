@@ -131,6 +131,9 @@ struct AccountView: View {
                 Label("Upload Photos", systemImage: "icloud.and.arrow.up")
             }
             .disabled(perms.map { !$0.contains(Permission.upload.rawValue) } ?? false)
+            NavigationLink(value: Route.gallery(a.id)) {
+                Label("Photos", systemImage: "photo.on.rectangle")
+            }
             // Not done yet.
             Label("Query", systemImage: "magnifyingglass")
                 .foregroundStyle(.secondary)

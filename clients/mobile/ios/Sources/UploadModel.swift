@@ -62,6 +62,31 @@ final class UploadModel: ObservableObject {
     /// which would redraw the screen far too often.
     @Published private(set) var stats = Stats()
 
+    /// galleryAssets are the IDs of the photos and videos counted, newest
+    /// first, published with stats.
+    @Published private(set) var galleryAssets: [String] = []
+
+    /// AssetStatus is whether a photo or video is on the server.
+    enum AssetStatus {
+        case unknown
+        case missing  // some of its files aren't on the server
+        case uploaded // all its files are
+    }
+
+    /// status returns whether the asset's files are on the server, as far
+    /// as the model knows.
+    func status(_ assetID: String) -> AssetStatus {
+        guard let keys = assetItems[assetID], !keys.isEmpty else { return .unknown }
+        var all = true
+        for k in keys where !onServer.contains(k) && !uploaded.contains(k) {
+            if missing.contains(k) {
+                return .missing
+            }
+            all = false
+        }
+        return all ? .uploaded : .unknown
+    }
+
     /// Stats are the counts and sizes the upload screen shows.
     struct Stats: Equatable {
         var assetsSeen = 0, assetCount = 0 // while counting, and in all
@@ -81,6 +106,10 @@ final class UploadModel: ObservableObject {
     private var assetsSeen = 0
     private var assetCount = 0 // photos and videos; items are their files
     private var items: [MediaItem] = []
+    private var assetOrder: [String] = [] // as counted, newest first
+    private var assetItems: [String: [String]] = [:] // asset ID to its items' keys
+    private var assetsCountedThisRun: Set<String> = []
+    private var galleryStale = false // assetOrder has changed since galleryAssets was set
     private var totalBytes: Int64 = 0
     private var refs: [String: [String]] = [:] // by item key
     private var onServer: Set<String> = []
@@ -110,6 +139,7 @@ final class UploadModel: ObservableObject {
 
     // A run's state.
     private var target = Stage.count
+    private var scope: Set<String>? // assets to do, or nil for all
     private var countingDone = false
     private var hashCursor = 0             // into items: those before it are hashed or taken
     private var taken: Set<String> = []    // items being hashed or uploaded
@@ -191,6 +221,10 @@ final class UploadModel: ObservableObject {
         if st != stats {
             stats = st
         }
+        if galleryStale || assetOrder.count > galleryAssets.count {
+            galleryAssets = assetOrder
+            galleryStale = false
+        }
     }
 
     // MARK: Actions
@@ -199,10 +233,45 @@ final class UploadModel: ObservableObject {
     func hashLocal() { start(.hash, cellularOK: true) }
     func findMissing() { start(.find, cellularOK: true) }
 
+    /// findIfIdle finds which items the server has, unless something's
+    /// running, as the gallery wants to show.
+    func findIfIdle() {
+        if !running {
+            findMissing()
+        }
+    }
+
+    /// upload(assets:) uploads the files of the given photos and videos,
+    /// stopping any run that isn't an upload first.
+    func upload(assets: Set<String>, confirmedCellular: Bool = false) {
+        if onCellular && !confirmedCellular {
+            pendingAssets = assets
+            confirmCellular = true
+            return
+        }
+        Task {
+            if running {
+                work?.cancel()
+                await work?.value
+            }
+            start(.upload, cellularOK: confirmedCellular, scope: assets)
+        }
+    }
+
+    /// pendingAssets are the assets to upload once the user confirms
+    /// uploading on cellular data.
+    private(set) var pendingAssets: Set<String>?
+
     /// upload uploads everything missing. On cellular data, it first asks.
     func upload(confirmedCellular: Bool = false) {
         if onCellular && !confirmedCellular {
+            pendingAssets = nil
             confirmCellular = true
+            return
+        }
+        if confirmedCellular, let assets = pendingAssets {
+            pendingAssets = nil
+            upload(assets: assets, confirmedCellular: true)
             return
         }
         start(.upload, cellularOK: confirmedCellular)
@@ -214,7 +283,7 @@ final class UploadModel: ObservableObject {
         Task.detached { _ = try? Core.send("DELETE", "/accounts/\(self.accountID)/uploads") }
     }
 
-    private func start(_ target: Stage, cellularOK: Bool) {
+    private func start(_ target: Stage, cellularOK: Bool, scope: Set<String>? = nil) {
         guard !running else { return }
         running = true
         notice = nil
@@ -232,7 +301,7 @@ final class UploadModel: ObservableObject {
                 updateStats()
             }
             do {
-                try await run(to: target)
+                try await run(to: target, scope: scope)
             } catch is CancellationError {
             } catch {
                 if !Task.isCancelled {
@@ -251,8 +320,11 @@ final class UploadModel: ObservableObject {
 
     // MARK: The pipeline
 
-    private func run(to target: Stage) async throws {
+    /// run runs the pipeline up to target, for the files of the assets in
+    /// scope, or all of them if nil.
+    private func run(to target: Stage, scope: Set<String>?) async throws {
         self.target = target
+        self.scope = scope
         countingDone = false
         hashCursor = 0
         taken = []
@@ -264,6 +336,10 @@ final class UploadModel: ObservableObject {
         items = []
         totalBytes = 0
         assetsSeen = 0
+        // Keep showing the last count's assets in the gallery until this
+        // one's done or has more.
+        assetOrder = []
+        assetsCountedThisRun = []
         phase = .counting
         MediaLibrary.clearTemp()
         if target >= .hash && connection == nil {
@@ -321,6 +397,7 @@ final class UploadModel: ObservableObject {
                               Date().timeIntervalSince(start), c.lookedUp.formatted(), c.assets.formatted())
         countingDone = true
         counted = true
+        galleryStale = true
         if target > .count {
             phase = target == .hash ? .hashing : target == .find ? .finding : .uploading
         }
@@ -329,8 +406,16 @@ final class UploadModel: ObservableObject {
     /// counted adds counted items, with their cached hashes, queueing those
     /// already hashed for asking about, and those known missing for
     /// uploading.
-    private func counted(_ batch: [MediaItem], assetsDone: Int) async throws {
+    private func counted(_ all: [MediaItem], assetsDone: Int) async throws {
         assetsSeen = assetsDone
+        for item in all {
+            if assetsCountedThisRun.insert(item.assetID).inserted {
+                assetItems[item.assetID] = []
+                assetOrder.append(item.assetID)
+            }
+            assetItems[item.assetID]?.append(item.id)
+        }
+        let batch = scope.map { scope in all.filter { scope.contains($0.assetID) } } ?? all
         if target >= .hash {
             try await connected()
             try await loadCachedHashes(batch)
