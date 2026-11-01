@@ -356,6 +356,26 @@ func TestUploadDup(t *testing.T) {
 	}
 }
 
+// TestUploadNoDupCheck checks that NoDupCheck skips both hashing the
+// contents whole and searching for them, and that the server's chunks
+// still aren't uploaded again.
+func TestUploadNoDupCheck(t *testing.T) {
+	c, rc := newCountingClient(t)
+	contents := randBytes(5, 3<<20)
+	first, _ := uploadFile(t, c, "a.bin", contents, nil)
+	rc.take()
+	res, p := uploadFile(t, c, "a.bin", contents, &Options{NoDupCheck: true, WholeRefs: first.WholeRefs})
+	if n := rc.take()["search"]; n != 0 {
+		t.Errorf("%d searches with NoDupCheck; want 0", n)
+	}
+	if res.Dup || p.BytesHashed != 0 || p.ChunksUploaded != 0 || p.ChunksPresent == 0 {
+		t.Errorf("NoDupCheck upload of contents the server has: %+v, %+v; want no hashing, and all chunks present", res, p)
+	}
+	if res.FileRef != first.FileRef {
+		t.Errorf("FileRef = %v; want the same file schema %v", res.FileRef, first.FileRef)
+	}
+}
+
 // TestUploadSharedChunks checks that chunks the server has aren't
 // uploaded again, as when resuming an interrupted upload.
 func TestUploadSharedChunks(t *testing.T) {

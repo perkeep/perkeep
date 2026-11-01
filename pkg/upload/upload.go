@@ -131,6 +131,11 @@ type Options struct {
 	// WholeRefs are the contents' known whole-file refs. If given, the
 	// File doesn't hash the contents to find them.
 	WholeRefs []blob.Ref
+
+	// NoDupCheck skips asking the server whether it has a file of the
+	// contents, as callers that just asked about many files at once
+	// can. The File still doesn't upload the chunks the server has.
+	NoDupCheck bool
 }
 
 // ErrChanged is the error of a File whose contents changed while it ran:
@@ -298,13 +303,13 @@ func (f *File) Run(ctx context.Context) (*Result, error) {
 	file := f.newFileMap()
 
 	var err error
-	if len(res.WholeRefs) == 0 && f.stream == nil && f.size > dupCheckThreshold {
+	if len(res.WholeRefs) == 0 && f.stream == nil && f.size > dupCheckThreshold && !f.opts.NoDupCheck {
 		res.WholeRefs, err = f.hashWhole(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if len(res.WholeRefs) > 0 {
+	if len(res.WholeRefs) > 0 && !f.opts.NoDupCheck {
 		f.setPhase(PhaseCheckingServer)
 		dupRef, err := f.c.SearchExistingFileSchema(ctx, res.WholeRefs...)
 		if err == nil && dupRef.Valid() {
