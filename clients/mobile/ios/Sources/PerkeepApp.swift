@@ -21,7 +21,7 @@ struct PerkeepApp: App {
 /// Route is a screen in the app's navigation stack.
 enum Route: Hashable {
     case accounts
-    case addAccount
+    case addAccount(AccessInfo?) // prefilled from an access URL, if any
     case editAccount(String) // account ID
     case albums(String)      // account ID
 }
@@ -37,13 +37,20 @@ final class Router: ObservableObject {
 
     /// initialPath opens the screen named by the PKScreen launch argument
     /// (accounts, add, edit, or albums; the last two for the current
-    /// account). It's for taking screenshots in the simulator, which can't
-    /// tap: xcrun simctl launch booted org.perkeep.mobile -PKScreen albums
+    /// account), or the Add Server form for the access URL in the
+    /// PKOpenURL launch argument. They're for testing in the simulator,
+    /// which can't tap, not even the confirmation that opening a URL with
+    /// simctl openurl shows:
+    ///
+    ///	xcrun simctl launch booted org.perkeep.mobile -PKScreen albums
     private static func initialPath() -> [Route] {
+        if let u = UserDefaults.standard.string(forKey: "PKOpenURL"), let ai = try? AccessInfo.parse(u) {
+            return [.accounts, .addAccount(ai)]
+        }
         let current = (try? Core.json("GET", "/accounts") as AccountStore.List)?.current ?? ""
         switch UserDefaults.standard.string(forKey: "PKScreen") {
         case "accounts": return [.accounts]
-        case "add": return [.accounts, .addAccount]
+        case "add": return [.accounts, .addAccount(nil)]
         case "edit" where !current.isEmpty: return [.accounts, .editAccount(current)]
         case "albums" where !current.isEmpty: return [.accounts, .editAccount(current), .albums(current)]
         default: return []
@@ -63,7 +70,7 @@ struct ContentView: View {
                     if let a = accounts.current {
                         VStack(alignment: .leading) {
                             Text(a.name).font(.headline)
-                            Text(a.server).font(.subheadline).foregroundStyle(.secondary)
+                            Text(a.location).font(.subheadline).foregroundStyle(.secondary)
                         }
                         LabeledContent("Backing up", value: a.albumSummary)
                     } else {
@@ -86,7 +93,7 @@ struct ContentView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .accounts: AccountsView()
-                case .addAccount: AccountEditView(accountID: nil)
+                case .addAccount(let ai): AccountEditView(accountID: nil, prefill: ai)
                 case .editAccount(let id): AccountEditView(accountID: id)
                 case .albums(let id): AlbumsView(accountID: id)
                 }
@@ -95,6 +102,16 @@ struct ContentView: View {
         .onAppear {
             accounts.reload()
             hello = (try? Core.json("GET", "/hello")) ?? [:]
+        }
+        .onOpenURL { url in
+            // A perkeep://access link, such as from the server's Client
+            // access page or a QR code scanned with the Camera app.
+            do {
+                let ai = try AccessInfo.parse(url.absoluteString)
+                router.path = [.accounts, .addAccount(ai)]
+            } catch {
+                accounts.lastError = error.localizedDescription
+            }
         }
         .alert("Error", isPresented: Binding(
             get: { accounts.lastError != nil },

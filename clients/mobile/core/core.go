@@ -38,6 +38,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 
 	"perkeep.org/pkg/buildinfo"
@@ -54,12 +55,17 @@ type server struct {
 	mu       sync.Mutex
 	dataDir  string       // empty until initialized
 	accounts *accountList // nil until initialized
+
+	tailcatMu sync.Mutex
+	tailcats  map[string]*tailcatTransport // by tailcat address
 }
 
 func newServer() *server {
 	s := &server{mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /hello", s.serveHello)
 	s.mux.HandleFunc("POST /init", s.serveInit)
+	s.mux.HandleFunc("POST /parseaccessurl", s.serveParseAccessURL)
+	s.mux.HandleFunc("POST /check", s.serveCheck)
 	s.mux.HandleFunc("GET /accounts", s.withAccounts(s.serveAccounts))
 	s.mux.HandleFunc("POST /accounts", s.withAccounts(s.serveAddAccount))
 	s.mux.HandleFunc("PUT /accounts/{id}", s.withAccount(s.serveUpdateAccount))
@@ -181,20 +187,51 @@ func (s *server) serveAccounts(w http.ResponseWriter, r *http.Request) error {
 type accountFields struct {
 	Name     string `json:"name"`
 	Server   string `json:"server"`
+	Tailcat  bool   `json:"tailcat"`
+	CertFP   string `json:"certfp"`
 	Username string `json:"username"`
 }
 
 func (f accountFields) apply(a *Account) error {
-	server, err := normalizeServer(f.Server)
-	if err != nil {
+	if err := f.normalize(); err != nil {
 		return errorf(http.StatusBadRequest, err.Error())
 	}
-	a.Server = server
+	a.Server = f.Server
+	a.Tailcat = f.Tailcat
+	a.CertFP = f.CertFP
 	a.Username = f.Username
 	a.Name = f.Name
 	if a.Name == "" {
-		u, _ := url.Parse(server)
-		a.Name = u.Host
+		if a.Tailcat {
+			a.Name = "Perkeep (tailcat)"
+		} else {
+			u, _ := url.Parse(a.Server)
+			a.Name = u.Host
+		}
+	}
+	return nil
+}
+
+// normalize validates f and cleans up its server URL.
+func (f *accountFields) normalize() error {
+	if f.Tailcat {
+		if f.Server != "" || f.CertFP != "" {
+			return errors.New("a tailcat account can't have a server URL or certfp")
+		}
+		return nil
+	}
+	server, err := normalizeServer(f.Server)
+	if err != nil {
+		return err
+	}
+	f.Server = server
+	if f.CertFP != "" {
+		if !strings.HasPrefix(server, "https:") {
+			return errors.New("certfp needs an https server URL")
+		}
+		if err := checkCertFP(f.CertFP); err != nil {
+			return err
+		}
 	}
 	return nil
 }

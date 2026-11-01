@@ -5,21 +5,84 @@ import Foundation
 struct Account: Codable, Identifiable, Hashable {
     var id: String
     var name: String
-    var server: String
+    var server: String  // base URL; empty if tailcat
+    var tailcat: Bool   // connect through the server's tailcat listener
+    var certfp: String  // pinned certificate SHA-256, or empty
     var username: String
     var include: [Album]
     var exclude: [Album]
+
+    /// location describes where the server is, for showing.
+    var location: String { tailcat ? "via tailcat" : server }
 }
 
-/// Album is a photo album on the device, or an account's reference to one.
-struct Album: Codable, Hashable {
-    var id: String
-    var title: String
-    var cameraRoll: Bool
+/// AccessInfo is a parsed perkeep://access URL from a server's Client
+/// access page. See doc/access-url.md.
+struct AccessInfo: Codable, Hashable {
+    var name: String
+    var key: String
+    var tailcat: String
+    var url: String
+    var certfp: String
+
+    /// parse parses an access URL with the core.
+    static func parse(_ url: String) throws -> AccessInfo {
+        try Core.json("POST", "/parseaccessurl", ["url": url])
+    }
 }
 
-enum AlbumState: String, Codable, CaseIterable {
-    case include, exclude, none
+/// ServerFields are an account's settings other than albums, as edited in
+/// the account form.
+struct ServerFields: Equatable {
+    var name = ""
+    var server = ""
+    var tailcat = "" // tailcat address; if set, server and certfp are unused
+    var certfp = ""
+    var username = ""
+    var password = ""
+
+    init() {}
+
+    init(_ ai: AccessInfo) {
+        name = ai.name
+        server = ai.url
+        tailcat = ai.tailcat
+        certfp = ai.certfp
+        password = ai.key
+    }
+
+    var secrets: Secrets { Secrets(password: password, tailcat: tailcat) }
+
+    fileprivate struct Body: Encodable {
+        var name, server: String
+        var tailcat: Bool
+        var certfp, username: String
+    }
+
+    fileprivate var body: Body {
+        let tc = !tailcat.isEmpty
+        return Body(name: name, server: tc ? "" : server, tailcat: tc, certfp: tc ? "" : certfp, username: username)
+    }
+
+    /// conn is how the core should reach the server.
+    var conn: Conn {
+        Conn(server: tailcat.isEmpty ? server : "", certfp: tailcat.isEmpty ? certfp : "",
+             tailcat: tailcat, username: username, password: password)
+    }
+}
+
+/// Conn is how to reach a server; see conn in clients/mobile/core/check.go.
+struct Conn: Encodable {
+    var server, certfp, tailcat, username, password: String
+}
+
+/// CheckResult is the result of checking a server's credentials.
+struct CheckResult: Decodable {
+    var ok: Bool
+    var status: Int
+    var message: String
+    var ownerName: String?
+    var seconds: Double
 }
 
 /// AlbumStates is the core's report of which of the device's albums an
@@ -35,6 +98,17 @@ struct AlbumStates: Decodable {
     }
     var albums: [Entry]
     var unmatched: Unmatched
+}
+
+/// Album is a photo album on the device, or an account's reference to one.
+struct Album: Codable, Hashable {
+    var id: String
+    var title: String
+    var cameraRoll: Bool
+}
+
+enum AlbumState: String, Codable, CaseIterable {
+    case include, exclude, none
 }
 
 /// AccountStore is the app's view of the accounts kept by the core.
@@ -62,37 +136,50 @@ final class AccountStore: ObservableObject {
         }
     }
 
-    private struct Fields: Encodable {
-        var name: String
-        var server: String
-        var username: String
+    /// fields returns the form fields for an existing account.
+    func fields(_ a: Account) -> ServerFields {
+        var f = ServerFields()
+        let s = Keychain.secrets(account: a.id) ?? Secrets()
+        f.name = a.name
+        f.server = a.server
+        f.certfp = a.certfp
+        f.username = a.username
+        f.password = s.password
+        f.tailcat = s.tailcat
+        return f
     }
 
-    /// add adds an account and returns it. If password is non-empty, it's
-    /// stored in the keychain.
-    func add(name: String, server: String, username: String, password: String) throws -> Account {
-        let a: Account = try Core.json("POST", "/accounts", Fields(name: name, server: server, username: username))
-        if !password.isEmpty {
-            try Keychain.setPassword(password, account: a.id)
+    /// existing returns the account for the same server as f, if any.
+    /// Access URLs say to match on the tailcat address or URL, not the name,
+    /// which the server's owner can change.
+    func existing(matching f: ServerFields) -> Account? {
+        list.accounts.first { a in
+            if !f.tailcat.isEmpty {
+                return a.tailcat && Keychain.secrets(account: a.id)?.tailcat == f.tailcat
+            }
+            return !a.tailcat && a.server.trimmingSuffix("/") == f.server.trimmingSuffix("/")
         }
+    }
+
+    /// add adds an account with f's settings and returns it.
+    func add(_ f: ServerFields) throws -> Account {
+        let a: Account = try Core.json("POST", "/accounts", f.body)
+        try Keychain.setSecrets(f.secrets, account: a.id)
         reload()
         return a
     }
 
-    /// update changes an account's settings. If password is non-nil, it
-    /// replaces the stored password.
-    func update(_ id: String, name: String, server: String, username: String, password: String?) throws {
-        try Core.send("PUT", "/accounts/\(id)", Fields(name: name, server: server, username: username))
-        if let password {
-            try Keychain.setPassword(password, account: id)
-        }
+    /// update changes an account's settings to f's.
+    func update(_ id: String, _ f: ServerFields) throws {
+        try Core.send("PUT", "/accounts/\(id)", f.body)
+        try Keychain.setSecrets(f.secrets, account: id)
         reload()
     }
 
     func delete(_ id: String) {
         do {
             try Core.send("DELETE", "/accounts/\(id)")
-            Keychain.deletePassword(account: id)
+            Keychain.deleteSecrets(account: id)
         } catch {
             lastError = error.localizedDescription
         }
@@ -106,6 +193,15 @@ final class AccountStore: ObservableObject {
             lastError = error.localizedDescription
         }
         reload()
+    }
+
+    /// check checks that the server in f is reachable and accepts its
+    /// credentials. It can take a while, especially over tailcat.
+    nonisolated func check(_ f: ServerFields) async throws -> CheckResult {
+        let conn = f.conn
+        return try await Task.detached {
+            try Core.json("POST", "/check", conn) as CheckResult
+        }.value
     }
 
     func albumStates(_ id: String, albums: [Album]) throws -> AlbumStates {
@@ -133,5 +229,11 @@ extension Account {
         case (false, true): return inc
         case (false, false): return "\(inc), except \(exc)"
         }
+    }
+}
+
+extension String {
+    func trimmingSuffix(_ suffix: String) -> String {
+        hasSuffix(suffix) ? String(dropLast(suffix.count)) : self
     }
 }

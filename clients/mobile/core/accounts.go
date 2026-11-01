@@ -29,12 +29,15 @@ import (
 )
 
 // An Account is a Perkeep server the app backs up to, and which photos to
-// back up there. Its password, if any, is kept by the native app in the
-// platform's secure storage, not here.
+// back up there. Its secrets (its password or access key, and its tailcat
+// address) are kept by the native app in the platform's secure storage,
+// not here, and passed to the core in requests that need them.
 type Account struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Server   string `json:"server"` // base URL
+	Server   string `json:"server"`  // base URL; empty if Tailcat
+	Tailcat  bool   `json:"tailcat"` // connect through the server's tailcat listener
+	CertFP   string `json:"certfp"`  // if non-empty, the SHA-256 (hex) of Server's only acceptable certificate
 	Username string `json:"username"`
 
 	// Include and Exclude select which photo albums to back up: photos
