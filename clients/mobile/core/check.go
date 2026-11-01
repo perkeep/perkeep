@@ -121,25 +121,31 @@ type checkResult struct {
 	Message   string  `json:"message"` // for the user
 	OwnerName string  `json:"ownerName,omitempty"`
 	Seconds   float64 `json:"seconds"` // how long the check took
+
+	// Client and Storage are from the server's discovery: what the
+	// credentials may do, and how much the server stores. Either may be
+	// nil, if the server doesn't say. See doc/protocol/discovery.md.
+	Client  *camtypes.ClientDiscovery  `json:"client,omitempty"`
+	Storage *camtypes.StorageDiscovery `json:"storage,omitempty"`
 }
 
-const checkTimeout = 30 * time.Second
+const defaultCheckTimeout = 30 * time.Second
 
 // check fetches the server's discovery document, which any valid
-// credentials may get.
-func (s *server) check(ctx context.Context, c conn) checkResult {
+// credentials may get, waiting at most timeout.
+func (s *server) check(ctx context.Context, c conn, timeout time.Duration) checkResult {
 	start := time.Now()
-	res := s.checkDiscovery(ctx, c)
+	res := s.checkDiscovery(ctx, c, timeout)
 	res.Seconds = time.Since(start).Seconds()
 	return res
 }
 
-func (s *server) checkDiscovery(ctx context.Context, c conn) checkResult {
+func (s *server) checkDiscovery(ctx context.Context, c conn, timeout time.Duration) checkResult {
 	hc, base, err := s.httpClient(c)
 	if err != nil {
 		return checkResult{Message: err.Error()}
 	}
-	ctx, cancel := context.WithTimeout(ctx, checkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", base+"/", nil)
 	if err != nil {
@@ -156,7 +162,7 @@ func (s *server) checkDiscovery(ctx context.Context, c conn) checkResult {
 	resp, err := hc.Do(req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return checkResult{Message: fmt.Sprintf("No response from the server within %v.", checkTimeout)}
+			return checkResult{Message: fmt.Sprintf("No response from the server within %v.", timeout)}
 		}
 		return checkResult{Message: "Couldn't connect: " + err.Error()}
 	}
@@ -186,15 +192,26 @@ func (s *server) checkDiscovery(ctx context.Context, c conn) checkResult {
 	}
 	res.OK = true
 	res.OwnerName = d.OwnerName
+	res.Client = d.Client
+	res.Storage = d.Storage
 	res.Message = "Connected."
 	return res
 }
 
+// serveCheck checks a server. The request is a conn, plus an optional
+// "timeout" in seconds.
 func (s *server) serveCheck(w http.ResponseWriter, r *http.Request) {
-	var c conn
-	if err := readJSON(r, &c); err != nil {
+	var req struct {
+		conn
+		Timeout float64 `json:"timeout"`
+	}
+	if err := readJSON(r, &req); err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.check(r.Context(), c))
+	timeout := defaultCheckTimeout
+	if req.Timeout > 0 {
+		timeout = time.Duration(req.Timeout * float64(time.Second))
+	}
+	writeJSON(w, http.StatusOK, s.check(r.Context(), req.conn, timeout))
 }
