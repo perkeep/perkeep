@@ -27,8 +27,7 @@ import (
 func (h *Handler) serveEXIF(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	fileRef := httputil.MustGetBlobRef(req, "blobref")
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 	res, err := h.index.GetEXIF(req.Context(), fileRef)
 	if errors.Is(err, os.ErrNotExist) {
 		httputil.ReturnJSONCode(rw, http.StatusNotFound, map[string]string{

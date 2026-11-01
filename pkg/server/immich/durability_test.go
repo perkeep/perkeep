@@ -325,9 +325,9 @@ func TestImmichNativeDuplicateAfterCacheRebuildRequiresStoredData(t *testing.T) 
 					ref = a.FileRef
 				case "content-claim":
 					ix := h.search.Index()
-					ix.RLock()
+					unlock := ix.RLock()
 					claims, err := ix.AppendClaims(context.Background(), nil, a.PermanodeRef, h.signer.KeyIDLong(), "camliContent")
-					ix.RUnlock()
+					unlock()
 					if err != nil || len(claims) == 0 {
 						t.Fatalf("content claim fixture: %v, %v", claims, err)
 					}

@@ -104,12 +104,12 @@ func (h *Handler) subscribeToNewBlobs() {
 	go func() {
 		ctx := context.Background()
 		for br := range ch {
-			h.index.RLock()
+			unlock := h.index.RLock()
 			bm, err := h.index.GetBlobMeta(ctx, br)
 			if err == nil {
 				h.wsHub.newBlobRecv <- bm.CamliType
 			}
-			h.index.RUnlock()
+			unlock()
 		}
 	}()
 }
@@ -346,8 +346,7 @@ var testHookBug121 = func(*DescribeRequest) {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
 func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (*RecentResponse, error) {
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	ch := make(chan camtypes.RecentPermanode)
 	errch := make(chan error, 1)
@@ -408,8 +407,7 @@ func (h *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reques
 func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
 	ctx := context.TODO()
 
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	ch := make(chan blob.Ref, buffered)
 	errch := make(chan error, 1)
@@ -476,8 +474,7 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	if !req.Permanode.Valid() {
 		return nil, errors.New("error getting claims: nil permanode")
 	}
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	ctx := context.TODO()
 	var claims []camtypes.Claim
@@ -509,8 +506,7 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 func (h *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	var cr ClaimsRequest
 	searchtypes.ClaimsRequestFromHTTP(&cr, req)
@@ -526,8 +522,7 @@ func (h *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	var ret camtypes.FileSearchResponse
 	defer httputil.ReturnJSON(rw, &ret)
 
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	if err := req.ParseForm(); err != nil {
 		ret.Error = err.Error()
@@ -576,8 +571,7 @@ func (h *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request
 	attr := httputil.MustGet(req, "attr")
 	value := httputil.MustGet(req, "value")
 
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	pn, err := h.index.PermanodeOfSignerAttrValue(ctx, signer, attr, value)
 	if err != nil {
@@ -603,8 +597,7 @@ func (h *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request
 // It filters out since-deleted permanode edges.
 func (h *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 	ctx := context.TODO()
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	toRef := req.ToRef
 	toRefStr := toRef.String()
@@ -717,8 +710,7 @@ func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse,
 	if !req.Target.Valid() {
 		return nil, errors.New("error getting signer paths: nil target")
 	}
-	h.index.RLock()
-	defer h.index.RUnlock()
+	defer h.index.RLock()()
 
 	paths, err := h.index.PathsOfSignerTarget(ctx, req.Signer, req.Target)
 	if err != nil {

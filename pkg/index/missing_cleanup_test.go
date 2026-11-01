@@ -172,8 +172,7 @@ func removeMissingCleanupEdges(ix *Index, have blob.Ref) {
 
 func assertMissingCleanupMarker(t *testing.T, ix *Index, have blob.Ref, want bool) {
 	t.Helper()
-	ix.RLock()
-	defer ix.RUnlock()
+	defer ix.RLock()()
 	if got := ix.hasMissing.Contains(have); got != want {
 		t.Errorf("hasMissing[%v] = %v; want %v", have, got, want)
 	}

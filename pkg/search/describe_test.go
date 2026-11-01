@@ -455,8 +455,7 @@ func TestDescribeLocation(t *testing.T) {
 	ctx := context.Background()
 	h := search.NewHandler(ix, owner)
 
-	ix.RLock()
-	defer ix.RUnlock()
+	defer ix.RLock()()
 
 	for _, tt := range tests {
 		var err error
@@ -507,8 +506,7 @@ func TestDescribePermNoAttr(t *testing.T) {
 	id := indextest.NewIndexDeps(ix)
 	br := id.NewDeterministicPermanodeForTest("noattr-0")
 
-	ix.RLock()
-	defer ix.RUnlock()
+	defer ix.RLock()()
 
 	res, err := h.Describe(ctx, &search.DescribeRequest{
 		BlobRef: br,
@@ -540,8 +538,7 @@ func TestDescribeEmptyDir(t *testing.T) {
 	pn := id.NewDeterministicPermanodeForTest("empty_dir")
 	id.SetAttribute(pn, "camliContent", dir.String())
 
-	ix.RLock()
-	defer ix.RUnlock()
+	defer ix.RLock()()
 
 	if _, err := h.Describe(ctx, &search.DescribeRequest{
 		BlobRef: pn,

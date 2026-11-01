@@ -89,8 +89,11 @@ type Index struct {
 	receivingMu sync.Mutex
 	receiving   map[blob.Ref]chan struct{}
 
+	// readLockHolders are mu's read locks not yet unlocked; see RLock.
+	readLockHoldersMu sync.Mutex
+	readLockHolders   set.Set[*readLockHolder]
+
 	mu sync.RWMutex // guards following
-	//mu syncdebug.RWMutexTracker  // (when debugging)
 
 	// inFlight is the set of ReceiveBlob calls currently in progress.
 	inFlight set.Set[*indexOp]
@@ -118,11 +121,6 @@ type Index struct {
 
 	reindexFailed bool // a failed batched rebuild makes this Index unusable
 }
-
-func (x *Index) Lock()    { x.mu.Lock() }
-func (x *Index) Unlock()  { x.mu.Unlock() }
-func (x *Index) RLock()   { x.mu.RLock() }
-func (x *Index) RUnlock() { x.mu.RUnlock() }
 
 var (
 	_ blobserver.Storage = (*Index)(nil)
@@ -659,11 +657,11 @@ func (x *Index) Reindex() (retErr error) {
 		return enumError
 	}
 
-	x.RLock()
+	unlock := x.RLock()
 	failedCount := x.readyFailed.Len()
 	needed := len(x.needs)
 	needSample := x.needSampleLocked()
-	x.RUnlock()
+	unlock()
 	// Errors about individual blobs. With keepGoing, they don't stop the
 	// rebuild from completing: the index holds everything else, as with an
 	// unbatched rebuild, and they're returned without ErrReindexIncomplete.

@@ -136,9 +136,9 @@ func (h *Handler) findPermanode(ctx context.Context, wholeRef blob.Ref) (blob.Re
 	}
 
 	ix := h.search.Index()
-	ix.RLock()
+	unlock := ix.RLock()
 	files, err := ix.ExistingFileSchemas(wholeRef)
-	ix.RUnlock()
+	unlock()
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("immich: finding file schemas for %v: %w", wholeRef, err)
 	}
@@ -190,9 +190,9 @@ func (h *Handler) findPermanode(ctx context.Context, wholeRef blob.Ref) (blob.Re
 // existing object or create another permanode to work around the failure.
 func (h *Handler) verifyPermanode(ctx context.Context, pn, fileRef, wholeRef blob.Ref) error {
 	ix := h.search.Index()
-	ix.RLock()
+	unlock := ix.RLock()
 	claims, err := ix.AppendClaims(ctx, nil, pn, h.signer.KeyIDLong(), "camliContent")
-	ix.RUnlock()
+	unlock()
 	if err != nil {
 		return fmt.Errorf("immich: checking native content claims for %v: %w", pn, err)
 	}

@@ -203,9 +203,9 @@ func (ix *Index) indexReadyBlobs(done chan struct{}) {
 // by indexReadyBlobs.
 func (ix *Index) awaitReadyIdle() {
 	for {
-		ix.RLock()
+		unlock := ix.RLock()
 		done := ix.readyWorkerDone
-		ix.RUnlock()
+		unlock()
 		if done == nil {
 			return
 		}
@@ -1073,7 +1073,7 @@ func (ix *Index) knownContents(ctx context.Context, fetcher blob.Fetcher, b *sch
 	}
 	type cand struct{ file, whole blob.Ref }
 	var cands []cand
-	ix.RLock()
+	unlock := ix.RLock()
 	for _, f := range ix.corpus.AppendFilesOfSize(nil, size) {
 		if f == b.BlobRef() {
 			continue
@@ -1085,7 +1085,7 @@ func (ix *Index) knownContents(ctx context.Context, fetcher blob.Fetcher, b *sch
 			break
 		}
 	}
-	ix.RUnlock()
+	unlock()
 	parts := b.ByteParts()
 	for _, c := range cands {
 		rc, _, err := fetcher.Fetch(ctx, c.file)
@@ -1397,9 +1397,9 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	}
 	// Mutation-map population runs before the receive write lock. The ready
 	// worker may concurrently add metadata to the corpus.
-	ix.RLock()
+	unlock := ix.RLock()
 	meta, err := ix.GetBlobMeta(ctx, target)
-	ix.RUnlock()
+	unlock()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			mm.deps = append(mm.deps, target)

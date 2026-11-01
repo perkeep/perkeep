@@ -168,9 +168,9 @@ func (s *immichState) fetch(ctx context.Context, ref blob.Ref, limit int) ([]byt
 
 func (s *immichState) claims(ctx context.Context, pn blob.Ref) ([]camtypes.Claim, error) {
 	ix := s.h.search.Index()
-	ix.RLock()
+	unlock := ix.RLock()
 	claims, err := ix.AppendClaims(ctx, nil, pn, s.h.signer.KeyIDLong(), "")
-	ix.RUnlock()
+	unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func (s *immichState) candidates(ctx context.Context, checked map[blob.Ref]immic
 	ix := s.h.search.Index()
 	deletions, haveDeletions := ix.(interface{ IsDeleted(blob.Ref) bool })
 	var deletedClaims []blob.Ref
-	ix.RLock()
+	unlock := ix.RLock()
 	deletedAccount := haveDeletions && deletions.IsDeleted(s.account)
 	for pn := range pns {
 		pns[pn] = haveDeletions && deletions.IsDeleted(pn)
@@ -397,7 +397,7 @@ func (s *immichState) candidates(ctx context.Context, checked map[blob.Ref]immic
 		}
 		return true
 	})
-	ix.RUnlock()
+	unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -1182,7 +1182,7 @@ func (s *immichState) CommitBatch(batch sorted.BatchMutation) error {
 		confirmations[i].Date = at
 	}
 	if fast {
-		ix.RLock()
+		unlock := ix.RLock()
 		var confirmErr error
 		for _, cl := range confirmations {
 			ok, err := checker.HasClaim(ctx, cl)
@@ -1195,7 +1195,7 @@ func (s *immichState) CommitBatch(batch sorted.BatchMutation) error {
 				break
 			}
 		}
-		ix.RUnlock()
+		unlock()
 		if confirmErr != nil {
 			return s.failPublication(confirmErr)
 		}

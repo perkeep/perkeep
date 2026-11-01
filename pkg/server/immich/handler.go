@@ -797,9 +797,9 @@ func (h *Handler) serveAssetUpload(w http.ResponseWriter, r *http.Request) {
 		// A planned filenode can have been deliberately repointed or cleared
 		// by its owner. Its content key does not authorize overwriting it.
 		ix := h.search.Index()
-		ix.RLock()
+		unlock := ix.RLock()
 		claims, lookupErr := ix.AppendClaims(r.Context(), nil, a.PermanodeRef, h.signer.KeyIDLong(), "")
-		ix.RUnlock()
+		unlock()
 		if lookupErr != nil {
 			h.fail(w, "checking planned permanode", lookupErr)
 			return
