@@ -45,7 +45,7 @@ func TestUploadIsIndexed(t *testing.T) {
 	}
 	checkIndexed := func(br blob.Ref) {
 		t.Helper()
-		rec := do(httptest.NewRequest("GET", "/my-search/camli/search/describe?blobref="+br.String(), nil))
+		rec := do(httptest.NewRequest("GET", "/search/camli/search/describe?blobref="+br.String(), nil))
 		var res struct {
 			Meta map[string]struct {
 				CamliType string `json:"camliType"`

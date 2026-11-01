@@ -441,7 +441,7 @@ func (w *World) SecretRingFile() string {
 }
 
 // SearchHandlerPath returns the path to the search handler, with trailing slash.
-func (w *World) SearchHandlerPath() string { return "/my-search/" }
+func (w *World) SearchHandlerPath() string { return "/search/" }
 
 // ServerBinary returns the location of the perkeepd binary running for this World.
 func (w *World) ServerBinary() string {

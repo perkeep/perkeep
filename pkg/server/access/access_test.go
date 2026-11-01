@@ -50,7 +50,7 @@ import (
 
 var testRoots = Roots{
 	Blob:   "/bs/",
-	Search: "/my-search/",
+	Search: "/search/",
 	Sign:   "/sighelper/",
 	UI:     "/ui/",
 }
@@ -85,10 +85,10 @@ func TestNeed(t *testing.T) {
 		{"POST", "/bs/camli/" + testRef, "", none, false},
 		{"GET", "/bs/", "", none, false},
 
-		{"GET", "/my-search/camli/search/describe?blobref=" + testRef, "", PermSearch, true},
-		{"POST", "/my-search/camli/search/query", "", PermSearch, true},
-		{"GET", "/my-search/camli/search/ws", "", none, false},
-		{"GET", "/my-search/camli/search/query", "", none, false},
+		{"GET", "/search/camli/search/describe?blobref=" + testRef, "", PermSearch, true},
+		{"POST", "/search/camli/search/query", "", PermSearch, true},
+		{"GET", "/search/camli/search/ws", "", none, false},
+		{"GET", "/search/camli/search/query", "", none, false},
 
 		{"POST", "/sighelper/camli/sig/sign", "", PermSign, true},
 		{"GET", "/sighelper/camli/sig/discovery", "", PermSign, true},
@@ -260,7 +260,7 @@ func TestKeys(t *testing.T) {
 		{"POST", "/sighelper/camli/sig/sign", secret, 200},
 		{"GET", "/?camli.mode=config", secret, 200},
 		{"GET", "/bs/camli/" + testRef, secret, 403},
-		{"POST", "/my-search/camli/search/query", secret, 403},
+		{"POST", "/search/camli/search/query", secret, 403},
 		{"GET", "/status/status.json", secret, 403},
 		{"GET", "/debug/config", secret, 403},
 	} {
@@ -712,10 +712,10 @@ func TestTailcat(t *testing.T) {
 		res.Body.Close()
 		return res.StatusCode
 	}
-	if got := get("/my-search/camli/search/recent", ""); got != 401 {
+	if got := get("/search/camli/search/recent", ""); got != 401 {
 		t.Errorf("without key = %v; want 401", got)
 	}
-	if got := get("/my-search/camli/search/recent", secret); got != 200 {
+	if got := get("/search/camli/search/recent", secret); got != 200 {
 		t.Errorf("with key = %v; want 200", got)
 	}
 	if got := get("/bs/camli/"+testRef, secret); got != 403 {

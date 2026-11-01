@@ -37,7 +37,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 		return nil
 	}
 
-	h, err := hl.GetHandler("/my-search/")
+	_, h, err := hl.FindHandlerByType("search")
 	if err != nil {
 		return err
 	}

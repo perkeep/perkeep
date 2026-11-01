@@ -51,7 +51,7 @@ function init() {
 			 ws = null;
 		}
 		status.innerText = "connecting...";
-		var url = "ws://localhost:3179/my-search/camli/search/ws";
+		var url = "ws://localhost:3179/search/camli/search/ws";
 		ws = new WebSocket(url);
 		ws.onopen = onOpen;
 		ws.onclose = onClose;

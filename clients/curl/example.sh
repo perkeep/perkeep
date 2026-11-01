@@ -4,7 +4,7 @@
 
 # Configuration variables here:
 BSHOST=localhost:3179/bs
-SEARCHHOST=localhost:3179/my-search
+SEARCHHOST=localhost:3179/search
 BSUSER=user
 BSPASS=foo
 

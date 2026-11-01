@@ -32,7 +32,7 @@ The response is a JSON document with a [Discovery value](https://perkeep.org/pkg
       "jsonSignRoot": "/sighelper/",
       "ownerName": "The User Name",
       "publishRoots": {},
-      "searchRoot": "/my-search/",
+      "searchRoot": "/search/",
       "signing": {
         "publicKey": "/sighelper/camli/sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
         "publicKeyBlobRef": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
