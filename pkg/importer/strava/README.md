@@ -38,6 +38,16 @@ See Strava's [getting-started guide](https://developers.strava.com/docs/getting-
 and [OAuth documentation](https://developers.strava.com/docs/authentication/)
 for application setup, scopes, and refresh-token behavior.
 
+Client credentials, OAuth state, access and refresh tokens, and the token's
+Client ID binding live in the server-local credential store, not signed
+permanode claims. Token expiry remains ordinary account metadata. Automatic
+refresh saves the rotating token pair and its binding in one revision-checked
+transaction before publishing expiry. An administrator replacement or deletion
+during the remote refresh makes that response fail with a revision conflict;
+the importer does not overwrite the change or reuse the discarded response.
+Rerun with the current credentials, or reconnect a deleted account credential.
+Refreshing migrated credentials does not clear their historical-exposure warning.
+
 ### Bounded test imports
 
 Set `PERKEEP_STRAVA_MAX_ACTIVITIES=10` in the **server's environment** to

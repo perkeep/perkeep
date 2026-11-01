@@ -68,8 +68,9 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
-		Title:       "LiveJournal",
-		Description: "import a LiveJournal journal's entries and the comments on them",
+		CallbackRequiresPOST: true,
+		Title:                "LiveJournal",
+		Description:          "import a LiveJournal journal's entries and the comments on them",
 	}
 }
 
@@ -106,7 +107,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 <p>The password isn't kept in Perkeep: put it in a file that the Perkeep
 server can read, and give that file's path here. The server reads it for
 each import, and sends LiveJournal only a hash of it.</p>
-<form method="get" action="{{.CallbackPath}}">
+<form method="post" action="{{.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.Account}}">
   <table border=0 cellpadding=3>
   <tr><td align=right>User</td><td><input name="user" size=30 value="{{.User}}"></td></tr>

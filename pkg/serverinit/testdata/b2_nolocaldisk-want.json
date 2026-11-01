@@ -10,6 +10,7 @@
 				"helpRoot": "/help/",
 				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -35,7 +36,9 @@
 		},
 		"/importer/": {
 			"handler": "importer",
-			"handlerArgs": {}
+			"handlerArgs": {
+				"secretRoot": "/secrets/"
+			}
 		},
 		"/index/": {
 			"handler": "storage-index",
@@ -57,6 +60,10 @@
 				},
 				"slurpToMemory": true
 			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
 		},
 		"/share/": {
 			"handler": "share",

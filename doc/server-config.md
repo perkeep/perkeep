@@ -85,6 +85,14 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   and the Closure library in `<sourceRoot>/third_party/closure/lib`.
 
 
+## Server-side secrets
+
+Importer credentials saved through the web UI use a dedicated local database,
+not permanodes. `secretsFile` optionally chooses its location; the default is
+`secrets.sqlite` in the server's var directory. See
+[server-side secrets](secrets.md) for startup migration warnings, backups, and
+CLI/API access. This is distinct from the configuration-file references below.
+
 ## Credential files {#credential-files}
 
 Credential values can use `@path` to read their value from a file instead of
@@ -409,7 +417,7 @@ on Windows. If you prefer a database server, see the [indexing](#indexing) and
 # Low-level configuration {#lowlevel}
 
 You can specify a low-level configuration file to perkeepd with the same
-`-configfile` option that is used to specify the simple mode configuration file.
+`--configfile` option that is used to specify the simple mode configuration file.
 Perkeep tests for the presence of the `"handlerConfig": true` key/value
 pair to determine whether the configuration should be considered low-level.
 

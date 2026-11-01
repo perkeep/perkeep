@@ -11,6 +11,7 @@
 				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -35,7 +36,8 @@
 			"handler": "importer",
 			"handlerArgs": {
 				"cacheRoot": "/tmp/blobs/importer-cache",
-				"cacheType": "kv"
+				"cacheType": "kv",
+				"secretRoot": "/secrets/"
 			}
 		},
 		"/index/": {
@@ -62,17 +64,6 @@
 				"serverListen": "localhost:3179"
 			}
 		},
-		"/search/": {
-			"handler": "search",
-			"handlerArgs": {
-				"index": "/index/",
-				"owner": {
-					"identity": "2931A67C26F5ABDA",
-					"secringFile": "/path/to/secring"
-				},
-				"slurpToMemory": true
-			}
-		},
 		"/pics/": {
 			"handler": "app",
 			"handlerArgs": {
@@ -85,6 +76,21 @@
 				"program": "publisher",
 				"serverListen": "localhost:3179"
 			}
+		},
+		"/search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
 		},
 		"/share/": {
 			"handler": "share",

@@ -518,6 +518,9 @@ func TestImmichInstalledHTTPNativeRecovery(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			configDir := t.TempDir()
 			t.Setenv("CAMLI_CONFIG_DIR", configDir)
+			// The server-local credential store is independent of Immich's
+			// native catalog and must not use the host's real var directory.
+			t.Setenv("CAMLI_VAR_DIR", filepath.Join(t.TempDir(), "private"))
 			keyring, err := filepath.Abs(relativeRing)
 			if err != nil {
 				t.Fatal(err)

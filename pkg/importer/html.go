@@ -126,10 +126,12 @@ func (im *importer) accountRows() ([]accountRow, error) {
 // status returns a short description of the state of ia's runs, and
 // whether it's running and whether its last run failed.
 func (ia *importerAcct) status() (status string, running, failed bool) {
-	ready, _ := ia.IsAccountReady()
+	ready, readinessErr := ia.IsAccountReady()
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	switch {
+	case readinessErr != nil:
+		return "Credential store unavailable: " + readinessErr.Error(), false, true
 	case ia.current != nil:
 		return "Running for " + roughDuration(time.Since(ia.lastRunStart)), true, false
 	case !ia.lastRunDone.IsZero() && ia.lastRunErr != nil:
@@ -179,9 +181,8 @@ func (im *importer) NeedsAPIKey() bool { return im.props.NeedsAPIKey }
 // ImportersURL returns the path of the page of all importers.
 func (im *importer) ImportersURL() string { return im.host.ImporterBasePath() }
 
-// ConfigNodeRef returns im's configuration permanode, where its API key
-// is kept unless the server's configuration has it, or a zero Ref if
-// it has none.
+// ConfigNodeRef returns im's configuration permanode, which identifies the
+// corresponding server-local credentials, or a zero Ref if it has none.
 func (im *importer) ConfigNodeRef() blob.Ref {
 	n, err := im.existingNode()
 	if err != nil || n == nil {
@@ -259,6 +260,10 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 <main>
 {{end}}
 
+{{define "credentialMigrationWarning"}}
+<p class="warning">⚠️ Credentials migrated from permanodes. They still work, but historical signed blobs and backups may contain them. Rotate them with the provider, then acknowledge rotation in the server credential store to clear this warning.</p>
+{{end}}
+
 {{define "pageBottom"}}
 </main>
 </body>
@@ -273,7 +278,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
   {{range .Rows}}
     <tr>
       {{if $.ShowType}}<td><a href="{{.Importer.URL}}">{{.Importer.Title}}</a></td>{{end}}
-      <td><a href="{{.Acct.AccountURL}}">{{or .Name "(unnamed)"}}</a></td>
+      <td><a href="{{.Acct.AccountURL}}">{{or .Name "(unnamed)"}}</a>{{if .Acct.MigratedFromPermanode}} <span class="warning" title="Credentials migrated from permanodes; historical signed blobs may still contain them.">⚠️</span>{{end}}</td>
       <td><input type="checkbox" disabled{{if .Auto}} checked title="Imports every {{.Auto}}"{{else}} title="Imports only when started"{{end}}></td>
       <td{{if .Running}} class="running"{{else if .Failed}} class="failed"{{end}}>{{.Status}}</td>
       <td>{{if .Root.Valid}}{{$root := .Root}}{{with bloburl $root}}<a class="ref" href="{{.}}">{{shortref $root}}</a>{{else}}<span class="ref">{{shortref $root}}</span>{{end}}{{end}}</td>
@@ -346,12 +351,13 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{define "importerBody"}}
 <nav class="crumbs"><a href="{{.Host.ImporterBasePath}}">Importers</a> › {{.Importer.Title}}</nav>
 <h1>{{.Importer.Title}}</h1>
+{{if .Importer.MigratedFromPermanode}}{{template "credentialMigrationWarning"}}{{end}}
 {{with .Importer.Description}}<p class="lede">Imports {{.}}.</p>{{end}}
 
 {{if .Importer.NeedsAPIKey}}
 <section class="card">
   <h2>API key</h2>
-  <p>{{.Importer.Status}}{{with .Importer.ConfigNodeRef}}{{if .Valid}}, in its configuration permanode {{bloblink .}}{{end}}{{end}}.</p>
+  <p>{{.Importer.Status}}{{with .Importer.ConfigNodeRef}}{{if .Valid}}, linked to configuration permanode {{bloblink .}}{{end}}{{end}}. Credentials are stored separately on this server.</p>
   {{if .Importer.ShowClientAuthEditForm}}
     {{if .ShowSecureTransportWarning}}
     <p class="warning">This page is not served securely (no https). Proceed at your own risk.</p>
@@ -360,9 +366,11 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
     <form method="post">
       <input type="hidden" name="mode" value="saveclientidsecret">
       <dl class="props">
-        <dt><label for="clientID">Client ID</label></dt><dd><input id="clientID" name="clientID" size="50" value="{{.Importer.ClientID}}"></dd>
-        <dt><label for="clientSecret">Client secret</label></dt><dd><input id="clientSecret" name="clientSecret" type="password" size="50" value="{{.Importer.ClientSecret}}"></dd>
+        <dt><label for="clientID">Client ID</label></dt><dd><input id="clientID" name="clientID" type="password" size="50" autocomplete="off"></dd>
+        <dt><label for="clientSecret">Client secret</label></dt><dd><input id="clientSecret" name="clientSecret" type="password" size="50" autocomplete="new-password"></dd>
       </dl>
+      <p class="muted">Leave blank to keep existing credentials. Existing values are never shown.</p>
+      <label><input type="checkbox" name="clearCredentials" value="true"> Clear existing client ID and secret</label>
       <div class="actions"><button class="primary" type="submit">Save</button></div>
     </form>
   {{end}}
@@ -400,6 +408,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{define "acctBody"}}
 <nav class="crumbs"><a href="{{.Importer.ImportersURL}}">Importers</a> › <a href="{{.Importer.URL}}">{{.Importer.Title}}</a></nav>
 <h1>{{.Acct.AccountLinkSummary}}</h1>
+{{if .Acct.MigratedFromPermanode}}{{template "credentialMigrationWarning"}}{{end}}
 
 <section class="card">
   {{if .Acct.IsPending}}<p class="muted">This account isn't saved yet: <a href="#" onclick="document.getElementById('setup').submit(); return false">finish setting it up</a> to keep it.</p>{{end}}

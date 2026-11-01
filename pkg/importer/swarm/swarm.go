@@ -235,14 +235,14 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	res, err := ctxutil.Client(r.Context()).Get(urlstr)
 	if err != nil {
-		r.Logf("couldn't fetch image %q: %v", urlstr, err)
+		r.Logf("%v", requestError("swarm: fetching image", err))
 		return ""
 	}
 	defer res.Body.Close()
 
 	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 	if err != nil {
-		r.errorf("couldn't write file: %v", err)
+		r.errorf("%v", requestError("swarm: writing image", err))
 		return ""
 	}
 
@@ -437,10 +437,10 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 				continue
 			}
 			url := photo.Prefix + "original" + photo.Suffix
-			r.Logf("importing photo for venue %s: %s", venueTitle, url)
+			r.Logf("importing photo for venue %s", venueTitle)
 			ref := r.urlFileRef(url, "")
 			if ref == "" {
-				r.errorf("Error slurping photo: %s", url)
+				r.errorf("Error slurping photo")
 				continue
 			}
 			if err := photosNode.SetAttr(attr, ref); err != nil {
@@ -597,24 +597,24 @@ func (im *imp) doAPI(ctx context.Context, form url.Values, result any, apiPath s
 	}
 	err = httputil.DecodeJSON(res, result)
 	if err != nil {
-		log.Printf("Error parsing response for %s: %v", fullURL, err)
+		return requestError("swarm: decoding API response", err)
 	}
-	return err
+	return nil
 }
 
-func doGet(ctx context.Context, url string, form url.Values) (*http.Response, error) {
-	requestURL := url + "?" + form.Encode()
-	req, err := http.NewRequest("GET", requestURL, nil)
+func doGet(ctx context.Context, endpoint string, form url.Values) (*http.Response, error) {
+	requestURL := endpoint + "?" + form.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, requestError("swarm: creating API request", err)
 	}
 	res, err := ctxutil.Client(ctx).Do(req)
 	if err != nil {
-		log.Printf("Error fetching %s: %v", url, err)
-		return nil, err
+		return nil, requestError("swarm: fetching API response", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		errStr := fmt.Sprintf("Get request on %s failed with: %s", requestURL, res.Status)
+		res.Body.Close()
+		errStr := fmt.Sprintf("swarm: fetching API response: HTTP status %d", res.StatusCode)
 		switch res.StatusCode {
 		case http.StatusPaymentRequired:
 			return nil, fmt.Errorf("%s: %w", errStr, ErrPaymentRequired)
@@ -623,6 +623,18 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 		}
 	}
 	return res, nil
+}
+
+// Request and response errors can contain authenticated URLs or response values.
+// Keep cancellation recognizable without exposing provider-controlled text.
+func requestError(operation string, err error) error {
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%s: %w", operation, context.Canceled)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s: %w", operation, context.DeadlineExceeded)
+	}
+	return fmt.Errorf("%s failed", operation)
 }
 
 // auth returns a new oauth2 Config
@@ -675,7 +687,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
-		log.Printf("Token Exchange error: %v", err)
+		log.Printf("%v", requestError("swarm: exchanging OAuth token", err))
 		http.Error(w, "token exchange error", 500)
 		return
 	}

@@ -140,8 +140,8 @@ func TestFromConfigSecretFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 			got.AddAuthHeader(req)
-			if access := got.AllowedAccess(req); access != OpAll {
-				t.Errorf("main password access = %v; want %v", access, OpAll)
+			if access := got.AllowedAccess(req); access != OpOwner {
+				t.Errorf("main password access = %v; want %v", access, OpOwner)
 			}
 			var vivifyPass *string
 			var username string

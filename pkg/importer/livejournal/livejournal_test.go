@@ -63,7 +63,8 @@ func TestSetupCallback(t *testing.T) {
 	callback := func(form url.Values) *httptest.ResponseRecorder {
 		t.Helper()
 		form.Set("acct", acct.PermanodeRef().String())
-		req := httptest.NewRequest("GET", "/importer/livejournal/callback?"+form.Encode(), nil)
+		req := httptest.NewRequest("POST", "/importer/livejournal/callback", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set(httputil.PathSuffixHeader, "livejournal/callback")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)

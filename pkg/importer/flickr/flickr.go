@@ -548,7 +548,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		return
 	}
 	if tempToken != r.FormValue("oauth_token") {
-		log.Printf("unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), tempToken)
+		log.Printf("flickr: unexpected oauth_token in callback")
 		httputil.BadRequestError(w, "unexpected oauth_token")
 		return
 	}

@@ -1,13 +1,60 @@
-Permanode type:
+Importer metadata and credentials
+---------------------------------
 
-camliNodeType: "importer"
-importerType: "twitter"
-authClientID:     "xxx"    // e.g. api token
-authClientSecret: "sdkojfsldfjlsdkf"
+Importer configuration permanodes identify a registered service:
 
-camliNodeType: "importerAccount"
-importerType: "twitter"
-twitterAccount: "bradfitz"
+    camliNodeType: "importer"
+    importerType: "twitter"
+
+Account permanodes identify an account and retain public identity and progress:
+
+    camliNodeType: "importerAccount"
+    importerType: "twitter"
+    userName: "example"
+
+Credentials do not belong in permanodes or disposable importer caches. Object
+routes recognized credential attributes (including client IDs and secrets,
+OAuth access/refresh/temporary tokens, OAuth state, and
+credential destination bindings such as Mastodon instanceURL) to
+the authoritative server-local credential store instead of signing claims.
+The key is importer/<permanode-reference>/<attribute> for both importer
+configuration and account credentials. Attr and Attrs remain compatible reads;
+SecretAttr reports store errors explicitly. ForeachAttr omits credentials.
+Credential attributes have a single string value; ambiguous multi-values are
+rejected. Expiry timestamps, account identity, and import progress remain claims.
+
+For public feeds, feedURL is ordinary importerAccount permanode metadata, not
+a secret. URLs must not contain credentials. Protected-feed authentication is
+not implemented; future support should use explicit account metadata describing
+the authentication and referring to separate secret-store credentials, not
+make the whole feed URL private.
+
+At server startup, before any automatic runs, current credentials are migrated
+from all importer, importerAccount, and importerAccount-deleted permanodes,
+including hidden accounts and unregistered/removed importer types. Migration
+saves credentials durably before removing their current attributes with
+value-free deletion claims. It preserves working credentials; it does not
+revoke them, overwrite newer local replacements, or revive deleted secrets.
+Historical immutable claims and backups may still contain old credentials.
+Migrated credentials carry a sticky migratedFromPermanode warning, displayed
+with a warning emoji. Rotate with the provider and explicitly acknowledge
+rotation using the credential administration tools to clear the warning.
+
+A production importer handler requires secretRoot, the durable credential
+handler's prefix. Direct NewHost callers can inject HostConfig.Secrets; the
+caller owns that store. A nil Secrets creates a private memory store, owned and
+closed by the host, only for standalone/test use. It is not restart persistence.
+Production credential editing, account setup, and OAuth callbacks require
+owner authorization, not the ordinary discovery token. Config forms never
+prefill credentials: blank means keep existing; clearing is explicit. Local
+credential-entry forms use POST-only callbacks (CallbackRequiresPOST); only
+external provider OAuth redirects use GET callbacks. See
+../../doc/secrets.md for storage, API/CLI administration, backup, and security.
+
+Mixed Object writes save one local credential transaction before publishing
+noncredential claims. These two stores cannot be committed atomically; if blob
+publication fails, the durable credential update remains and can be retried.
+No failed local-store read falls back to historical permanode credentials.
 
 Chronological progress and reconciliation
 ----------------------------------------

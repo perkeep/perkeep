@@ -11,6 +11,7 @@
 				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -27,7 +28,9 @@
 		},
 		"/importer/": {
 			"handler": "importer",
-			"handlerArgs": {}
+			"handlerArgs": {
+				"secretRoot": "/secrets/"
+			}
 		},
 		"/index/": {
 			"handler": "storage-index",
@@ -48,6 +51,12 @@
 					"secringFile": "/path/to/secring"
 				},
 				"slurpToMemory": true
+			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {
+				"memory": true
 			}
 		},
 		"/share/": {

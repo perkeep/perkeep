@@ -55,10 +55,11 @@ type imp struct {
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
-		Title:               "Feed",
-		Description:         "importer for RSS, Atom, and RDF feeds",
-		SupportsIncremental: true,
-		NeedsAPIKey:         false,
+		Title:                "Feed",
+		Description:          "importer for RSS, Atom, and RDF feeds",
+		SupportsIncremental:  true,
+		NeedsAPIKey:          false,
+		CallbackRequiresPOST: true,
 	}
 }
 
@@ -240,7 +241,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Feed</h1>
-<form method="get" action="{{.CallbackPath}}">
+<form method="post" action="{{.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
   <table border=0 cellpadding=3>
   <tr><td align=right>Feed URL</td><td><input name="feedURL" size=50></td></tr>

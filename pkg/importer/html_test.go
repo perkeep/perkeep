@@ -30,7 +30,7 @@ func TestAccountsTable(t *testing.T) {
 	}
 	t.Cleanup(func() { h.Close() })
 	h.uiPrefix = "/ui/"
-	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{pn: blob.RefFromString("account")}}
+	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{h: h, pn: blob.RefFromString("account")}}
 	root := blob.RefFromString("root")
 	var buf strings.Builder
 	if err := h.tmpl.ExecuteTemplate(&buf, "accountsTable", accountsTableData{

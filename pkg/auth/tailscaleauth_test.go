@@ -33,8 +33,8 @@ func TestTailscaleAuth(t *testing.T) {
 	}{
 		{name: "public full access", mode: "full-access-to-tailnet"},
 		{name: "public named user", mode: "alice@example.com"},
-		{name: "tailnet full access", mode: "full-access-to-tailnet", tailnet: true, want: OpAll},
-		{name: "matching user", mode: "alice@example.com", tailnet: true, login: "alice@example.com", want: OpAll, wantLookup: true},
+		{name: "tailnet full access", mode: "full-access-to-tailnet", tailnet: true, want: OpOwner},
+		{name: "matching user", mode: "alice@example.com", tailnet: true, login: "alice@example.com", want: OpOwner, wantLookup: true},
 		{name: "different user", mode: "alice@example.com", tailnet: true, login: "bob@example.com", wantLookup: true},
 		{name: "case-sensitive login", mode: "alice@example.com", tailnet: true, login: "Alice@example.com", wantLookup: true},
 		{name: "empty login", mode: "alice@example.com", tailnet: true, wantLookup: true},

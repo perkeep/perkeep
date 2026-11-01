@@ -49,10 +49,17 @@ const (
 	// response, please bear in mind that granting OpDiscovery is in effect the
 	// same as granting OpAll for now.
 	OpDiscovery
+	// Secret operations are deliberately not in OpAll: the token returned
+	// by discovery must not grant access to server-local credentials.
+	OpSecretRead
+	OpSecretWrite
 	OpRead   = OpEnumerate | OpStat | OpGet | OpDiscovery
 	OpRW     = OpUpload | OpEnumerate | OpStat | OpGet // Not Remove
 	OpVivify = OpUpload | OpStat | OpGet | OpDiscovery
 	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign | OpDiscovery
+	// OpOwner includes operations requiring the server owner's credentials,
+	// rather than the web UI token or a restricted client access key.
+	OpOwner = OpAll | OpSecretRead | OpSecretWrite
 )
 
 const OmitAuthToken = "OmitAuthToken"
@@ -279,7 +286,7 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 	if err == nil {
 		if subtle.ConstantTimeCompare([]byte(user), []byte(up.Username)) == 1 {
 			if subtle.ConstantTimeCompare([]byte(pass), []byte(up.Password)) == 1 {
-				return OpAll
+				return OpOwner
 			}
 			if up.VivifyPass != nil && subtle.ConstantTimeCompare([]byte(pass), []byte(*up.VivifyPass)) == 1 {
 				return OpVivify
@@ -294,7 +301,7 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 		return OpAll
 	}
 	if up.OrLocalhost && httputil.IsLocalhost(req) {
-		return OpAll
+		return OpOwner
 	}
 
 	return 0
@@ -307,7 +314,7 @@ func (up *UserPass) AddAuthHeader(req *http.Request) {
 type None struct{}
 
 func (None) AllowedAccess(req *http.Request) Operation {
-	return OpAll
+	return OpOwner
 }
 
 func (None) AddAuthHeader(req *http.Request) {
@@ -320,7 +327,7 @@ type Localhost struct {
 
 func (Localhost) AllowedAccess(req *http.Request) (out Operation) {
 	if httputil.IsLocalhost(req) {
-		return OpAll
+		return OpOwner
 	}
 	return 0
 }
@@ -337,7 +344,7 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 	_, pass, err := httputil.BasicAuth(req)
 	if err == nil {
 		if pass == da.Password {
-			return OpAll
+			return OpOwner
 		}
 		if da.VivifyPass != nil && pass == *da.VivifyPass {
 			return OpVivify
@@ -355,7 +362,7 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 	// server.  This check performed last as it may require reading from the
 	// kernel or exec'ing a program.
 	if httputil.IsLocalhost(req) {
-		return OpAll
+		return OpOwner
 	}
 
 	return 0

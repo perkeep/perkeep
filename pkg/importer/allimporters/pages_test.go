@@ -114,7 +114,7 @@ func TestPagesStoreNothingUntilSaved(t *testing.T) {
 	// Saving another's setup stores it, and the pages list it.
 	w = p.do("POST", "pinboard", url.Values{"mode": {"newacct"}})
 	acct = acctField.FindStringSubmatch(w.Body.String())[1]
-	w = p.do("GET", "pinboard/callback?"+url.Values{"acct": {acct}, "apiToken": {"someone:secret"}}.Encode(), nil)
+	w = p.do("POST", "pinboard/callback", url.Values{"acct": {acct}, "apiToken": {"someone:secret"}})
 	if w.Code != http.StatusFound {
 		t.Fatalf("saving setup = %d: %s", w.Code, w.Body)
 	}

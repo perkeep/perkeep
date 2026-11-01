@@ -54,7 +54,8 @@ import (
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/server/access"
 	"perkeep.org/pkg/server/app"
-	_ "perkeep.org/pkg/server/immich" // Register the optional mobile upload handler.
+	_ "perkeep.org/pkg/server/immich"  // Register the optional mobile upload handler.
+	_ "perkeep.org/pkg/server/secrets" // Register the server-local credential store.
 	"perkeep.org/pkg/types/serverconfig"
 	"perkeep.org/pkg/webserver"
 
@@ -915,6 +916,9 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		return nil, fmt.Errorf("error while configuring auth: %w", err)
 	}
 	prefixes := config.jconf.RequiredObject("prefixes")
+	if err := ensureSecretStore(prefixes); err != nil {
+		return nil, err
+	}
 	config.jconf.OptionalObject("healthState") // read by HealthState
 	if err := config.jconf.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration error in root object's keys: %w", err)
@@ -1085,7 +1089,7 @@ type configHandler struct {
 
 var (
 	knownKeys     = regexp.MustCompile(`(?ms)^\s+"_knownkeys": {.+?},?\n`)
-	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password|client_secret|application_key|passphrase)\": "[^\"]+".*\n`)
+	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password|client_id|clientID|client_secret|clientSecret|refresh_token|application_key|passphrase)\": "[^\"]+".*\n`)
 	trailingComma = regexp.MustCompile(`,(\n\s*\})`)
 )
 

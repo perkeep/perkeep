@@ -29,7 +29,7 @@ import (
 )
 
 func TestHandlerTypeWantsAuth(t *testing.T) {
-	for _, handlerType := range []string{"immich", "root", "share", "app"} {
+	for _, handlerType := range []string{"immich", "root", "share", "app", "secrets"} {
 		if handlerTypeWantsAuth(handlerType) {
 			t.Errorf("%s handler should not be wrapped in Perkeep auth", handlerType)
 		}
@@ -108,5 +108,32 @@ func TestImmichConfigPasswordRedacted(t *testing.T) {
 	}
 	if args["email"] != high.Immich.Email {
 		t.Errorf("email = %v; want unchanged email", args["email"])
+	}
+}
+
+func TestImporterConfigCredentialsRedacted(t *testing.T) {
+	config := &Config{jconf: jsonconfig.Obj{
+		"prefixes": map[string]any{
+			"/importer/": map[string]any{
+				"handler": "importer",
+				"handlerArgs": map[string]any{
+					"flickr": map[string]any{
+						"clientID":     "private-client-identifier",
+						"clientSecret": `private "quoted" credential`,
+					},
+				},
+			},
+		},
+	}}
+	recorder := httptest.NewRecorder()
+	configHandler{config}.ServeHTTP(recorder, nil)
+	for _, value := range []string{"private-client-identifier", "private"} {
+		if strings.Contains(recorder.Body.String(), value) {
+			t.Fatal("debug config disclosed importer credentials")
+		}
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("redacted config is invalid JSON: %v", err)
 	}
 }

@@ -56,6 +56,7 @@ type RootHandler struct {
 	SearchRoot   string
 	helpRoot     string
 	importerRoot string
+	secretRoot   string
 	statusRoot   string
 	Prefix       string // root handler's prefix
 	shareRoot    string // share handler's prefix, if any.
@@ -116,6 +117,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	}
 	checkType("searchRoot", "search")
 	checkType("jsonSignRoot", "jsonsign")
+	checkType("secretRoot", "secrets")
 	if err != nil {
 		return
 	}
@@ -133,6 +135,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	root.statusRoot = conf.OptionalString("statusRoot", "")
 	root.helpRoot = conf.OptionalString("helpRoot", "")
 	root.shareRoot = conf.OptionalString("shareRoot", "")
+	root.secretRoot = conf.OptionalString("secretRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -269,6 +272,9 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		VideoThumbVersion: videoThumbVersion,
 		// serverinit serves upload sessions for every blob root.
 		UploadSessions: rh.BlobRoot != "",
+	}
+	if auth.AllowedUnscoped(req, auth.OpSecretRead) || auth.AllowedUnscoped(req, auth.OpSecretWrite) {
+		d.SecretRoot = rh.secretRoot
 	}
 	if !auth.AllowedUnscoped(req, auth.OpDiscovery) {
 		// The token grants everything, beyond what an access key,
