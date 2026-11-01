@@ -67,8 +67,45 @@ type Discovery struct {
 	SyncHandlers []SyncHandlerDiscovery `json:"syncHandlers,omitempty"`
 	// Signing contains discovery information for signing.
 	Signing *SignDiscovery `json:"signing,omitempty"`
+
+	// Client describes the requester: what it may do. It's nil if the
+	// server doesn't say, as when it has no Client access page.
+	Client *ClientDiscovery `json:"client,omitempty"`
+
+	// Storage summarizes the server's storage, for requesters with the
+	// "stats" permission (see ClientDiscovery.Permissions), or else nil.
+	Storage *StorageDiscovery `json:"storage,omitempty"`
+
 	// UIDiscovery contains discovery information for the UI.
 	*UIDiscovery
+}
+
+// ClientDiscovery describes the requester of a discovery request, for
+// clients such as mobile apps to know which of their features to enable.
+// See doc/access-url.md.
+type ClientDiscovery struct {
+	// ServerName is the name for clients to show for the server.
+	ServerName string `json:"serverName,omitempty"`
+
+	// AccessKeyName is the name that the owner gave the access key that
+	// the request used, if it used one. (It's not the key's secret.)
+	AccessKeyName string `json:"accessKeyName,omitempty"`
+
+	// Permissions are the names of the access key permissions that the
+	// requester has: "upload", "sign", "search", "download", and
+	// "stats". With the server's full credentials, rather than an access
+	// key, it has all of them. Clients should ignore names they don't know.
+	Permissions []string `json:"permissions"`
+}
+
+// StorageDiscovery summarizes the server's primary blob storage (the
+// discovery's BlobRoot).
+type StorageDiscovery struct {
+	// ApproxBlobs and ApproxBytes are the number of blobs and their
+	// total size, as the server's storage census estimates them from a
+	// sample of the blobs. They're omitted until the census has run.
+	ApproxBlobs int64 `json:"approxBlobs,omitempty"`
+	ApproxBytes int64 `json:"approxBytes,omitempty"`
 }
 
 // SignDiscovery contains discovery information for jsonsign.

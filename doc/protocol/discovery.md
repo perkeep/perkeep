@@ -68,3 +68,38 @@ GPG key fingerprint. `signing.publicKeyId` remains available for compatibility.
 Prefer comparing full fingerprints when both peers advertise them; if either
 peer omits its fingerprint, compare their long key IDs instead. An absent
 fingerprint does not mean the server lacks signing support.
+
+## The requester's permissions and the server's storage
+
+The optional `client` object describes the requester, for clients such as
+mobile apps to know which of their features to enable:
+
+    "client": {
+      "serverName": "perkeep.example.com",
+      "accessKeyName": "My phone",
+      "permissions": ["upload", "sign", "stats"]
+    }
+
+* `serverName`: the name for clients to show for the server.
+* `accessKeyName`: the name the owner gave the
+  [access key](../access-url.md) the request used, if it used one. It's
+  not the key's secret.
+* `permissions`: the access key permissions the requester has, from
+  `upload`, `sign`, `search`, `download`, and `stats`; see
+  [Client access URLs](../access-url.md#requests) for what each allows. With
+  the server's full credentials, rather than an access key, the requester
+  has all of them. Clients should ignore names they don't know.
+
+Servers without a Client access page omit `client`.
+
+The optional `storage` object, for requesters with the `stats`
+permission, summarizes the server's primary blob storage (`blobRoot`):
+
+    "storage": {
+      "approxBlobs": 1234567,
+      "approxBytes": 987654321098
+    }
+
+* `approxBlobs` and `approxBytes`: the number of blobs and their total size,
+  as the server's storage census estimates them from a sample of the blobs.
+  They're omitted until the census has run.

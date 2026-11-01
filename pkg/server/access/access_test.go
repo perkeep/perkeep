@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +52,6 @@ var testRoots = Roots{
 	Blob:   "/bs/",
 	Search: "/my-search/",
 	Sign:   "/sighelper/",
-	Status: "/status/",
 	UI:     "/ui/",
 }
 
@@ -94,7 +94,7 @@ func TestNeed(t *testing.T) {
 		{"GET", "/sighelper/camli/sig/discovery", "", PermSign, true},
 		{"POST", "/sighelper/other", "", none, false},
 
-		{"GET", "/status/status.json", "", PermStats, true},
+		{"GET", "/status/status.json", "", none, false}, // stats are in discovery
 		{"GET", "/status/", "", none, false},
 		{"POST", "/status/restart", "", none, false},
 
@@ -233,10 +233,10 @@ func TestKeys(t *testing.T) {
 	id, secret, page := createKey(t, h, "phone", "upload", "sign")
 	// Not listening, a new key's secret is shown, and it has no QR code
 	// or app link.
-	if !strings.Contains(page, "<details open><summary>Show key</summary>") || strings.Contains(page, "showQR(document") || strings.Contains(page, "perkeep://") {
+	if !strings.Contains(page, "<details open><summary><span class=\"link\">Show key</span></summary>") || strings.Contains(page, "showQR(document") || strings.Contains(page, "perkeep://") {
 		t.Errorf("new key's page doesn't show just its secret: %s", page)
 	}
-	if page := getPage(t, h, "/access/"); strings.Contains(page, "<details open") || !strings.Contains(page, "<summary>Permissions: Upload blobs, Make claims</summary>") {
+	if page := getPage(t, h, "/access/"); strings.Contains(page, "<details open") || !strings.Contains(page, "<summary><span class=\"link\">Permissions</span>: Upload blobs, Make claims</summary>") {
 		t.Errorf("page shows a secret by default, or lacks the key's permissions: %s", page)
 	}
 
@@ -289,8 +289,8 @@ func TestKeys(t *testing.T) {
 	if got := do("POST", "/bs/camli/upload", secret); got != 403 {
 		t.Errorf("upload after removing its permission = %v; want 403", got)
 	}
-	if got := do("GET", "/status/status.json", secret); got != 200 {
-		t.Errorf("status after adding its permission = %v; want 200", got)
+	if got := do("GET", "/bs/camli/"+testRef, secret); got != 200 {
+		t.Errorf("download after adding its permission = %v; want 200", got)
 	}
 
 	// A new handler loads the same keys.
@@ -306,8 +306,55 @@ func TestKeys(t *testing.T) {
 	if w := postForm(t, h, "delete", url.Values{"id": {id}}); w.Code != 302 {
 		t.Fatalf("delete: %v: %s", w.Code, w.Body)
 	}
-	if got := do("GET", "/status/status.json", secret); got != 401 {
-		t.Errorf("status after deleting key = %v; want 401", got)
+	if got := do("GET", "/bs/camli/"+testRef, secret); got != 401 {
+		t.Errorf("download after deleting key = %v; want 401", got)
+	}
+}
+
+// opsMode is an auth mode that allows ops to every request.
+type opsMode auth.Operation
+
+func (m opsMode) AllowedAccess(*http.Request) auth.Operation { return auth.Operation(m) }
+func (opsMode) AddAuthHeader(*http.Request)                  {}
+
+func TestDescribeClient(t *testing.T) {
+	h, err := New(Config{
+		Prefix:    "/access/",
+		StateFile: filepath.Join(t.TempDir(), "tailcat.json"),
+		Roots:     testRoots,
+		Serve:     &grantRecorder{},
+		BaseURL:   func() string { return "https://perkeep.example.ts.net" },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	_, secret, _ := createKey(t, h, "phone", "upload", "stats")
+	t.Cleanup(func() { auth.SetMode(auth.None{}) })
+
+	for _, tt := range []struct {
+		name    string
+		mode    auth.AuthMode
+		pass    string
+		wantKey string
+		want    []string
+	}{
+		{"access key", opsMode(0), secret, "phone", []string{"upload", "stats"}},
+		{"full credentials", opsMode(auth.OpAll), "", "", []string{"upload", "sign", "search", "download", "stats"}},
+		{"vivify", opsMode(auth.OpVivify), "", "", []string{"upload", "download"}},
+		{"nothing", opsMode(0), "", "", []string{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			auth.SetMode(tt.mode)
+			r := httptest.NewRequest("GET", "/?camli.mode=config", nil)
+			if tt.pass != "" {
+				r.SetBasicAuth("", tt.pass)
+			}
+			c := h.DescribeClient(r)
+			if c.ServerName != "perkeep.example.ts.net" || c.AccessKeyName != tt.wantKey || !slices.Equal(c.Permissions, tt.want) || c.Permissions == nil {
+				t.Errorf("DescribeClient = %+v; want key %q, permissions %q", c, tt.wantKey, tt.want)
+			}
+		})
 	}
 }
 
@@ -589,7 +636,7 @@ func TestTailcat(t *testing.T) {
 	if w := postForm(t, h, "enable", nil); w.Code != 302 {
 		t.Fatalf("enable: %v: %s", w.Code, w.Body)
 	}
-	id, secret, page := createKey(t, h, "test", "stats")
+	id, secret, page := createKey(t, h, "test", "search")
 	// Listening, a new key's QR code is shown, but not its secret.
 	if !strings.Contains(page, `showQR(document.getElementById("qr-link-`+id+`"))`) || strings.Contains(page, "<details open") {
 		t.Errorf("new key's page doesn't show just its QR code: %s", page)
@@ -665,10 +712,10 @@ func TestTailcat(t *testing.T) {
 		res.Body.Close()
 		return res.StatusCode
 	}
-	if got := get("/status/status.json", ""); got != 401 {
+	if got := get("/my-search/camli/search/recent", ""); got != 401 {
 		t.Errorf("without key = %v; want 401", got)
 	}
-	if got := get("/status/status.json", secret); got != 200 {
+	if got := get("/my-search/camli/search/recent", secret); got != 200 {
 		t.Errorf("with key = %v; want 200", got)
 	}
 	if got := get("/bs/camli/"+testRef, secret); got != 403 {
@@ -677,7 +724,7 @@ func TestTailcat(t *testing.T) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if len(g.served) != 1 {
-		t.Errorf("served %q; want just the status", g.served)
+		t.Errorf("served %q; want just the search", g.served)
 	}
 
 	if w := postForm(t, h, "disable", nil); w.Code != 302 {

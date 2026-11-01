@@ -277,9 +277,10 @@ form.inline { display: inline; }
 .key { border: 1px solid #ddd; border-radius: 8px; padding: 0.6em 0.9em; margin: 0.8em 0; }
 .key .created { color: #666; font-size: 0.9em; }
 .key .action { display: block; padding: 0.3em 0; }
-summary { color: #00c; text-decoration: underline; cursor: pointer; list-style: none; padding: 0.3em 0; }
+summary { cursor: pointer; list-style: none; padding: 0.3em 0; }
 summary::-webkit-details-marker { display: none; }
-details[open] > summary { color: #555; }
+summary .link { color: #00c; text-decoration: underline; }
+details[open] > summary .link { color: #555; }
 dialog#qr { width: 90vw; height: 90vh; max-width: none; max-height: none; box-sizing: border-box; text-align: center; border: none; border-radius: 8px; }
 dialog#qr::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog#qr img { width: min(80vw, 65vh); height: min(80vw, 65vh); image-rendering: pixelated; }
@@ -361,10 +362,10 @@ permissions you give them.
 <b>{{.Name}}</b> <span class="created">created {{.Created.Format "2006-01-02"}}</span>
 {{if .AppURL}}<a class="action" href="#" id="qr-link-{{.ID}}" data-qr="{{$.Prefix}}qr?id={{.ID}}" data-name="{{.Name}}" data-app="{{.AppURL}}" onclick="showQR(this); return false">Show QR code</a>
 <a class="action" href="{{.AppURL}}">Open in the Perkeep app</a>
-{{end}}<details{{if .ShowKey}} open{{end}}><summary>Show key</summary>
+{{end}}<details{{if .ShowKey}} open{{end}}><summary><span class="link">Show key</span></summary>
 <input type="text" class="secret" readonly value="{{.Secret}}" onclick="this.select()">
 </details>
-<details><summary>Permissions: {{.PermTitles}}</summary>
+<details><summary><span class="link">Permissions</span>: {{.PermTitles}}</summary>
 <form method="post" action="{{$.Prefix}}">
 <input type="hidden" name="token" value="{{$.Token}}">
 <input type="hidden" name="id" value="{{.ID}}">
