@@ -168,9 +168,11 @@ func (s *immichState) fetch(ctx context.Context, ref blob.Ref, limit int) ([]byt
 
 func (s *immichState) claims(ctx context.Context, pn blob.Ref) ([]camtypes.Claim, error) {
 	ix := s.h.search.Index()
-	ix.RLock()
-	claims, err := ix.AppendClaims(ctx, nil, pn, s.h.signer.KeyIDLong(), "")
-	ix.RUnlock()
+	claims, err := func() ([]camtypes.Claim, error) {
+		ix.RLock()
+		defer ix.RUnlock()
+		return ix.AppendClaims(ctx, nil, pn, s.h.signer.KeyIDLong(), "")
+	}()
 	if err != nil {
 		return nil, err
 	}
@@ -381,23 +383,26 @@ func (s *immichState) candidates(ctx context.Context, checked map[blob.Ref]immic
 	ix := s.h.search.Index()
 	deletions, haveDeletions := ix.(interface{ IsDeleted(blob.Ref) bool })
 	var deletedClaims []blob.Ref
-	ix.RLock()
-	deletedAccount := haveDeletions && deletions.IsDeleted(s.account)
-	for pn := range pns {
-		pns[pn] = haveDeletions && deletions.IsDeleted(pn)
-	}
-	err := ix.EnumerateBlobMeta(ctx, func(meta camtypes.BlobMeta) bool {
-		switch meta.CamliType {
-		case schema.TypePermanode:
-			pns[meta.Ref] = haveDeletions && deletions.IsDeleted(meta.Ref)
-		case schema.TypeClaim:
-			if haveDeletions && deletions.IsDeleted(meta.Ref) {
-				deletedClaims = append(deletedClaims, meta.Ref)
-			}
+	var deletedAccount bool
+	err := func() error {
+		ix.RLock()
+		defer ix.RUnlock()
+		deletedAccount = haveDeletions && deletions.IsDeleted(s.account)
+		for pn := range pns {
+			pns[pn] = haveDeletions && deletions.IsDeleted(pn)
 		}
-		return true
-	})
-	ix.RUnlock()
+		return ix.EnumerateBlobMeta(ctx, func(meta camtypes.BlobMeta) bool {
+			switch meta.CamliType {
+			case schema.TypePermanode:
+				pns[meta.Ref] = haveDeletions && deletions.IsDeleted(meta.Ref)
+			case schema.TypeClaim:
+				if haveDeletions && deletions.IsDeleted(meta.Ref) {
+					deletedClaims = append(deletedClaims, meta.Ref)
+				}
+			}
+			return true
+		})
+	}()
 	if err != nil {
 		return nil, err
 	}
@@ -1182,20 +1187,20 @@ func (s *immichState) CommitBatch(batch sorted.BatchMutation) error {
 		confirmations[i].Date = at
 	}
 	if fast {
-		ix.RLock()
-		var confirmErr error
-		for _, cl := range confirmations {
-			ok, err := checker.HasClaim(ctx, cl)
-			if err != nil {
-				confirmErr = err
-				break
+		confirmErr := func() error {
+			ix.RLock()
+			defer ix.RUnlock()
+			for _, cl := range confirmations {
+				ok, err := checker.HasClaim(ctx, cl)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return errors.New("native index did not confirm every published photo/transaction operation")
+				}
 			}
-			if !ok {
-				confirmErr = errors.New("native index did not confirm every published photo/transaction operation")
-				break
-			}
-		}
-		ix.RUnlock()
+			return nil
+		}()
 		if confirmErr != nil {
 			return s.failPublication(confirmErr)
 		}

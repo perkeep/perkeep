@@ -104,14 +104,18 @@ func (h *Handler) subscribeToNewBlobs() {
 	go func() {
 		ctx := context.Background()
 		for br := range ch {
-			h.index.RLock()
-			bm, err := h.index.GetBlobMeta(ctx, br)
-			if err == nil {
+			if bm, err := h.blobMeta(ctx, br); err == nil {
 				h.wsHub.newBlobRecv <- bm.CamliType
 			}
-			h.index.RUnlock()
 		}
 	}()
+}
+
+// blobMeta returns the BlobMeta of br, with the index read-locked.
+func (h *Handler) blobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
+	h.index.RLock()
+	defer h.index.RUnlock()
+	return h.index.GetBlobMeta(ctx, br)
 }
 
 func (h *Handler) SetCorpus(c *index.Corpus) {

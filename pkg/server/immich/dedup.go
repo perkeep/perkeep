@@ -24,9 +24,11 @@ import (
 	"io"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 // existingAsset finds an upload receipt by its Perkeep whole-file digest.
@@ -136,9 +138,11 @@ func (h *Handler) findPermanode(ctx context.Context, wholeRef blob.Ref) (blob.Re
 	}
 
 	ix := h.search.Index()
-	ix.RLock()
-	files, err := ix.ExistingFileSchemas(wholeRef)
-	ix.RUnlock()
+	files, err := func() (index.WholeRefToFile, error) {
+		ix.RLock()
+		defer ix.RUnlock()
+		return ix.ExistingFileSchemas(wholeRef)
+	}()
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("immich: finding file schemas for %v: %w", wholeRef, err)
 	}
@@ -190,9 +194,11 @@ func (h *Handler) findPermanode(ctx context.Context, wholeRef blob.Ref) (blob.Re
 // existing object or create another permanode to work around the failure.
 func (h *Handler) verifyPermanode(ctx context.Context, pn, fileRef, wholeRef blob.Ref) error {
 	ix := h.search.Index()
-	ix.RLock()
-	claims, err := ix.AppendClaims(ctx, nil, pn, h.signer.KeyIDLong(), "camliContent")
-	ix.RUnlock()
+	claims, err := func() ([]camtypes.Claim, error) {
+		ix.RLock()
+		defer ix.RUnlock()
+		return ix.AppendClaims(ctx, nil, pn, h.signer.KeyIDLong(), "camliContent")
+	}()
 	if err != nil {
 		return fmt.Errorf("immich: checking native content claims for %v: %w", pn, err)
 	}

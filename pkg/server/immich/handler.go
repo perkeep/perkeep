@@ -50,6 +50,7 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 var immichResizeSem = syncutil.NewSem(256 << 20)
@@ -797,9 +798,11 @@ func (h *Handler) serveAssetUpload(w http.ResponseWriter, r *http.Request) {
 		// A planned filenode can have been deliberately repointed or cleared
 		// by its owner. Its content key does not authorize overwriting it.
 		ix := h.search.Index()
-		ix.RLock()
-		claims, lookupErr := ix.AppendClaims(r.Context(), nil, a.PermanodeRef, h.signer.KeyIDLong(), "")
-		ix.RUnlock()
+		claims, lookupErr := func() ([]camtypes.Claim, error) {
+			ix.RLock()
+			defer ix.RUnlock()
+			return ix.AppendClaims(r.Context(), nil, a.PermanodeRef, h.signer.KeyIDLong(), "")
+		}()
 		if lookupErr != nil {
 			h.fail(w, "checking planned permanode", lookupErr)
 			return

@@ -52,6 +52,7 @@ import (
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/camtypes"
 	"tailscale.com/util/set"
 )
 
@@ -1073,19 +1074,21 @@ func (ix *Index) knownContents(ctx context.Context, fetcher blob.Fetcher, b *sch
 	}
 	type cand struct{ file, whole blob.Ref }
 	var cands []cand
-	ix.RLock()
-	for _, f := range ix.corpus.AppendFilesOfSize(nil, size) {
-		if f == b.BlobRef() {
-			continue
+	func() {
+		ix.RLock()
+		defer ix.RUnlock()
+		for _, f := range ix.corpus.AppendFilesOfSize(nil, size) {
+			if f == b.BlobRef() {
+				continue
+			}
+			if wr, ok := ix.corpus.GetWholeRef(ctx, f); ok {
+				cands = append(cands, cand{f, wr})
+			}
+			if len(cands) == knownContentsCandidates {
+				break
+			}
 		}
-		if wr, ok := ix.corpus.GetWholeRef(ctx, f); ok {
-			cands = append(cands, cand{f, wr})
-		}
-		if len(cands) == knownContentsCandidates {
-			break
-		}
-	}
-	ix.RUnlock()
+	}()
 	parts := b.ByteParts()
 	for _, c := range cands {
 		rc, _, err := fetcher.Fetch(ctx, c.file)
@@ -1397,9 +1400,11 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	}
 	// Mutation-map population runs before the receive write lock. The ready
 	// worker may concurrently add metadata to the corpus.
-	ix.RLock()
-	meta, err := ix.GetBlobMeta(ctx, target)
-	ix.RUnlock()
+	meta, err := func() (camtypes.BlobMeta, error) {
+		ix.RLock()
+		defer ix.RUnlock()
+		return ix.GetBlobMeta(ctx, target)
+	}()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			mm.deps = append(mm.deps, target)
