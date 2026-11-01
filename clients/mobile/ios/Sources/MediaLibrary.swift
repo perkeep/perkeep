@@ -9,10 +9,18 @@ struct MediaItem: Identifiable {
     /// edited versions do, with the asset's modification date.
     let id: String
     let assetID: String
-    let resource: PHAssetResource
-    let name: String
-    let size: Int64 // 0 if unknown
-    let date: Date? // when the photo or video was taken
+    let resourceType: PHAssetResourceType
+    let originalFilename: String // of the resource, to find it to export
+    let name: String             // to upload it as
+    let size: Int64              // 0 if unknown
+    let date: Date?              // when the photo or video was taken
+}
+
+/// MediaCount is the result of counting the media to back up.
+struct MediaCount {
+    var assets = 0              // photos and videos
+    var items: [MediaItem] = [] // their files
+    var lookedUp = 0            // assets whose files weren't in the cache
 }
 
 /// MediaLibrary finds the media to back up.
@@ -21,10 +29,10 @@ enum MediaLibrary {
     private static let originalTypes: Set<PHAssetResourceType> = [.photo, .video, .pairedVideo, .alternatePhoto, .audio]
     private static let editedTypes: Set<PHAssetResourceType> = [.fullSizePhoto, .fullSizeVideo, .fullSizePairedVideo]
 
-    /// items returns the files of the assets that the account's album
-    /// rules select, newest first. progress is called with the number of
-    /// assets looked at so far.
-    static func items(accountID: String, store: AccountStore, progress: @escaping @Sendable (Int) -> Void) async throws -> [MediaItem] {
+    /// count finds the files of the assets that the account's album rules
+    /// select, newest first. progress is called with the number of assets
+    /// looked at so far, and their total.
+    static func count(accountID: String, store: AccountStore, progress: @escaping @Sendable (Int, Int) -> Void) async throws -> MediaCount {
         let albums = PhotoAlbums.list().map(\.album)
         let states = try await store.albumStates(accountID, albums: albums)
         let included = states.albums.filter { $0.state == .include }.map(\.album.id)
@@ -46,15 +54,23 @@ enum MediaLibrary {
                 }
             }
             assets.sort { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) }
-            var items: [MediaItem] = []
+            var cache = ResourceCache.load()
+            var res = MediaCount(assets: assets.count)
             for (i, a) in assets.enumerated() {
-                items += mediaItems(a)
+                let (items, cached) = mediaItems(a, cache: &cache)
+                res.items += items
+                if !cached {
+                    res.lookedUp += 1
+                }
                 if i % 200 == 0 {
-                    progress(i)
+                    progress(i, assets.count)
                 }
             }
-            progress(assets.count)
-            return items
+            progress(assets.count, assets.count)
+            if res.lookedUp > 0 {
+                cache.save()
+            }
+            return res
         }.value
     }
 
@@ -67,27 +83,54 @@ enum MediaLibrary {
     }
 
     /// mediaItems returns the files of asset a to back up: its originals,
-    /// and its edited versions, if it's been edited.
-    private static func mediaItems(_ a: PHAsset) -> [MediaItem] {
-        let resources = PHAssetResource.assetResources(for: a)
-        let base = resources.first { $0.type == .photo || $0.type == .video }
-            .map { ($0.originalFilename as NSString).deletingPathExtension } ?? "IMG"
+    /// and its edited versions, if it's been edited. It reports whether
+    /// they came from the cache.
+    private static func mediaItems(_ a: PHAsset, cache: inout ResourceCache) -> ([MediaItem], Bool) {
+        let mod = a.modificationDate?.timeIntervalSince1970 ?? 0
+        var rs = cache.lookup(a.localIdentifier, modified: mod)
+        let cached = rs != nil
+        if rs == nil {
+            // Asking Photos for an asset's resources is the slow part of
+            // counting, so they're cached.
+            let found = PHAssetResource.assetResources(for: a).compactMap { r -> ResourceCache.Resource? in
+                guard editedTypes.contains(r.type) || originalTypes.contains(r.type) else { return nil }
+                let size = (r.value(forKey: "fileSize") as? NSNumber)?.int64Value ?? 0
+                return ResourceCache.Resource(type: r.type.rawValue, name: r.originalFilename, size: size)
+            }
+            cache.store(a.localIdentifier, modified: mod, found)
+            rs = found
+        }
+        let resources = rs ?? []
+        let base = resources.first {
+            $0.type == PHAssetResourceType.photo.rawValue || $0.type == PHAssetResourceType.video.rawValue
+        }.map { ($0.name as NSString).deletingPathExtension } ?? "IMG"
         var out: [MediaItem] = []
         for r in resources {
-            let edited = editedTypes.contains(r.type)
-            guard edited || originalTypes.contains(r.type) else { continue }
-            let size = (r.value(forKey: "fileSize") as? NSNumber)?.int64Value ?? 0
-            var name = r.originalFilename
-            var key = "\(a.localIdentifier)|\(r.type.rawValue)|\(name)|\(size)"
-            if edited {
+            guard let type = PHAssetResourceType(rawValue: r.type) else { continue }
+            var name = r.name
+            var key = "\(a.localIdentifier)|\(r.type)|\(r.name)|\(r.size)"
+            if editedTypes.contains(type) {
                 // Edited versions are all named like FullSizeRender.heic.
                 let ext = (name as NSString).pathExtension
                 name = "\(base) (Edited)" + (ext.isEmpty ? "" : ".\(ext)")
-                key += "|\(a.modificationDate?.timeIntervalSince1970 ?? 0)"
+                key += "|\(mod)"
             }
-            out.append(MediaItem(id: key, assetID: a.localIdentifier, resource: r, name: name, size: size, date: a.creationDate))
+            out.append(MediaItem(id: key, assetID: a.localIdentifier, resourceType: type, originalFilename: r.name,
+                                 name: name, size: r.size, date: a.creationDate))
         }
-        return out
+        return (out, cached)
+    }
+
+    /// resource returns the item's PHAssetResource.
+    static func resource(_ item: MediaItem) throws -> PHAssetResource {
+        guard let a = PHAsset.fetchAssets(withLocalIdentifiers: [item.assetID], options: nil).firstObject,
+              let r = PHAssetResource.assetResources(for: a).first(where: {
+                  $0.type == item.resourceType && $0.originalFilename == item.originalFilename
+              })
+        else {
+            throw Core.Error(status: 0, message: "\(item.name) is no longer in the photo library.")
+        }
+        return r
     }
 
     /// tempDir is where items are exported to, for the core to read.
@@ -106,10 +149,11 @@ enum MediaLibrary {
         // doesn't exist.
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         let url = tempDir.appendingPathComponent(UUID().uuidString + "-" + item.name)
+        let resource = try resource(item)
         let opts = PHAssetResourceRequestOptions()
         opts.isNetworkAccessAllowed = true
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
-            PHAssetResourceManager.default().writeData(for: item.resource, toFile: url, options: opts) { err in
+            PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: opts) { err in
                 if let err {
                     c.resume(throwing: err)
                 } else {
@@ -144,5 +188,53 @@ enum MediaLibrary {
                 }
             }
         }
+    }
+}
+
+/// ResourceCache remembers the resources (files) of photo library assets,
+/// by asset ID, as asking Photos for them takes a few milliseconds per
+/// asset. An entry is used only while the asset's modification date is
+/// unchanged, as editing an asset adds or changes resources.
+struct ResourceCache: Codable {
+    struct Resource: Codable {
+        var type: Int // PHAssetResourceType
+        var name: String
+        var size: Int64
+    }
+
+    struct Entry: Codable {
+        var modified: Double // the asset's modification date, as a Unix time
+        var resources: [Resource]
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    private static var url: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("asset-resources.json")
+    }
+
+    static func load() -> ResourceCache {
+        guard let data = try? Data(contentsOf: url),
+              let c = try? JSONDecoder().decode(ResourceCache.self, from: data)
+        else {
+            return ResourceCache()
+        }
+        return c
+    }
+
+    func save() {
+        if let data = try? JSONEncoder().encode(self) {
+            try? data.write(to: Self.url, options: .atomic)
+        }
+    }
+
+    func lookup(_ assetID: String, modified: Double) -> [Resource]? {
+        guard let e = entries[assetID], e.modified == modified else { return nil }
+        return e.resources
+    }
+
+    mutating func store(_ assetID: String, modified: Double, _ rs: [Resource]) {
+        entries[assetID] = Entry(modified: modified, resources: rs)
     }
 }

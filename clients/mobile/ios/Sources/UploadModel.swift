@@ -36,6 +36,8 @@ final class UploadModel: ObservableObject {
     // Counting.
     @Published private(set) var counted = false
     @Published private(set) var assetsSeen = 0
+    @Published private(set) var assetCount = 0 // photos and videos; items are their files
+    @Published private(set) var countSummary: String?
     @Published private(set) var items: [MediaItem] = []
     @Published private(set) var totalBytes: Int64 = 0
 
@@ -180,9 +182,17 @@ final class UploadModel: ObservableObject {
     private func count() async throws {
         phase = .counting
         assetsSeen = 0
-        let found = try await MediaLibrary.items(accountID: accountID, store: store) { n in
-            Task { @MainActor in self.assetsSeen = n }
+        let start = Date()
+        let c = try await MediaLibrary.count(accountID: accountID, store: store) { n, total in
+            Task { @MainActor in
+                self.assetsSeen = n
+                self.assetCount = total
+            }
         }
+        let found = c.items
+        assetCount = c.assets
+        countSummary = String(format: "Counted in %.1f s, %@ of %@ photos and videos looked up in Photos, the rest cached",
+                              Date().timeIntervalSince(start), c.lookedUp.formatted(), c.assets.formatted())
         items = found
         totalBytes = found.reduce(0) { $0 + $1.size }
         counted = true
