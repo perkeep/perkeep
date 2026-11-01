@@ -299,7 +299,7 @@ func TestTakeoutMetaSync(t *testing.T) {
 
 	// Something else retitles B. In a newer export, the album has C,
 	// but not B.
-	if err := st.applyChanges(ctx, pnB, []attrChange{{"set", "title", "Bee"}}, time.Now(), false); err != nil {
+	if err := st.applyChanges(ctx, pnB, []attrChange{{"set", "title", "Bee"}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	dir2 := t.TempDir()
@@ -341,7 +341,7 @@ func TestTakeoutMetaSync(t *testing.T) {
 func TestApplyChangesSplitsClaims(t *testing.T) {
 	st := newTakeoutTestStore(t)
 	ctx := context.Background()
-	pn, err := st.plannedPermanode(ctx, "big set", false)
+	pn, err := st.plannedPermanode(ctx, "big set")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +355,7 @@ func TestApplyChangesSplitsClaims(t *testing.T) {
 		changes = append(changes, attrChange{"add", "camliMember", m})
 	}
 	changes = append(changes, attrChange{"add", "tag", "second"})
-	if err := st.applyChanges(ctx, pn, changes, time.Now(), false); err != nil {
+	if err := st.applyChanges(ctx, pn, changes, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	attrs := permanodeAttrs(t, st, pn)
@@ -367,7 +367,81 @@ func TestApplyChangesSplitsClaims(t *testing.T) {
 	}
 
 	huge := strings.Repeat("x", schema.MaxSchemaBlobSize)
-	if err := st.applyChanges(ctx, pn, []attrChange{{"set", "content", huge}}, time.Now(), false); err == nil {
+	if err := st.applyChanges(ctx, pn, []attrChange{{"set", "content", huge}}, time.Now()); err == nil {
 		t.Error("applyChanges of a value too large for a claim succeeded")
+	}
+}
+
+// TestTakeoutUploadSetsMeta checks that uploading with metadata read sets
+// each photo's permanode's metadata in the claim of its camliContent, so
+// there's no permanode with contents and without metadata.
+func TestTakeoutUploadSetsMeta(t *testing.T) {
+	st := newTakeoutTestStore(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
+		"Takeout/Google Photos/2018-07-13/A.JPG":      strings.Repeat("photo A ", 1000),
+		"Takeout/Google Photos/2018-07-13/A.JPG.json": testSidecar("A.JPG", "Space Needle"),
+		"Takeout/Google Photos/2018-07-13/B.JPG":      strings.Repeat("photo B ", 1000), // no sidecar
+	})
+	exps, err := takeout.LocalExports(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := exps[0]
+	if err := exp.LoadTOCs(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	var ents []takeout.Entry
+	for _, e := range exp.Entries() {
+		if takeout.IsPhotosMedia(e.File.Name) {
+			ents = append(ents, e)
+		}
+	}
+	cs := takeout.Contents(ents)
+	if err := st.readMeta(ctx, exp, cs, 2); err != nil {
+		t.Fatal(err)
+	}
+	if failed, err := takeout.Upload(ctx, st, cs, 2, nil); err != nil || failed != 0 {
+		t.Fatalf("Upload: %d failed, %v", failed, err)
+	}
+
+	for _, tt := range []struct {
+		name      string
+		attrs     map[string]string
+		claimDate time.Time
+	}{
+		{"A.JPG", map[string]string{
+			"title":                "A.JPG",
+			"description":          "Space Needle",
+			"dateCreated":          "2018-07-14T00:48:46Z",
+			"dateModified":         "2019-04-04T08:34:45Z",
+			"latitude":             "47.62825",
+			"longitude":            "-122.34935",
+			"googlePhotosMetadata": testSidecar("A.JPG", "Space Needle"),
+		}, time.Unix(1554366885, 0)}, // its modification time in Google Photos
+		{"B.JPG", nil, exp.Time},
+	} {
+		pn := photoPermanode(t, st, tt.name)
+		attrs := permanodeAttrs(t, st, pn)
+		for attr, want := range tt.attrs {
+			if got := attrs.Get(attr); got != want {
+				t.Errorf("%s's %s = %q; want %q", tt.name, attr, got, want)
+			}
+		}
+		res, err := st.c.GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims := make(map[blob.Ref]bool)
+		for _, cl := range res.Claims {
+			claims[cl.BlobRef] = true
+			if !time.Time(cl.Date).Equal(tt.claimDate) {
+				t.Errorf("%s's claim of %s is dated %v; want %v", tt.name, cl.Attr, time.Time(cl.Date), tt.claimDate)
+			}
+		}
+		if len(claims) != 1 || len(res.Claims) != len(tt.attrs)+1 {
+			t.Errorf("%s has %d claims of %d attributes; want 1 claim of camliContent and %d more", tt.name, len(claims), len(res.Claims), len(tt.attrs))
+		}
 	}
 }

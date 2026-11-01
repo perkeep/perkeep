@@ -250,7 +250,6 @@ type takeoutMetaSync struct {
 	exp     *takeout.Export
 	lib     *takeout.Library
 	workers int
-	dryRun  bool // compute the changes, but make none
 	verbose bool
 
 	mu sync.Mutex // guards the following
@@ -319,7 +318,7 @@ func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error
 	if !pn.Valid() {
 		// The contents are on the server without a permanode, so make
 		// the one that pk takeout upload and pk-put -filenodes make.
-		pn, err = s.st.plannedPermanode(ctx, fileRef.wholeRef.String(), s.dryRun)
+		pn, err = s.st.plannedPermanode(ctx, fileRef.wholeRef.String())
 		if err != nil {
 			return err
 		}
@@ -345,7 +344,7 @@ func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error
 		s.stats.photoAttrsSet += len(changes)
 	}
 	s.mu.Unlock()
-	return s.st.applyChanges(ctx, pn, changes, claimTime, s.dryRun)
+	return s.st.applyChanges(ctx, pn, changes, claimTime)
 }
 
 // contentFile is a file of some contents on the server.
@@ -431,7 +430,7 @@ func (s *takeoutMetaSync) syncAlbum(ctx context.Context, a *takeout.Album) (blob
 // attributes attrs and exactly the given members, unless a newer export
 // last updated it.
 func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrChange, members []string) (blob.Ref, error) {
-	pn, err := s.st.plannedPermanode(ctx, key, s.dryRun)
+	pn, err := s.st.plannedPermanode(ctx, key)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -469,18 +468,14 @@ func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrC
 	if s.verbose {
 		log.Printf("Updating %q: %d changes.", key, len(changes))
 	}
-	return pn, s.st.applyChanges(ctx, pn, changes, s.exp.Time, s.dryRun)
+	return pn, s.st.applyChanges(ctx, pn, changes, s.exp.Time)
 }
 
 func (s *takeoutMetaSync) report() string {
 	st := s.stats
-	verb := "updated"
-	if s.dryRun {
-		verb = "would update"
-	}
-	return fmt.Sprintf("metadata: %s %d photos' permanodes (%d attributes; %d permanodes new), %d without sidecars, %d not on the server; %s %d sets (albums and their root): %d members added, %d removed; %d skipped as newer",
-		verb, st.photosChanged, st.photoAttrsSet, st.photoNodesCreated, st.photosNoMeta, st.photosMissing,
-		verb, st.albumsChanged, st.albumMembersAdded, st.albumMembersDelete, st.albumsSkipped)
+	return fmt.Sprintf("metadata: updated %d photos' permanodes (%d attributes; %d permanodes new), %d without sidecars, %d not on the server; updated %d sets (albums and their root): %d members added, %d removed; %d skipped as newer",
+		st.photosChanged, st.photoAttrsSet, st.photoNodesCreated, st.photosNoMeta, st.photosMissing,
+		st.albumsChanged, st.albumMembersAdded, st.albumMembersDelete, st.albumsSkipped)
 }
 
 // plannedPermanodeRef returns the ref of the planned permanode with key,
@@ -490,12 +485,11 @@ func (s *takeoutStore) plannedPermanodeRef(ctx context.Context, key string) (blo
 	return ref, err
 }
 
-// plannedPermanode uploads, unless dryRun, and returns the planned
-// permanode with key.
-func (s *takeoutStore) plannedPermanode(ctx context.Context, key string, dryRun bool) (blob.Ref, error) {
-	signed, ref, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
-	if err != nil || dryRun {
-		return ref, err
+// plannedPermanode uploads and returns the planned permanode with key.
+func (s *takeoutStore) plannedPermanode(ctx context.Context, key string) (blob.Ref, error) {
+	signed, _, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
+	if err != nil {
+		return blob.Ref{}, err
 	}
 	res, err := s.c.Upload(ctx, client.NewUploadHandleFromString(signed))
 	if err != nil {
@@ -504,10 +498,10 @@ func (s *takeoutStore) plannedPermanode(ctx context.Context, key string, dryRun 
 	return res.BlobRef, nil
 }
 
-// applyChanges uploads the claims, dated claimTime, of changes to pn,
-// unless dryRun. (See attrclaims.Sign.)
-func (s *takeoutStore) applyChanges(ctx context.Context, pn blob.Ref, changes []attrChange, claimTime time.Time, dryRun bool) error {
-	if len(changes) == 0 || dryRun {
+// applyChanges uploads the claims, dated claimTime, of changes to pn.
+// (See attrclaims.Sign.)
+func (s *takeoutStore) applyChanges(ctx context.Context, pn blob.Ref, changes []attrChange, claimTime time.Time) error {
+	if len(changes) == 0 {
 		return nil
 	}
 	cs := make([]attrclaims.Change, len(changes))

@@ -47,6 +47,7 @@ import (
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/upload"
 )
 
@@ -55,7 +56,6 @@ type takeoutCmd struct {
 	driveFolder string
 	all         bool
 	edited      bool
-	meta        bool
 	driveRate   float64
 	slow        bool
 	workers     int
@@ -70,11 +70,10 @@ func init() {
 		flags.StringVar(&cmd.driveFolder, "drive-folder", "", "The ID or URL of the Google Drive folder with the exports' zip files. If empty, the folders named Takeout in the root of Google Drive.")
 		flags.BoolVar(&cmd.all, "all", false, "Consider all of the exports' files, not just Google Photos' photos and videos.")
 		flags.BoolVar(&cmd.edited, "edited", false, "Include the edited copies of photos and videos that Google Photos exports beside their originals, named like IMG_1234-edited.jpg.")
-		flags.BoolVar(&cmd.meta, "meta", true, "Set attributes of the photos' permanodes from Google Photos' metadata (title, description, dates, location), and keep a set of each album's photos. With stats, report what would change.")
 		flags.Float64Var(&cmd.driveRate, "drive-rate", 10, "The most requests a second to make to Google Drive, which limits them per minute. Zero means no limit.")
 		flags.BoolVar(&cmd.slow, "slow", false, "Go easy on Google Drive's quota, leaving room for other users of it: like -drive-rate=2.")
 		flags.IntVar(&cmd.workers, "j", 8, "How many files to check or upload at once.")
-		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does.")
+		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does, with its Google Photos metadata (title, description, dates, location), and keep a set of each album's photos. Without, upload just the files.")
 		flags.BoolVar(&cmd.verbose, "v", false, "List the missing or uploaded files.")
 		return cmd
 	})
@@ -96,6 +95,12 @@ server has, by their sizes and CRC-32s, which the zip files record and the
 server indexes. "stats" reports them; "upload" uploads the rest, reading
 only those files' parts of the zip files. An export is named by its zip
 files' common prefix, such as takeout-20240101T120000Z.
+
+"upload" makes each file's permanode with its Google Photos metadata
+(title, description, dates, location) from the export's sidecar files,
+which it reads first, in the same claim as the file, and then sets the
+metadata of the photos the server had and keeps a set of each album's
+photos. With -permanodes=false, it uploads just the files.
 
 "archive" keeps all of an export's files, of every kind: a directory of
 each zip file's files, in a directory of the export, which is the content
@@ -166,9 +171,9 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if err := st.checkServer(ctx); err != nil {
 		return err
 	}
-	if st.permanodes || c.meta && !c.all || mode == "archive" {
+	if st.permanodes || mode == "archive" {
 		if st.signer, err = cl.Signer(); err != nil {
-			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false -meta=false): %w", err)
+			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false): %w", err)
 		}
 		if err := cl.UploadPublicKey(ctx); err != nil {
 			return err
@@ -224,28 +229,53 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 				fmt.Fprintf(out, "  missing %s (%s)\n", mc.Entries[0].File.Name, takeoutBytes(mc.Size))
 			}
 		}
-		return c.syncMeta(ctx, st, exp, cs, true)
+		return nil
 	}
 
+	if !st.permanodes || c.all {
+		// Without permanodes, there's nothing to set metadata on,
+		// and the files of -all aren't all photos.
+		return c.upload(ctx, st, missing)
+	}
+	if len(missing) > 0 {
+		// Read the photos' metadata first, so each permanode gets it
+		// with its contents, rather than after all the uploads.
+		log.Printf("Reading the metadata of %d photos to upload...", len(missing))
+		if err := st.readMeta(ctx, exp, missing, c.workers); err != nil {
+			return err
+		}
+	}
 	if err := c.upload(ctx, st, missing); err != nil {
 		return err
 	}
-	return c.syncMeta(ctx, st, exp, cs, false)
+	return c.syncMeta(ctx, st, exp, cs)
+}
+
+// readMeta reads the Google Photos metadata of the photos cs of exp, for
+// Put to set on their permanodes.
+func (s *takeoutStore) readMeta(ctx context.Context, exp *takeout.Export, cs []*takeout.Content, workers int) error {
+	lib, err := takeout.NewLibrary(ctx, exp, cs, workers)
+	if err != nil {
+		return err
+	}
+	s.meta, s.metaTime = make(map[string]*takeout.PhotoMetadata), exp.Time
+	for _, p := range lib.Photos {
+		for _, e := range p.Content.Entries {
+			s.meta[e.File.Name] = p.Meta
+		}
+	}
+	return nil
 }
 
 // syncMeta applies the metadata of the photos cs of exp, and its albums,
-// to their permanodes, if c.meta, or with dryRun, reports what it would
-// do.
-func (c *takeoutCmd) syncMeta(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs []*takeout.Content, dryRun bool) error {
-	if !c.meta || c.all {
-		return nil
-	}
+// to their permanodes.
+func (c *takeoutCmd) syncMeta(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs []*takeout.Content) error {
 	log.Printf("Reading the metadata of %d photos...", len(cs))
 	lib, err := takeout.NewLibrary(ctx, exp, cs, c.workers)
 	if err != nil {
 		return err
 	}
-	ms := &takeoutMetaSync{st: st, exp: exp, lib: lib, workers: c.workers, dryRun: dryRun, verbose: c.verbose}
+	ms := &takeoutMetaSync{st: st, exp: exp, lib: lib, workers: c.workers, verbose: c.verbose}
 	err = ms.run(ctx)
 	fmt.Fprintf(cmdmain.Stdout, "  %s\n", ms.report())
 	return err
@@ -395,6 +425,14 @@ type takeoutStore struct {
 	permanodes bool
 	signer     *schema.Signer // to sign permanodes, if permanodes
 	lim        *upload.Limiter
+
+	// meta, if non-nil, is the Google Photos metadata of the photos to
+	// upload, by the names of their entries, which Put sets on their
+	// permanodes in the claims of their camliContent. Its claims are
+	// dated as takeoutMetaSync's are: by a photo's modification time in
+	// Google Photos, or else metaTime, the export's.
+	meta     map[string]*takeout.PhotoMetadata
+	metaTime time.Time
 }
 
 // checkServer checks that the server indexes files' digests. A server
@@ -428,7 +466,7 @@ func (s *takeoutStore) Has(ctx context.Context, size int64, crc32 uint32) (bool,
 // Put uploads the contents r of e. It records no modification time:
 // Takeout's zip files give each entry the time the export was made,
 // which says nothing of the photo. Its date is in its sidecar, which
-// syncing metadata sets on its permanode.
+// Put sets on its permanode, with s.meta, or syncing metadata does.
 func (s *takeoutStore) Put(ctx context.Context, e takeout.Entry, r io.Reader) error {
 	res, err := upload.NewFileFromReader(s.c, path.Base(e.File.Name), r, &upload.Options{
 		Limiter: s.lim,
@@ -442,14 +480,28 @@ func (s *takeoutStore) Put(ctx context.Context, e takeout.Entry, r io.Reader) er
 	if len(res.WholeRefs) == 0 {
 		return fmt.Errorf("no whole-file ref for %v to make its permanode", res.FileRef)
 	}
-	return s.putPermanode(ctx, res.WholeRefs[0].String(), res.FileRef.String(), time.Now())
+	var changes []attrChange
+	claimTime := time.Now()
+	if s.meta != nil {
+		claimTime = s.metaTime
+		if m := s.meta[e.File.Name]; m != nil {
+			changes = photoAttrChanges(url.Values{}, m)
+			if !m.Modified.IsZero() {
+				claimTime = m.Modified
+			}
+		}
+	}
+	// Last, so that a permanode never has the contents without the
+	// metadata, even if there's too much metadata for one claim.
+	changes = append(changes, attrChange{"set", nodeattr.CamliContent, res.FileRef.String()})
+	return s.putPermanode(ctx, res.WholeRefs[0].String(), changes, claimTime)
 }
 
 // putPermanode uploads the planned permanode of contents with the
-// whole-file ref sum, and its camliContent claim of fileRef, as pk-put
-// -filenodes does, so the two make the same permanode for the same
-// contents.
-func (s *takeoutStore) putPermanode(ctx context.Context, sum, fileRef string, claimTime time.Time) error {
+// whole-file ref sum, as pk-put -filenodes does, so the two make the same
+// permanode for the same contents, and the claims of changes to it, which
+// set its camliContent: one claim, unless there are too many changes.
+func (s *takeoutStore) putPermanode(ctx context.Context, sum string, changes []attrChange, claimTime time.Time) error {
 	pn, err := schema.NewPlannedPermanode(sum).SignAt(ctx, s.signer, time.Unix(0, 0))
 	if err != nil {
 		return fmt.Errorf("signing planned permanode: %w", err)
@@ -458,16 +510,7 @@ func (s *takeoutStore) putPermanode(ctx context.Context, sum, fileRef string, cl
 	if err != nil {
 		return fmt.Errorf("uploading planned permanode: %w", err)
 	}
-	claim := schema.NewSetAttributeClaim(pnRes.BlobRef, "camliContent", fileRef)
-	claim.SetClaimDate(claimTime)
-	signed, err := claim.SignAt(ctx, s.signer, claimTime)
-	if err != nil {
-		return fmt.Errorf("signing camliContent claim: %w", err)
-	}
-	if _, err := s.c.Upload(ctx, client.NewUploadHandleFromString(signed)); err != nil {
-		return fmt.Errorf("uploading camliContent claim: %w", err)
-	}
-	return nil
+	return s.applyChanges(ctx, pnRes.BlobRef, changes, claimTime)
 }
 
 func takeoutConfigDir() string {

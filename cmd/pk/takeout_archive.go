@@ -185,7 +185,7 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		}
 	}
 
-	pn, err := a.st.plannedPermanode(ctx, exportPermanodeKeyPrefix+a.exp.Name, false)
+	pn, err := a.st.plannedPermanode(ctx, exportPermanodeKeyPrefix+a.exp.Name)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -205,7 +205,7 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		{"set", nodeattr.DateCreated, takeoutTime(a.exp.Time)},
 		{"set", attrTakeoutExport, a.exp.Name},
 	}, cur[nodeattr.CamliMember])
-	if err := a.st.applyChanges(ctx, pn, changes, a.exp.Time, false); err != nil {
+	if err := a.st.applyChanges(ctx, pn, changes, a.exp.Time); err != nil {
 		return blob.Ref{}, err
 	}
 	log.Printf("Archived %s as directory %v, the content of permanode %v.", a.exp.Name, rootDir, pn)
