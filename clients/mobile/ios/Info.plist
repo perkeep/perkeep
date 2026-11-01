@@ -22,6 +22,19 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.perkeep.access</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>perkeep</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Perkeep uses the camera to scan your server's access QR code.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Perkeep backs up the photos in the albums you choose to your Perkeep server.</string>
 	<key>UIApplicationSceneManifest</key>

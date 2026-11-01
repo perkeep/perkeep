@@ -45,11 +45,16 @@ mkdir -p "$APP"
 echo "==> Building Go core ($TRIPLE)"
 (
 	cd "$REPO_ROOT"
+	# Omit the tailscale.com features tailcat doesn't use, as tailcat's
+	# own releases do; see its build-tags.md. go list reports no Dir for
+	# a module not yet downloaded, so download it first.
+	go mod download github.com/tailscale/tailcat
+	TAGS="$(cat "$(go list -m -f '{{.Dir}}' github.com/tailscale/tailcat)/build-tags.txt")"
 	CC="$(xcrun --sdk "$SDK" --find clang)" \
 	CGO_CFLAGS="-isysroot $SDK_PATH -target $TRIPLE" \
 	CGO_LDFLAGS="-isysroot $SDK_PATH -target $TRIPLE" \
 	CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
-	go build -buildmode=c-archive -trimpath -ldflags="-s -w" \
+	go build -buildmode=c-archive -trimpath -ldflags="-s -w" -tags="$TAGS" \
 		-o "$OUT/libpkcore.a" ./clients/mobile/core
 )
 

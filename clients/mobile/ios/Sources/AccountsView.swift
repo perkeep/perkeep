@@ -19,7 +19,7 @@ struct AccountsView: View {
                                     .foregroundStyle(a.id == accounts.list.current ? Color.accentColor : .secondary)
                                 VStack(alignment: .leading) {
                                     Text(a.name)
-                                    Text(a.server).font(.caption).foregroundStyle(.secondary)
+                                    Text(a.location).font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                             }
@@ -47,7 +47,7 @@ struct AccountsView: View {
             }
             Section {
                 Button {
-                    router.path.append(.addAccount)
+                    router.path.append(.addAccount(nil))
                 } label: {
                     Label("Add Server", systemImage: "plus")
                 }
