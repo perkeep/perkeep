@@ -110,8 +110,14 @@ struct UploadView: View {
         Section {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
                 statHeader("On this phone")
-                stat("Items", model.items.count, model.totalBytes,
-                     note: model.phase == .counting ? "\(model.assetsSeen.formatted()) looked at" : nil)
+                GridRow {
+                    Text("Photos & videos")
+                    Text((model.phase == .counting ? model.assetsSeen : model.assetCount).formatted())
+                        .gridColumnAlignment(.trailing)
+                    Text(model.phase == .counting && model.assetCount > 0 ? "of \(model.assetCount.formatted())" : "")
+                        .foregroundStyle(.secondary)
+                }
+                stat("Files", model.items.count, model.totalBytes)
                 Divider()
                 statHeader("Hashing")
                 stat("Hashed", model.hashedCount, model.hashedBytes)
@@ -148,6 +154,11 @@ struct UploadView: View {
             .animation(.default, value: model.totals.bytesUploaded)
             .animation(.default, value: model.hashedCount)
             .animation(.default, value: model.uploaded.count)
+        } footer: {
+            if model.counted {
+                Text("Files include Live Photos' videos, and both versions of edited photos."
+                     + (model.countSummary.map { " " + $0 + "." } ?? ""))
+            }
         }
     }
 
