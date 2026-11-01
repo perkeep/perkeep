@@ -152,7 +152,8 @@ func extensionID(builtAppID, builtExtID, appID string) (string, error) {
 
 // checkApp verifies that dir looks like an app bundle iossign knows how
 // to sign, and returns its file list. The only nested code it may have
-// is app extensions in PlugIns, with none of their own.
+// is frameworks in Frameworks and app extensions in PlugIns, with none
+// of their own.
 func checkApp(dir string) ([]string, error) {
 	if !strings.HasSuffix(dir, ".app") {
 		return nil, fmt.Errorf("%s: not a .app bundle", dir)
@@ -166,16 +167,17 @@ func checkApp(dir string) ([]string, error) {
 		parts := strings.Split(rel, string(filepath.Separator))
 		base := parts[len(parts)-1]
 		inExt := len(parts) >= 2 && parts[0] == "PlugIns" && strings.HasSuffix(parts[1], ".appex")
+		inFW := len(parts) >= 2 && parts[0] == "Frameworks" && strings.HasSuffix(parts[1], ".framework")
 		switch {
 		case d.Type()&fs.ModeSymlink != 0:
 			return fmt.Errorf("%s: symlinks not allowed", rel)
-		case d.IsDir() && (rel == "PlugIns" || len(parts) == 2 && inExt):
+		case d.IsDir() && (rel == "PlugIns" || rel == "Frameworks" || len(parts) == 2 && (inExt || inFW)):
 		case d.IsDir() && (base == "Frameworks" || base == "PlugIns" || strings.HasSuffix(base, ".appex") || strings.HasSuffix(base, ".framework")):
 			return fmt.Errorf("%s: nested code other than app extensions isn't supported yet", rel)
 		case base == "_CodeSignature" || base == "embedded.mobileprovision":
 			return fmt.Errorf("%s: artifact is already signed; want an unsigned build", rel)
-		case parts[0] == "PlugIns" && !inExt:
-			return fmt.Errorf("%s: unexpected file in PlugIns", rel)
+		case parts[0] == "PlugIns" && !inExt || parts[0] == "Frameworks" && !inFW:
+			return fmt.Errorf("%s: unexpected file in %s", rel, parts[0])
 		case d.Type().IsRegular():
 			files = append(files, rel)
 		case !d.IsDir():

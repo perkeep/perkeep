@@ -36,10 +36,10 @@ func TestPrepareBuild(t *testing.T) {
 	if err := j.prepare(); err != nil {
 		t.Fatal(err)
 	}
-	if len(j.bundles) != 2 || j.bundles[0].id != "com.example.pk.share" || j.bundles[1].id != "com.example.pk" {
-		t.Fatalf("bundles = %+v; want the share extension, then the app", j.bundles)
+	if len(j.bundles) != 3 || !j.bundles[0].framework || j.bundles[1].id != "com.example.pk.share" || j.bundles[2].id != "com.example.pk" {
+		t.Fatalf("bundles = %+v; want the core framework, the share extension, then the app", j.bundles)
 	}
-	ext := filepath.Join(j.bundles[0].dir, "Info.plist")
+	ext := filepath.Join(j.bundles[1].dir, "Info.plist")
 	for k, want := range map[string]string{"CFBundleIdentifier": "com.example.pk.share", "CFBundleVersion": "42"} {
 		if got, err := plistGet(ext, k); err != nil || got != want {
 			t.Errorf("extension's %s = %q, %v; want %q", k, got, err, want)
@@ -50,6 +50,12 @@ func TestPrepareBuild(t *testing.T) {
 		t.Errorf("extension's version = %q; want the app's, %q", got, appVersion)
 	}
 	for _, b := range j.bundles {
+		if b.framework {
+			if err := run("codesign", "--force", "--sign", "-", "--timestamp=none", b.dir); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
 		ent := filepath.Join(j.work, b.id+".entitlements.plist")
 		if err := os.WriteFile(ent, entitlementsPlist(cfg.TeamID, b.id, j.keychainGroup(), true), 0o644); err != nil {
 			t.Fatal(err)
