@@ -409,7 +409,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 
 	username, password := auth.RandToken(20), auth.RandToken(20)
 	camliAuth := username + ":" + password
-	basicAuth := auth.NewBasicAuth(username, password)
+	basicAuth := appAuth{auth.NewBasicAuth(username, password)}
 	envVars := map[string]string{
 		"CAMLI_API_HOST":   apiHost,
 		"CAMLI_AUTH":       camliAuth,

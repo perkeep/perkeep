@@ -60,7 +60,7 @@ func (ta *tailscaleAuth) AllowedAccess(req *http.Request) Operation {
 	}
 
 	if ta.any {
-		return OpAll
+		return OpOwner
 	}
 	if ta.anyForUser != "" {
 		loginName, err := whoIs(req.Context(), req.RemoteAddr)
@@ -71,7 +71,7 @@ func (ta *tailscaleAuth) AllowedAccess(req *http.Request) Operation {
 			return 0
 		}
 		if loginName == ta.anyForUser {
-			return OpAll
+			return OpOwner
 		}
 		log.Printf("access denied to Tailscale user %q; only %q is allowed", loginName, ta.anyForUser)
 		return 0

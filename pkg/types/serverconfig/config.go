@@ -77,6 +77,12 @@ type Config struct {
 	// a "jsonfile" in the server's var directory, health.json.
 	HealthState map[string]any `json:"healthState,omitempty"`
 
+	// SecretsFile is the server-local credential database. It is independent
+	// of blob storage, indexing, and importer scratch caches. If empty, it is
+	// secrets.sqlite in the server's var directory, or memory-only when
+	// MemoryStorage is set. It must be backed up separately from blobs.
+	SecretsFile string `json:"secretsFile,omitempty"`
+
 	// HTTPS.
 	HTTPS     bool   `json:"https,omitempty"`     // enable HTTPS.
 	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.

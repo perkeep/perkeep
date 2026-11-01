@@ -639,7 +639,12 @@ func (rc *RunContext) SetArchiveProgress(p camtypes.ArchiveImportProgress) error
 	return nil
 }
 
-func (rc *RunContext) runManaged() error {
+func (rc *RunContext) runManaged() (runErr error) {
+	defer func() {
+		if runErr == nil {
+			runErr = rc.AccountNode().CredentialError()
+		}
+	}()
 	rc.mu.Lock()
 	var ref blob.Ref
 	if rc.archiveJob != nil {

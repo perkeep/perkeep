@@ -10,6 +10,7 @@
 				"helpRoot": "/help/",
 				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -34,7 +35,8 @@
 			"handler": "importer",
 			"handlerArgs": {
 				"cacheRoot": "/tmp/blobs/importer-cache",
-				"cacheType": "kv"
+				"cacheType": "kv",
+				"secretRoot": "/secrets/"
 			}
 		},
 		"/index/": {
@@ -45,17 +47,6 @@
 					"file": "/path/to/indexkv.db",
 					"type": "kv"
 				}
-			}
-		},
-		"/search/": {
-			"handler": "search",
-			"handlerArgs": {
-				"index": "/index/",
-				"owner": {
-					"identity": "2931A67C26F5ABDA",
-					"secringFile": "/path/to/secring"
-				},
-				"slurpToMemory": true
 			}
 		},
 		"/pics/": {
@@ -73,6 +64,21 @@
 				"program": "publisher",
 				"serverListen": "localhost:3179"
 			}
+		},
+		"/search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
 		},
 		"/share/": {
 			"handler": "share",

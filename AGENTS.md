@@ -49,6 +49,13 @@ the package comments and nearby tests for implementation details.
 - `doc/`: user and developer documentation. `website/`: the website server
   and site content; see [website/README.md](website/README.md) for previews.
 
+## Documentation
+
+- Use double-hyphen flags (`--flag`) in documentation and help examples,
+  even when Go's flag package also accepts a single hyphen.
+- Document exported fields. Start type comments with what the type represents;
+  put when or how it is returned afterward.
+
 ## Validation
 
 - Format changed Go files with `gofmt` and run tests for affected packages.

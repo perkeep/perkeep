@@ -34,12 +34,14 @@ import (
 	"time"
 
 	"perkeep.org/internal/httputil"
+	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/secretstore"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
@@ -111,6 +113,12 @@ type Properties struct {
 	// an auth token per-account without an overall API key, importers
 	// can return false here.
 	NeedsAPIKey bool
+
+	// CallbackRequiresPOST marks local setup forms, rather than redirects
+	// from OAuth providers. Their callbacks must use POST so changes are not
+	// made through GET requests and credentials never become query parameters.
+	// Provider OAuth redirects keep the default GET callback behavior.
+	CallbackRequiresPOST bool
 
 	// SupportsIncremental reports whether this importer has been optimized
 	// to run efficiently in regular incremental runs. (e.g. every 5 minutes
@@ -239,6 +247,16 @@ type HostConfig struct {
 	// resources. The Host will use http.DefaultClient otherwise.
 	HTTPClient *http.Client
 
+	// Secrets supplies authoritative, server-local importer credentials. The caller
+	// owns it. A nil store creates a private memory store for direct/test hosts;
+	// production handlers require a configured durable secretRoot.
+	Secrets *secretstore.Store
+
+	// RequireOwnerForSetup requires owner authorization for HTTP credential
+	// editing, account setup, and OAuth callbacks. Production handlers enable
+	// this; direct embedding hosts remain trusted unless explicitly enabled.
+	RequireOwnerForSetup bool
+
 	// Cache optionally supplies a shared backing store for scoped importer
 	// caches. The caller owns its lifetime. It cannot be combined with
 	// CacheRoot or CacheType. Without Cache or CacheRoot, each scope gets
@@ -283,13 +301,14 @@ func NewHost(hc HostConfig) (*Host, error) {
 		return nil, fmt.Errorf("importer: unsupported cacheType %q", hc.CacheType)
 	}
 	h := &Host{
-		baseURL:       hc.BaseURL,
-		importerBase:  hc.BaseURL + hc.Prefix,
-		importerPath:  importerPath,
-		discoveryRoot: "/",
-		imp:           make(map[string]*importer),
-		cacheRoot:     hc.CacheRoot,
-		cacheType:     hc.CacheType,
+		baseURL:              hc.BaseURL,
+		importerBase:         hc.BaseURL + hc.Prefix,
+		importerPath:         importerPath,
+		discoveryRoot:        "/",
+		imp:                  make(map[string]*importer),
+		cacheRoot:            hc.CacheRoot,
+		cacheType:            hc.CacheType,
+		requireOwnerForSetup: hc.RequireOwnerForSetup,
 	}
 	h.tmpl, err = tmpl.Clone()
 	if err != nil {
@@ -338,6 +357,14 @@ func NewHost(hc HostConfig) (*Host, error) {
 	h.search = hc.Search
 	h.client = hc.HTTPClient
 	h.cache = hc.Cache
+	h.secrets = hc.Secrets
+	if h.secrets == nil {
+		h.secrets, err = secretstore.NewMemory()
+		if err != nil {
+			return nil, err
+		}
+		h.ownsSecrets = true
+	}
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 
 	return h, nil
@@ -345,11 +372,25 @@ func NewHost(hc HostConfig) (*Host, error) {
 
 func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, error) {
 	hc := HostConfig{
-		BaseURL:   ld.BaseURL(),
-		Prefix:    ld.MyPrefix(),
-		CacheRoot: cfg.OptionalString("cacheRoot", ""),
-		CacheType: cfg.OptionalString("cacheType", ""),
+		BaseURL:              ld.BaseURL(),
+		Prefix:               ld.MyPrefix(),
+		CacheRoot:            cfg.OptionalString("cacheRoot", ""),
+		CacheType:            cfg.OptionalString("cacheType", ""),
+		RequireOwnerForSetup: true,
 	}
+	secretRoot := cfg.OptionalString("secretRoot", "")
+	if secretRoot == "" {
+		return nil, errors.New("importer: secretRoot is required")
+	}
+	secretHandler, err := ld.GetHandler(secretRoot)
+	if err != nil {
+		return nil, fmt.Errorf("importer: loading secretRoot: %w", err)
+	}
+	provider, ok := secretHandler.(interface{ SecretStore() *secretstore.Store })
+	if !ok || provider.SecretStore() == nil {
+		return nil, errors.New("importer: secretRoot does not provide a credential store")
+	}
+	hc.Secrets = provider.SecretStore()
 	ClientId := make(map[string]string)
 	ClientSecret := make(map[string]string)
 	for k := range importers {
@@ -537,19 +578,22 @@ func (rc *RunContext) RootNode() *Object { return rc.ia.root }
 // Host is the HTTP handler and state for managing all the importers
 // linked into the binary, even if they're not configured.
 type Host struct {
-	tmpl          *template.Template
-	importers     []string // sorted; e.g. dummy flickr foursquare picasa twitter
-	imp           map[string]*importer
-	baseURL       string
-	importerBase  string
-	importerPath  string
-	discoveryRoot string // root handler prefix, used for browser discovery
-	target        blobserver.StatReceiver
-	blobSource    blob.Fetcher // e.g. twitter reading zip file
-	search        search.QueryDescriber
-	signer        *schema.Signer
-	uiPrefix      string          // with a trailing slash, or empty if no UI handler
-	health        *health.Monitor // or nil; no runs start while it's read-only
+	tmpl                 *template.Template
+	importers            []string // sorted; e.g. dummy flickr foursquare picasa twitter
+	imp                  map[string]*importer
+	baseURL              string
+	importerBase         string
+	importerPath         string
+	discoveryRoot        string // root handler prefix, used for browser discovery
+	target               blobserver.StatReceiver
+	blobSource           blob.Fetcher // e.g. twitter reading zip file
+	search               search.QueryDescriber
+	signer               *schema.Signer
+	uiPrefix             string          // with a trailing slash, or empty if no UI handler
+	health               *health.Monitor // or nil; no runs start while it's read-only
+	secrets              *secretstore.Store
+	ownsSecrets          bool
+	requireOwnerForSetup bool
 
 	cache     sorted.KeyValue // explicitly injected caller-owned backing; otherwise nil
 	cacheRoot string
@@ -603,7 +647,11 @@ func (h *Host) closeWithTimeout(timeout time.Duration) error {
 		done := make(chan error, 1)
 		go func() {
 			h.work.Wait()
-			done <- h.closeCaches()
+			err := h.closeCaches()
+			if h.ownsSecrets {
+				err = errors.Join(err, h.secrets.Close())
+			}
+			done <- err
 		}()
 		timer := time.NewTimer(timeout)
 		defer timer.Stop()
@@ -723,6 +771,9 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if h.signer == nil {
 		return errors.New("importer requires a 'jsonsign' handler")
 	}
+	if err := h.migrateCredentials(context.Background()); err != nil {
+		return err
+	}
 	h.didInit.Done()
 	go h.startPeriodicImporters()
 	return nil
@@ -735,6 +786,10 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 //	http://host/importer/twitter/callback
 //	http://host/importer/twitter/sha1-abcabcabcabcabc (single account)
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost && !h.allowMutation(w, r) {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
 	suffix := httputil.PathSuffix(r)
 	seg := strings.Split(suffix, "/")
 	if suffix == "" || len(seg) == 0 {
@@ -775,6 +830,9 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Serves list of importers at http://host/importer/
 func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost && !h.allowMutation(w, r) {
+		return
+	}
 	if r.Method == "POST" {
 		// The form to add an account names its importer.
 		imp, ok := h.imp[r.FormValue("importer")]
@@ -850,6 +908,9 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 // key it doesn't have, or whose accounts come only from archives, gets
 // its own page instead, to configure it or upload an archive.
 func (h *Host) serveNewAccount(w http.ResponseWriter, r *http.Request, imp *importer) {
+	if !h.allowCredentialSetup(w, r) {
+		return
+	}
 	if imp.props.ArchiveOnly || !imp.CanAddNewAccount() {
 		http.Redirect(w, r, imp.URL(), http.StatusSeeOther)
 		return
@@ -864,8 +925,19 @@ func (h *Host) serveNewAccount(w http.ResponseWriter, r *http.Request, imp *impo
 
 // Serves oauth callback at http://host/importer/TYPE/callback
 func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request, imp *importer) {
-	if r.Method != "GET" {
-		http.Error(w, "invalid method", http.StatusBadRequest)
+	if !h.allowCredentialSetup(w, r) {
+		return
+	}
+	method := http.MethodGet
+	if imp.props.CallbackRequiresPOST {
+		method = http.MethodPost
+	}
+	if r.Method != method {
+		w.Header().Set("Allow", method)
+		http.Error(w, "invalid callback method", http.StatusMethodNotAllowed)
+		return
+	}
+	if method == http.MethodPost && !h.allowMutation(w, r) {
 		return
 	}
 	acctRef, err := imp.impl.CallbackRequestAccount(r)
@@ -882,6 +954,10 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "invalid 'acct' param: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := ia.acct.checkCredentials(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	imp.impl.ServeCallback(w, r, &SetupContext{
 		Context:     context.TODO(),
 		Host:        h,
@@ -891,6 +967,9 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *importer) {
+	if !h.allowMutation(w, r) {
+		return
+	}
 	switch r.FormValue("mode") {
 	default:
 		http.Error(w, "Unknown mode.", http.StatusBadRequest)
@@ -898,16 +977,28 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 		h.serveNewAccount(w, r, imp)
 		return
 	case "saveclientidsecret":
+		if !h.allowCredentialSetup(w, r) {
+			return
+		}
 		n, err := imp.Node()
 		if err != nil {
 			http.Error(w, "Error getting node: "+err.Error(), 500)
 			return
 		}
-		if err := n.SetAttrs(
-			attrClientID, r.FormValue("clientID"),
-			attrClientSecret, r.FormValue("clientSecret"),
-		); err != nil {
-			http.Error(w, "Error saving node: "+err.Error(), 500)
+		var values []string
+		if id := r.FormValue("clientID"); id != "" {
+			values = append(values, attrClientID, id)
+		}
+		if secret := r.FormValue("clientSecret"); secret != "" {
+			values = append(values, attrClientSecret, secret)
+		}
+		var deletes []string
+		if r.FormValue("clearCredentials") == "true" {
+			deletes = []string{attrClientID, attrClientSecret}
+			values = nil
+		}
+		if err := n.SetAttrsWithDeletes(deletes, values...); err != nil {
+			http.Error(w, "Error saving credentials: "+err.Error(), 500)
 			return
 		}
 		http.Redirect(w, r, imp.URL(), http.StatusFound)
@@ -1170,12 +1261,12 @@ func (im *importer) Status() (status string, err error) {
 	if im.StaticConfig() {
 		return "API key configured on server", nil
 	}
-	n, err := im.existingNode()
+	id, secret, err := im.credentials()
 	if err != nil {
-		return
+		return "", err
 	}
-	if n != nil && n.Attr(attrClientID) != "" && n.Attr(attrClientSecret) != "" {
-		return "API key configured on node", nil
+	if id != "" && secret != "" {
+		return "API key configured in server credential store", nil
 	}
 	return "API key (client ID & Secret) not configured", nil
 }
@@ -1188,7 +1279,12 @@ func (im *importer) credentials() (clientID, clientSecret string, err error) {
 	if err != nil || n == nil {
 		return "", "", err
 	}
-	return n.Attr(attrClientID), n.Attr(attrClientSecret), nil
+	clientID, err = n.SecretAttr(context.TODO(), attrClientID)
+	if err != nil {
+		return "", "", err
+	}
+	clientSecret, err = n.SecretAttr(context.TODO(), attrClientSecret)
+	return
 }
 
 func (im *importer) deleteAccount(acctRef blob.Ref) {
@@ -1421,20 +1517,12 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 	return accts, nil
 }
 
-// node returns the importer node. (not specific to a certain account
-// on that importer site)
-//
-// It is a permanode with:
-//
-//	camliNodeType: "importer"
-//	importerType: "twitter"
-//
-// And optionally:
-//
-//	authClientID:     "xxx"    // e.g. api token
-//	authClientSecret: "sdkojfsldfjlsdkf"
-//
-// Node makes it if it doesn't exist.
+// Node returns the configuration permanode shared by this importer's accounts.
+// Its claims contain camliNodeType "importer", importerType, and other public
+// metadata. Credentials, including authClientID and authClientSecret, are read
+// and written through Object in the server-local credential store, keyed by
+// this permanode's reference; they are never put in new signed claims.
+// Node makes the configuration permanode if it doesn't exist.
 func (im *importer) Node() (*Object, error) { return im.node(true) }
 
 // existingNode is like Node, but returns nil if the node doesn't exist,
@@ -1594,7 +1682,14 @@ func (ia *importerAcct) toggleAuto() error {
 }
 
 func (ia *importerAcct) IsAccountReady() (bool, error) {
-	return ia.im.impl.IsAccountReady(ia.acct)
+	if err := ia.acct.checkCredentials(); err != nil {
+		return false, err
+	}
+	ready, err := ia.im.impl.IsAccountReady(ia.acct)
+	if err == nil {
+		err = ia.acct.CredentialError()
+	}
+	return ready && err == nil, err
 }
 
 func (ia *importerAcct) AccountObject() *Object { return ia.acct }
@@ -1670,8 +1765,9 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
-	// TODO: XSRF token
-
+	if !ia.im.host.allowMutation(w, r) {
+		return
+	}
 	switch r.FormValue("mode") {
 	case "":
 		// Nothing.
@@ -1716,6 +1812,13 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) setup(w http.ResponseWriter, r *http.Request) {
+	if !ia.im.host.allowCredentialSetup(w, r) {
+		return
+	}
+	if err := ia.acct.checkCredentials(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := ia.im.impl.ServeSetup(w, r, &SetupContext{
 		Context:     context.TODO(),
 		Host:        ia.im.host,
@@ -1738,6 +1841,9 @@ func (ia *importerAcct) start() {
 // startLocked starts the normal managed lifecycle, optionally selecting an
 // archive input. ia.mu protects input selection and the active run together.
 func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error {
+	if err := ia.acct.checkCredentials(); err != nil {
+		return err
+	}
 	h := ia.im.host
 	if _, ok := ia.im.impl.(ArchiveImporter); ok && ia.acct.Attr(attrNodeType) != nodeTypeImporterAccount {
 		return errors.New("archive importer account has been deleted or changed type")
@@ -1800,6 +1906,9 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 
 // TODO(mpl): review this code more carefully. mostly copied from start().
 func (ia *importerAcct) run() error {
+	if err := ia.acct.checkCredentials(); err != nil {
+		return err
+	}
 	h := ia.im.host
 	if !h.beginWork() {
 		return errors.New("importer host is closed")
@@ -1824,6 +1933,9 @@ func (ia *importerAcct) run() error {
 	ia.lastRunStart = time.Now()
 	ia.logf("Starting import: %s", ia.AccountLinkSummary())
 	err := ia.im.impl.Run(rc)
+	if err == nil {
+		err = ia.acct.CredentialError()
+	}
 	if err != nil {
 		return err
 	}
@@ -1865,7 +1977,11 @@ type ProgressMessage struct {
 	BytesDone, BytesTotal int64
 }
 
-func (h *Host) upload(ctx context.Context, bb *schema.Builder) (br blob.Ref, err error) {
+func (h *Host) upload(ctx context.Context, bb *schema.Builder) (blob.Ref, error) {
+	return h.uploadAt(ctx, bb, time.Time{})
+}
+
+func (h *Host) uploadAt(ctx context.Context, bb *schema.Builder, date time.Time) (br blob.Ref, err error) {
 	unsigned, err := bb.JSON()
 	if err != nil {
 		return
@@ -1876,7 +1992,7 @@ func (h *Host) upload(ctx context.Context, bb *schema.Builder) (br blob.Ref, err
 	if len(unsigned) > schema.MaxSchemaBlobSize-1024 {
 		return blob.Ref{}, fmt.Errorf("importer: schema blob too large to sign (%d bytes)", len(unsigned))
 	}
-	signed, err := bb.Sign(ctx, h.signer)
+	signed, err := bb.SignAt(ctx, h.signer, date)
 	if err != nil {
 		return
 	}
@@ -1908,9 +2024,11 @@ type Object struct {
 	h  *Host
 	pn blob.Ref // permanode ref
 
-	mu      sync.RWMutex
-	attr    map[string][]string
-	modtime time.Time
+	mu        sync.RWMutex
+	attr      map[string][]string
+	modtime   time.Time
+	secretMu  sync.Mutex
+	secretErr error // first credential read failure since the last successful check
 	// store, if non-nil, stores the object's permanode (and whatever
 	// else it was made with), which isn't stored yet. The object's
 	// first write calls it, with mu held. See Host.newPendingObject.
@@ -1969,9 +2087,15 @@ func (o *Object) PermanodeRef() blob.Ref {
 }
 
 // Attr returns the object's attribute value for the provided attr,
-// or the empty string if unset.  To distinguish between unset,
-// an empty string, or multiple attribute values, use Attrs.
+// or the empty string if unset. To distinguish between unset, an empty string,
+// or multiple attribute values, use Attrs. Credential reads use the local store;
+// failures return empty and record CredentialError. Use SecretAttr to handle
+// credential errors explicitly.
 func (o *Object) Attr(attr string) string {
+	if isSecretAttribute(attr) {
+		v, _ := o.SecretAttr(context.TODO(), attr)
+		return v
+	}
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	if v := o.attr[attr]; len(v) > 0 {
@@ -1982,12 +2106,20 @@ func (o *Object) Attr(attr string) string {
 
 // Attrs returns the attribute values for the provided attr.
 func (o *Object) Attrs(attr string) []string {
+	if isSecretAttribute(attr) {
+		v, ok, _ := o.secretEntry(context.TODO(), attr)
+		if ok {
+			return []string{v.Value}
+		}
+		return nil
+	}
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	return o.attr[attr]
+	return slices.Clone(o.attr[attr])
 }
 
 // ForeachAttr runs fn for each of the object's attributes & values.
+// Credentials are omitted; use explicit SecretAttr/Attr/Attrs reads for them.
 // There might be multiple values for the same attribute.
 // The internal lock is held while running, so no mutations should be
 // made or it will deadlock.
@@ -1995,6 +2127,9 @@ func (o *Object) ForeachAttr(fn func(key, value string)) {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	for k, vv := range o.attr {
+		if isSecretAttribute(k) {
+			continue
+		}
 		for _, v := range vv {
 			fn(k, v)
 		}
@@ -2004,6 +2139,9 @@ func (o *Object) ForeachAttr(fn func(key, value string)) {
 // DelAttr removes value from the values set for the attribute attr of
 // permaNode. If value is empty then all the values for attribute are cleared.
 func (o *Object) DelAttr(key, value string) error {
+	if isSecretAttribute(key) {
+		return o.deleteSecret(key, value)
+	}
 	ctx := context.TODO()
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -2034,28 +2172,7 @@ func (o *Object) DelAttr(key, value string) error {
 
 // SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
-	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	old := ""
-	if values := o.attr[key]; len(values) > 0 {
-		old = values[0]
-	}
-	if old == value {
-		return nil
-	}
-	if err := o.prepareWriteLocked(ctx); err != nil {
-		return err
-	}
-	_, err := o.h.upload(ctx, schema.NewSetAttributeClaim(o.pn, key, value))
-	if err != nil {
-		return err
-	}
-	if o.attr == nil {
-		o.attr = make(map[string][]string)
-	}
-	o.attr[key] = []string{value}
-	return nil
+	return o.SetAttrs(key, value)
 }
 
 // SetAttrs sets multiple attributes. The provided keyval should be an
@@ -2074,8 +2191,9 @@ func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
 }
 
 // SetAttrsWithDeletes atomically removes whole attributes and sets attributes
-// in one claim. Deletions are applied first, in deleteKeys order, then sets in
-// keyval order. Repeated deletions are ignored; repeated sets retain their
+// in one claim. Credential changes instead use a separate local transaction,
+// committed before non-credential claims; they cannot be atomic across stores.
+// Deletions are applied first, in deleteKeys order, then sets in keyval order. Repeated deletions are ignored; repeated sets retain their
 // order. A key in both lists is therefore removed before it is set again.
 //
 // Unchanged operations are skipped. Cached attributes change only after the
@@ -2089,23 +2207,51 @@ func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (cha
 	if len(keyval)%2 == 1 {
 		panic("importer.SetAttrs: odd argument count")
 	}
-
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	updates := make(map[string][]string)
+	secretUpdates := make(map[string][]string)
+	secretRevisions := make(map[string]int64)
+	current := func(key string) ([]string, error) {
+		if isSecretAttribute(key) {
+			if v, ok := secretUpdates[key]; ok {
+				return v, nil
+			}
+			e, ok, err := o.secretEntry(context.TODO(), key)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				secretRevisions[key] = e.Revision
+				return []string{e.Value}, nil
+			}
+			secretRevisions[key] = 0
+			return nil, nil
+		}
+		if v, ok := updates[key]; ok {
+			return v, nil
+		}
+		return o.attr[key], nil
+	}
 	var claims []*schema.Builder
 	for _, key := range deleteKeys {
-		if _, pending := updates[key]; pending || len(o.attr[key]) == 0 {
-			continue
+		values, err := current(key)
+		if err != nil {
+			return false, err
 		}
-		updates[key] = nil
-		claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, ""))
+		if isSecretAttribute(key) {
+			// Explicit deletions create tombstones even if currently absent.
+			secretUpdates[key] = nil
+		} else if len(values) != 0 {
+			updates[key] = nil
+			claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, ""))
+		}
 	}
 	for i := 0; i < len(keyval); i += 2 {
 		key, val := keyval[i], keyval[i+1]
-		values, pending := updates[key]
-		if !pending {
-			values = o.attr[key]
+		values, err := current(key)
+		if err != nil {
+			return false, err
 		}
 		old := ""
 		if len(values) > 0 {
@@ -2114,11 +2260,24 @@ func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (cha
 		if val == old {
 			continue
 		}
-		updates[key] = []string{val}
-		claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, key, val))
+		if isSecretAttribute(key) {
+			if val == "" {
+				secretUpdates[key] = nil
+			} else {
+				secretUpdates[key] = []string{val}
+			}
+		} else {
+			updates[key] = []string{val}
+			claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, key, val))
+		}
 	}
-	if len(claims) == 0 {
+	if len(claims) == 0 && len(secretUpdates) == 0 {
 		return false, nil
+	}
+	// A local transaction cannot be atomic with a signed blob upload. Save
+	// credentials durably first; retries can safely finish non-secret claims.
+	if err := o.writeSecretsLocked(secretUpdates, secretRevisions); err != nil {
+		return true, err
 	}
 	if err := o.uploadAttributeClaims(context.TODO(), claims); err != nil {
 		return true, err
@@ -2139,6 +2298,9 @@ func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (cha
 // SetAttrValues sets a multi-valued attribute. Multiple additions or deletions
 // are uploaded together as an atomic multi claim.
 func (o *Object) SetAttrValues(key string, attrs []string) error {
+	if isSecretAttribute(key) {
+		return o.setSecretValues(key, attrs)
+	}
 	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
 
 	o.mu.Lock()
@@ -2181,6 +2343,12 @@ func (o *Object) SetAttrValues(key string, attrs []string) error {
 // multi claim. The caller holds o.mu and updates cached attributes only after
 // this succeeds. A zero-length list does not upload a blob.
 func (o *Object) uploadAttributeClaims(ctx context.Context, claims []*schema.Builder) error {
+	return o.uploadAttributeClaimsAt(ctx, claims, time.Time{})
+}
+
+// uploadAttributeClaimsAt overrides only migration cleanup timestamps: deletion
+// must follow even future-dated legacy claims. Ordinary writes keep their dates.
+func (o *Object) uploadAttributeClaimsAt(ctx context.Context, claims []*schema.Builder, date time.Time) error {
 	if len(claims) == 0 {
 		return nil
 	}
@@ -2198,7 +2366,10 @@ func (o *Object) uploadAttributeClaims(ctx context.Context, claims []*schema.Bui
 		}
 		claim.SetMultiClaimPermanode(o.pn)
 	}
-	_, err := o.h.upload(ctx, claim)
+	if !date.IsZero() {
+		claim.SetClaimDate(date)
+	}
+	_, err := o.h.uploadAt(ctx, claim, date)
 	return err
 }
 
@@ -2261,12 +2432,17 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 	if db.Permanode == nil {
 		return nil, fmt.Errorf("permanode %v had no DescribedPermanode in Describe response", permanodeRef)
 	}
-	return &Object{
-		h:       h,
-		pn:      permanodeRef,
-		attr:    map[string][]string(db.Permanode.Attr),
-		modtime: db.Permanode.ModTime,
-	}, nil
+	attrs := make(map[string][]string)
+	for k, vv := range db.Permanode.Attr {
+		if !isSecretAttribute(k) {
+			attrs[k] = slices.Clone(vv)
+		}
+	}
+	o := &Object{h: h, pn: permanodeRef, attr: attrs, modtime: db.Permanode.ModTime}
+	if err := o.checkCredentials(); err != nil {
+		return nil, err
+	}
+	return o, nil
 }
 
 type byImporterAccountPermanode []*importerAcct
@@ -2276,3 +2452,14 @@ func (s byImporterAccountPermanode) Less(i, j int) bool {
 	return s[i].acct.PermanodeRef().Less(s[j].acct.PermanodeRef())
 }
 func (s byImporterAccountPermanode) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// allowCredentialSetup deliberately bypasses scoped OpAll discovery tokens.
+// Do not use auth.SendUnauthorized here: development auth may reveal its
+// password in that generic login response.
+func (h *Host) allowCredentialSetup(w http.ResponseWriter, r *http.Request) bool {
+	if h.requireOwnerForSetup && !auth.AllowedUnscoped(r, auth.OpSecretWrite) {
+		http.Error(w, "owner authentication required for importer credential setup", http.StatusForbidden)
+		return false
+	}
+	return true
+}

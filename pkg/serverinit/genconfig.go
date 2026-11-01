@@ -841,6 +841,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		"helpRoot":     "/help/",
 		"statusRoot":   "/status/",
 		"jsonSignRoot": "/sighelper/",
+		"secretRoot":   "/secrets/",
 	}
 	if b.high.OwnerName != "" {
 		rootArgs["ownerName"] = b.high.OwnerName
@@ -858,8 +859,15 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	b.addPrefix("/", "root", rootArgs)
 	b.addPrefix("/status/", "status", nil)
 	b.addPrefix("/help/", "help", nil)
+	secretArgs := args{}
+	if b.high.SecretsFile != "" {
+		secretArgs["file"] = b.high.SecretsFile
+	} else if b.high.MemoryStorage {
+		secretArgs["memory"] = true
+	}
+	b.addPrefix("/secrets/", "secrets", secretArgs)
 
-	importerArgs := args{}
+	importerArgs := args{"secretRoot": "/secrets/"}
 	if b.high.BlobPath != "" {
 		// Scratch state stays near the local blobs, but is not blob storage.
 		// Without a local blobPath, importers get memory-only caches unless

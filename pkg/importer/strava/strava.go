@@ -321,21 +321,42 @@ func (r *run) client() (*apiClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	credentials, err := acct.CredentialSnapshot(r.Context(),
+		attrRefreshToken, importer.AcctAttrAccessToken, attrTokenClientID)
+	if err != nil {
+		return nil, err
+	}
 	expiry, err := strconv.ParseInt(acct.Attr(attrTokenExpiry), 10, 64)
-	if err != nil || acct.Attr(importer.AcctAttrAccessToken) == "" ||
-		acct.Attr(attrTokenClientID) != id || time.Now().Add(time.Minute).Unix() >= expiry {
+	access := credentials.Value(importer.AcctAttrAccessToken)
+	if err != nil || access == "" ||
+		credentials.Value(attrTokenClientID) != id || time.Now().Add(time.Minute).Unix() >= expiry {
+		if credentials.Value(attrRefreshToken) == "" {
+			return nil, errors.New("strava: refresh credential missing; reconnect account")
+		}
 		tok, err := exchangeToken(r.Context(), r.Host.HTTPClient(), url.Values{
-			"client_id": {id}, "client_secret": {secret}, "refresh_token": {acct.Attr(attrRefreshToken)}, "grant_type": {"refresh_token"},
+			"client_id": {id}, "client_secret": {secret}, "refresh_token": {credentials.Value(attrRefreshToken)}, "grant_type": {"refresh_token"},
 		})
 		if err != nil {
 			return nil, err
 		}
-		if err := storeToken(acct, tok, id); err != nil {
+		// Pin all credential revisions before the network exchange. A fresh
+		// read here would allow an old response to overwrite an administrator's
+		// replacement or resurrect a deleted credential. Commit the rotating
+		// pair and its application binding together, before publishing expiry.
+		if err := acct.SetSecretAttrsIfRevision(r.Context(), credentials,
+			attrRefreshToken, tok.RefreshToken,
+			importer.AcctAttrAccessToken, tok.AccessToken,
+			attrTokenClientID, id,
+		); err != nil {
 			return nil, err
 		}
+		if err := acct.SetAttr(attrTokenExpiry, strconv.FormatInt(tok.ExpiresAt, 10)); err != nil {
+			return nil, err
+		}
+		access = tok.AccessToken
 	}
 	return &apiClient{
-		httpClient: r.Host.HTTPClient(), accessToken: acct.Attr(importer.AcctAttrAccessToken),
+		httpClient: r.Host.HTTPClient(), accessToken: access,
 		limiter: rateLimiterForApp(id), logf: r.Logf,
 	}, nil
 }

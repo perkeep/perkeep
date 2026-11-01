@@ -47,6 +47,7 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/secretstore"
 	"perkeep.org/pkg/sorted"
 )
 
@@ -280,6 +281,14 @@ func newCoreFixtureWithConfig(t *testing.T, transport http.RoundTripper, config 
 			return nil, errors.New("unexpected HTTP request")
 		})
 	}
+	secrets := config.Secrets
+	if secrets == nil {
+		secrets, err = secretstore.NewMemory()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { secrets.Close() })
+	}
 	hostConfig := importer.HostConfig{
 		BaseURL:      "https://perkeep.example",
 		Prefix:       "/importer/",
@@ -293,6 +302,7 @@ func newCoreFixtureWithConfig(t *testing.T, transport http.RoundTripper, config 
 		Cache:        config.Cache,
 		CacheRoot:    config.CacheRoot,
 		CacheType:    config.CacheType,
+		Secrets:      secrets,
 	}
 	host, err := importer.NewHost(hostConfig)
 	if err != nil {
@@ -318,6 +328,9 @@ func newCoreFixtureWithConfig(t *testing.T, transport http.RoundTripper, config 
 func TestCoreStorageMultiClaim(t *testing.T) {
 	f := newCoreFixture(t, nil)
 	ctx := context.Background()
+	// Exercise the signed-claim test index with public fixture attributes;
+	// credentials deliberately have no signed-claim fallback.
+	const fixtureAccess, fixtureRefresh = "fixtureAccess", "fixtureRefresh"
 	acct, root := f.rc.AccountNode(), f.rc.RootNode()
 	sign := func(children ...*schema.Builder) (blob.Ref, string) {
 		t.Helper()
@@ -340,8 +353,8 @@ func TestCoreStorageMultiClaim(t *testing.T) {
 		return obj
 	}
 	ref, data := sign(
-		schema.NewSetAttributeClaim(blob.Ref{}, importer.AcctAttrAccessToken, "access"),
-		schema.NewSetAttributeClaim(blob.Ref{}, attrRefreshToken, "refresh"),
+		schema.NewSetAttributeClaim(blob.Ref{}, fixtureAccess, "access"),
+		schema.NewSetAttributeClaim(blob.Ref{}, fixtureRefresh, "refresh"),
 		schema.NewSetAttributeClaim(blob.Ref{}, attrTokenExpiry, "123"),
 		schema.NewSetAttributeClaim(blob.Ref{}, "fixture", "first"),
 		schema.NewAddAttributeClaim(blob.Ref{}, "fixture", "second"),
@@ -350,7 +363,7 @@ func TestCoreStorageMultiClaim(t *testing.T) {
 		schema.NewAddAttributeClaim(blob.Ref{}, "fixture", "third"),
 		schema.NewSetAttributeClaim(root.PermanodeRef(), "fixture", "root"),
 	)
-	f.storage.failNextClaim(attrRefreshToken)
+	f.storage.failNextClaim(fixtureRefresh)
 	before := f.storage.NumBlobs()
 	if _, err := f.storage.ReceiveBlob(ctx, ref, strings.NewReader(data)); !errors.Is(err, errCoreClaimFailure) {
 		t.Fatalf("multi claim error = %v; want injected failure", err)
@@ -359,7 +372,7 @@ func TestCoreStorageMultiClaim(t *testing.T) {
 		t.Fatal("failed multi claim was stored")
 	}
 	coreAttrs(t, reload(acct.PermanodeRef()), map[string]string{
-		importer.AcctAttrAccessToken: "", attrRefreshToken: "", attrTokenExpiry: "", "fixture": "",
+		fixtureAccess: "", fixtureRefresh: "", attrTokenExpiry: "", "fixture": "",
 	})
 	coreAttrs(t, reload(root.PermanodeRef()), map[string]string{"fixture": ""})
 
@@ -370,7 +383,7 @@ func TestCoreStorageMultiClaim(t *testing.T) {
 	}
 	loaded := reload(acct.PermanodeRef())
 	coreAttrs(t, loaded, map[string]string{
-		importer.AcctAttrAccessToken: "access", attrRefreshToken: "refresh", attrTokenExpiry: "123",
+		fixtureAccess: "access", fixtureRefresh: "refresh", attrTokenExpiry: "123",
 	})
 	if got, want := loaded.Attrs("fixture"), []string{"second", "third"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("ordered multi values = %v; want %v", got, want)
@@ -2050,7 +2063,7 @@ func TestImporterValidateActivity(t *testing.T) {
 }
 
 func TestImporterRefreshOnlyAndPartialTokenWritesRecover(t *testing.T) {
-	for _, scenario := range []string{"refresh-only", "invalid-expiry", "missing-access", "access-claim-fails", "expiry-claim-fails"} {
+	for _, scenario := range []string{"refresh-only", "invalid-expiry", "missing-access", "expiry-claim-fails"} {
 		t.Run(scenario, func(t *testing.T) {
 			var f *coreFixture
 			var calls []string
@@ -2090,11 +2103,8 @@ func TestImporterRefreshOnlyAndPartialTokenWritesRecover(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch scenario {
-			case "access-claim-fails", "expiry-claim-fails":
-				field := importer.AcctAttrAccessToken
-				if scenario == "expiry-claim-fails" {
-					field = attrTokenExpiry
-				}
+			case "expiry-claim-fails":
+				field := attrTokenExpiry
 				f.storage.failNextClaim(field)
 				err := storeToken(acct, &tokenResponse{
 					AccessToken: "initial-access", RefreshToken: "initial-refresh", ExpiresAt: expiry,
@@ -2140,18 +2150,20 @@ func TestImporterRefreshOnlyAndPartialTokenWritesRecover(t *testing.T) {
 	}
 }
 
-func TestImporterRefreshClaimFailureDoesNotPublishAccessToken(t *testing.T) {
+func TestImporterCredentialStoreFailureDoesNotPublishTokenMetadata(t *testing.T) {
 	f := newCoreFixture(t, nil)
 	acct := f.rc.AccountNode()
 	if err := acct.SetAttr(importer.AcctAttrUserID, "7"); err != nil {
 		t.Fatal(err)
 	}
-	f.storage.failNextClaim(attrRefreshToken)
+	if err := f.hostConfig.Secrets.Close(); err != nil {
+		t.Fatal(err)
+	}
 	err := storeToken(acct, &tokenResponse{
 		AccessToken: "initial-access", RefreshToken: "initial-refresh", ExpiresAt: time.Now().Add(time.Hour).Unix(),
 	})
-	if !errors.Is(err, errCoreClaimFailure) {
-		t.Fatalf("storeToken error = %v; want refresh claim failure", err)
+	if !errors.Is(err, secretstore.ErrClosed) {
+		t.Fatalf("storeToken error = %v; want closed credential store", err)
 	}
 	coreAttrs(t, acct, map[string]string{attrRefreshToken: "", importer.AcctAttrAccessToken: "", attrTokenExpiry: ""})
 	if ready, err := (imp{}).IsAccountReady(acct); err != nil || ready {

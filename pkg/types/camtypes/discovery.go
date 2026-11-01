@@ -29,8 +29,13 @@ type Discovery struct {
 	HelpRoot     string `json:"helpRoot"`
 	ImporterRoot string `json:"importerRoot"`
 	SearchRoot   string `json:"searchRoot"`
-	StatusRoot   string `json:"statusRoot"`
-	ShareRoot    string `json:"shareRoot"`
+
+	// SecretRoot is the URL prefix of the server-local credential API.
+	// It is advertised only to unscoped callers with secret permissions.
+	SecretRoot string `json:"secretRoot,omitempty"`
+
+	StatusRoot string `json:"statusRoot"`
+	ShareRoot  string `json:"shareRoot"`
 
 	OwnerName string `json:"ownerName"` // Name of the owner.
 	UserName  string `json:"userName"`  // Name of the user.

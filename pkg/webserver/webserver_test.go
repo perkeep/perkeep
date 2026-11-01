@@ -63,7 +63,7 @@ func TestTailscaleAuthContext(t *testing.T) {
 		req.RemoteAddr = "100.64.0.1:1234"
 		want := auth.Operation(0)
 		if tailnet {
-			want = auth.OpAll
+			want = auth.OpOwner
 		}
 		if got := am.AllowedAccess(req); got != want {
 			t.Errorf("tailnet=%v: AllowedAccess = %v; want %v", tailnet, got, want)

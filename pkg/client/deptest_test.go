@@ -26,6 +26,8 @@ import (
 func TestDeps(t *testing.T) {
 	// Check the production dependency closure, including shared protocol helpers.
 	badDeps := map[string]string{
+		"perkeep.org/pkg/secretstore":   "clients must use the secret HTTP API, not link the server-side store",
+		"modernc.org/sqlite":            "clients must not link the server-side SQLite driver",
 		"perkeep.org/pkg/server":        "clients must not depend on server handlers",
 		"perkeep.org/pkg/serverinit":    "clients must not assemble a server",
 		"perkeep.org/pkg/search":        "clients must use internal/searchtypes instead of the search implementation",

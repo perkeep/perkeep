@@ -205,7 +205,8 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	authToken, err := auth.Exchange(ctx, code)
 	if err != nil {
 		http.Error(w, "failed to obtain oauth token", http.StatusInternalServerError)
-		log.Printf("Mastodon token exchange failed with error: %s", err)
+		// Provider errors can contain a response body reflecting credentials.
+		log.Printf("Mastodon token exchange failed")
 		return
 	}
 

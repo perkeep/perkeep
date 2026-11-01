@@ -18,6 +18,8 @@ synchronization to cloud storage.
   to cloud storage providers
 * [Client config](/doc/client-config.md): Clients need this configuration file to
   securely connect to your Perkeep server(s)
+* [Server-side secrets](/doc/secrets.md): credential storage, startup migration,
+  warnings, and CLI/API access
 * [Search Commands](/doc/search-ui.md): Covers the available search operators
 * [Configuring Geocoding](/doc/geocoding.md): how to enable geocoding (the `loc:` search operator)
 * [Files or Permanodes](/doc/files-and-permanodes.md): explains the basic difference between a file and a permanode

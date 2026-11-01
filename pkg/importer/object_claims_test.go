@@ -105,6 +105,7 @@ func newObjectClaimFixture(t *testing.T, attrs map[string][]string) *objectClaim
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { h.Close() })
 	cache := maps.Clone(attrs)
 	for key, values := range cache {
 		cache[key] = slices.Clone(values)

@@ -43,7 +43,9 @@ more light-weight.
 package pinboard // import "perkeep.org/pkg/importer/pinboard"
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -116,10 +118,11 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
-		Title:               "Pinboard",
-		Description:         "import your pinboard.in posts",
-		SupportsIncremental: true,
-		NeedsAPIKey:         false,
+		CallbackRequiresPOST: true,
+		Title:                "Pinboard",
+		Description:          "import your pinboard.in posts",
+		SupportsIncremental:  true,
+		NeedsAPIKey:          false,
 	}
 }
 
@@ -146,10 +149,10 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Pinboad Account</h1>
-<form method="get" action="{{.CallbackPath}}">
+<form method="post" action="{{.CallbackPath}}">
   <input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
   <table border=0 cellpadding=3>
-  <tr><td align=right>API token</td><td><input name="apiToken" size=50> (You can find it <a href="https://pinboard.in/settings/password">here</a>)</td></tr>
+  <tr><td align=right>API token</td><td><input name="apiToken" type="password" autocomplete="off" size=50> (You can find it <a href="https://pinboard.in/settings/password">here</a>)</td></tr>
   <tr><td align=right></td><td><input type="submit" value="Add"></td></tr>
   </table>
 </form>
@@ -163,8 +166,8 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 	if extractUsername(t) == "" {
-		errText := fmt.Sprintf("Unable to parse %q as an api token.  We expect <username>:<somevalue>", t)
-		http.Error(w, errText, http.StatusBadRequest)
+		http.Error(w, "Unable to parse API token. We expect <username>:<somevalue>", http.StatusBadRequest)
+		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
 		attrAuthToken, t,
@@ -279,9 +282,13 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	start := time.Now()
 
 	u := fmt.Sprintf(fetchUrl, authToken, batchLimit, r.nextCursor)
-	resp, err := ctxutil.Client(r.Context()).Get(u)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, u, nil)
 	if err != nil {
-		return false, err
+		return false, requestError("pinboard: creating posts request", err)
+	}
+	resp, err := ctxutil.Client(r.Context()).Do(req)
+	if err != nil {
+		return false, requestError("pinboard: fetching posts", err)
 	}
 	defer resp.Body.Close()
 	switch {
@@ -290,21 +297,17 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		r.nextAfter = time.Now().Add(r.lastPause)
 		return true, nil
 	case resp.StatusCode != http.StatusOK:
-		return false, fmt.Errorf("Unexpected status code %v fetching %v", resp.StatusCode, u)
+		return false, fmt.Errorf("pinboard: fetching posts: HTTP status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return false, err
+		return false, requestError("pinboard: reading posts response", err)
 	}
 
 	var postBatch []apiPost
 	if err = json.Unmarshal(body, &postBatch); err != nil {
-		return false, err
-	}
-
-	if err != nil {
-		return false, err
+		return false, requestError("pinboard: decoding posts response", err)
 	}
 
 	postCount := len(postBatch)
@@ -356,6 +359,18 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	r.nextAfter = time.Now().Add(pauseInterval)
 	tryAgain := postCount == batchLimit
 	return tryAgain, nil
+}
+
+// Request and response errors can contain the authenticated URL or response
+// values. Only retain cancellation causes, not provider-controlled error text.
+func requestError(operation string, err error) error {
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%s: %w", operation, context.Canceled)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s: %w", operation, context.DeadlineExceeded)
+	}
+	return fmt.Errorf("%s failed", operation)
 }
 
 func (r *run) importPost(post *apiPost, parent *importer.Object) (dup bool, err error) {

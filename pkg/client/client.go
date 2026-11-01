@@ -72,6 +72,7 @@ type Client struct {
 	isSharePrefix bool          // URL is a request for a share blob
 
 	discoOnce              syncutil.Once
+	secretRoot             string      // Owner-only secret handler prefix, or "" if none
 	searchRoot             string      // Handler prefix, or "" if none
 	importerRoot           string      // Handler prefix, or "" if none
 	downloadHelper         string      // or "" if none
@@ -1108,6 +1109,20 @@ func (c *Client) doDiscovery() error {
 			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
 		}
 		c.searchRoot = u.String()
+	}
+
+	if disco.SecretRoot != "" {
+		u, err := root.Parse(disco.SecretRoot)
+		// Unlike generic storage roots, this URL receives plaintext credentials.
+		// Do not allow discovery to send them to a different origin or scheme.
+		if err != nil ||
+			u.Scheme != root.Scheme || u.Host != root.Host ||
+			u.User != nil || u.RawQuery != "" || u.ForceQuery ||
+			u.Fragment != "" || strings.Contains(disco.SecretRoot, "#") ||
+			u.Path == "" || !strings.HasSuffix(u.Path, "/") {
+			return errors.New("client: invalid secretRoot; must be on the configured server")
+		}
+		c.secretRoot = u.String()
 	}
 
 	if disco.ImporterRoot != "" {

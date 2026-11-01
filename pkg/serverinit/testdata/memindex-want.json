@@ -11,6 +11,7 @@
 				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -35,7 +36,8 @@
 			"handler": "importer",
 			"handlerArgs": {
 				"cacheRoot": "/tmp/blobs/importer-cache",
-				"cacheType": "leveldb"
+				"cacheType": "leveldb",
+				"secretRoot": "/secrets/"
 			}
 		},
 		"/index/": {
@@ -57,6 +59,10 @@
 				},
 				"slurpToMemory": true
 			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
 		},
 		"/share/": {
 			"handler": "share",

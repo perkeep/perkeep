@@ -721,7 +721,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if tempToken != r.FormValue("oauth_token") {
-		log.Printf("twitter: unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), tempToken)
+		log.Printf("twitter: unexpected oauth_token in callback")
 		httputil.BadRequestError(w, "unexpected oauth_token")
 		return
 	}

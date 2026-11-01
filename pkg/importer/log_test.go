@@ -73,7 +73,7 @@ func TestAccountLogPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { h.Close() })
-	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{pn: blob.RefFromString("account")}}
+	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{h: h, pn: blob.RefFromString("account")}}
 	ia.logf("hello %d", 42)
 
 	get := func(off string) logResponse {

@@ -171,6 +171,8 @@ func TestHostInjectedCacheOwnership(t *testing.T) {
 
 func configuredCacheHost(t *testing.T, ld blobserver.Loader, cfg jsonconfig.Obj) *Host {
 	t.Helper()
+	cfg["secretRoot"] = "/test-secrets/"
+	ld = secretTestLoader(t, ld)
 	handler, err := newFromConfig(ld, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -310,7 +312,7 @@ func TestHostCloseWaitsForManagedCacheUsers(t *testing.T) {
 			t.Cleanup(func() { h.Close() })
 			ia := &importerAcct{
 				im:   &importer{host: h, name: "cache-test", impl: impl},
-				acct: &Object{pn: blob.RefFromString("cache shutdown account")},
+				acct: &Object{h: h, pn: blob.RefFromString("cache shutdown account")},
 			}
 			switch mode {
 			case "start":
@@ -424,7 +426,7 @@ func TestHostCloseTimeoutLeavesCacheOpenUntilImporterReturns(t *testing.T) {
 	t.Cleanup(func() { h.Close() })
 	ia := &importerAcct{
 		im:   &importer{host: h, name: "cache-test", impl: impl},
-		acct: &Object{pn: blob.RefFromString("uncancellable cache shutdown account")},
+		acct: &Object{h: h, pn: blob.RefFromString("uncancellable cache shutdown account")},
 	}
 	ia.start()
 	select {
@@ -517,7 +519,7 @@ func TestHostCloseTimeoutIncludesBackendClose(t *testing.T) {
 
 func cacheTestContexts(h *Host, name, account string) (*RunContext, *SetupContext) {
 	ia := &importerAcct{
-		im: h.imp[name], acct: &Object{pn: blob.RefFromString(account)},
+		im: h.imp[name], acct: &Object{h: h, pn: blob.RefFromString(account)},
 	}
 	return &RunContext{Host: h, ia: ia}, &SetupContext{Host: h, ia: ia}
 }
@@ -627,7 +629,7 @@ func TestCacheNamespacesCannotOverlapViaNamesOrKeys(t *testing.T) {
 	defer h.Close()
 	im := &importer{host: h, name: "a"}
 	other := &importer{host: h, name: "ab"}
-	ia := &importerAcct{im: im, acct: &Object{pn: blob.RefFromString("namespace account")}}
+	ia := &importerAcct{im: im, acct: &Object{h: h, pn: blob.RefFromString("namespace account")}}
 	for _, key := range []string{"", "b:ratelimit", "\x00ratelimit", "\xff", "account:a:" + ia.acct.PermanodeRef().String() + ":ratelimit"} {
 		if err := requireCache(t, im.cache).Set(key, "importer-private"); err != nil {
 			t.Fatal(err)
@@ -922,7 +924,7 @@ func TestDiskCacheScopeNamesCannotOverlap(t *testing.T) {
 	}
 	defer h.Close()
 	im := &importer{host: h, name: "strava"}
-	ia := &importerAcct{im: im, acct: &Object{pn: blob.RefFromString("scope collision account")}}
+	ia := &importerAcct{im: im, acct: &Object{h: h, pn: blob.RefFromString("scope collision account")}}
 	adversarial := &importer{host: h, name: "strava-" + ia.acct.PermanodeRef().String()}
 	traversal := &importer{host: h, name: "../strava"}
 	views := []sorted.KeyValue{
@@ -969,7 +971,7 @@ func TestCancelledManagedRunCanOpenDiskCache(t *testing.T) {
 	t.Cleanup(func() { h.Close() })
 	ia := &importerAcct{
 		im:   &importer{host: h, name: "dummy1", impl: impl},
-		acct: &Object{pn: blob.RefFromString("cancelled disk cache account")},
+		acct: &Object{h: h, pn: blob.RefFromString("cancelled disk cache account")},
 	}
 	ia.start()
 	select {
@@ -1102,7 +1104,7 @@ func TestAccountCacheRequiresValidPermanode(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer h.Close()
-	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{}}
+	ia := &importerAcct{im: h.imp["dummy1"], acct: &Object{h: h}}
 	rc := &RunContext{Host: h, ia: ia}
 	setup := &SetupContext{Host: h, ia: ia}
 	if cache, err := rc.AccountCache(); cache != nil || err == nil {

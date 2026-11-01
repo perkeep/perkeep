@@ -794,6 +794,10 @@ func TestArchiveOriginConfiguredPublicURL(t *testing.T) {
 	if err := archiveJSONRequest(r, "https://public.example.test"); err != nil {
 		t.Fatal(err)
 	}
+	r.Header.Set("Origin", "http://backend.internal")
+	if err := archiveJSONRequest(r, "https://public.example.test"); err == nil {
+		t.Fatal("backend origin bypassed configured canonical archive origin")
+	}
 	r.Header.Set("Origin", "https://evil.example.test")
 	r.Header.Set("Forwarded", "proto=https;host=evil.example.test")
 	if err := archiveJSONRequest(r, "https://public.example.test"); err == nil {
