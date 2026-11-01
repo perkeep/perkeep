@@ -42,8 +42,9 @@ import (
 )
 
 // newTestPerkeep returns a function making clients of an in-process
-// Perkeep server with memory storage and index.
-func newTestPerkeep(t *testing.T) func(Account) (*client.Client, error) {
+// Perkeep server with memory storage and index. If wrap is non-nil, it
+// wraps the clients' transport.
+func newTestPerkeep(t *testing.T, wrap func(http.RoundTripper) http.RoundTripper) func(Account) (*client.Client, error) {
 	t.Helper()
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
@@ -79,7 +80,11 @@ func newTestPerkeep(t *testing.T) func(Account) (*client.Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.SetHTTPClient(ts.Client())
+		hc := *ts.Client() // a copy, as ts shares it
+		if wrap != nil {
+			hc.Transport = wrap(hc.Transport)
+		}
+		c.SetHTTPClient(&hc)
 		return c, nil
 	}
 }
@@ -104,7 +109,7 @@ type uploadsStatus struct {
 }
 
 func TestUploads(t *testing.T) {
-	newClient := newTestPerkeep(t)
+	newClient := newTestPerkeep(t, nil)
 	dataDir := t.TempDir()
 	s := newTestServer(t, dataDir)
 	s.testClient = newClient
@@ -201,7 +206,7 @@ func TestUploads(t *testing.T) {
 	if got := findMissing(); len(got.Present) != 2 {
 		t.Errorf("after uploading: %+v; want both present", got)
 	}
-	os.Remove(filepath.Join(dataDir, haveFile(a.ID)))
+	removeHaveFiles(dataDir, a.ID, "")
 	do(t, s, "POST", path+"/connect", map[string]string{}, http.StatusOK, nil)
 	if got := findMissing(); len(got.Present) != 2 {
 		t.Errorf("after uploading, uncached: %+v; want both present", got)

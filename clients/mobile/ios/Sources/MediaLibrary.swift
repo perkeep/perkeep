@@ -102,6 +102,9 @@ enum MediaLibrary {
     /// export writes the item's file to a new temporary file, downloading
     /// it from iCloud if needed, and returns its URL. The caller deletes it.
     static func export(_ item: MediaItem) async throws -> URL {
+        // writeData fails (PHPhotosErrorDomain -1) if the directory
+        // doesn't exist.
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         let url = tempDir.appendingPathComponent(UUID().uuidString + "-" + item.name)
         let opts = PHAssetResourceRequestOptions()
         opts.isNetworkAccessAllowed = true

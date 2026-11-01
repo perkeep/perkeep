@@ -220,10 +220,27 @@ final class UploadModel: ObservableObject {
         try await prepare()
         phase = .hashing
         let todo = items.filter { refs[$0.id] == nil }
+        MediaLibrary.clearTemp()
         try await forEach(todo, limit: Self.maxHashing) { item in
-            let url = try await MediaLibrary.export(item)
-            defer { try? FileManager.default.removeItem(at: url) }
-            _ = try await self.hash(item, file: url)
+            try await self.skippingFailure(item) {
+                let url = try await MediaLibrary.export(item)
+                defer { try? FileManager.default.removeItem(at: url) }
+                _ = try await self.hash(item, file: url)
+            }
+        }
+    }
+
+    /// skippingFailure runs fn for item, and if it fails other than by
+    /// cancellation, counts and reports the failure rather than stopping.
+    private func skippingFailure(_ item: MediaItem, _ fn: () async throws -> Void) async throws {
+        do {
+            try await fn()
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw error
+            }
+            failed += 1
+            notice = "\(failed.formatted()) failed; last, \(item.name): \(error.localizedDescription)"
         }
     }
 
@@ -276,7 +293,7 @@ final class UploadModel: ObservableObject {
         defer { poller.cancel() }
         let todo = items.filter { !onServer.contains($0.id) && !uploaded.contains($0.id) }
         try await forEach(todo, limit: Self.maxUploads) { item in
-            try await self.uploadOne(item)
+            try await self.skippingFailure(item) { try await self.uploadOne(item) }
         }
     }
 
@@ -318,9 +335,7 @@ final class UploadModel: ObservableObject {
         let done = await waitForUpload(r.id)
         try Task.checkCancellation()
         if let e = done.error {
-            failed += 1
-            notice = "Couldn't upload \(item.name): \(e)"
-            return
+            throw Core.Error(status: 0, message: e)
         }
         uploaded.insert(item.id)
         missing.remove(item.id)
@@ -371,7 +386,7 @@ final class UploadModel: ObservableObject {
             var size: Int64
             var phase: String
             var BytesHashed: Int64
-            var BytesCut: Int64
+            var BytesUploaded: Int64
         }
         struct Resp: Decodable {
             var inFlight: [InFlightResp]
@@ -385,7 +400,9 @@ final class UploadModel: ObservableObject {
                 noteRate(r.totals.bytesUploaded)
                 for f in r.inFlight {
                     if let i = inFlight.firstIndex(where: { $0.id == f.key }) {
-                        let read = f.phase == "hashing" ? f.BytesHashed : f.BytesCut
+                        // Contents are cut into chunks ahead of uploading
+                        // them, so show how much is sent.
+                        let read = f.phase == "hashing" ? f.BytesHashed : f.BytesUploaded
                         inFlight[i].phase = f.phase
                         inFlight[i].fraction = f.size > 0 ? min(1, Double(read) / Double(f.size)) : 0
                     }

@@ -64,8 +64,26 @@ import (
 const hashesFile = "hashes.jsonl"
 
 // haveFile returns the name of the cache of whole-file refs that the
-// account's server has a file of.
-func haveFile(accountID string) string { return "have-" + accountID + ".jsonl" }
+// account's server has a file of, in its storage generation gen (see
+// client.Client.StorageGeneration). A server whose storage is reset or
+// partly lost gets a new generation, and so a new, empty cache. Servers
+// without generations use the generation "none".
+func haveFile(accountID, gen string) string {
+	return haveFilePrefix(accountID) + url.PathEscape(gen) + ".jsonl"
+}
+
+func haveFilePrefix(accountID string) string { return "have-" + accountID + "-" }
+
+// removeHaveFiles removes the account's caches of what its server has,
+// except for generation keepGen, if non-empty.
+func removeHaveFiles(dir, accountID, keepGen string) {
+	matches, _ := filepath.Glob(filepath.Join(dir, haveFilePrefix(accountID)+"*.jsonl"))
+	for _, m := range matches {
+		if keepGen == "" || filepath.Base(m) != haveFile(accountID, keepGen) {
+			os.Remove(m)
+		}
+	}
+}
 
 // accountConn is a connection to an account's server, for uploading.
 type accountConn struct {
@@ -244,7 +262,14 @@ func (s *server) serveConnect(w http.ResponseWriter, r *http.Request, a Account)
 	for _, nh := range newHashes {
 		names = append(names, blob.RefFromHash(nh()).HashName())
 	}
-	have, err := openLogCache[bool](s.dataPath(haveFile(a.ID)))
+	gen, err := c.StorageGeneration()
+	if errors.Is(err, client.ErrNoStorageGeneration) {
+		gen = "none"
+	} else if err != nil {
+		return errorf(http.StatusBadGateway, err.Error())
+	}
+	removeHaveFiles(s.dataPath(""), a.ID, gen)
+	have, err := openLogCache[bool](s.dataPath(haveFile(a.ID, gen)))
 	if err != nil {
 		return err
 	}
@@ -266,7 +291,7 @@ func (s *server) serveConnect(w http.ResponseWriter, r *http.Request, a Account)
 	}
 	s.conns[a.ID] = ac
 	s.connMu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"hashes": names})
+	writeJSON(w, http.StatusOK, map[string]any{"hashes": names, "generation": gen})
 	return nil
 }
 
@@ -616,11 +641,23 @@ func (s *server) serveUploads(w http.ResponseWriter, r *http.Request, ac *accoun
 }
 
 func (s *server) serveCancelUploads(w http.ResponseWriter, r *http.Request, ac *accountConn) error {
+	ac.cancelUploads()
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// cancelUploads cancels the uploads in progress.
+func (ac *accountConn) cancelUploads() {
 	ac.mu.Lock()
+	defer ac.mu.Unlock()
 	for _, u := range ac.uploads {
 		u.cancel()
 	}
-	ac.mu.Unlock()
-	w.WriteHeader(http.StatusNoContent)
-	return nil
+}
+
+// cancelUploads cancels the account's uploads in progress, if any.
+func (s *server) cancelUploads(accountID string) {
+	if ac, err := s.conn(accountID); err == nil {
+		ac.cancelUploads()
+	}
 }
