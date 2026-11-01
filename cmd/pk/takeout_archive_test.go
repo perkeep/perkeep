@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -185,5 +186,78 @@ func TestTakeoutArchive(t *testing.T) {
 	}
 	if root2 != root {
 		t.Errorf("archiving again made directory %v; want %v", root2, root)
+	}
+}
+
+// TestTakeoutImportPhotos checks that uploading an export's photos also
+// archives it, once.
+func TestTakeoutImportPhotos(t *testing.T) {
+	st := newTakeoutTestStore(t)
+	ctx := context.Background()
+	photo := strings.Repeat("photo ", 1000)
+	files := map[string]string{
+		"Takeout/Google Photos/2018-07-13/A.JPG":             photo,
+		"Takeout/Google Photos/2018-07-13/A.JPG.json":        testSidecar("A.JPG", "Space Needle"),
+		"Takeout/Google Photos/2018-07-13/A-edited.JPG":      photo + "edited",
+		"Takeout/Maps/My labeled places/Labeled places.json": "{}",
+	}
+	dir := t.TempDir()
+	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", files)
+	exps, err := takeout.LocalExports(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := exps[0]
+	if err := exp.LoadTOCs(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	importPhotos := func() {
+		t.Helper()
+		var ents []takeout.Entry
+		for _, e := range exp.Entries() {
+			if takeout.IsPhotosMedia(e.File.Name) && !takeout.IsEdited(e.File.Name) {
+				ents = append(ents, e)
+			}
+		}
+		cs := takeout.Contents(ents)
+		_, missing, err := takeout.Check(ctx, st, cs, 2, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := &takeoutCmd{workers: 2, permanodes: true}
+		if err := c.importPhotos(ctx, st, exp, cs, missing); err != nil {
+			t.Fatalf("importPhotos: %v", err)
+		}
+	}
+	importPhotos()
+
+	if got := permanodeAttrs(t, st, photoPermanode(t, st, "A.JPG")).Get("description"); got != "Space Needle" {
+		t.Errorf("A.JPG's description = %q; want Space Needle", got)
+	}
+	pn, err := st.plannedPermanodeRef(ctx, exportPermanodeKeyPrefix+exp.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, ok := blob.Parse(permanodeAttrs(t, st, pn).Get("camliContent"))
+	if !ok {
+		t.Fatal("export's permanode has no camliContent")
+	}
+	got, _ := readArchiveTree(t, st, root)
+	want := make(map[string]string)
+	for p, data := range files {
+		want["takeout-20240101T000000Z/takeout-20240101T000000Z-001.zip/"+p] = data
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("archive has %d files: %v; want %d: %v", len(got), slices.Sorted(maps.Keys(got)), len(want), slices.Sorted(maps.Keys(want)))
+	}
+
+	// Importing it again, as after an interruption, finds it all done.
+	// Only the metadata sync uploads anything: the planned permanode of
+	// the albums' root (one per album, with albums), which it has.
+	before := st.c.Stats().UploadRequests
+	importPhotos()
+	if after := st.c.Stats().UploadRequests; after.Blobs-before.Blobs > 1 {
+		t.Errorf("importing again requested %d more uploads (%d bytes); want just the albums' root permanode",
+			after.Blobs-before.Blobs, after.Bytes-before.Bytes)
 	}
 }
