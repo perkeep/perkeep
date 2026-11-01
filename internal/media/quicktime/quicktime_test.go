@@ -44,6 +44,12 @@ type item struct {
 // movie returns a QuickTime file with the given media data size,
 // movie duration, and mdta metadata items.
 func movie(mdatSize int, timeScale, dur uint32, items ...item) []byte {
+	return movieCreated(0, mdatSize, timeScale, dur, items...)
+}
+
+// movieCreated is like movie, with a movie header created at created,
+// in seconds since 1904.
+func movieCreated(created uint32, mdatSize int, timeScale, dur uint32, items ...item) []byte {
 	var keys, ilst [][]byte
 	for i, it := range items {
 		keys = append(keys, u32(uint32(8+len(it.key))), []byte("mdta"+it.key))
@@ -54,7 +60,7 @@ func movie(mdatSize int, timeScale, dur uint32, items ...item) []byte {
 		box("keys", u32(0), u32(uint32(len(items))), bytes.Join(keys, nil)),
 		box("ilst", ilst...),
 	)
-	mvhd := box("mvhd", u32(0), u32(0), u32(0), u32(timeScale), u32(dur), make([]byte, 80))
+	mvhd := box("mvhd", u32(0), u32(created), u32(0), u32(timeScale), u32(dur), make([]byte, 80))
 	trak := box("trak", box("tkhd", make([]byte, 84)))
 	return bytes.Join([][]byte{
 		box("ftyp", []byte("qt  "), u32(0), []byte("qt  ")),
@@ -106,8 +112,41 @@ func TestReadMetadata(t *testing.T) {
 
 func TestReadMetadataNoItems(t *testing.T) {
 	md := readMetadata(t, movie(10, 1000, 0xffffffff))
-	if md.Duration != 0 || md.Items != nil {
-		t.Errorf("got %+v; want zero duration, no items", md)
+	if md.Duration != 0 || md.Items != nil || !md.Created.IsZero() {
+		t.Errorf("got %+v; want zero duration and time, no items", md)
+	}
+}
+
+func TestReadMetadataCreated(t *testing.T) {
+	// 2024-05-31T01:48:50Z, in seconds since 1904.
+	const header = 2082844800 + 1717120130
+	headerTime := time.Unix(1717120130, 0).UTC()
+	pacific := time.FixedZone("", -7*60*60)
+	for _, tt := range []struct {
+		name    string
+		created uint32 // the movie header's
+		item    string // KeyCreationDate, if non-empty
+		want    time.Time
+	}{
+		{"item", 0, "2024-05-30T18:48:50-0700", time.Date(2024, 5, 30, 18, 48, 50, 0, pacific)},
+		{"item over header", header + 3600, "2024-05-30T18:48:50-0700", time.Date(2024, 5, 30, 18, 48, 50, 0, pacific)},
+		{"RFC 3339 item", 0, "2024-05-30T18:48:50-07:00", time.Date(2024, 5, 30, 18, 48, 50, 0, pacific)},
+		{"header", header, "", headerTime},
+		{"bad item", header, "May 30", headerTime},
+		{"neither", 0, "", time.Time{}},
+		// Counted from 1970, it comes out in 1958.
+		{"header counting from 1970", 1717120130, "", time.Time{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var items []item
+			if tt.item != "" {
+				items = append(items, item{KeyCreationDate, 1, []byte(tt.item)})
+			}
+			md := readMetadata(t, movieCreated(tt.created, 10, 600, 444, items...))
+			if !md.Created.Equal(tt.want) {
+				t.Errorf("Created = %v; want %v", md.Created, tt.want)
+			}
+		})
 	}
 }
 

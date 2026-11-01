@@ -234,7 +234,7 @@ func TestPopulateFileQuickTime(t *testing.T) {
 	tag := func(tag, val string) (string, string) { return keyMediaTag.Key(whole, tag), keyMediaTag.Val(val) }
 	want := map[string]string{
 		keyFileInfo.Key(file.BlobRef()):              keyFileInfo.Val(len(data), "IMG_3204.MOV", "video/quicktime", whole),
-		keyFileTimes.Key(file.BlobRef()):             keyFileTimes.Val("2023-11-14T22:13:20Z"),
+		keyFileTimes.Key(file.BlobRef()):             keyFileTimes.Val("2023-11-14T22:13:20Z,2026-10-19T00:49:20Z"),
 		keyWholeToFileRef.Key(whole, file.BlobRef()): "1",
 		keyEXIFGPS.Key(whole):                        "47.6305000|-122.3478000",
 	}

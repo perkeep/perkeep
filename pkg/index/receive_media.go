@@ -138,7 +138,9 @@ func isIndexedVideoMIME(mimeType string) bool {
 func (ix *Index) indexVideo(r io.ReaderAt, size int64, mimeType string, wholeRef blob.Ref, mm *mutationMap) {
 	switch {
 	case isQuickTimeMIME(mimeType):
-		ix.indexQuickTime(r, size, wholeRef, mm)
+		if md := ix.readQuickTime(r, size); md != nil {
+			ix.indexQuickTime(md, wholeRef, mm)
+		}
 	case isAVIMIME(mimeType):
 		ix.indexAVI(r, size, wholeRef, mm)
 	}
@@ -157,17 +159,23 @@ func setVideoSize(mm *mutationMap, wholeRef blob.Ref, width, height, rotation in
 	}
 }
 
-// indexQuickTime indexes a QuickTime or MP4 movie's duration, size, and
-// Apple metadata as media tags, and its location like an image's EXIF GPS
-// location.
-func (ix *Index) indexQuickTime(r io.ReaderAt, size int64, wholeRef blob.Ref, mm *mutationMap) {
+// readQuickTime returns the metadata of the QuickTime or MP4 movie r of
+// the given size, or nil if it can't read it.
+func (ix *Index) readQuickTime(r io.ReaderAt, size int64) *quicktime.Metadata {
 	md, err := quicktime.ReadMetadata(r, size)
 	if err != nil {
 		if debugEnv {
 			ix.printf("index: QuickTime metadata: %v", err)
 		}
-		return
+		return nil
 	}
+	return md
+}
+
+// indexQuickTime indexes a QuickTime or MP4 movie's duration, size, and
+// Apple metadata as media tags, and its location like an image's EXIF GPS
+// location.
+func (ix *Index) indexQuickTime(md *quicktime.Metadata, wholeRef blob.Ref, mm *mutationMap) {
 	if md.Duration > 0 {
 		setMediaTag(mm, wholeRef, MediaTagDurationMS, strconv.FormatInt(md.Duration.Milliseconds(), 10))
 	}
