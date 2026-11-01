@@ -28,7 +28,7 @@ package main
 //	POST   /accounts/{id}/hashes/lookup {keys}: cached whole-file refs
 //	POST   /accounts/{id}/hashes/file   {key, path}: hash a file
 //	POST   /accounts/{id}/findmissing   {items: [{key, refs}]}: which the server lacks
-//	POST   /accounts/{id}/uploads       {key, path, name, modTime, refs}: start uploading a file
+//	POST   /accounts/{id}/uploads       {key, path, name, modTime, refs, noDupCheck}: start uploading a file
 //	GET    /accounts/{id}/uploads       progress, and uploads finished since the last GET
 //	DELETE /accounts/{id}/uploads       cancel the uploads in progress
 //
@@ -531,6 +531,9 @@ func (s *server) serveStartUpload(w http.ResponseWriter, r *http.Request, ac *ac
 		Name    string    `json:"name"`
 		ModTime time.Time `json:"modTime"`
 		Refs    []string  `json:"refs"`
+		// NoDupCheck says the app already asked the server about the
+		// file, or found it can't ask, so the upload needn't.
+		NoDupCheck bool `json:"noDupCheck"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		return err
@@ -556,10 +559,11 @@ func (s *server) serveStartUpload(w http.ResponseWriter, r *http.Request, ac *ac
 		fi = namedFileInfo{fi, req.Name}
 	}
 	uf := upload.NewFile(ac.c, fi, f, &upload.Options{
-		Limiter:   ac.lim,
-		ModTime:   req.ModTime,
-		CapCtime:  true,
-		WholeRefs: refs,
+		Limiter:    ac.lim,
+		ModTime:    req.ModTime,
+		CapCtime:   true,
+		WholeRefs:  refs,
+		NoDupCheck: req.NoDupCheck,
 	})
 
 	ctx, cancel := context.WithCancel(ac.ctx)

@@ -83,16 +83,17 @@ struct UploadView: View {
         case .counting where model.assetCount > 0:
             return (Double(model.assetsSeen), Double(model.assetCount),
                     "\(model.assetsSeen.formatted()) of \(model.assetCount.formatted()) photos and videos looked at")
-        case .counting, .connecting:
+        case .counting:
             return nil
         case .hashing:
             return (Double(model.hashedBytes), Double(model.totalBytes),
                     "\(model.hashedCount.formatted()) of \(n.formatted()) files hashed · "
                         + "\(Self.bytes(model.hashedBytes)) of \(Self.bytes(model.totalBytes))")
         case .finding:
+            // Finding hashes what isn't hashed, too.
             let asked = model.onServer.count + model.missing.count
-            return (Double(asked), Double(model.hashedCount),
-                    "\(asked.formatted()) of \(model.hashedCount.formatted()) hashed files checked")
+            return (Double(asked), Double(n),
+                    "\(asked.formatted()) of \(n.formatted()) files checked · \(model.hashedCount.formatted()) hashed")
         case .idle, .uploading:
             guard model.counted, n > 0 else { return nil }
             let done = n - model.toUpload
@@ -144,8 +145,7 @@ struct UploadView: View {
                 Divider()
                 statHeader("Hashing")
                 stat("Hashed", model.hashedCount, model.hashedBytes)
-                stat("To hash", model.items.count - model.hashedCount, model.unhashedBytes,
-                     note: model.hashing > 0 ? "\(model.hashing) now" : nil)
+                stat("To hash", model.items.count - model.hashedCount, model.unhashedBytes)
                 Divider()
                 statHeader("Server")
                 stat("Already there", model.onServer.count, nil)
@@ -172,6 +172,9 @@ struct UploadView: View {
                 }
             }
             .font(.subheadline.monospacedDigit())
+            // Fill the row, so text changing width in the last column
+            // doesn't resize and move the grid.
+            .frame(maxWidth: .infinity, alignment: .leading)
         } footer: {
             if model.counted {
                 Text("Files include Live Photos' videos, and both versions of edited photos."
@@ -188,12 +191,13 @@ struct UploadView: View {
     }
 
     /// stat is a grid row of a count and, if known, their bytes.
-    private func stat(_ label: String, _ n: Int, _ bytes: Int64?, note: String? = nil) -> some View {
+    private func stat(_ label: String, _ n: Int, _ bytes: Int64?) -> some View {
         GridRow {
             Text(label)
             Self.number(n.formatted())
-            Text([bytes.map(Self.bytes), note].compactMap { $0 }.joined(separator: " · "))
+            Text(bytes.map(Self.bytes) ?? "")
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

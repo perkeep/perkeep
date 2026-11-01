@@ -1,15 +1,35 @@
 import Network
 import SwiftUI
 
-/// UploadModel backs up an account's media: it finds the items the
-/// account's album rules select, hashes them, asks the server which it
-/// lacks, and uploads those, keeping stats as it goes. The Go core does
-/// the hashing and uploading; see clients/mobile/core/uploads.go.
+/// UploadModel backs up an account's media, keeping stats as it goes. The
+/// Go core does the hashing and uploading; see clients/mobile/core/uploads.go.
+///
+/// The work is a pipeline of four stages, each depending on the one
+/// before: counting the files that the account's album rules select,
+/// hashing them, asking the server which it has, and uploading the rest.
+/// A run goes up to a target stage, with every stage up to it going at
+/// once: files are hashed as soon as they're counted, asked about as
+/// they're hashed, and uploaded as soon as the server says it lacks them.
+///
+/// Nothing is done twice. Counting uses a cache of the assets' files (see
+/// ResourceCache), and the core caches files' hashes, by a key that
+/// changes with their contents, and which hashes its server has a file of,
+/// by the server's storage generation. What the server lacks isn't
+/// cached, as another client may upload it. While uploading, a file
+/// exported from the photo library to hash it is kept for uploading, and
+/// the core skips asking the server again about each file it uploads.
+/// Chunks the server has are found by the upload itself.
 @MainActor
 final class UploadModel: ObservableObject {
+    /// Stage is how far a run goes.
+    enum Stage: Int, Comparable {
+        case count, hash, find, upload
+
+        static func < (a: Stage, b: Stage) -> Bool { a.rawValue < b.rawValue }
+    }
+
     enum Phase: String {
         case idle = "Ready"
-        case connecting = "Connecting"
         case counting = "Counting"
         case hashing = "Hashing"
         case finding = "Finding missing"
@@ -34,7 +54,7 @@ final class UploadModel: ObservableObject {
     @Published var confirmCellular = false
 
     // Counting.
-    @Published private(set) var counted = false
+    @Published private(set) var counted = false // a count has finished
     @Published private(set) var assetsSeen = 0
     @Published private(set) var assetCount = 0 // photos and videos; items are their files
     @Published private(set) var countSummary: String?
@@ -43,15 +63,14 @@ final class UploadModel: ObservableObject {
 
     // Hashing.
     @Published private(set) var refs: [String: [String]] = [:] // by item key
-    @Published private(set) var hashedBytes: Int64 = 0
-    @Published private(set) var hashing = 0 // items being hashed now
+    @Published private(set) var hashedBytes: Int64 = 0 // of items
 
     // Finding missing.
     @Published private(set) var onServer: Set<String> = []
     @Published private(set) var missing: Set<String> = []
 
     // Uploading.
-    @Published private(set) var uploaded: Set<String> = [] // by this run, or found on the server while running
+    @Published private(set) var uploaded: Set<String> = []
     @Published private(set) var uploadedBytes: Int64 = 0 // of the items' sizes
     @Published private(set) var failed = 0
     @Published private(set) var inFlight: [InFlight] = []
@@ -70,18 +89,36 @@ final class UploadModel: ObservableObject {
     }
 
     private var work: Task<Void, Never>?
-    private var connected = false
+    private var connection: Task<Void, Error>? // to the server, once started
     private var waiters: [Int: CheckedContinuation<UploadDone, Never>] = [:] // by core upload ID
     private var finished: [Int: UploadDone] = [:] // by core upload ID, with no waiter yet
     private var rateSamples: [(Date, Int64)] = []
+
+    // A run's state.
+    private var target = Stage.count
+    private var countingDone = false
+    private var hashCursor = 0             // into items: those before it are hashed or taken
+    private var taken: Set<String> = []    // items being hashed or uploaded
+    private var toCheck: [MediaItem] = []  // hashed, not yet asked about
+    private var uploadQueue: [MediaItem] = []
+    private var hashingNow = 0             // items being hashed
+    private var finishing = false          // in finishFinding
+    private var findingDone = false        // every counted item is hashed and asked about
+    private var searchFailed = false
+    private var exported: [String: URL] = [:] // by item key: files kept for uploading
+    private var exportedBytes: Int64 = 0
 
     private let monitor = NWPathMonitor()
     private var onCellular = false
     private var startedOnCellular = false
 
-    /// maxUploads is how many items are uploaded at once.
     private static let maxUploads = 3
     private static let maxHashing = 2
+    /// checkBatchSize is how many hashed items are asked about at once.
+    private static let checkBatchSize = 50
+    /// exportBudget is how many bytes of exported files may be kept for
+    /// uploading at once.
+    private static let exportBudget: Int64 = 1 << 30
 
     init(accountID: String, store: AccountStore) {
         self.accountID = accountID
@@ -102,7 +139,7 @@ final class UploadModel: ObservableObject {
     private func networkChanged(onCellular cell: Bool) {
         let was = onCellular
         onCellular = cell
-        if running && cell && !was && !startedOnCellular {
+        if running && cell && !was && !startedOnCellular && target == .upload {
             pause(notice: "Paused because the phone switched from Wi-Fi to cellular data.")
         }
     }
@@ -110,19 +147,19 @@ final class UploadModel: ObservableObject {
     // MARK: Stats
 
     var hashedCount: Int { items.lazy.filter { self.refs[$0.id] != nil }.count }
-    var unhashedBytes: Int64 { items.lazy.filter { self.refs[$0.id] == nil }.reduce(0) { $0 + $1.size } }
+    var unhashedBytes: Int64 { totalBytes - hashedBytes }
     var missingBytes: Int64 { items.lazy.filter { self.missing.contains($0.id) }.reduce(0) { $0 + $1.size } }
     /// toUpload is how many items aren't known to be on the server yet.
-    var toUpload: Int { items.count - onServer.count - uploaded.subtracting(onServer).count }
+    var toUpload: Int { items.lazy.filter { !self.onServer.contains($0.id) && !self.uploaded.contains($0.id) }.count }
     var toUploadBytes: Int64 {
         items.lazy.filter { !self.onServer.contains($0.id) && !self.uploaded.contains($0.id) }.reduce(0) { $0 + $1.size }
     }
 
     // MARK: Actions
 
-    func countLocal() { start(cellularOK: true) { try await self.count() } }
-    func hashLocal() { start(cellularOK: true) { try await self.hashAll() } }
-    func findMissing() { start(cellularOK: false) { try await self.findAll() } }
+    func countLocal() { start(.count, cellularOK: true) }
+    func hashLocal() { start(.hash, cellularOK: true) }
+    func findMissing() { start(.find, cellularOK: true) }
 
     /// upload uploads everything missing. On cellular data, it first asks.
     func upload(confirmedCellular: Bool = false) {
@@ -130,7 +167,7 @@ final class UploadModel: ObservableObject {
             confirmCellular = true
             return
         }
-        start(cellularOK: confirmedCellular) { try await self.uploadAll() }
+        start(.upload, cellularOK: confirmedCellular)
     }
 
     func pause(notice: String? = nil) {
@@ -139,7 +176,7 @@ final class UploadModel: ObservableObject {
         Task.detached { _ = try? Core.send("DELETE", "/accounts/\(self.accountID)/uploads") }
     }
 
-    private func start(cellularOK: Bool, _ fn: @escaping () async throws -> Void) {
+    private func start(_ target: Stage, cellularOK: Bool) {
         guard !running else { return }
         running = true
         notice = nil
@@ -147,22 +184,62 @@ final class UploadModel: ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = true
         work = Task {
             do {
-                try await fn()
+                try await run(to: target)
             } catch is CancellationError {
             } catch {
                 if !Task.isCancelled {
                     notice = error.localizedDescription
                 }
             }
+            MediaLibrary.clearTemp()
+            exported = [:]
+            exportedBytes = 0
             running = false
             phase = .idle
-            hashing = 0
             inFlight = []
             UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
-    // MARK: Phases
+    // MARK: The pipeline
+
+    private func run(to target: Stage) async throws {
+        self.target = target
+        countingDone = false
+        hashCursor = 0
+        taken = []
+        toCheck = []
+        uploadQueue = []
+        findingDone = false
+        searchFailed = false
+        failed = 0
+        items = []
+        totalBytes = 0
+        hashedBytes = 0
+        assetsSeen = 0
+        phase = .counting
+        MediaLibrary.clearTemp()
+        if target >= .hash && connection == nil {
+            // Connecting needn't wait for counting.
+            connection = Task { try await self.connect() }
+        }
+        let poller = target == .upload ? Task { await pollUploads() } : nil
+        defer { poller?.cancel() }
+        hashingNow = 0
+        let hashWorkers = target >= .hash ? Self.maxHashing : 0
+        try await withThrowingTaskGroup(of: Void.self) { g in
+            g.addTask { try await self.countAll() }
+            for _ in 0..<hashWorkers {
+                g.addTask { try await self.hashWorker() }
+            }
+            if target == .upload {
+                for _ in 0..<Self.maxUploads {
+                    g.addTask { try await self.uploadWorker() }
+                }
+            }
+            try await g.waitForAll()
+        }
+    }
 
     private func core<T: Decodable & Sendable>(_ method: String, _ path: String, _ body: (any Encodable & Sendable)? = nil) async throws -> T {
         let path = "/accounts/\(accountID)" + path
@@ -170,94 +247,155 @@ final class UploadModel: ObservableObject {
     }
 
     private func connect() async throws {
-        guard !connected else { return }
-        phase = .connecting
         guard let a = store.account(accountID) else { throw Core.Error(status: 404, message: "No such account.") }
         let s = Keychain.secrets(account: a.id) ?? Secrets()
         struct Resp: Decodable { var hashes: [String] }
         let _: Resp = try await core("POST", "/connect", ["password": s.password, "tailcat": s.tailcat])
-        connected = true
     }
 
-    private func count() async throws {
-        phase = .counting
-        assetsSeen = 0
-        let start = Date()
-        let c = try await MediaLibrary.count(accountID: accountID, store: store) { n, total in
-            Task { @MainActor in
-                self.assetsSeen = n
-                self.assetCount = total
-            }
+    /// connected waits for the connection to the server.
+    private func connected() async throws {
+        do {
+            try await connection?.value
+        } catch {
+            connection = nil // to try again next run
+            throw error
         }
-        let found = c.items
+    }
+
+    /// countAll counts the items, passing them on as it goes.
+    private func countAll() async throws {
+        let start = Date()
+        let c = try await MediaLibrary.count(accountID: accountID, store: store,
+                                             onStart: { self.assetCount = $0 },
+                                             onBatch: { batch, done in try await self.counted(batch, assetsDone: done) })
         assetCount = c.assets
         countSummary = String(format: "Counted in %.1f s, %@ of %@ photos and videos looked up in Photos, the rest cached",
                               Date().timeIntervalSince(start), c.lookedUp.formatted(), c.assets.formatted())
-        items = found
-        totalBytes = found.reduce(0) { $0 + $1.size }
+        countingDone = true
         counted = true
-        // Forget state about items no longer selected.
-        let keys = Set(found.map(\.id))
-        refs = refs.filter { keys.contains($0.key) }
-        onServer.formIntersection(keys)
-        missing.formIntersection(keys)
-        hashedBytes = found.lazy.filter { self.refs[$0.id] != nil }.reduce(0) { $0 + $1.size }
+        if target > .count {
+            phase = target == .hash ? .hashing : target == .find ? .finding : .uploading
+        }
+    }
+
+    /// counted adds counted items, with their cached hashes, queueing those
+    /// already hashed for asking about, and those known missing for
+    /// uploading.
+    private func counted(_ batch: [MediaItem], assetsDone: Int) async throws {
+        assetsSeen = assetsDone
+        if target >= .hash {
+            try await connected()
+            try await loadCachedHashes(batch)
+        }
+        items += batch
+        for item in batch {
+            totalBytes += item.size
+            guard refs[item.id] != nil else { continue }
+            hashedBytes += item.size
+            if uploaded.contains(item.id) || onServer.contains(item.id) {
+                continue
+            }
+            if missing.contains(item.id) {
+                if target == .upload {
+                    uploadQueue.append(item)
+                }
+            } else if target >= .find {
+                toCheck.append(item)
+            }
+        }
+        if toCheck.count >= Self.checkBatchSize {
+            try await flushChecks()
+        }
     }
 
     /// loadCachedHashes gets the core's cached hashes of the items.
-    private func loadCachedHashes() async throws {
+    private func loadCachedHashes(_ batch: [MediaItem]) async throws {
         struct Resp: Decodable { var refs: [String: [String]] }
-        let keys = items.map(\.id).filter { refs[$0] == nil }
-        for start in stride(from: 0, to: keys.count, by: 1000) {
+        let keys = batch.map(\.id).filter { refs[$0] == nil }
+        guard !keys.isEmpty else { return }
+        let r: Resp = try await core("POST", "/hashes/lookup", ["keys": keys])
+        for (k, v) in r.refs {
+            refs[k] = v
+        }
+    }
+
+    /// hashWorker hashes items until counting is done and there are none
+    /// left, passing them on to be asked about.
+    private func hashWorker() async throws {
+        while true {
             try Task.checkCancellation()
-            let r: Resp = try await core("POST", "/hashes/lookup", ["keys": Array(keys[start..<min(start + 1000, keys.count)])])
-            for (k, v) in r.refs {
-                refs[k] = v
-            }
-        }
-        hashedBytes = items.lazy.filter { self.refs[$0.id] != nil }.reduce(0) { $0 + $1.size }
-    }
-
-    private func prepare() async throws {
-        if !counted {
-            try await count()
-        }
-        try await connect()
-        try await loadCachedHashes()
-    }
-
-    private func hashAll() async throws {
-        try await prepare()
-        phase = .hashing
-        let todo = items.filter { refs[$0.id] == nil }
-        MediaLibrary.clearTemp()
-        try await forEach(todo, limit: Self.maxHashing) { item in
-            try await self.skippingFailure(item) {
-                let url = try await MediaLibrary.export(item)
-                defer { try? FileManager.default.removeItem(at: url) }
-                _ = try await self.hash(item, file: url)
+            if let item = nextToHash() {
+                try await hashOne(item)
+            } else if countingDone {
+                try await finishFinding()
+                return
+            } else {
+                try await Task.sleep(for: .milliseconds(50))
             }
         }
     }
 
-    /// skippingFailure runs fn for item, and if it fails other than by
-    /// cancellation, counts and reports the failure rather than stopping.
-    private func skippingFailure(_ item: MediaItem, _ fn: () async throws -> Void) async throws {
-        do {
-            try await fn()
-        } catch {
-            if error is CancellationError || Task.isCancelled {
-                throw error
+    /// hashOne exports and hashes an item, keeping the export when
+    /// uploading, and passes it on to be asked about, in a batch.
+    private func hashOne(_ item: MediaItem) async throws {
+        hashingNow += 1
+        defer { hashingNow -= 1 }
+        try await skippingFailure(item) {
+            let url = try await MediaLibrary.export(item)
+            var keep = false
+            defer {
+                if !keep {
+                    try? FileManager.default.removeItem(at: url)
+                }
             }
-            failed += 1
-            notice = "\(failed.formatted()) failed; last, \(item.name): \(error.localizedDescription)"
+            _ = try await self.hash(item, file: url)
+            if target == .upload && exportedBytes + item.size <= Self.exportBudget {
+                keep = true
+                exported[item.id] = url
+                exportedBytes += item.size
+            }
         }
+        taken.remove(item.id)
+        if target >= .find && refs[item.id] != nil {
+            toCheck.append(item)
+            if toCheck.count >= Self.checkBatchSize {
+                try await flushChecks()
+            }
+        }
+    }
+
+    /// finishFinding asks about the last hashed items, once counting is
+    /// done and nothing's left to hash or being hashed, and notes that
+    /// every item is hashed and asked about.
+    private func finishFinding() async throws {
+        guard countingDone && hashingNow == 0 && !findingDone && !finishing else { return }
+        finishing = true
+        defer { finishing = false }
+        if target >= .find {
+            try await flushChecks()
+        }
+        if hashingNow == 0 && hashCursor >= items.count {
+            findingDone = true
+        }
+    }
+
+    /// nextToHash takes the next counted item that isn't hashed, or returns
+    /// nil if there are none now.
+    private func nextToHash() -> MediaItem? {
+        while hashCursor < items.count {
+            let item = items[hashCursor]
+            hashCursor += 1
+            if refs[item.id] == nil && !taken.contains(item.id) && !uploaded.contains(item.id) {
+                taken.insert(item.id)
+                return item
+            }
+        }
+        return nil
     }
 
     /// hash hashes the item's exported file.
     private func hash(_ item: MediaItem, file: URL) async throws -> [String] {
-        hashing += 1
-        defer { hashing -= 1 }
         struct Resp: Decodable { var refs: [String] }
         let r: Resp = try await core("POST", "/hashes/file", ["key": item.id, "path": file.path])
         refs[item.id] = r.refs
@@ -265,15 +403,30 @@ final class UploadModel: ObservableObject {
         return r.refs
     }
 
-    private func findAll() async throws {
-        try await prepare()
-        phase = .finding
-        try await find(items.filter { refs[$0.id] != nil && !onServer.contains($0.id) })
+    private func flushChecks() async throws {
+        let batch = toCheck
+        toCheck = []
+        try await check(batch)
+    }
+
+    /// check asks the server about the hashed items, and when uploading,
+    /// queues those it lacks: all of them, if it can't say.
+    private func check(_ batch: [MediaItem]) async throws {
+        guard !batch.isEmpty else { return }
+        if !searchFailed, try await !find(batch) {
+            searchFailed = true
+        }
+        for item in batch where !uploaded.contains(item.id) {
+            if onServer.contains(item.id) {
+                dropExport(item.id)
+            } else if target == .upload && (searchFailed || missing.contains(item.id)) {
+                uploadQueue.append(item)
+            }
+        }
     }
 
     /// find asks the server which of the hashed items it has. It returns
     /// false if the server couldn't say, as without the Search permission.
-    @discardableResult
     private func find(_ batch: [MediaItem]) async throws -> Bool {
         struct Item: Encodable, Sendable { var key: String; var refs: [String] }
         struct Req: Encodable, Sendable { var items: [Item] }
@@ -296,113 +449,25 @@ final class UploadModel: ObservableObject {
         return true
     }
 
-    // The upload pipeline's state. Upload hashes items ahead of uploading
-    // them, at full speed, asks the server about them in batches as
-    // they're hashed, and uploads those it lacks. Upload workers with
-    // nothing to upload take an unhashed item and do all three.
-    private var hashCursor = 0             // into items: those before it are hashed or taken
-    private var taken: Set<String> = []    // items being hashed or uploaded
-    private var toCheck: [MediaItem] = []  // hashed, not yet asked about
-    private var uploadQueue: [MediaItem] = []
-    private var hashingDone = false
-    private var searchFailed = false
-
-    /// checkBatchSize is how many newly hashed items are asked about at once.
-    private static let checkBatchSize = 50
-
-    private func uploadAll() async throws {
-        try await prepare()
-        phase = .uploading
-        MediaLibrary.clearTemp()
-        hashCursor = 0
-        taken = []
-        toCheck = []
-        hashingDone = false
-        searchFailed = false
-        uploadQueue = items.filter { missing.contains($0.id) && !uploaded.contains($0.id) }
-        let poller = Task { await pollUploads() }
-        defer { poller.cancel() }
-        try await withThrowingTaskGroup(of: Void.self) { g in
-            g.addTask { try await self.hashAhead() }
-            for _ in 0..<Self.maxUploads {
-                g.addTask { try await self.uploadWorker() }
-            }
-            try await g.waitForAll()
+    private func dropExport(_ key: String) {
+        guard let url = exported.removeValue(forKey: key) else { return }
+        try? FileManager.default.removeItem(at: url)
+        if let item = items.first(where: { $0.id == key }) {
+            exportedBytes -= item.size
         }
     }
 
-    /// hashAhead hashes the items not yet hashed and asks the server about
-    /// them, queueing those it lacks for uploading.
-    private func hashAhead() async throws {
-        defer { hashingDone = true }
-        // First, those hashed before but not yet asked about.
-        try await check(items.filter {
-            refs[$0.id] != nil && !onServer.contains($0.id) && !missing.contains($0.id) && !uploaded.contains($0.id)
-        })
-        try await withThrowingTaskGroup(of: Void.self) { g in
-            for _ in 0..<Self.maxHashing {
-                g.addTask { try await self.hashWorker() }
-            }
-            try await g.waitForAll()
-        }
-        try await flushChecks()
+    /// takeExport returns the item's kept exported file, if any, which
+    /// the caller then deletes.
+    private func takeExport(_ item: MediaItem) -> URL? {
+        guard let url = exported.removeValue(forKey: item.id) else { return nil }
+        exportedBytes -= item.size
+        return url
     }
 
-    /// hashWorker hashes items until there are none left, asking the
-    /// server about them in batches.
-    private func hashWorker() async throws {
-        while let item = nextToHash() {
-            try await skippingFailure(item) {
-                let url = try await MediaLibrary.export(item)
-                defer { try? FileManager.default.removeItem(at: url) }
-                _ = try await self.hash(item, file: url)
-            }
-            taken.remove(item.id)
-            if refs[item.id] != nil {
-                toCheck.append(item)
-            }
-            if toCheck.count >= Self.checkBatchSize {
-                try await flushChecks()
-            }
-        }
-    }
-
-    /// nextToHash takes the next item that isn't hashed, or returns nil if
-    /// there are none left.
-    private func nextToHash() -> MediaItem? {
-        while hashCursor < items.count {
-            let item = items[hashCursor]
-            hashCursor += 1
-            if refs[item.id] == nil && !taken.contains(item.id) && !uploaded.contains(item.id) {
-                taken.insert(item.id)
-                return item
-            }
-        }
-        return nil
-    }
-
-    private func flushChecks() async throws {
-        let batch = toCheck
-        toCheck = []
-        try await check(batch)
-    }
-
-    /// check asks the server about the hashed items, and queues those it
-    /// lacks for uploading: all of them, if it can't say.
-    private func check(_ batch: [MediaItem]) async throws {
-        guard !batch.isEmpty else { return }
-        if !searchFailed, try await !find(batch) {
-            searchFailed = true
-        }
-        for item in batch where !onServer.contains(item.id) && !uploaded.contains(item.id) {
-            if searchFailed || missing.contains(item.id) {
-                uploadQueue.append(item)
-            }
-        }
-    }
-
-    /// uploadWorker uploads queued items until there are none left and
-    /// hashing is done, helping hash when there's nothing to upload yet.
+    /// uploadWorker uploads queued items until every item is hashed and
+    /// asked about and the queue's empty, helping hash when there's
+    /// nothing to upload yet.
     private func uploadWorker() async throws {
         while true {
             try Task.checkCancellation()
@@ -410,13 +475,17 @@ final class UploadModel: ObservableObject {
                 try await skippingFailure(item) { try await self.uploadOne(item) }
                 taken.remove(item.id)
             } else if let item = nextToHash() {
-                // Nothing to upload yet: hash one, and upload it if needed.
-                try await skippingFailure(item) { try await self.uploadOne(item) }
-                taken.remove(item.id)
-            } else if hashingDone && toCheck.isEmpty {
+                // Nothing to upload yet: help hash.
+                try await hashOne(item)
+            } else if findingDone {
                 return
             } else {
-                try await Task.sleep(for: .milliseconds(100))
+                // The hash workers may have finished before this worker's
+                // last hash; then it's up to this one.
+                try await finishFinding()
+                if !findingDone || !uploadQueue.isEmpty {
+                    try await Task.sleep(for: .milliseconds(100))
+                }
             }
         }
     }
@@ -432,7 +501,22 @@ final class UploadModel: ObservableObject {
         return nil
     }
 
-    /// uploadOne exports, hashes (if needed), checks, and uploads one item.
+    /// skippingFailure runs fn for item, and if it fails other than by
+    /// cancellation, counts and reports the failure rather than stopping.
+    private func skippingFailure(_ item: MediaItem, _ fn: () async throws -> Void) async throws {
+        do {
+            try await fn()
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw error
+            }
+            failed += 1
+            notice = "\(failed.formatted()) failed; last, \(item.name): \(error.localizedDescription)"
+        }
+    }
+
+    /// uploadOne uploads a queued item, exporting it unless the hashing
+    /// kept its export.
     private func uploadOne(_ item: MediaItem) async throws {
         inFlight.append(InFlight(item: item))
         defer { inFlight.removeAll { $0.id == item.id } }
@@ -442,29 +526,27 @@ final class UploadModel: ObservableObject {
                 inFlight[i].thumbnail = img
             }
         }
-        let url = try await MediaLibrary.export(item)
+        var url = takeExport(item)
+        if url == nil {
+            url = try await MediaLibrary.export(item)
+        }
+        guard let url else { return }
         defer { try? FileManager.default.removeItem(at: url) }
         try Task.checkCancellation()
-        var itemRefs = refs[item.id]
-        if itemRefs == nil {
-            setInFlight(item.id, phase: "hashing")
-            itemRefs = try await hash(item, file: url)
-            if !searchFailed, try await !find([item]) {
-                searchFailed = true
-            }
-            if onServer.contains(item.id) {
-                return
-            }
-        }
+        // Queued items are hashed, and were asked about (or can't be), so
+        // the core needn't ask again.
+        let itemRefs = refs[item.id] ?? []
         struct Req: Encodable, Sendable {
             var key, path, name: String
             var modTime: String?
             var refs: [String]
+            var noDupCheck: Bool
         }
         struct Resp: Decodable { var id: Int }
         let modTime = item.date.map { ISO8601DateFormatter().string(from: $0) }
         setInFlight(item.id, phase: "uploading")
-        let r: Resp = try await core("POST", "/uploads", Req(key: item.id, path: url.path, name: item.name, modTime: modTime, refs: itemRefs ?? []))
+        let r: Resp = try await core("POST", "/uploads", Req(key: item.id, path: url.path, name: item.name,
+                                                             modTime: modTime, refs: itemRefs, noDupCheck: true))
         if Task.isCancelled {
             // Paused while starting it; the pause's cancel may have missed it.
             pause(notice: notice)
@@ -560,27 +642,6 @@ final class UploadModel: ObservableObject {
         rateSamples.removeAll { now.timeIntervalSince($0.0) > 5 }
         if let first = rateSamples.first, now.timeIntervalSince(first.0) > 0.5 {
             bytesPerSecond = Double(bytes - first.1) / now.timeIntervalSince(first.0)
-        }
-    }
-
-    /// forEach runs fn for each item, at most limit at once, stopping at
-    /// the first error or cancellation.
-    private func forEach(_ items: [MediaItem], limit: Int, _ fn: @escaping (MediaItem) async throws -> Void) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { g in
-            var next = 0
-            while next < min(limit, items.count) {
-                let item = items[next]
-                g.addTask { try await fn(item) }
-                next += 1
-            }
-            while try await g.next() != nil {
-                try Task.checkCancellation()
-                if next < items.count {
-                    let item = items[next]
-                    g.addTask { try await fn(item) }
-                    next += 1
-                }
-            }
         }
     }
 }
