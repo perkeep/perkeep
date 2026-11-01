@@ -3,11 +3,7 @@ import SwiftUI
 /// UploadView backs up an account's photos and videos, with a button for
 /// each phase, live stats, and the items in flight.
 struct UploadView: View {
-    @StateObject private var model: UploadModel
-
-    init(accountID: String, store: AccountStore) {
-        _model = StateObject(wrappedValue: UploadModel(accountID: accountID, store: store))
-    }
+    @ObservedObject var model: UploadModel
 
     var body: some View {
         List {
@@ -43,7 +39,6 @@ struct UploadView: View {
                 model.upload(confirmedCellular: true)
             }
         }
-        .onDisappear { model.pause() }
     }
 
     private var overall: some View {
@@ -121,6 +116,9 @@ struct UploadView: View {
                 Button { model.findMissing() } label: {
                     Label("Find Missing", systemImage: "questionmark.folder")
                 }
+            }
+            NavigationLink(value: Route.gallery(model.accountID)) {
+                Label("Photos", systemImage: "photo.on.rectangle")
             }
         } footer: {
             if !model.running {

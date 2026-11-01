@@ -4,6 +4,7 @@ import SwiftUI
 struct PerkeepApp: App {
     @StateObject private var accounts = AccountStore()
     @StateObject private var router = Router()
+    @StateObject private var uploads = UploadCenter()
 
     init() {
         Core.initialize()
@@ -14,7 +15,24 @@ struct PerkeepApp: App {
             ContentView()
                 .environmentObject(accounts)
                 .environmentObject(router)
+                .environmentObject(uploads)
         }
+    }
+}
+
+/// UploadCenter holds each account's UploadModel, for the app's life, so
+/// a run goes on while the user moves between screens.
+@MainActor
+final class UploadCenter: ObservableObject {
+    private var models: [String: UploadModel] = [:]
+
+    func model(for accountID: String, store: AccountStore) -> UploadModel {
+        if let m = models[accountID] {
+            return m
+        }
+        let m = UploadModel(accountID: accountID, store: store)
+        models[accountID] = m
+        return m
     }
 }
 
@@ -26,6 +44,7 @@ enum Route: Hashable {
     case editAccount(String) // account ID
     case albums(String)      // account ID
     case upload(String)      // account ID
+    case gallery(String)     // account ID
 }
 
 /// Router holds the navigation stack.
@@ -55,6 +74,7 @@ final class Router: ObservableObject {
         case "add": return [.accounts, .addAccount(nil)]
         case "account" where !current.isEmpty: return [.account(current)]
         case "upload" where !current.isEmpty: return [.account(current), .upload(current)]
+        case "gallery" where !current.isEmpty: return [.account(current), .gallery(current)]
         case "edit" where !current.isEmpty: return [.accounts, .editAccount(current)]
         case "albums" where !current.isEmpty: return [.accounts, .editAccount(current), .albums(current)]
         default: return []
@@ -65,6 +85,7 @@ final class Router: ObservableObject {
 struct ContentView: View {
     @EnvironmentObject private var accounts: AccountStore
     @EnvironmentObject private var router: Router
+    @EnvironmentObject private var uploads: UploadCenter
 
     var body: some View {
         NavigationStack(path: $router.path) {
@@ -76,7 +97,8 @@ struct ContentView: View {
                 case .addAccount(let ai): AccountEditView(accountID: nil, prefill: ai)
                 case .editAccount(let id): AccountEditView(accountID: id)
                 case .albums(let id): AlbumsView(accountID: id)
-                case .upload(let id): UploadView(accountID: id, store: accounts)
+                case .upload(let id): UploadView(model: uploads.model(for: id, store: accounts))
+                case .gallery(let id): GalleryView(model: uploads.model(for: id, store: accounts))
                 }
             }
         }
