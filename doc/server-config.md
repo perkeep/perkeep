@@ -349,7 +349,7 @@ The web UI's Client access page (`/access/`, in its top-left menu)
 manages access keys, which let clients such as mobile apps use the server
 with only the permissions you give them: to upload blobs, make claims
 (the server signs them, so clients don't need the GPG private key),
-search, download blobs, and get the server's status. Clients send a key
+search, download blobs, and see a summary of its storage. Clients send a key
 as the password of HTTP basic auth, with any username. Keys work on the
 server's usual listeners, in addition to the `auth` setting's
 credentials.

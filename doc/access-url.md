@@ -61,9 +61,11 @@ permissions don't allow, a 403.
 Start with the server's [discovery](/doc/protocol/discovery.md) document,
 at `GET /` with the header `Accept: text/x-camli-configuration` (or at
 `/?camli.mode=config`), which any valid key may get. It names the
-handlers below (`blobRoot`, `searchRoot`, `jsonSignRoot`, `statusRoot`,
-`uiRoot`). Its `authToken`, which allows everything, is empty for access
-keys.
+handlers below (`blobRoot`, `searchRoot`, `jsonSignRoot`, `uiRoot`). Its
+`client` object has the key's name and permissions, for clients to know
+which features to enable, and the server's name; see
+[discovery](/doc/protocol/discovery.md#the-requesters-permissions-and-the-servers-storage).
+Its `authToken`, which allows everything, is empty for access keys.
 
 Each permission allows these requests, and no others:
 
@@ -73,7 +75,7 @@ Each permission allows these requests, and no others:
 | Make claims | `POST $jsonSignRoot/camli/sig/sign` and `/camli/sig/verify`, and `GET`s under `$jsonSignRoot`, such as its discovery and public key |
 | Search | the search handler's read-only endpoints under `$searchRoot/camli/search/`: `GET` of `recent`, `permanodeattr`, `describe`, `exif`, `claims`, `files`, `signerattrvalue`, `signerpaths`, and `edgesto`, and `POST` of `describe` and `query` |
 | Download blobs | `GET` of `$blobRoot/camli/BLOBREF` and `$blobRoot/camli/enumerate-blobs`, stat, and `GET` of `$uiRoot/download/...` and `$uiRoot/thumbnail/...` |
-| Server stats | `GET $statusRoot/status.json` |
+| Server stats | no requests of its own: discovery's `storage` object, which summarizes the server's storage |
 
 Make claims has the server sign the JSON a client sends with the server's
 own identity, so the client needn't hold the GPG private key; the client

@@ -450,14 +450,15 @@ func (hl *handlerLoader) newAccessHandler(stateFile, tlsCertFile string) (*acces
 		return nil, fmt.Errorf("the Access page needs a handler installer that's an http.Handler, not %T", hl.installer)
 	}
 	var roots access.Roots
+	var rh *server.RootHandler
 	if _, h, err := hl.FindHandlerByType("root"); err == nil {
-		if rh, ok := h.(*server.RootHandler); ok {
-			roots.Blob, roots.Search, roots.Sign = rh.BlobRoot, rh.SearchRoot, rh.JSONSignRoot
-		}
+		rh, _ = h.(*server.RootHandler)
 	}
-	roots.Status, _, _ = hl.FindHandlerByType("status")
+	if rh != nil {
+		roots.Blob, roots.Search, roots.Sign = rh.BlobRoot, rh.SearchRoot, rh.JSONSignRoot
+	}
 	roots.UI, _, _ = hl.FindHandlerByType("ui")
-	return access.New(access.Config{
+	ah, err := access.New(access.Config{
 		Prefix:      AccessPath,
 		StateFile:   stateFile,
 		Roots:       roots,
@@ -466,6 +467,15 @@ func (hl *handlerLoader) newAccessHandler(stateFile, tlsCertFile string) (*acces
 		BaseURL:     hl.baseURL,
 		TLSCertFile: tlsCertFile,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if rh != nil {
+		// Discovery describes each requester's access key, or other
+		// credentials, for clients to know what they may do.
+		rh.SetClientDescriber(ah)
+	}
+	return ah, nil
 }
 
 type unauthorizedHandler struct{}

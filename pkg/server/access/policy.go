@@ -31,7 +31,7 @@ const (
 	PermSign                      // have the server sign claims and other schema blobs
 	PermSearch                    // run searches and describe blobs
 	PermDownload                  // fetch and enumerate blobs, and files' contents and thumbnails
-	PermStats                     // get the server's status
+	PermStats                     // get the summary of the server's storage in discovery
 )
 
 // permInfo describes each permission, in the order the Access page lists
@@ -49,7 +49,7 @@ var permInfo = []struct {
 	{PermSign, "sign", "Make claims", "Have the server sign claims and permanodes with its identity, without the client holding the GPG private key."},
 	{PermSearch, "search", "Search", "Run searches and describe blobs."},
 	{PermDownload, "download", "Download blobs", "Fetch and enumerate blobs, and download files and their thumbnails."},
-	{PermStats, "stats", "Server stats", "Get the server's status JSON."},
+	{PermStats, "stats", "Server stats", "See how many blobs the server has, and how much space they take."},
 }
 
 func (p Perm) Has(q Perm) bool { return p&q == q }
@@ -90,7 +90,6 @@ type Roots struct {
 	Blob   string // blob storage, as in discovery's blobRoot
 	Search string
 	Sign   string // jsonsign
-	Status string
 	UI     string
 }
 
@@ -181,12 +180,6 @@ func (rt Roots) need(r *http.Request) (anyOf Perm, ok bool) {
 		// GETs are for its discovery and public key.
 		if isGet || (isPost && (suffix == "camli/sig/sign" || suffix == "camli/sig/verify")) {
 			return PermSign, true
-		}
-		return 0, false
-	}
-	if suffix, ok := under(rt.Status); ok {
-		if isGet && suffix == "status.json" {
-			return PermStats, true
 		}
 		return 0, false
 	}

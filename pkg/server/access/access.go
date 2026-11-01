@@ -71,6 +71,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/health"
+	"perkeep.org/pkg/types/camtypes"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
@@ -572,6 +573,31 @@ func (h *Handler) AllowedAccess(r *http.Request) auth.Operation {
 		return auth.OpAll
 	}
 	return 0
+}
+
+// DescribeClient implements perkeep.org/pkg/server.ClientDescriber, for
+// discovery: it returns the server's name for clients, and the permissions
+// of the requester, which are those of its access key if it used one, or
+// else those that its other credentials allow.
+func (h *Handler) DescribeClient(r *http.Request) *camtypes.ClientDiscovery {
+	c := &camtypes.ClientDiscovery{ServerName: h.name()}
+	var p Perm
+	if k := h.keyFor(r); k != nil {
+		c.AccessKeyName, p = k.Name, k.perm
+	} else if auth.AllowedUnscoped(r, auth.OpAll) {
+		p = PermUpload | PermSign | PermSearch | PermDownload | PermStats
+	} else {
+		// Credentials such as a vivify password allow only some
+		// blob operations.
+		if auth.AllowedUnscoped(r, auth.OpUpload) {
+			p |= PermUpload
+		}
+		if auth.AllowedUnscoped(r, auth.OpGet) {
+			p |= PermDownload
+		}
+	}
+	c.Permissions = append([]string{}, p.Names()...) // [] rather than null
+	return c
 }
 
 // AddAuthHeader implements [auth.AuthMode]. It adds nothing, as the

@@ -47,6 +47,7 @@ import (
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/types/clientconfig"
 	"perkeep.org/pkg/types/serverconfig"
 
@@ -818,23 +819,38 @@ func TestAccessPage(t *testing.T) {
 
 	// On the usual listener, the key allows discovery, but discovery
 	// doesn't give it the web UI's token, which allows everything.
-	discoToken := func(user, pass string) string {
+	discovery := func(user, pass string) camtypes.Discovery {
 		t.Helper()
 		w := get("/?camli.mode=config", user, pass)
 		if w.Code != 200 {
 			t.Fatalf("discovery as %q: %v: %s", user, w.Code, w.Body)
 		}
-		var d struct{ AuthToken string }
+		var d camtypes.Discovery
 		if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
 			t.Fatalf("discovery as %q: %v: %s", user, err, w.Body)
 		}
-		return d.AuthToken
+		return d
 	}
-	if tok := discoToken("owner", "pw"); tok == "" {
+	owner := discovery("owner", "pw")
+	if owner.AuthToken == "" {
 		t.Error("discovery as the owner has no auth token")
 	}
-	if tok := discoToken("anyone", secret); tok != "" {
-		t.Errorf("discovery with an access key has auth token %q", tok)
+	if c := owner.Client; c == nil || c.AccessKeyName != "" || !slices.Equal(c.Permissions, []string{"upload", "sign", "search", "download", "stats"}) || c.ServerName == "" {
+		t.Errorf("discovery as the owner has client %+v; want all permissions and a server name", c)
+	}
+	if owner.Storage == nil {
+		t.Error("discovery as the owner has no storage summary")
+	}
+	// The key has only the upload permission, so no storage summary.
+	key := discovery("anyone", secret)
+	if key.AuthToken != "" {
+		t.Errorf("discovery with an access key has auth token %q", key.AuthToken)
+	}
+	if c := key.Client; c == nil || c.AccessKeyName != "phone" || !slices.Equal(c.Permissions, []string{"upload"}) {
+		t.Errorf("discovery with an access key has client %+v; want key %q with permission upload", c, "phone")
+	}
+	if key.Storage != nil {
+		t.Errorf("discovery with an access key without the stats permission has storage %+v", key.Storage)
 	}
 	if w := get(serverinit.AccessPath, "anyone", secret); w.Code != http.StatusUnauthorized {
 		t.Errorf("Client access page with an access key: %v; want 401", w.Code)

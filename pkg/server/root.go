@@ -22,6 +22,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"slices"
 	"sort"
 	"sync"
 
@@ -31,6 +32,7 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/types/camtypes"
@@ -72,6 +74,22 @@ type RootHandler struct {
 	ui   *UIHandler           // or nil, if none configured
 	sigh *signhandler.Handler // or nil, if none configured
 	sync []*SyncHandler       // list of configured sync handlers, for discovery.
+
+	health  *health.Monitor // or nil; has the storage census's estimates
+	clients ClientDescriber // or nil; see SetClientDescriber
+}
+
+// A ClientDescriber describes the requesters of discovery requests.
+type ClientDescriber interface {
+	// DescribeClient returns what the requester of r may do.
+	DescribeClient(r *http.Request) *camtypes.ClientDiscovery
+}
+
+// SetClientDescriber sets d to describe the requesters of discovery
+// requests, in the discovery's client section; without one, it has none.
+// It must be called before the handler serves requests.
+func (rh *RootHandler) SetClientDescriber(d ClientDescriber) {
+	rh.clients = d
 }
 
 func (rh *RootHandler) SearchHandler() (h *search.Handler, ok bool) {
@@ -109,6 +127,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		OwnerName:    conf.OptionalString("ownerName", username),
 		Username:     osutil.Username(),
 		Prefix:       ld.MyPrefix(),
+		health:       ld.Health(),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
@@ -281,7 +300,32 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		d.SyncHandlers = syncHandlers
 	}
 	d.HasLegacySHA1Index = rh.hasLegacySHA1
+	if rh.clients != nil {
+		d.Client = rh.clients.DescribeClient(req)
+		if slices.Contains(d.Client.Permissions, "stats") {
+			d.Storage = rh.storageDiscovery()
+		}
+	}
 	discoveryHelper(rw, req, d)
+}
+
+// storageDiscovery returns the summary of the BlobRoot storage for
+// discovery, from the storage census's latest estimates, if any.
+func (rh *RootHandler) storageDiscovery() *camtypes.StorageDiscovery {
+	sd := &camtypes.StorageDiscovery{}
+	ests, ok := rh.health.Details(blobserver.CensusID(rh.BlobRoot)).([]blobserver.HashEstimate)
+	if !ok || len(ests) == 0 {
+		return sd
+	}
+	// The census has one estimate per hash type, of the BlobRoot storage
+	// alone, which, for storage made of others (such as replicas), the
+	// census already combined from theirs. Hash types' blobs are
+	// disjoint, so they add up.
+	for _, e := range ests {
+		sd.ApproxBlobs += e.Blobs
+		sd.ApproxBytes += e.Bytes
+	}
+	return sd
 }
 
 func discoveryHelper(rw http.ResponseWriter, req *http.Request, dr *camtypes.Discovery) {
