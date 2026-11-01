@@ -73,7 +73,7 @@ func init() {
 		flags.Float64Var(&cmd.driveRate, "drive-rate", 10, "The most requests a second to make to Google Drive, which limits them per minute. Zero means no limit.")
 		flags.BoolVar(&cmd.slow, "slow", false, "Go easy on Google Drive's quota, leaving room for other users of it: like -drive-rate=2.")
 		flags.IntVar(&cmd.workers, "j", 8, "How many files to check or upload at once.")
-		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does, with its Google Photos metadata (title, description, dates, location), and keep a set of each album's photos. Without, upload just the files.")
+		flags.BoolVar(&cmd.permanodes, "permanodes", true, "Make a permanode for each uploaded file, based on its contents, as pk-put -filenodes does, with its Google Photos metadata (title, description, dates, location), and keep a set of each album's photos, and archive the export. Without, upload just the files.")
 		flags.BoolVar(&cmd.verbose, "v", false, "List the missing or uploaded files.")
 		return cmd
 	})
@@ -98,9 +98,10 @@ files' common prefix, such as takeout-20240101T120000Z.
 
 "upload" makes each file's permanode with its Google Photos metadata
 (title, description, dates, location) from the export's sidecar files,
-which it reads first, in the same claim as the file, and then sets the
-metadata of the photos the server had and keeps a set of each album's
-photos. With -permanodes=false, it uploads just the files.
+which it reads first, in the same claim as the file. Then, unless the
+export's archived already, it archives it, as "archive" does, and then
+sets the metadata of the photos the server had and keeps a set of each
+album's photos. With -permanodes=false, it uploads just the files.
 
 "archive" keeps all of an export's files, of every kind: a directory of
 each zip file's files, in a directory of the export, which is the content
@@ -231,7 +232,14 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		}
 		return nil
 	}
+	return c.importPhotos(ctx, st, exp, cs, missing)
+}
 
+// importPhotos imports the photos cs of exp, of which the server doesn't
+// have missing: it uploads them, with permanodes with their metadata,
+// archives exp, and then syncs the metadata of the photos the server had,
+// and the albums.
+func (c *takeoutCmd) importPhotos(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs, missing []*takeout.Content) error {
 	if !st.permanodes || c.all {
 		// Without permanodes, there's nothing to set metadata on,
 		// and the files of -all aren't all photos.
@@ -248,7 +256,32 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if err := c.upload(ctx, st, missing); err != nil {
 		return err
 	}
+	if err := c.archiveNew(ctx, st, exp); err != nil {
+		return err
+	}
 	return c.syncMeta(ctx, st, exp, cs)
+}
+
+// archiveNew archives exp, as "archive" does, unless it's archived
+// already: its permanode has contents. Uploading reads the export's
+// photos and sidecars anyway, so keeping all of it costs little more,
+// and puts its sidecars on the server too.
+func (c *takeoutCmd) archiveNew(ctx context.Context, st *takeoutStore, exp *takeout.Export) error {
+	pn, err := st.plannedPermanodeRef(ctx, exportPermanodeKeyPrefix+exp.Name)
+	if err != nil {
+		return err
+	}
+	res, err := st.c.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
+	if err != nil {
+		return err
+	}
+	if db := res.Meta.Get(pn); db != nil && db.Permanode != nil && db.Permanode.Attr.Get(nodeattr.CamliContent) != "" {
+		log.Printf("%s is archived already, as permanode %v.", exp.Name, pn)
+		return nil
+	}
+	a := &takeoutArchive{st: st, exp: exp, workers: c.workers, verbose: c.verbose}
+	_, err = a.run(ctx)
+	return err
 }
 
 // readMeta reads the Google Photos metadata of the photos cs of exp, for
