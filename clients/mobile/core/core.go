@@ -263,11 +263,24 @@ func (f *accountFields) normalize() error {
 }
 
 func (s *server) serveAddAccount(w http.ResponseWriter, r *http.Request) error {
-	var f accountFields
+	var f struct {
+		accountFields
+		// ID, if set, is the new account's ID, as for a copy of an
+		// account in another process's core, like the share extension's.
+		ID string `json:"id"`
+	}
 	if err := readJSON(r, &f); err != nil {
 		return err
 	}
-	a := &Account{ID: newAccountID()}
+	a := &Account{ID: f.ID}
+	switch {
+	case a.ID == "":
+		a.ID = newAccountID()
+	case !validAccountID(a.ID):
+		return errorf(http.StatusBadRequest, "bad account ID")
+	case s.accounts.find(a.ID) != nil:
+		return errorf(http.StatusConflict, "account already exists")
+	}
 	a.Include, a.Exclude = newAccountAlbums()
 	if err := f.apply(a); err != nil {
 		return err
