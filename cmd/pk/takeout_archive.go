@@ -129,10 +129,9 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		}
 		for i := range c.Entries {
 			e := &c.Entries[i]
+			// No modification time: Takeout gives each entry the
+			// time the export was made. (See takeoutStore.Put.)
 			fm := schema.NewFileMap(path.Base(e.File.Name))
-			if !e.File.Modified.IsZero() {
-				fm.SetModTime(e.File.Modified)
-			}
 			if err := fm.PopulateParts(size, parts); err != nil {
 				return err
 			}

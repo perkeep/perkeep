@@ -196,7 +196,11 @@ func TestTakeoutStore(t *testing.T) {
 	}
 	file := res.Describe.Meta[pn.Permanode.Attr.Get("camliContent")]
 	if file == nil || file.File == nil || file.File.FileName != "VID_0002.MP4" {
-		t.Errorf("permanode's camliContent = %+v; want the file VID_0002.MP4", file)
+		t.Fatalf("permanode's camliContent = %+v; want the file VID_0002.MP4", file)
+	}
+	// The zip entry's time is when the export was made, not the video's.
+	if file.File.Time != nil || file.File.ModTime != nil {
+		t.Errorf("file has time %v, modTime %v, from its zip entry; want none", file.File.Time, file.File.ModTime)
 	}
 }
 
