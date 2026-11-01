@@ -386,7 +386,7 @@ func TestImmichInstalledHTTP(t *testing.T) {
 				t.Fatalf("users/me email = %q, want %q", user.Email, wantEmail)
 			}
 
-			nativeURL := testServer.URL + "/my-search/"
+			nativeURL := testServer.URL + "/search/"
 			parsed, err := url.Parse(nativeURL)
 			if err != nil {
 				t.Fatal(err)
@@ -658,7 +658,7 @@ func TestImmichInstalledHTTPNativeRecovery(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				queryURL := strings.TrimSuffix(api.apiURL, "immich/api/") + "my-search/camli/search/query"
+				queryURL := strings.TrimSuffix(api.apiURL, "immich/api/") + "search/camli/search/query"
 				req, err := http.NewRequest(http.MethodPost, queryURL, bytes.NewReader(body))
 				if err != nil {
 					t.Fatal(err)

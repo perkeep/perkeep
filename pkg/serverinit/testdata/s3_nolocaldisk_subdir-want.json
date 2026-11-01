@@ -9,7 +9,7 @@
 				"blobRoot": "/bs/",
 				"helpRoot": "/help/",
 				"jsonSignRoot": "/sighelper/",
-				"searchRoot": "/my-search/",
+				"searchRoot": "/search/",
 				"shareRoot": "/share/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -46,7 +46,7 @@
 				}
 			}
 		},
-		"/my-search/": {
+		"/search/": {
 			"handler": "search",
 			"handlerArgs": {
 				"index": "/index/",

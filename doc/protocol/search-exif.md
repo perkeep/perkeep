@@ -3,7 +3,7 @@
 `GET <searchRoot>camli/search/exif?blobref=<fileRef>` returns the EXIF
 metadata already indexed for a file schema. Discover `searchRoot` using
 [discovery](discovery.md); for example, the usual configured URL is
-`/my-search/camli/search/exif?blobref=sha224-…`.
+`/search/camli/search/exif?blobref=sha224-…`.
 
 This endpoint uses the search handler's normal authentication. EXIF can contain
 private information, including GPS coordinates, camera serial numbers and

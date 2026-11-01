@@ -432,7 +432,7 @@ func TestInstallHandlers(t *testing.T) {
 		},
 
 		{
-			prefix:        "/my-search/",
+			prefix:        "/search/",
 			handlerType:   reflect.TypeOf(&search.Handler{}),
 			prefixWrapped: true,
 			authWrapped:   true,
@@ -724,7 +724,7 @@ func TestInstallHandlersLazyBaseURL(t *testing.T) {
 	hi := &recordingInstaller{ServeMux: http.NewServeMux()}
 	baseURL := "http://" + conf.Listen
 	shutdown, err := lowConf.InstallHandlersLazy(hi, func() string {
-		if !hi.has("/my-search/") {
+		if !hi.has("/search/") {
 			t.Error("base URL requested before the search handler was set up")
 		}
 		return baseURL

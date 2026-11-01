@@ -356,7 +356,7 @@ configuration above:
     "handlerArgs": {
         "blobRoot": "/bs/",
         "jsonSignRoot": "/sighelper/",
-        "searchRoot": "/my-search/"
+        "searchRoot": "/search/"
     }
 }
 ```

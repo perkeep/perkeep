@@ -197,7 +197,7 @@ func TestImmichConfig(t *testing.T) {
 			want := map[string]any{
 				"blobRoot":     "/bs/",
 				"jsonSignRoot": "/sighelper/",
-				"searchRoot":   "/my-search/",
+				"searchRoot":   "/search/",
 			}
 			if _, ok := got["metadata"]; ok {
 				t.Error("generated config contains runtime metadata database")
@@ -231,7 +231,7 @@ func TestImmichConfig(t *testing.T) {
 			if got["searchRoot"] != root["searchRoot"] {
 				t.Error("Immich does not use the server's native search handler")
 			}
-			searchPrefix, ok := prefixes["/my-search/"].(map[string]any)
+			searchPrefix, ok := prefixes["/search/"].(map[string]any)
 			if !ok {
 				t.Fatal("missing native search handler")
 			}
@@ -350,8 +350,8 @@ func TestLoadImmichHighLevelConfig(t *testing.T) {
 					t.Errorf("new config unexpectedly includes %s", key)
 				}
 			}
-			if args["searchRoot"] != "/my-search/" {
-				t.Errorf("searchRoot = %v; want /my-search/", args["searchRoot"])
+			if args["searchRoot"] != "/search/" {
+				t.Errorf("searchRoot = %v; want /search/", args["searchRoot"])
 			}
 			for _, key := range []string{"email", "password"} {
 				if _, ok := args[key]; ok != standalone {
@@ -381,7 +381,7 @@ func TestLoadImmichEmptyConfig(t *testing.T) {
 	want := map[string]any{
 		"blobRoot":     "/bs/",
 		"jsonSignRoot": "/sighelper/",
-		"searchRoot":   "/my-search/",
+		"searchRoot":   "/search/",
 	}
 	if !reflect.DeepEqual(args, want) {
 		t.Errorf("empty Immich config handler args = %#v; want %#v", args, want)

@@ -14,7 +14,7 @@
 				"blobRoot": "/bs/",
 				"helpRoot": "/help/",
 				"statusRoot": "/status/",
-				"searchRoot": "/my-search/",
+				"searchRoot": "/search/",
 				"shareRoot": "/share/",
 				"stealth": false
 			}
@@ -329,7 +329,7 @@
 			}
 		},
 
-		"/my-search/": {
+		"/search/": {
 			"handler": "search",
 			"handlerArgs": {
 				"index": ["_env", "${CAMLI_INDEXER_PATH}"],

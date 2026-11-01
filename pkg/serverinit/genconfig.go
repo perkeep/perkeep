@@ -846,7 +846,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		rootArgs["ownerName"] = b.high.OwnerName
 	}
 	if b.runIndex() {
-		rootArgs["searchRoot"] = "/my-search/"
+		rootArgs["searchRoot"] = "/search/"
 	}
 	if path := b.high.ShareHandlerPath; path != "" {
 		rootArgs["shareRoot"] = path
@@ -899,7 +899,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		a := args{
 			"blobRoot":     root,
 			"jsonSignRoot": "/sighelper/",
-			"searchRoot":   "/my-search/",
+			"searchRoot":   "/search/",
 		}
 		if conf.MetadataFile != "" {
 			a["legacyMetadata"] = map[string]any{
@@ -999,7 +999,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		if b.copyIndexToMemory() {
 			searchArgs["slurpToMemory"] = true
 		}
-		b.addPrefix("/my-search/", "search", searchArgs)
+		b.addPrefix("/search/", "search", searchArgs)
 	}
 
 	return nil
