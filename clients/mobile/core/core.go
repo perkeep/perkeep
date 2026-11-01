@@ -313,7 +313,7 @@ func (s *server) serveDeleteAccount(w http.ResponseWriter, r *http.Request, a *A
 		return err
 	}
 	s.dropConn(a.ID)
-	os.Remove(filepath.Join(s.dataDir, haveFile(a.ID)))
+	removeHaveFiles(s.dataDir, a.ID, "")
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
