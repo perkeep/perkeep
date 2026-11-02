@@ -218,21 +218,24 @@ func (h *Handler) HasLegacySHA1() bool {
 }
 
 var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
-	"ws":              (*Handler).serveWebSocket,
-	"recent":          (*Handler).serveRecentPermanodes,
-	"permanodeattr":   (*Handler).servePermanodesWithAttr,
-	"describe":        (*Handler).serveDescribe,
-	"exif":            (*Handler).serveEXIF,
-	"claims":          (*Handler).serveClaims,
-	"files":           (*Handler).serveFiles,
-	"signerattrvalue": (*Handler).serveSignerAttrValue,
-	"signerpaths":     (*Handler).serveSignerPaths,
-	"edgesto":         (*Handler).serveEdgesTo,
+	"ws":                (*Handler).serveWebSocket,
+	"recent":            (*Handler).serveRecentPermanodes,
+	"permanodeattr":     (*Handler).servePermanodesWithAttr,
+	"describe":          (*Handler).serveDescribe,
+	"exif":              (*Handler).serveEXIF,
+	"claims":            (*Handler).serveClaims,
+	"files":             (*Handler).serveFiles,
+	"contentpermanodes": (*Handler).serveContentPermanodes,
+	"signerattrvalue":   (*Handler).serveSignerAttrValue,
+	"signerpaths":       (*Handler).serveSignerPaths,
+	"edgesto":           (*Handler).serveEdgesTo,
 }
 
 var postHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
 	"describe": (*Handler).serveDescribe,
 	"query":    (*Handler).serveQuery,
+	// As a POST, for more whole-file refs than fit in a URL.
+	"contentpermanodes": (*Handler).serveContentPermanodes,
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -556,6 +559,99 @@ func (h *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 		files = make(index.WholeRefToFile)
 	}
 	ret.Files = files
+}
+
+// maxContentPermanodesDigests is the most whole-file refs a
+// contentpermanodes request may ask about.
+const maxContentPermanodesDigests = 1000
+
+// maxContentPermanodes is the most permanodes a contentpermanodes
+// response reports for each whole-file ref.
+const maxContentPermanodes = 10
+
+// serveContentPermanodes reports, for each of the whole-file refs in the
+// "wholedigest" parameters, the owner's permanodes whose camliContent is
+// currently a file with those contents. It's for clients like the mobile
+// app to learn which of their files the server already has as more than
+// blobs, so they make a permanode only for files without one.
+func (h *Handler) serveContentPermanodes(rw http.ResponseWriter, req *http.Request) {
+	ret := camtypes.ContentPermanodesResponse{Permanodes: map[string][]blob.Ref{}}
+	defer httputil.ReturnJSON(rw, &ret)
+
+	if err := req.ParseForm(); err != nil {
+		ret.Error = err.Error()
+		ret.ErrorType = "input"
+		return
+	}
+	values := req.Form["wholedigest"]
+	if len(values) == 0 {
+		ret.Error = "Missing 'wholedigest' param"
+		ret.ErrorType = "input"
+		return
+	}
+	if len(values) > maxContentPermanodesDigests {
+		ret.Error = fmt.Sprintf("Too many 'wholedigest' params; the limit is %d", maxContentPermanodesDigests)
+		ret.ErrorType = "input"
+		return
+	}
+	var digests []blob.Ref
+	for _, v := range values {
+		br, ok := blob.Parse(v)
+		if !ok {
+			ret.Error = "Invalid 'wholedigest' param"
+			ret.ErrorType = "input"
+			return
+		}
+		digests = append(digests, br)
+	}
+
+	// Query takes the index's read lock itself, so hold it only for
+	// finding the files.
+	files := make(map[string][]blob.Ref)
+	unlock := h.index.RLock()
+	if h.corpus != nil {
+		for _, br := range digests {
+			files[br.String()] = h.corpus.AppendFilesOfWholeRef(nil, br)
+		}
+	} else {
+		var err error
+		files, err = h.index.ExistingFileSchemas(digests...)
+		if err != nil {
+			unlock()
+			ret.Error = err.Error()
+			ret.ErrorType = "server"
+			return
+		}
+	}
+	unlock()
+	ctx := req.Context()
+	for wholeRef, fileRefs := range files {
+		seen := map[blob.Ref]bool{}
+		for _, fileRef := range fileRefs {
+			res, err := h.Query(ctx, &SearchQuery{
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{
+						Attr:  "camliContent",
+						Value: fileRef.String(),
+					},
+				},
+				Limit: maxContentPermanodes,
+				// The default sort needs a corpus, which this needn't.
+				Sort: Unsorted,
+			})
+			if err != nil {
+				ret.Error = err.Error()
+				ret.ErrorType = "server"
+				return
+			}
+			for _, sr := range res.Blobs {
+				if !seen[sr.Blob] && len(seen) < maxContentPermanodes {
+					seen[sr.Blob] = true
+					ret.Permanodes[wholeRef] = append(ret.Permanodes[wholeRef], sr.Blob)
+				}
+			}
+		}
+	}
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue

@@ -45,7 +45,7 @@ var permInfo = []struct {
 	name        string // in the state file and forms; never change one
 	title, desc string
 }{
-	{PermUpload, "upload", "Upload blobs", "Upload blobs, and check which ones the server has."},
+	{PermUpload, "upload", "Upload blobs", "Upload blobs, and check which ones the server has, and which files' contents have permanodes."},
 	{PermSign, "sign", "Make claims", "Have the server sign claims and permanodes with its identity, without the client holding the GPG private key."},
 	{PermSearch, "search", "Search", "Run searches and describe blobs."},
 	{PermDownload, "download", "Download blobs", "Fetch and enumerate blobs, and download files and their thumbnails."},
@@ -171,6 +171,11 @@ func (rt Roots) need(r *http.Request) (anyOf Perm, ok bool) {
 		return 0, false
 	}
 	if suffix, ok := under(rt.Search + "camli/search/"); ok {
+		if suffix == "contentpermanodes" && (isGet || isPost) {
+			// Uploaders need to know which of their files the server
+			// has as permanodes, to make permanodes only for the others.
+			return PermUpload | PermSign | PermSearch, true
+		}
 		if (isGet && searchGets[suffix]) || (isPost && searchPosts[suffix]) {
 			return PermSearch, true
 		}

@@ -71,7 +71,7 @@ Each permission allows these requests, and no others:
 
 | Permission | Requests |
 |---|---|
-| Upload blobs | `POST $blobRoot/camli/upload`, `PUT $blobRoot/camli/BLOBREF`, upload sessions (`POST` and `DELETE` of `$blobRoot/camli/session...`), and stat (`GET` or `POST $blobRoot/camli/stat`) |
+| Upload blobs | `POST $blobRoot/camli/upload`, `PUT $blobRoot/camli/BLOBREF`, upload sessions (`POST` and `DELETE` of `$blobRoot/camli/session...`), stat (`GET` or `POST $blobRoot/camli/stat`), and content permanodes (`GET` or `POST $searchRoot/camli/search/contentpermanodes`; see below) |
 | Make claims | `POST $jsonSignRoot/camli/sig/sign` and `/camli/sig/verify`, and `GET`s under `$jsonSignRoot`, such as its discovery and public key |
 | Search | the search handler's read-only endpoints under `$searchRoot/camli/search/`: `GET` of `recent`, `permanodeattr`, `describe`, `exif`, `claims`, `files`, `signerattrvalue`, `signerpaths`, and `edgesto`, and `POST` of `describe` and `query` |
 | Download blobs | `GET` of `$blobRoot/camli/BLOBREF` and `$blobRoot/camli/enumerate-blobs`, stat, and `GET` of `$uiRoot/download/...` and `$uiRoot/thumbnail/...` |
@@ -80,6 +80,16 @@ Each permission allows these requests, and no others:
 Make claims has the server sign the JSON a client sends with the server's
 own identity, so the client needn't hold the GPG private key; the client
 then uploads the signed blob, which needs Upload blobs too.
+
+Content permanodes, which Upload blobs, Make claims, and Search each
+allow, tell an uploader which of its files the server already has as
+permanodes, so it can make permanodes for just the others. Its
+`wholedigest` parameters (up to 1000, so a `POST` form, for more than fit
+in a URL) are files' whole-file refs, and its response maps each that has
+any to the owner's permanodes whose `camliContent` is currently a file
+with those contents:
+
+    {"permanodes": {"sha224-…": ["sha224-…"]}}
 
 ## Example
 
