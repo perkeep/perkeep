@@ -145,6 +145,13 @@ func TestMatchSidecars(t *testing.T) {
 		"IMG_0004-edited.jpg",
 		"2012-11-22.jpg",
 		"2013-10-10(7).jpg",
+		"IMG_3817(1).JPG",
+		"IMG_3817.JPG",
+		"Screenshot_20190627-191300(1).png",
+		"IMG_8804(12).HEIC",
+		"2_2_14 - 1.jpg",
+		"QveWo4Eb.jpg_large.jpg",
+		"2014-01-02(1).jpg",
 	}
 	sidecars := []string{
 		"IMG_0001.JPG.json",
@@ -157,19 +164,33 @@ func TestMatchSidecars(t *testing.T) {
 		"metadata.json",
 		"2012-11-22.json",    // its title has no extension
 		"2013-10-10(7).json", // likewise
+		"IMG_3817.JPG.supplemental-metadata(1).json",
+		"IMG_3817.JPG.supplemental-metadata.json",
+		"Screenshot_20190627-191300.png.supplemental-m(1).json", // cut short
+		"IMG_8804.HEIC.supplemental-metadata(12).json",
+		"2_2_14 - 1.supplemental-metadata.json",         // its title has no extension
+		"QveWo4Eb.jpg_large.supplemental-metadata.json", // likewise
+		"2014-01-02.supplemental-metadata(1).json",      // likewise, numbered
 	}
 	titles := map[string]string{"odd.json": "renamed.jpg"}
 	got := MatchSidecars(media, sidecars, func(sc string) string { return titles[sc] })
 	want := map[string]string{
-		"IMG_0001.JPG":      "IMG_0001.JPG.json",
-		"IMG_0990(1).JPG":   "IMG_0990.JPG(1).json",
-		"IMG_0990.JPG":      "IMG_0990.JPG.json",
-		long:                long[:sidecarNameMax] + ".json",
-		"IMG_0002.HEIC":     "IMG_0002.HEIC.supplemental-metadata.json",
-		"PXL_0003.jpg":      "PXL_0003.jpg.supplemental-me.json",
-		"renamed.jpg":       "odd.json",
-		"2012-11-22.jpg":    "2012-11-22.json",
-		"2013-10-10(7).jpg": "2013-10-10(7).json",
+		"IMG_0001.JPG":                      "IMG_0001.JPG.json",
+		"IMG_0990(1).JPG":                   "IMG_0990.JPG(1).json",
+		"IMG_0990.JPG":                      "IMG_0990.JPG.json",
+		long:                                long[:sidecarNameMax] + ".json",
+		"IMG_0002.HEIC":                     "IMG_0002.HEIC.supplemental-metadata.json",
+		"PXL_0003.jpg":                      "PXL_0003.jpg.supplemental-me.json",
+		"renamed.jpg":                       "odd.json",
+		"2012-11-22.jpg":                    "2012-11-22.json",
+		"2013-10-10(7).jpg":                 "2013-10-10(7).json",
+		"IMG_3817(1).JPG":                   "IMG_3817.JPG.supplemental-metadata(1).json",
+		"IMG_3817.JPG":                      "IMG_3817.JPG.supplemental-metadata.json",
+		"Screenshot_20190627-191300(1).png": "Screenshot_20190627-191300.png.supplemental-m(1).json",
+		"IMG_8804(12).HEIC":                 "IMG_8804.HEIC.supplemental-metadata(12).json",
+		"2_2_14 - 1.jpg":                    "2_2_14 - 1.supplemental-metadata.json",
+		"QveWo4Eb.jpg_large.jpg":            "QveWo4Eb.jpg_large.supplemental-metadata.json",
+		"2014-01-02(1).jpg":                 "2014-01-02.supplemental-metadata(1).json",
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("MatchSidecars:\n got %q\nwant %q", got, want)
