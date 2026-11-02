@@ -130,7 +130,7 @@ struct AccountView: View {
             NavigationLink(value: Route.upload(a.id)) {
                 Label("Upload Photos", systemImage: "icloud.and.arrow.up")
             }
-            .disabled(perms.map { !$0.contains(Permission.upload.rawValue) } ?? false)
+            .disabled(perms.map { !Self.canUpload($0) } ?? false)
             NavigationLink(value: Route.gallery(a.id)) {
                 Label("Photos", systemImage: "photo.on.rectangle")
             }
@@ -138,8 +138,9 @@ struct AccountView: View {
             Label("Query", systemImage: "magnifyingglass")
                 .foregroundStyle(.secondary)
         } footer: {
-            if let perms, !perms.contains(Permission.upload.rawValue) {
-                Text("This access key can't upload. Querying isn't done yet.")
+            if let perms, !Self.canUpload(perms) {
+                Text("Uploading photos needs an access key with the Upload blobs and Make claims permissions, "
+                     + "to give each photo a permanode, which the web UI shows. Querying isn't done yet.")
             } else {
                 Text("Querying isn't done yet.")
             }
@@ -163,5 +164,11 @@ struct AccountView: View {
         guard id == checkID else { return }
         result = r
         checking = false
+    }
+
+    /// canUpload reports whether credentials with perms can upload photos:
+    /// their files, and permanodes for them.
+    static func canUpload(_ perms: Set<String>) -> Bool {
+        perms.contains(Permission.upload.rawValue) && perms.contains(Permission.sign.rawValue)
     }
 }

@@ -44,7 +44,7 @@ import (
 // newTestPerkeep returns a function making clients of an in-process
 // Perkeep server with memory storage and index. If wrap is non-nil, it
 // wraps the clients' transport.
-func newTestPerkeep(t *testing.T, wrap func(http.RoundTripper) http.RoundTripper) func(Account) (*client.Client, error) {
+func newTestPerkeep(t *testing.T, wrap func(http.RoundTripper) http.RoundTripper) func(Account) (*client.Client, string, error) {
 	t.Helper()
 	srcRoot, err := osutil.PkSourceRoot()
 	if err != nil {
@@ -74,18 +74,19 @@ func newTestPerkeep(t *testing.T, wrap func(http.RoundTripper) http.RoundTripper
 	}
 	t.Cleanup(func() { shutdown.Close() })
 	ts := httptest.NewTestServer(t, mux)
-	return func(Account) (*client.Client, error) {
-		c, err := client.New(client.OptionServer("http://example.com"), client.OptionNoExternalConfig(),
+	return func(Account) (*client.Client, string, error) {
+		const base = "http://example.com"
+		c, err := client.New(client.OptionServer(base), client.OptionNoExternalConfig(),
 			client.OptionAuthMode(auth.NewBasicAuth("foo", "bar")))
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		hc := *ts.Client() // a copy, as ts shares it
 		if wrap != nil {
 			hc.Transport = wrap(hc.Transport)
 		}
 		c.SetHTTPClient(&hc)
-		return c, nil
+		return c, base, nil
 	}
 }
 
