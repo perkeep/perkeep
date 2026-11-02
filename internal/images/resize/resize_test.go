@@ -406,3 +406,45 @@ func testCompareWithResized(t *testing.T, resizeMethod string) {
 		}
 	}
 }
+
+// opaqueImage is an image that the in-place functions can't change.
+type opaqueImage struct{ image.Image }
+
+// TestInplaceOtherTypes checks that ResampleInplace and HalveInplace
+// handle images other than YCbCr and draw.Image, such as the NYCbCrA of
+// a WebP image with alpha, rather than panicking.
+func TestInplaceOtherTypes(t *testing.T) {
+	newNYCbCrA := func() *image.NYCbCrA {
+		m := image.NewNYCbCrA(orig, image.YCbCrSubsampleRatio420)
+		for i := range m.A {
+			m.A[i] = 0x80
+		}
+		return m
+	}
+	for _, tt := range []struct {
+		name string
+		im   func() image.Image
+	}{
+		{"NYCbCrA", func() image.Image { return newNYCbCrA() }},
+		{"opaque", func() image.Image { return opaqueImage{newNYCbCrA()} }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, f := range []struct {
+				name string
+				fn   func(image.Image) image.Image
+				want image.Rectangle
+			}{
+				{"ResampleInplace", func(m image.Image) image.Image { return ResampleInplace(m, orig, thumb.Dx(), thumb.Dy()) }, thumb},
+				{"HalveInplace", HalveInplace, image.Rect(0, 0, orig.Dx()/2, orig.Dy()/2)},
+			} {
+				m := f.fn(tt.im())
+				if got := m.Bounds(); !got.Eq(f.want) {
+					t.Errorf("%s: bounds %v; want %v", f.name, got, f.want)
+				}
+				if _, _, _, a := m.At(1, 1).RGBA(); a>>8 != 0x80 {
+					t.Errorf("%s: alpha %#x; want 0x80", f.name, a>>8)
+				}
+			}
+		})
+	}
+}
