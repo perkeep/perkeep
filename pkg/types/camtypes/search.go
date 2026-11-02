@@ -248,6 +248,18 @@ type FileSearchResponse struct {
 	Files map[string][]blob.Ref `json:"files"`
 }
 
+// ContentPermanodesResponse is the JSON response to a request for the
+// permanodes of files' contents, from
+// $searchRoot/camli/search/contentpermanodes.
+type ContentPermanodesResponse struct {
+	SearchErrorResponse
+
+	// Permanodes maps each requested whole-file ref that has any to the
+	// owner's permanodes whose camliContent is currently a file with
+	// those contents. Never nil.
+	Permanodes map[string][]blob.Ref `json:"permanodes"`
+}
+
 // Location describes a file or permanode that has a location.
 type Location struct {
 	// Latitude and Longitude represent the point location of this blob,

@@ -87,6 +87,9 @@ func TestNeed(t *testing.T) {
 
 		{"GET", "/search/camli/search/describe?blobref=" + testRef, "", PermSearch, true},
 		{"POST", "/search/camli/search/query", "", PermSearch, true},
+		{"GET", "/search/camli/search/contentpermanodes?wholedigest=" + testRef, "", PermUpload | PermSign | PermSearch, true},
+		{"POST", "/search/camli/search/contentpermanodes", "", PermUpload | PermSign | PermSearch, true},
+		{"PUT", "/search/camli/search/contentpermanodes", "", none, false},
 		{"GET", "/search/camli/search/ws", "", none, false},
 		{"GET", "/search/camli/search/query", "", none, false},
 
@@ -261,6 +264,9 @@ func TestKeys(t *testing.T) {
 		{"GET", "/?camli.mode=config", secret, 200},
 		{"GET", "/bs/camli/" + testRef, secret, 403},
 		{"POST", "/search/camli/search/query", secret, 403},
+		// Without the search permission, but allowed for uploading.
+		{"GET", "/search/camli/search/contentpermanodes?wholedigest=" + testRef, secret, 200},
+		{"GET", "/search/camli/search/contentpermanodes?wholedigest=" + testRef, "", 401},
 		{"GET", "/status/status.json", secret, 403},
 		{"GET", "/debug/config", secret, 403},
 	} {
@@ -291,6 +297,9 @@ func TestKeys(t *testing.T) {
 	}
 	if got := do("GET", "/bs/camli/"+testRef, secret); got != 200 {
 		t.Errorf("download after adding its permission = %v; want 200", got)
+	}
+	if got := do("GET", "/search/camli/search/contentpermanodes?wholedigest="+testRef, secret); got != 403 {
+		t.Errorf("content permanodes without upload, sign, or search = %v; want 403", got)
 	}
 
 	// A new handler loads the same keys.
