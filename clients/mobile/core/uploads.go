@@ -55,7 +55,6 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
-	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/upload"
 )
 
@@ -63,8 +62,9 @@ import (
 // refs of each hash function computed so far.
 const hashesFile = "hashes.jsonl"
 
-// haveFile returns the name of the cache of whole-file refs that the
-// account's server has a file of, in its storage generation gen (see
+// haveFile returns the name of the cache of whole-file refs whose
+// contents the account's server has a permanode of (see permanodes.go),
+// in its storage generation gen (see
 // client.Client.StorageGeneration). A server whose storage is reset or
 // partly lost gets a new generation, and so a new, empty cache. Servers
 // without generations use the generation "none".
@@ -72,11 +72,17 @@ func haveFile(accountID, gen string) string {
 	return haveFilePrefix(accountID) + url.PathEscape(gen) + ".jsonl"
 }
 
-func haveFilePrefix(accountID string) string { return "have-" + accountID + "-" }
+func haveFilePrefix(accountID string) string { return "permanodes-" + accountID + "-" }
 
 // removeHaveFiles removes the account's caches of what its server has,
 // except for generation keepGen, if non-empty.
 func removeHaveFiles(dir, accountID, keepGen string) {
+	// The "have-" caches were of whole-file refs the server had any file
+	// of, permanode or not.
+	old, _ := filepath.Glob(filepath.Join(dir, "have-"+accountID+"-*.jsonl"))
+	for _, m := range old {
+		os.Remove(m)
+	}
 	matches, _ := filepath.Glob(filepath.Join(dir, haveFilePrefix(accountID)+"*.jsonl"))
 	for _, m := range matches {
 		if keepGen == "" || filepath.Base(m) != haveFile(accountID, keepGen) {
@@ -88,10 +94,14 @@ func removeHaveFiles(dir, accountID, keepGen string) {
 // accountConn is a connection to an account's server, for uploading.
 type accountConn struct {
 	c         *client.Client
+	base      string             // the server's base URL, for c
 	hashNames []string           // of the whole-file refs the server finds files by
 	newHashes []func() hash.Hash // for hashNames
-	have      *logCache[bool]    // whole-file refs the server has a file of
-	lim       *upload.Limiter
+	have      *logCache[bool]    // whole-file refs whose contents the server has a permanode of
+	// permanodeMu has a *sync.Mutex per whole-file ref, held while
+	// making the permanode of its contents.
+	permanodeMu sync.Map
+	lim         *upload.Limiter
 
 	ctx     context.Context // canceled by cancel or close
 	cancel  context.CancelFunc
@@ -162,20 +172,21 @@ func (s *server) lookupAccount(id string) (Account, error) {
 }
 
 // newPerkeepClient returns a Perkeep client for the account's server.
-func (s *server) newPerkeepClient(a Account, password, tailcatAddr string) (*client.Client, error) {
+// It also returns the base URL that c uses.
+func (s *server) newPerkeepClient(a Account, password, tailcatAddr string) (c *client.Client, base string, err error) {
 	if s.testClient != nil {
 		return s.testClient(a)
 	}
 	cn := conn{Server: a.Server, CertFP: a.CertFP, Username: a.Username, Password: password}
 	if a.Tailcat {
 		if tailcatAddr == "" {
-			return nil, errors.New("account has no tailcat address")
+			return nil, "", errors.New("account has no tailcat address")
 		}
 		cn = conn{Tailcat: tailcatAddr, Password: password}
 	}
 	hc, base, err := s.httpClient(cn)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	am := auth.AuthMode(auth.None{})
 	if password != "" {
@@ -185,14 +196,14 @@ func (s *server) newPerkeepClient(a Account, password, tailcatAddr string) (*cli
 		}
 		am = auth.NewBasicAuth(user, password)
 	}
-	c, err := client.New(client.OptionServer(base), client.OptionNoExternalConfig(), client.OptionAuthMode(am))
+	c, err = client.New(client.OptionServer(base), client.OptionNoExternalConfig(), client.OptionAuthMode(am))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if hc != http.DefaultClient {
 		c.SetHTTPClient(hc)
 	}
-	return c, nil
+	return c, base, nil
 }
 
 // conn returns the account's connection, made by POST connect.
@@ -250,7 +261,7 @@ func (s *server) serveConnect(w http.ResponseWriter, r *http.Request, a Account)
 	if err := readJSON(r, &req); err != nil {
 		return err
 	}
-	c, err := s.newPerkeepClient(a, req.Password, req.Tailcat)
+	c, base, err := s.newPerkeepClient(a, req.Password, req.Tailcat)
 	if err != nil {
 		return errorf(http.StatusBadRequest, err.Error())
 	}
@@ -276,6 +287,7 @@ func (s *server) serveConnect(w http.ResponseWriter, r *http.Request, a Account)
 	ctx, cancel := context.WithCancel(context.Background())
 	ac := &accountConn{
 		c:         c,
+		base:      base,
 		hashNames: names,
 		newHashes: newHashes,
 		have:      have,
@@ -413,14 +425,10 @@ func hashFile(ctx context.Context, path string, newHashes []func() hash.Hash) ([
 	return refs, nil
 }
 
-// findMissingBatch is how many items' refs are asked about per search
-// request, keeping its URL at a few kilobytes.
-const findMissingBatch = 25
-
-// serveFindMissing reports which items the server has a file of, by
-// their whole-file refs, asking it about those not known to be there.
-// It needs the search permission. If asking fails, it reports the
-// error, and the items not yet asked about as missing.
+// serveFindMissing reports which items the server has, by their
+// whole-file refs: those whose contents have a permanode. It asks the
+// server about those not known to be there. If asking fails, it reports
+// the error, and the items not yet asked about as missing.
 func (s *server) serveFindMissing(w http.ResponseWriter, r *http.Request, ac *accountConn) error {
 	var req struct {
 		Items []struct {
@@ -432,70 +440,45 @@ func (s *server) serveFindMissing(w http.ResponseWriter, r *http.Request, ac *ac
 		return err
 	}
 	present := map[string]bool{} // by key
-	type item struct {
-		key  string
-		refs []string
-	}
-	var ask []item
+	var ask []string             // refs
 	for _, it := range req.Items {
-		cached := false
-		for _, ref := range it.Refs {
-			if have, _ := ac.have.get(ref); have {
-				cached = true
-				break
-			}
-		}
-		if cached {
+		if slices.ContainsFunc(it.Refs, func(ref string) bool { have, _ := ac.have.get(ref); return have }) {
 			present[it.Key] = true
-		} else if len(it.Refs) > 0 {
-			ask = append(ask, item{it.Key, it.Refs})
+		} else {
+			ask = append(ask, it.Refs...)
 		}
 	}
 
+	// Ask a few batches at once.
 	var mu sync.Mutex
-	var askErr error
-	if len(ask) > 0 {
-		sr, err := ac.c.SearchRoot()
-		if err != nil {
-			askErr = err
-		} else {
-			g, ctx := errgroup.WithContext(r.Context())
-			g.SetLimit(4)
-			for i := 0; i < len(ask); i += findMissingBatch {
-				batch := ask[i:min(i+findMissingBatch, len(ask))]
-				g.Go(func() error {
-					q := url.Values{}
-					for _, it := range batch {
-						for _, ref := range it.refs {
-							q.Add("wholedigest", ref)
-						}
-					}
-					var res camtypes.FileSearchResponse
-					if err := ac.c.GetJSON(ctx, sr+"camli/search/files?"+q.Encode(), &res); err != nil {
-						return err
-					}
-					if res.Error != "" {
-						return errors.New(res.Error)
-					}
-					for _, it := range batch {
-						for _, ref := range it.refs {
-							if len(res.Files[ref]) > 0 {
-								mu.Lock()
-								present[it.key] = true
-								mu.Unlock()
-								for _, ref := range it.refs {
-									ac.have.put(ref, true)
-								}
-								break
-							}
-						}
-					}
-					return nil
-				})
+	have := map[string]bool{}
+	g, ctx := errgroup.WithContext(r.Context())
+	g.SetLimit(4)
+	for i := 0; i < len(ask); i += contentPermanodesBatch {
+		batch := ask[i:min(i+contentPermanodesBatch, len(ask))]
+		g.Go(func() error {
+			got, err := ac.contentPermanodes(ctx, batch)
+			if err != nil {
+				return err
 			}
-			askErr = g.Wait()
+			mu.Lock()
+			defer mu.Unlock()
+			for ref := range got {
+				have[ref] = true
+			}
+			return nil
+		})
+	}
+	askErr := g.Wait()
+	for _, it := range req.Items {
+		if !present[it.Key] && slices.ContainsFunc(it.Refs, func(ref string) bool { return have[ref] }) {
+			present[it.Key] = true
+			for _, ref := range it.Refs {
+				ac.have.put(ref, true)
+			}
 		}
 	}
+
 	res := struct {
 		Present []string `json:"present"`
 		Missing []string `json:"missing"`
@@ -509,7 +492,7 @@ func (s *server) serveFindMissing(w http.ResponseWriter, r *http.Request, ac *ac
 		}
 	}
 	if askErr != nil {
-		res.Error = fmt.Sprintf("Couldn't ask the server which files it has (that needs the Search permission): %v", askErr)
+		res.Error = fmt.Sprintf("Couldn't ask the server which files it has: %v", askErr)
 	}
 	writeJSON(w, http.StatusOK, res)
 	return nil
@@ -577,6 +560,12 @@ func (s *server) serveStartUpload(w http.ResponseWriter, r *http.Request, ac *ac
 		defer cancel()
 		res, err := uf.Run(ctx)
 		f.Close()
+		if err == nil {
+			// The file's no use in the web UI without a permanode.
+			if perr := ac.ensurePermanode(ctx, res.WholeRefs, res.FileRef, req.ModTime); perr != nil {
+				err = fmt.Errorf("uploaded the file, but couldn't make its permanode: %w", perr)
+			}
+		}
 		p := uf.Progress()
 		d := uploadDone{ID: u.id, Key: u.key, BytesUploaded: p.BytesUploaded}
 		if err != nil {
@@ -584,9 +573,6 @@ func (s *server) serveStartUpload(w http.ResponseWriter, r *http.Request, ac *ac
 		} else {
 			d.FileRef = res.FileRef.String()
 			d.Dup = res.Dup
-			for _, br := range res.WholeRefs {
-				ac.have.put(br.String(), true)
-			}
 		}
 		ac.mu.Lock()
 		defer ac.mu.Unlock()

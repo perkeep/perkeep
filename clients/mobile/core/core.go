@@ -67,7 +67,7 @@ type server struct {
 	conns  map[string]*accountConn // by account ID
 
 	// testClient, if non-nil, makes the Perkeep clients for accounts.
-	testClient func(Account) (*client.Client, error)
+	testClient func(Account) (c *client.Client, base string, err error)
 }
 
 func newServer() *server {

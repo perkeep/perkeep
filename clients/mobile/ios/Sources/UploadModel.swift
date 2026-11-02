@@ -148,7 +148,6 @@ final class UploadModel: ObservableObject {
     private var hashingNow = 0             // items being hashed
     private var finishing = false          // in finishFinding
     private var findingDone = false        // every counted item is hashed and asked about
-    private var searchFailed = false
     private var exported: [String: URL] = [:] // by item key: files kept for uploading
     private var exportedBytes: Int64 = 0
 
@@ -331,7 +330,6 @@ final class UploadModel: ObservableObject {
         toCheck = []
         uploadQueue = []
         findingDone = false
-        searchFailed = false
         failed = 0
         items = []
         totalBytes = 0
@@ -540,24 +538,23 @@ final class UploadModel: ObservableObject {
     }
 
     /// check asks the server about the hashed items, and when uploading,
-    /// queues those it lacks: all of them, if it can't say.
+    /// queues those it lacks.
     private func check(_ batch: [MediaItem]) async throws {
         guard !batch.isEmpty else { return }
-        if !searchFailed, try await !find(batch) {
-            searchFailed = true
-        }
+        try await find(batch)
         for item in batch where !uploaded.contains(item.id) {
             if onServer.contains(item.id) {
                 dropExport(item.id)
-            } else if target == .upload && (searchFailed || missing.contains(item.id)) {
+            } else if target == .upload && missing.contains(item.id) {
                 uploadQueue.append(item)
             }
         }
     }
 
-    /// find asks the server which of the hashed items it has. It returns
-    /// false if the server couldn't say, as without the Search permission.
-    private func find(_ batch: [MediaItem]) async throws -> Bool {
+    /// find asks the server which of the hashed items it has: those whose
+    /// contents have a permanode. It throws if the server can't say, as
+    /// uploading wouldn't work either.
+    private func find(_ batch: [MediaItem]) async throws {
         struct Item: Encodable, Sendable { var key: String; var refs: [String] }
         struct Req: Encodable, Sendable { var items: [Item] }
         struct Resp: Decodable { var present: [String]; var missing: [String]; var error: String? }
@@ -568,15 +565,12 @@ final class UploadModel: ObservableObject {
                                          Req(items: chunk.compactMap { i in refs[i.id].map { Item(key: i.id, refs: $0) } }))
             onServer.formUnion(r.present)
             missing.subtract(r.present)
-            missing.formUnion(r.missing)
             if let e = r.error {
-                // Without search, uploading still works: the server's
-                // chunks are found as they're uploaded.
-                notice = e
-                return false
+                // The items it couldn't ask about aren't known missing.
+                throw Core.Error(status: 0, message: e)
             }
+            missing.formUnion(r.missing)
         }
-        return true
     }
 
     private func dropExport(_ key: String) {
