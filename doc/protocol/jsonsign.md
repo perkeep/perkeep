@@ -39,6 +39,10 @@ type `application/x-www-form-urlencoded` or `multipart/form-data`) and accepts
 parameters:
 
 * **json**: the unsigned JSON to sign
+* **signatureTime** (optional): the time to sign at, in RFC 3339 format,
+  rather than the current time. Signing the same JSON at the same time
+  makes the same signed blob, as planned permanodes (with a fixed `key`,
+  conventionally signed at `1970-01-01T00:00:00Z`) need.
 
 ## Verification
 
