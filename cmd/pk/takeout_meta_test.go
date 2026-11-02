@@ -445,3 +445,48 @@ func TestTakeoutUploadSetsMeta(t *testing.T) {
 		}
 	}
 }
+
+// TestTakeoutSameTitledAlbums checks that albums of the same title, which
+// newer exports put in directories such as "Trip" and "Trip(1)", are one
+// set of all their photos, and that syncing an export again overrides
+// its own claims, dated the same.
+func TestTakeoutSameTitledAlbums(t *testing.T) {
+	st := newTakeoutTestStore(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
+		"Takeout/Google Photos/Trip/A.JPG":            strings.Repeat("photo A ", 1000),
+		"Takeout/Google Photos/Trip/A.JPG.json":       testSidecar("A.JPG", ""),
+		"Takeout/Google Photos/Trip/metadata.json":    `{"albumData": {"title": "Trip", "description": "Seattle"}}`,
+		"Takeout/Google Photos/Trip(1)/B.JPG":         strings.Repeat("photo B ", 1000),
+		"Takeout/Google Photos/Trip(1)/B.JPG.json":    testSidecar("B.JPG", ""),
+		"Takeout/Google Photos/Trip(1)/metadata.json": `{"albumData": {"title": "Trip", "description": "Portland"}}`,
+	})
+	ms := syncTakeoutDir(t, st, dir)
+	album, err := st.plannedPermanodeRef(ctx, albumPermanodeKeyPrefix+"Trip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pnA, pnB := photoPermanode(t, st, "A.JPG"), photoPermanode(t, st, "B.JPG")
+	checkMembers := func(when string) {
+		t.Helper()
+		got := slices.Clone(permanodeAttrs(t, st, album)["camliMember"])
+		slices.Sort(got)
+		want := []string{pnA.String(), pnB.String()}
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: album's members = %q; want %q", when, got, want)
+		}
+	}
+	checkMembers("after syncing")
+	if got := permanodeAttrs(t, st, album).Get("description"); got != "Seattle\n\nPortland" {
+		t.Errorf("album's description = %q; want both albums'", got)
+	}
+
+	// A claim of the export's, as a sync might have left, removing A.
+	if err := st.applyChanges(ctx, album, []attrChange{{"del", "camliMember", pnA.String()}}, ms.exp.Time.Add(time.Nanosecond)); err != nil {
+		t.Fatal(err)
+	}
+	syncTakeoutDir(t, st, dir)
+	checkMembers("after syncing again")
+}

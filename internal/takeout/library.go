@@ -17,11 +17,13 @@ limitations under the License.
 package takeout
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -41,13 +43,14 @@ type Photo struct {
 }
 
 // An Album is a Google Photos album in a Library: the photos in an
-// album's directory, and the album's metadata. If more than one album has
-// the same title, Takeout puts their photos in the same directory, so
-// they're one Album, with each one's metadata.
+// album's directory, and the album's metadata. Albums with the same title
+// are one Album, with each one's metadata: older exports put their photos
+// in the same directory, and newer ones in directories such as "Trip" and
+// "Trip(1)".
 type Album struct {
-	Dir    string
-	Meta   []*AlbumMetadata // one per album with the directory's name
-	Photos []*Photo         // in name order, without repeats
+	Dir    string           // the first of its directories
+	Meta   []*AlbumMetadata // one per album with the title
+	Photos []*Photo         // in name order, a directory at a time, without repeats
 }
 
 // Title returns the album's title.
@@ -192,6 +195,46 @@ func NewLibrary(ctx context.Context, e *Export, cs []*Content, workers int) (*Li
 		}
 		lib.Albums = append(lib.Albums, a)
 	}
-	slices.SortStableFunc(lib.Albums, func(a, b *Album) int { return strings.Compare(a.Title(), b.Title()) })
+	slices.SortStableFunc(lib.Albums, func(a, b *Album) int {
+		return cmp.Or(strings.Compare(a.Title(), b.Title()), cmp.Compare(dirNumber(a.Dir), dirNumber(b.Dir)))
+	})
+	lib.Albums = mergeAlbums(lib.Albums)
 	return lib, nil
+}
+
+// dirNumber returns n of a directory named like "Trip(n)", or else 0.
+func dirNumber(dir string) int {
+	if m := numberedRx.FindStringSubmatch(dir); m != nil {
+		if n, err := strconv.Atoi(m[2]); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+// mergeAlbums returns albums, sorted by title, with those of the same
+// title as one: newer exports put albums of the same title in their own
+// directories, such as "Trip" and "Trip(1)", not one.
+func mergeAlbums(albums []*Album) []*Album {
+	var out []*Album
+	var seen map[*Photo]bool // of the last of out
+	for _, a := range albums {
+		if n := len(out); n > 0 && out[n-1].Title() == a.Title() {
+			m := out[n-1]
+			m.Meta = append(m.Meta, a.Meta...)
+			for _, p := range a.Photos {
+				if !seen[p] {
+					seen[p] = true
+					m.Photos = append(m.Photos, p)
+				}
+			}
+			continue
+		}
+		out = append(out, a)
+		seen = make(map[*Photo]bool, len(a.Photos))
+		for _, p := range a.Photos {
+			seen[p] = true
+		}
+	}
+	return out
 }
