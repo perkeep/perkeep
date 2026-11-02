@@ -166,27 +166,18 @@ func HalveInplace(m image.Image) image.Image {
 	b := m.Bounds()
 	switch m := m.(type) {
 	case *image.YCbCr:
+		halveYCbCr(m, b)
+		b.Max = b.Min.Add(b.Size().Div(2))
+		return subImage(m, b)
+	case *image.NYCbCrA:
+		halveYCbCr(&m.YCbCr, b)
 		for y := b.Min.Y; y < b.Max.Y/2; y++ {
 			for x := b.Min.X; x < b.Max.X/2; x++ {
-				y00 := uint32(m.Y[m.YOffset(2*x, 2*y)])
-				y10 := uint32(m.Y[m.YOffset(2*x+1, 2*y)])
-				y01 := uint32(m.Y[m.YOffset(2*x, 2*y+1)])
-				y11 := uint32(m.Y[m.YOffset(2*x+1, 2*y+1)])
-				// Add before divide with uint32 or we get errors in the least
-				// significant bits.
-				m.Y[m.YOffset(x, y)] = uint8((y00 + y10 + y01 + y11) >> 2)
-
-				cb00 := uint32(m.Cb[m.COffset(2*x, 2*y)])
-				cb10 := uint32(m.Cb[m.COffset(2*x+1, 2*y)])
-				cb01 := uint32(m.Cb[m.COffset(2*x, 2*y+1)])
-				cb11 := uint32(m.Cb[m.COffset(2*x+1, 2*y+1)])
-				m.Cb[m.COffset(x, y)] = uint8((cb00 + cb10 + cb01 + cb11) >> 2)
-
-				cr00 := uint32(m.Cr[m.COffset(2*x, 2*y)])
-				cr10 := uint32(m.Cr[m.COffset(2*x+1, 2*y)])
-				cr01 := uint32(m.Cr[m.COffset(2*x, 2*y+1)])
-				cr11 := uint32(m.Cr[m.COffset(2*x+1, 2*y+1)])
-				m.Cr[m.COffset(x, y)] = uint8((cr00 + cr10 + cr01 + cr11) >> 2)
+				a00 := uint32(m.A[m.AOffset(2*x, 2*y)])
+				a10 := uint32(m.A[m.AOffset(2*x+1, 2*y)])
+				a01 := uint32(m.A[m.AOffset(2*x, 2*y+1)])
+				a11 := uint32(m.A[m.AOffset(2*x+1, 2*y+1)])
+				m.A[m.AOffset(x, y)] = uint8((a00 + a10 + a01 + a11) >> 2)
 			}
 		}
 		b.Max = b.Min.Add(b.Size().Div(2))
@@ -217,13 +208,42 @@ func HalveInplace(m image.Image) image.Image {
 		b.Max = b.Min.Add(b.Size().Div(2))
 		return subImage(m, b)
 	default:
-		// TODO(wathiede): fallback to generic Resample somehow?
-		panic("Unhandled image type")
+		// It can't be changed in place, so make a copy.
+		return Resample(m, b, b.Dx()/2, b.Dy()/2)
+	}
+}
+
+// halveYCbCr is HalveInplace of m, with bounds b, but for its result's
+// bounds.
+func halveYCbCr(m *image.YCbCr, b image.Rectangle) {
+	for y := b.Min.Y; y < b.Max.Y/2; y++ {
+		for x := b.Min.X; x < b.Max.X/2; x++ {
+			y00 := uint32(m.Y[m.YOffset(2*x, 2*y)])
+			y10 := uint32(m.Y[m.YOffset(2*x+1, 2*y)])
+			y01 := uint32(m.Y[m.YOffset(2*x, 2*y+1)])
+			y11 := uint32(m.Y[m.YOffset(2*x+1, 2*y+1)])
+			// Add before divide with uint32 or we get errors in the least
+			// significant bits.
+			m.Y[m.YOffset(x, y)] = uint8((y00 + y10 + y01 + y11) >> 2)
+
+			cb00 := uint32(m.Cb[m.COffset(2*x, 2*y)])
+			cb10 := uint32(m.Cb[m.COffset(2*x+1, 2*y)])
+			cb01 := uint32(m.Cb[m.COffset(2*x, 2*y+1)])
+			cb11 := uint32(m.Cb[m.COffset(2*x+1, 2*y+1)])
+			m.Cb[m.COffset(x, y)] = uint8((cb00 + cb10 + cb01 + cb11) >> 2)
+
+			cr00 := uint32(m.Cr[m.COffset(2*x, 2*y)])
+			cr10 := uint32(m.Cr[m.COffset(2*x+1, 2*y)])
+			cr01 := uint32(m.Cr[m.COffset(2*x, 2*y+1)])
+			cr11 := uint32(m.Cr[m.COffset(2*x+1, 2*y+1)])
+			m.Cr[m.COffset(x, y)] = uint8((cr00 + cr10 + cr01 + cr11) >> 2)
+		}
 	}
 }
 
 // ResampleInplace will resample m inplace, overwriting existing pixel data,
-// and return a subimage of m sized to w and h.
+// and return a subimage of m sized to w and h. Images of types it can't
+// change in place are resampled into a copy.
 func ResampleInplace(m image.Image, r image.Rectangle, w, h int) image.Image {
 	// We don't support scaling up.
 	if r.Dx() < w || r.Dy() < h {
@@ -232,17 +252,14 @@ func ResampleInplace(m image.Image, r image.Rectangle, w, h int) image.Image {
 
 	switch m := m.(type) {
 	case *image.YCbCr:
+		resampleYCbCr(m, r, w, h)
+	case *image.NYCbCrA:
+		resampleYCbCr(&m.YCbCr, r, w, h)
 		xStep := float64(r.Dx()) / float64(w)
 		yStep := float64(r.Dy()) / float64(h)
 		for y := r.Min.Y; y < r.Min.Y+h; y++ {
 			for x := r.Min.X; x < r.Min.X+w; x++ {
-				xSrc := int(float64(x) * xStep)
-				ySrc := int(float64(y) * yStep)
-				cSrc := m.COffset(xSrc, ySrc)
-				cDst := m.COffset(x, y)
-				m.Y[m.YOffset(x, y)] = m.Y[m.YOffset(xSrc, ySrc)]
-				m.Cb[cDst] = m.Cb[cSrc]
-				m.Cr[cDst] = m.Cr[cSrc]
+				m.A[m.AOffset(x, y)] = m.A[m.AOffset(int(float64(x)*xStep), int(float64(y)*yStep))]
 			}
 		}
 	case draw.Image:
@@ -262,12 +279,28 @@ func ResampleInplace(m image.Image, r image.Rectangle, w, h int) image.Image {
 			}
 		}
 	default:
-		// TODO fallback to generic Resample somehow?
-		panic("Unhandled image type")
+		return Resample(m, r, w, h)
 	}
 	r.Max.X = r.Min.X + w
 	r.Max.Y = r.Min.Y + h
 	return subImage(m, r)
+}
+
+// resampleYCbCr is ResampleInplace of m, without the subimage.
+func resampleYCbCr(m *image.YCbCr, r image.Rectangle, w, h int) {
+	xStep := float64(r.Dx()) / float64(w)
+	yStep := float64(r.Dy()) / float64(h)
+	for y := r.Min.Y; y < r.Min.Y+h; y++ {
+		for x := r.Min.X; x < r.Min.X+w; x++ {
+			xSrc := int(float64(x) * xStep)
+			ySrc := int(float64(y) * yStep)
+			cSrc := m.COffset(xSrc, ySrc)
+			cDst := m.COffset(x, y)
+			m.Y[m.YOffset(x, y)] = m.Y[m.YOffset(xSrc, ySrc)]
+			m.Cb[cDst] = m.Cb[cSrc]
+			m.Cr[cDst] = m.Cr[cSrc]
+		}
+	}
 }
 
 func subImage(m image.Image, r image.Rectangle) image.Image {
