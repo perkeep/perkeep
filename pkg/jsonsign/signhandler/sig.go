@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
@@ -264,6 +265,16 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		Fetcher:           h.pubKeyFetcher,
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
+	}
+	if st := req.FormValue("signatureTime"); st != "" {
+		// A fixed time makes the signature, and so the signed blob,
+		// the same every time, as planned permanodes need.
+		t, err := time.Parse(time.RFC3339, st)
+		if err != nil {
+			badReq("bad \"signatureTime\" parameter: " + err.Error())
+			return
+		}
+		sreq.SignatureTime = t
 	}
 	ctx := req.Context() // TODO: restrict time to 30 seconds?
 	signedJSON, err := sreq.Sign(ctx)
