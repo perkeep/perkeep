@@ -250,6 +250,17 @@ const sidecarNameMax = 46
 // as "IMG_0990.JPG(1)" for "IMG_0990(1).JPG".
 var numberedRx = regexp.MustCompile(`^(.*)\((\d+)\)$`)
 
+// cutSupplemental returns stem, the name of a sidecar less ".json" (and
+// any number), without its ".supplemental-metadata" suffix, which may be
+// cut short, and whether it had one.
+func cutSupplemental(stem string) (string, bool) {
+	i := strings.LastIndex(stem, ".s")
+	if i > 0 && strings.HasPrefix(".supplemental-metadata", stem[i:]) && len(stem[i:]) >= 3 {
+		return stem[:i], true
+	}
+	return stem, false
+}
+
 // MatchSidecars returns the sidecar of each of media, the base names of
 // photos and videos in one directory, from sidecars, the base names of
 // the JSON files in it, and titles, which returns a sidecar's title (the
@@ -270,16 +281,24 @@ func MatchSidecars(media, sidecars []string, title func(sidecar string) string) 
 		matched[m] = sc
 		return true
 	}
-	var unmatched []string
+	var unmatched, unmatchedStems []string // and their stems, as above
 	for _, sc := range sidecars {
 		if IsAlbumMetadata(sc) {
 			continue
 		}
 		stem := strings.TrimSuffix(sc, ".json")
 		// Newer exports name sidecars "IMG.jpg.supplemental-metadata.json",
-		// or, if that's too long, with the suffix cut short.
-		if i := strings.LastIndex(stem, ".s"); i > 0 && strings.HasPrefix(".supplemental-metadata", stem[i:]) && len(stem[i:]) >= 3 {
-			stem = stem[:i]
+		// or, if that's too long, with the suffix cut short, and those of
+		// numbered duplicates, such as "IMG(1).jpg",
+		// "IMG.jpg.supplemental-metadata(1).json".
+		n := ""
+		if m := numberedRx.FindStringSubmatch(stem); m != nil {
+			if cut, ok := cutSupplemental(m[1]); ok {
+				stem, n = cut+"("+m[2]+")", m[2]
+			}
+		}
+		if n == "" {
+			stem, _ = cutSupplemental(stem)
 		}
 		if match(stem, sc) {
 			continue
@@ -291,21 +310,27 @@ func MatchSidecars(media, sidecars []string, title func(sidecar string) string) 
 				continue
 			}
 		}
-		unmatched = append(unmatched, sc)
+		unmatched, unmatchedStems = append(unmatched, sc), append(unmatchedStems, stem)
 	}
 	// Names cut short, or otherwise mangled: by the sidecar's title, or
 	// the one media file whose name, less its extension, is the sidecar's
 	// stem (as when a photo's title has no extension, and Takeout adds
 	// one to the file's name, but not the sidecar's), or else starts with
 	// it.
-	for _, sc := range unmatched {
+	for i, sc := range unmatched {
 		if t := title(sc); t != "" && match(t, sc) {
 			continue
 		}
 		stem := strings.TrimSuffix(sc, ".json")
+		// As for "IMG.supplemental-metadata.json", or
+		// "IMG.supplemental-metadata(1).json", for "IMG(1).jpg".
+		norm := unmatchedStems[i]
 		var exts []string
 		for _, m := range media {
-			if _, ok := matched[m]; !ok && strings.TrimSuffix(m, path.Ext(m)) == stem {
+			if _, ok := matched[m]; ok {
+				continue
+			}
+			if base := strings.TrimSuffix(m, path.Ext(m)); base == stem || base == norm {
 				exts = append(exts, m)
 			}
 		}
