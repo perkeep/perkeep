@@ -468,7 +468,21 @@ func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrC
 	if s.verbose {
 		log.Printf("Updating %q: %d changes.", key, len(changes))
 	}
-	return pn, s.st.applyChanges(ctx, pn, changes, s.exp.Time)
+	// Claims are dated by the export, so that an older export's don't
+	// override a newer's, but syncing this export again must override
+	// its own claims, which might be dated the same: so date them after
+	// any as late.
+	claimTime := s.exp.Time
+	claims, err := s.st.c.GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	for _, cl := range claims.Claims {
+		if t := time.Time(cl.Date); !t.Before(claimTime) {
+			claimTime = t.Add(time.Millisecond)
+		}
+	}
+	return pn, s.st.applyChanges(ctx, pn, changes, claimTime)
 }
 
 func (s *takeoutMetaSync) report() string {
