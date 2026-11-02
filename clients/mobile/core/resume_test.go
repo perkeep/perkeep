@@ -42,6 +42,16 @@ func TestRemoveHaveFiles(t *testing.T) {
 	if exists(haveFile("a", "gen2")) || !exists(haveFile("b", "gen1")) {
 		t.Errorf("after removing a's: wrong files left")
 	}
+
+	// The old caches, of whole-file refs the server had a file of rather
+	// than a permanode, go away even when keeping the current generation.
+	for _, name := range []string{"have-a-gen1.jsonl", "have-b-gen1.jsonl", haveFile("a", "gen1")} {
+		os.WriteFile(filepath.Join(dir, name), nil, 0o600)
+	}
+	removeHaveFiles(dir, "a", "gen1")
+	if exists("have-a-gen1.jsonl") || !exists("have-b-gen1.jsonl") || !exists(haveFile("a", "gen1")) {
+		t.Errorf("after removing a's old caches: wrong files left")
+	}
 }
 
 // interruptingTransport calls interrupt, once, after the nth request
