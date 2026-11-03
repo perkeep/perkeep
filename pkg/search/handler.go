@@ -347,7 +347,8 @@ type EdgeItem struct {
 
 var testHookBug121 = func(*DescribeRequest) {}
 
-// GetRecentPermanodes returns recently-modified permanodes.
+// GetRecentPermanodes returns recently-modified permanodes. It acquires
+// RLock on the Handler's index.
 func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (*RecentResponse, error) {
 	defer h.index.RLock()()
 
@@ -407,6 +408,7 @@ func (h *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reques
 // GetPermanodesWithAttr returns permanodes with attribute req.Attr
 // having the req.Value as a value.
 // See WithAttrRequest for more details about the query.
+// It acquires RLock on the Handler's index.
 func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
 	ctx := context.TODO()
 
@@ -472,7 +474,9 @@ func (h *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Requ
 	httputil.ReturnJSON(rw, res)
 }
 
-// GetClaims returns the claims on req.Permanode signed by h.owner.
+// GetClaims returns the claims on req.Permanode signed by h.owner. It
+// acquires RLock on the Handler's index, so callers mustn't hold it:
+// RWMutex read locks don't nest, if a writer is waiting.
 func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	if !req.Permanode.Valid() {
 		return nil, errors.New("error getting claims: nil permanode")
@@ -508,8 +512,6 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 
 func (h *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
-
-	defer h.index.RLock()()
 
 	var cr ClaimsRequest
 	searchtypes.ClaimsRequestFromHTTP(&cr, req)
@@ -691,6 +693,7 @@ func (h *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request
 
 // EdgesTo returns edges that reference req.RefTo.
 // It filters out since-deleted permanode edges.
+// It acquires RLock on the Handler's index.
 func (h *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 	ctx := context.TODO()
 	defer h.index.RLock()()
@@ -797,7 +800,8 @@ func (h *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, sr)
 }
 
-// GetSignerPaths returns paths with a target of req.Target.
+// GetSignerPaths returns paths with a target of req.Target. It acquires
+// RLock on the Handler's index.
 func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
 	ctx := context.TODO()
 	if !req.Signer.Valid() {
