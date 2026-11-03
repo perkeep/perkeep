@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package takeoutimport
 
 import (
 	"context"
@@ -33,14 +33,14 @@ import (
 
 // readArchiveTree returns the contents of the files in the directory
 // dir, by their paths under it, and the names of the directories.
-func readArchiveTree(t *testing.T, st *takeoutStore, dir blob.Ref) (files map[string]string, dirName string) {
+func readArchiveTree(t *testing.T, st *Importer, dir blob.Ref) (files map[string]string, dirName string) {
 	t.Helper()
 	ctx := context.Background()
 	files = make(map[string]string)
 	var walk func(br blob.Ref, prefix string) string
 	var setMembers func(ss blob.Ref) []blob.Ref
 	setMembers = func(ss blob.Ref) []blob.Ref {
-		b, err := st.c.FetchSchemaBlob(ctx, ss)
+		b, err := st.client().FetchSchemaBlob(ctx, ss)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +51,7 @@ func readArchiveTree(t *testing.T, st *takeoutStore, dir blob.Ref) (files map[st
 		return members
 	}
 	walk = func(br blob.Ref, prefix string) string {
-		b, err := st.c.FetchSchemaBlob(ctx, br)
+		b, err := st.client().FetchSchemaBlob(ctx, br)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +70,7 @@ func readArchiveTree(t *testing.T, st *takeoutStore, dir blob.Ref) (files map[st
 			if mt := b.ModTime(); !mt.IsZero() {
 				t.Errorf("%s%s has modtime %v, from its zip entry; want none", prefix, name, mt)
 			}
-			fr, err := schema.NewFileReader(ctx, st.c, br)
+			fr, err := schema.NewFileReader(ctx, st.client(), br)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,13 +90,13 @@ func readArchiveTree(t *testing.T, st *takeoutStore, dir blob.Ref) (files map[st
 }
 
 func TestTakeoutArchive(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	photo := strings.Repeat("photo ", 1000)
 	video := strings.Repeat("video ", 100000) // more than one chunk
 
 	// The server already has the photo.
-	if _, err := upload.NewFileFromReader(st.c, "elsewhere.jpg", strings.NewReader(photo), nil).Run(ctx); err != nil {
+	if _, err := upload.NewFileFromReader(st.client(), "elsewhere.jpg", strings.NewReader(photo), nil).Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,8 +130,9 @@ func TestTakeoutArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Flushing the session often, as for many more files.
-	a := &takeoutArchive{st: st, exp: exp, workers: 4, flushEvery: 3}
-	root, err := a.run(ctx)
+	st.Workers = 4
+	st.Server.(*Client).FlushEvery = 3
+	root, err := st.Archive(ctx, exp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestTakeoutArchive(t *testing.T) {
 		}
 	}
 
-	pn, err := st.plannedPermanodeRef(ctx, exportPermanodeKeyPrefix+exp.Name)
+	pn, err := st.plannedPermanodeRef(ctx, ExportPermanodeKeyPrefix+exp.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,8 +181,8 @@ func TestTakeoutArchive(t *testing.T) {
 	}
 
 	// Archiving it again makes the same directory.
-	a = &takeoutArchive{st: st, exp: exp, workers: 4}
-	root2, err := a.run(ctx)
+	st.Server.(*Client).FlushEvery = 0
+	root2, err := st.Archive(ctx, exp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestTakeoutArchive(t *testing.T) {
 // TestTakeoutImportPhotos checks that uploading an export's photos also
 // archives it, once.
 func TestTakeoutImportPhotos(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	photo := strings.Repeat("photo ", 1000)
 	files := map[string]string{
@@ -221,13 +222,12 @@ func TestTakeoutImportPhotos(t *testing.T) {
 			}
 		}
 		cs := takeout.Contents(ents)
-		_, missing, err := takeout.Check(ctx, st, cs, 2, nil)
+		_, missing, err := takeout.Check(ctx, st.store(false), cs, 2, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		c := &takeoutCmd{workers: 2, permanodes: true}
-		if err := c.importPhotos(ctx, st, exp, cs, missing); err != nil {
-			t.Fatalf("importPhotos: %v", err)
+		if _, err := st.Import(ctx, exp, cs, missing, Options{Permanodes: true}); err != nil {
+			t.Fatalf("Import: %v", err)
 		}
 	}
 	importPhotos()
@@ -235,7 +235,7 @@ func TestTakeoutImportPhotos(t *testing.T) {
 	if got := permanodeAttrs(t, st, photoPermanode(t, st, "A.JPG")).Get("description"); got != "Space Needle" {
 		t.Errorf("A.JPG's description = %q; want Space Needle", got)
 	}
-	pn, err := st.plannedPermanodeRef(ctx, exportPermanodeKeyPrefix+exp.Name)
+	pn, err := st.plannedPermanodeRef(ctx, ExportPermanodeKeyPrefix+exp.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,9 +255,9 @@ func TestTakeoutImportPhotos(t *testing.T) {
 	// Importing it again, as after an interruption, finds it all done.
 	// Only the metadata sync uploads anything: the planned permanode of
 	// the albums' root (one per album, with albums), which it has.
-	before := st.c.Stats().UploadRequests
+	before := st.client().Stats().UploadRequests
 	importPhotos()
-	if after := st.c.Stats().UploadRequests; after.Blobs-before.Blobs > 1 {
+	if after := st.client().Stats().UploadRequests; after.Blobs-before.Blobs > 1 {
 		t.Errorf("importing again requested %d more uploads (%d bytes); want just the albums' root permanode",
 			after.Blobs-before.Blobs, after.Bytes-before.Bytes)
 	}
@@ -268,7 +268,7 @@ func TestTakeoutImportPhotos(t *testing.T) {
 // dated by the export or later) makes the new one its permanode's
 // contents.
 func TestTakeoutArchiveReplacesOldArchive(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
@@ -282,7 +282,7 @@ func TestTakeoutArchiveReplacesOldArchive(t *testing.T) {
 	if err := exp.LoadTOCs(ctx, 2); err != nil {
 		t.Fatal(err)
 	}
-	pn, err := st.plannedPermanode(ctx, exportPermanodeKeyPrefix+exp.Name)
+	pn, err := st.plannedPermanode(ctx, ExportPermanodeKeyPrefix+exp.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestTakeoutArchiveReplacesOldArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	root, err := (&takeoutArchive{st: st, exp: exp, workers: 2}).run(ctx)
+	root, err := st.Archive(ctx, exp)
 	if err != nil {
 		t.Fatal(err)
 	}

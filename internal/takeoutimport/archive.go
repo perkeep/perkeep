@@ -14,14 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package takeoutimport
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"maps"
 	"path"
 	"slices"
@@ -32,7 +30,6 @@ import (
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
@@ -43,33 +40,33 @@ const (
 	// zip files' contents.
 	nodeTypeTakeoutExport = "takeout.google.com:export"
 
-	// exportPermanodeKeyPrefix, plus the export's name, is the key of the
+	// ExportPermanodeKeyPrefix, plus the export's name, is the key of the
 	// planned permanode of an archived export.
-	exportPermanodeKeyPrefix = "googleTakeoutExport:"
+	ExportPermanodeKeyPrefix = "googleTakeoutExport:"
 )
 
-// takeoutArchive archives a whole Takeout export: every file in its zip
-// files, in a directory per zip file, in a directory of the export, the
+// archive archives a whole Takeout export: every file in its zip files,
+// in a directory per zip file, in a directory of the export, the
 // camliContent of a permanode of the export.
-type takeoutArchive struct {
-	st      *takeoutStore
-	exp     *takeout.Export
-	workers int
-	verbose bool
-
-	sess       *client.UploadSession // or nil, if the server has none
-	flushEvery int                   // if non-zero, instead of archiveFlushEvery
-
-	// flushMu is held for reading by uploads into sess, and for writing
-	// while waiting for them to be durable.
-	flushMu sync.RWMutex
+type archive struct {
+	im    *Importer
+	exp   *takeout.Export
+	batch Batch
 
 	mu       sync.Mutex
 	uploaded map[blob.Ref]bool // uploaded already, as identical blobs repeat
-	pending  []blob.Ref        // uploaded into sess, to wait for
 }
 
-func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) {
+// Archive archives all of exp's files, of every kind: a directory of each
+// zip file's files, in a directory of the export, which is the content of
+// a permanode titled "Google Takeout Raw Zips (<export>)". Files the
+// server has aren't read again. It returns the export's directory.
+func (im *Importer) Archive(ctx context.Context, exp *takeout.Export) (rootDir blob.Ref, err error) {
+	a := &archive{im: im, exp: exp}
+	return a.run(ctx)
+}
+
+func (a *archive) run(ctx context.Context) (rootDir blob.Ref, err error) {
 	ents := a.exp.Entries()
 	for _, e := range ents {
 		if name := e.File.Name; path.Clean(name) != name || path.IsAbs(name) || strings.HasPrefix(name, "../") || name == ".." {
@@ -77,24 +74,24 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		}
 	}
 	cs := takeout.Contents(ents)
-	log.Printf("Archiving %d files (%d distinct contents) of %d zip files...", len(ents), len(cs), len(a.exp.Zips))
+	a.im.logf("Archiving %d files (%d distinct contents) of %d zip files...", len(ents), len(cs), len(a.exp.Zips))
 
 	// The contents that the server doesn't have, such as sidecars and
 	// edited copies, without permanodes.
-	files := &takeoutStore{c: a.st.c, lim: a.st.lim}
-	_, missing, err := takeout.Check(ctx, files, cs, a.workers, nil)
+	files := a.im.store(false)
+	_, missing, err := takeout.Check(ctx, files, cs, a.im.workers(), nil)
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	if len(missing) > 0 {
-		log.Printf("Uploading %d contents the server doesn't have (%s)...", len(missing), takeoutBytes(contentsSize(missing)))
-		pr := newTakeoutProgress(len(missing), contentsSize(missing))
+		a.im.logf("Uploading %d contents the server doesn't have (%s)...", len(missing), FormatBytes(ContentsSize(missing)))
+		pr := a.im.newProgress(len(missing), ContentsSize(missing))
 		done, doneBytes := 0, int64(0)
-		failed, err := takeout.Upload(ctx, files, missing, a.workers, func(c *takeout.Content, err error) {
+		failed, err := takeout.Upload(ctx, files, missing, a.im.workers(), func(c *takeout.Content, err error) {
 			done++
 			doneBytes += c.Size
 			if err != nil {
-				log.Printf("Error uploading %s: %v", c.Entries[0].File.Name, err)
+				a.im.logf("Error uploading %s: %v", c.Entries[0].File.Name, err)
 			}
 			pr.update(done, doneBytes)
 		})
@@ -106,24 +103,19 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		}
 	}
 
-	if a.sess, err = a.st.c.NewUploadSession(ctx); err != nil {
-		if !errors.Is(err, errors.ErrUnsupported) {
-			return blob.Ref{}, err
-		}
-		a.sess = nil
+	if a.batch, err = a.im.Server.NewBatch(ctx); err != nil {
+		return blob.Ref{}, err
 	}
-	if a.sess != nil {
-		defer a.sess.Close(context.WithoutCancel(ctx))
-	}
+	defer a.batch.Close()
 
 	// A file schema blob for each entry, with the parts of a file with
 	// its contents.
-	log.Printf("Writing the file schema blobs of %d files...", len(ents))
+	a.im.logf("Writing the file schema blobs of %d files...", len(ents))
 	fileRefs := make(map[*takeout.Entry]blob.Ref, len(ents))
 	var fmu sync.Mutex
-	pr := newTakeoutProgress(len(cs), 0)
+	pr := a.im.newProgress(len(cs), 0)
 	done := 0
-	err = takeoutForEach(ctx, cs, a.workers, func(c *takeout.Content) error {
+	err = forEach(ctx, cs, a.im.workers(), func(c *takeout.Content) error {
 		size, parts, err := a.contentParts(ctx, c)
 		if err != nil {
 			return fmt.Errorf("%s: %w", c.Entries[0].File.Name, err)
@@ -131,7 +123,7 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 		for i := range c.Entries {
 			e := &c.Entries[i]
 			// No modification time: Takeout gives each entry the
-			// time the export was made. (See takeoutStore.Put.)
+			// time the export was made. (See store.Put.)
 			fm := schema.NewFileMap(path.Base(e.File.Name))
 			if err := fm.PopulateParts(size, parts); err != nil {
 				return err
@@ -179,18 +171,16 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	if a.sess != nil {
-		log.Printf("Waiting for %d schema blobs to be durable...", len(a.pending))
-		if err := a.sess.WaitDurable(ctx, a.pending); err != nil {
-			return blob.Ref{}, err
-		}
+	a.im.logf("Waiting for the schema blobs to be stored...")
+	if err := a.batch.Flush(ctx); err != nil {
+		return blob.Ref{}, err
 	}
 
-	pn, err := a.st.plannedPermanode(ctx, exportPermanodeKeyPrefix+a.exp.Name)
+	pn, err := a.im.plannedPermanode(ctx, ExportPermanodeKeyPrefix+a.exp.Name)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	res, err := a.st.c.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
+	res, err := a.im.Server.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -214,21 +204,21 @@ func (a *takeoutArchive) run(ctx context.Context) (rootDir blob.Ref, err error) 
 	if old := cur[nodeattr.CamliContent]; len(old) > 0 && !slices.Equal(old, []string{rootDir.String()}) {
 		claimTime = time.Now()
 	}
-	if err := a.st.applyChanges(ctx, pn, changes, claimTime); err != nil {
+	if err := a.im.applyChanges(ctx, pn, changes, claimTime); err != nil {
 		return blob.Ref{}, err
 	}
-	log.Printf("Archived %s as directory %v, the content of permanode %v.", a.exp.Name, rootDir, pn)
+	a.im.logf("Archived %s as directory %v, the content of permanode %v.", a.exp.Name, rootDir, pn)
 	return rootDir, nil
 }
 
 // contentParts returns the size and parts of a file on the server with
 // contents c.
-func (a *takeoutArchive) contentParts(ctx context.Context, c *takeout.Content) (int64, []schema.BytesPart, error) {
+func (a *archive) contentParts(ctx context.Context, c *takeout.Content) (int64, []schema.BytesPart, error) {
 	if c.Size == 0 {
 		return 0, nil, nil
 	}
 	size := c.Size
-	res, err := a.st.c.Query(ctx, &search.SearchQuery{
+	res, err := a.im.Server.Query(ctx, &search.SearchQuery{
 		Constraint: &search.Constraint{File: &search.FileConstraint{
 			FileSize: &search.IntConstraint{Equals: &size},
 			Digest:   c.Digest(),
@@ -241,7 +231,7 @@ func (a *takeoutArchive) contentParts(ctx context.Context, c *takeout.Content) (
 	if len(res.Blobs) == 0 {
 		return 0, nil, errors.New("no file with its contents on the server")
 	}
-	fb, err := a.st.c.FetchSchemaBlob(ctx, res.Blobs[0].Blob)
+	fb, err := a.im.Server.FetchSchemaBlob(ctx, res.Blobs[0].Blob)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -251,9 +241,9 @@ func (a *takeoutArchive) contentParts(ctx context.Context, c *takeout.Content) (
 	return c.Size, fb.ByteParts(), nil
 }
 
-// upload uploads b, a small schema blob, into the session if any, unless
-// it already has.
-func (a *takeoutArchive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, error) {
+// upload uploads b, a small schema blob, into the batch, unless it
+// already has.
+func (a *archive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, error) {
 	a.mu.Lock()
 	if a.uploaded == nil {
 		a.uploaded = make(map[blob.Ref]bool)
@@ -264,45 +254,8 @@ func (a *takeoutArchive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, 
 	if dup {
 		return b.BlobRef(), nil
 	}
-	h := client.NewUploadHandleFromString(b.JSON())
-	if a.sess == nil {
-		_, err := a.st.c.Upload(ctx, h)
-		return b.BlobRef(), err
-	}
-	// The server holds only so many blobs in a session, buffered or not
-	// yet acknowledged, which the session does as it flushes, so every
-	// so often, wait for those uploaded to be durable, with uploads
-	// paused, as small ones can otherwise outrun the server's commits.
-	a.flushMu.RLock()
-	err := a.sess.Upload(ctx, h)
-	a.mu.Lock()
-	if err == nil {
-		a.pending = append(a.pending, b.BlobRef())
-	}
-	var batch []blob.Ref
-	if len(a.pending) >= cmp.Or(a.flushEvery, archiveFlushEvery) {
-		batch, a.pending = a.pending, nil
-	}
-	a.mu.Unlock()
-	a.flushMu.RUnlock()
-	if err != nil {
-		return blob.Ref{}, err
-	}
-	if batch != nil {
-		a.flushMu.Lock()
-		err := a.sess.WaitDurable(ctx, batch)
-		a.flushMu.Unlock()
-		if err != nil {
-			return blob.Ref{}, err
-		}
-	}
-	return b.BlobRef(), nil
+	return b.BlobRef(), a.batch.Put(ctx, b.JSON())
 }
-
-// archiveFlushEvery is how many blobs takeoutArchive uploads into its
-// session between waiting for them to be durable: well under the
-// server's limit of blobs not acknowledged (100,000 by default).
-const archiveFlushEvery = 10_000
 
 // archiveDir is a directory to archive.
 type archiveDir struct {
@@ -332,7 +285,7 @@ func (d *archiveDir) add(name string, fileRef blob.Ref) {
 
 // uploadDir uploads the directory schema blobs of d and its
 // subdirectories, returning d's.
-func (a *takeoutArchive) uploadDir(ctx context.Context, d *archiveDir) (blob.Ref, error) {
+func (a *archive) uploadDir(ctx context.Context, d *archiveDir) (blob.Ref, error) {
 	members := maps.Clone(d.files)
 	for name, sub := range d.dirs {
 		br, err := a.uploadDir(ctx, sub)

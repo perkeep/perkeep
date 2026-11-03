@@ -36,19 +36,15 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/time/rate"
 	"perkeep.org/internal/osutil"
-	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
+	"perkeep.org/internal/takeoutimport"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/schema/nodeattr"
-	"perkeep.org/pkg/upload"
 )
 
 type takeoutCmd struct {
@@ -168,12 +164,17 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	st := &takeoutStore{c: cl, permanodes: c.permanodes && mode == "upload", lim: upload.NewLimiter(upload.Limits{})}
-	if err := st.checkServer(ctx); err != nil {
+	im := &takeoutimport.Importer{
+		Server:  &takeoutimport.Client{Client: cl},
+		Workers: c.workers,
+		Verbose: c.verbose,
+	}
+	if err := im.CheckServer(ctx); err != nil {
 		return err
 	}
-	if st.permanodes || mode == "archive" {
-		if st.signer, err = cl.Signer(); err != nil {
+	permanodes := c.permanodes && mode == "upload"
+	if permanodes || mode == "archive" {
+		if im.Signer, err = cl.Signer(); err != nil {
 			return fmt.Errorf("making permanodes needs a signing identity (or use -permanodes=false): %w", err)
 		}
 		if err := cl.UploadPublicKey(ctx); err != nil {
@@ -186,8 +187,7 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		return err
 	}
 	if mode == "archive" {
-		a := &takeoutArchive{st: st, exp: exp, workers: c.workers, verbose: c.verbose}
-		_, err := a.run(ctx)
+		_, err := im.Archive(ctx, exp)
 		return err
 	}
 	var ents []takeout.Entry
@@ -207,8 +207,7 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	}
 	cs := takeout.Contents(ents)
 	log.Printf("Asking the server about %d distinct contents of %d files...", len(cs), len(ents))
-	pr := newTakeoutProgress(len(cs), 0)
-	have, missing, err := takeout.Check(ctx, st, cs, c.workers, func(done int) { pr.update(done, 0) })
+	have, missing, err := im.Check(ctx, cs)
 	if err != nil {
 		return err
 	}
@@ -219,8 +218,8 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 	if c.all {
 		what = "files"
 	}
-	fmt.Fprintf(out, "  %d %s, %d distinct contents, %s\n", len(ents), what, len(cs), takeoutBytes(contentsSize(cs)))
-	fmt.Fprintf(out, "  server has %d (%s); missing %d (%s)\n", len(have), takeoutBytes(contentsSize(have)), len(missing), takeoutBytes(contentsSize(missing)))
+	fmt.Fprintf(out, "  %d %s, %d distinct contents, %s\n", len(ents), what, len(cs), takeoutBytes(takeoutimport.ContentsSize(cs)))
+	fmt.Fprintf(out, "  server has %d (%s); missing %d (%s)\n", len(have), takeoutBytes(takeoutimport.ContentsSize(have)), len(missing), takeoutBytes(takeoutimport.ContentsSize(missing)))
 	if len(missing) > 0 {
 		fmt.Fprintf(out, "  missing, by extension: %s\n", byExtension(missing))
 	}
@@ -232,115 +231,11 @@ func (c *takeoutCmd) RunCommand(args []string) error {
 		}
 		return nil
 	}
-	return c.importPhotos(ctx, st, exp, cs, missing)
-}
-
-// importPhotos imports the photos cs of exp, of which the server doesn't
-// have missing: it uploads them, with permanodes with their metadata,
-// archives exp, and then syncs the metadata of the photos the server had,
-// and the albums.
-func (c *takeoutCmd) importPhotos(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs, missing []*takeout.Content) error {
-	if !st.permanodes || c.all {
-		// Without permanodes, there's nothing to set metadata on,
-		// and the files of -all aren't all photos.
-		return c.upload(ctx, st, missing)
+	stats, err := im.Import(ctx, exp, cs, missing, takeoutimport.Options{Permanodes: permanodes, All: c.all})
+	if stats != nil {
+		fmt.Fprintf(out, "  %s\n", stats)
 	}
-	if len(missing) > 0 {
-		// Read the photos' metadata first, so each permanode gets it
-		// with its contents, rather than after all the uploads.
-		log.Printf("Reading the metadata of %d photos to upload...", len(missing))
-		if err := st.readMeta(ctx, exp, missing, c.workers); err != nil {
-			return err
-		}
-	}
-	if err := c.upload(ctx, st, missing); err != nil {
-		return err
-	}
-	if err := c.archiveNew(ctx, st, exp); err != nil {
-		return err
-	}
-	return c.syncMeta(ctx, st, exp, cs)
-}
-
-// archiveNew archives exp, as "archive" does, unless it's archived
-// already: its permanode has contents. Uploading reads the export's
-// photos and sidecars anyway, so keeping all of it costs little more,
-// and puts its sidecars on the server too.
-func (c *takeoutCmd) archiveNew(ctx context.Context, st *takeoutStore, exp *takeout.Export) error {
-	pn, err := st.plannedPermanodeRef(ctx, exportPermanodeKeyPrefix+exp.Name)
-	if err != nil {
-		return err
-	}
-	res, err := st.c.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
-	if err != nil {
-		return err
-	}
-	if db := res.Meta.Get(pn); db != nil && db.Permanode != nil && db.Permanode.Attr.Get(nodeattr.CamliContent) != "" {
-		log.Printf("%s is archived already, as permanode %v.", exp.Name, pn)
-		return nil
-	}
-	a := &takeoutArchive{st: st, exp: exp, workers: c.workers, verbose: c.verbose}
-	_, err = a.run(ctx)
 	return err
-}
-
-// readMeta reads the Google Photos metadata of the photos cs of exp, for
-// Put to set on their permanodes.
-func (s *takeoutStore) readMeta(ctx context.Context, exp *takeout.Export, cs []*takeout.Content, workers int) error {
-	lib, err := takeout.NewLibrary(ctx, exp, cs, workers)
-	if err != nil {
-		return err
-	}
-	s.meta, s.metaTime = make(map[string]*takeout.PhotoMetadata), exp.Time
-	for _, p := range lib.Photos {
-		for _, e := range p.Content.Entries {
-			s.meta[e.File.Name] = p.Meta
-		}
-	}
-	return nil
-}
-
-// syncMeta applies the metadata of the photos cs of exp, and its albums,
-// to their permanodes.
-func (c *takeoutCmd) syncMeta(ctx context.Context, st *takeoutStore, exp *takeout.Export, cs []*takeout.Content) error {
-	log.Printf("Reading the metadata of %d photos...", len(cs))
-	lib, err := takeout.NewLibrary(ctx, exp, cs, c.workers)
-	if err != nil {
-		return err
-	}
-	ms := &takeoutMetaSync{st: st, exp: exp, lib: lib, workers: c.workers, verbose: c.verbose}
-	err = ms.run(ctx)
-	fmt.Fprintf(cmdmain.Stdout, "  %s\n", ms.report())
-	return err
-}
-
-// upload uploads the missing contents.
-func (c *takeoutCmd) upload(ctx context.Context, st *takeoutStore, missing []*takeout.Content) error {
-	if len(missing) == 0 {
-		return nil
-	}
-	log.Printf("Uploading %d files (%s)...", len(missing), takeoutBytes(contentsSize(missing)))
-	pr := newTakeoutProgress(len(missing), contentsSize(missing))
-	done, doneBytes := 0, int64(0)
-	failed, err := takeout.Upload(ctx, st, missing, c.workers, func(mc *takeout.Content, err error) {
-		done++
-		doneBytes += mc.Size
-		name := mc.Entries[0].File.Name
-		if err != nil {
-			log.Printf("Error uploading %s: %v", name, err)
-		} else if c.verbose {
-			log.Printf("Uploaded %s (%s)", name, takeoutBytes(mc.Size))
-		}
-		pr.update(done, doneBytes)
-	})
-	if err != nil {
-		return err
-	}
-	if failed > 0 {
-		return fmt.Errorf("%d of %d files failed to upload", failed, len(missing))
-	}
-	log.Printf("Uploaded %d files.", len(missing))
-	return nil
 }
 
 // exports returns the exports from the local directory or Google Drive.
@@ -361,14 +256,6 @@ func (c *takeoutCmd) exports(ctx context.Context) ([]*takeout.Export, error) {
 		d.Limiter = rate.NewLimiter(rate.Limit(r), 1)
 	}
 	return d.Exports(ctx, c.driveFolder)
-}
-
-func contentsSize(cs []*takeout.Content) int64 {
-	var n int64
-	for _, c := range cs {
-		n += c.Size
-	}
-	return n
 }
 
 // byExtension summarizes cs by their first entries' file extensions,
@@ -405,146 +292,8 @@ func byExtension(cs []*takeout.Content) string {
 	return strings.Join(parts, ", ")
 }
 
-func takeoutBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for n/div >= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
-}
-
-// takeoutProgress logs progress through a number of items, at most every
-// few seconds. If they have sizes, its estimate of the time left is by
-// bytes, as their sizes vary a lot.
-type takeoutProgress struct {
-	total      int
-	totalBytes int64 // or zero, to estimate by items
-	start      time.Time
-	last       time.Time
-}
-
-func newTakeoutProgress(total int, totalBytes int64) *takeoutProgress {
-	now := time.Now()
-	return &takeoutProgress{total: total, totalBytes: totalBytes, start: now, last: now}
-}
-
-// update records that done items, of doneBytes bytes, are done.
-func (p *takeoutProgress) update(done int, doneBytes int64) {
-	now := time.Now()
-	if now.Sub(p.last) < 5*time.Second || done == p.total {
-		return
-	}
-	p.last = now
-	elapsed := now.Sub(p.start)
-	if p.totalBytes == 0 || doneBytes == 0 {
-		eta := time.Duration(float64(elapsed) / float64(done) * float64(p.total-done))
-		log.Printf("%d of %d done; about %v left", done, p.total, eta.Round(time.Second))
-		return
-	}
-	rate := float64(doneBytes) / elapsed.Seconds()
-	eta := time.Duration(float64(p.totalBytes-doneBytes) / rate * float64(time.Second))
-	log.Printf("%d of %d done, %s of %s (%s/s); about %v left", done, p.total,
-		takeoutBytes(doneBytes), takeoutBytes(p.totalBytes), takeoutBytes(int64(rate)), eta.Round(time.Second))
-}
-
-// takeoutStore is a takeout.Store of a Perkeep server.
-type takeoutStore struct {
-	c          *client.Client
-	permanodes bool
-	signer     *schema.Signer // to sign permanodes, if permanodes
-	lim        *upload.Limiter
-
-	// meta, if non-nil, is the Google Photos metadata of the photos to
-	// upload, by the names of their entries, which Put sets on their
-	// permanodes in the claims of their camliContent. Its claims are
-	// dated as takeoutMetaSync's are: by a photo's modification time in
-	// Google Photos, or else metaTime, the export's.
-	meta     map[string]*takeout.PhotoMetadata
-	metaTime time.Time
-}
-
-// checkServer checks that the server indexes files' digests. A server
-// that doesn't would ignore the Digest of a query, and match any file of
-// the same size.
-func (s *takeoutStore) checkServer(ctx context.Context) error {
-	_, err := s.c.Query(ctx, &search.SearchQuery{
-		Constraint: &search.Constraint{File: &search.FileConstraint{Digest: "crc32-invalid"}},
-		Limit:      1,
-	})
-	if err == nil || !strings.Contains(err.Error(), "invalid digest") {
-		return fmt.Errorf("the server doesn't support searching files by digest; it needs upgrading (to index schema version 11 or later). Checking returned error: %v", err)
-	}
-	return nil
-}
-
-func (s *takeoutStore) Has(ctx context.Context, size int64, crc32 uint32) (bool, error) {
-	res, err := s.c.Query(ctx, &search.SearchQuery{
-		Constraint: &search.Constraint{File: &search.FileConstraint{
-			FileSize: &search.IntConstraint{Equals: &size},
-			Digest:   fmt.Sprintf("crc32-%08x", crc32),
-		}},
-		Limit: 1,
-	})
-	if err != nil {
-		return false, err
-	}
-	return len(res.Blobs) > 0, nil
-}
-
-// Put uploads the contents r of e. It records no modification time:
-// Takeout's zip files give each entry the time the export was made,
-// which says nothing of the photo. Its date is in its sidecar, which
-// Put sets on its permanode, with s.meta, or syncing metadata does.
-func (s *takeoutStore) Put(ctx context.Context, e takeout.Entry, r io.Reader) error {
-	res, err := upload.NewFileFromReader(s.c, path.Base(e.File.Name), r, &upload.Options{
-		Limiter: s.lim,
-	}).Run(ctx)
-	if err != nil {
-		return err
-	}
-	if !s.permanodes {
-		return nil
-	}
-	if len(res.WholeRefs) == 0 {
-		return fmt.Errorf("no whole-file ref for %v to make its permanode", res.FileRef)
-	}
-	var changes []attrChange
-	claimTime := time.Now()
-	if s.meta != nil {
-		claimTime = s.metaTime
-		if m := s.meta[e.File.Name]; m != nil {
-			changes = photoAttrChanges(url.Values{}, m)
-			if !m.Modified.IsZero() {
-				claimTime = m.Modified
-			}
-		}
-	}
-	// Last, so that a permanode never has the contents without the
-	// metadata, even if there's too much metadata for one claim.
-	changes = append(changes, attrChange{"set", nodeattr.CamliContent, res.FileRef.String()})
-	return s.putPermanode(ctx, res.WholeRefs[0].String(), changes, claimTime)
-}
-
-// putPermanode uploads the planned permanode of contents with the
-// whole-file ref sum, as pk-put -filenodes does, so the two make the same
-// permanode for the same contents, and the claims of changes to it, which
-// set its camliContent: one claim, unless there are too many changes.
-func (s *takeoutStore) putPermanode(ctx context.Context, sum string, changes []attrChange, claimTime time.Time) error {
-	pn, err := schema.NewPlannedPermanode(sum).SignAt(ctx, s.signer, time.Unix(0, 0))
-	if err != nil {
-		return fmt.Errorf("signing planned permanode: %w", err)
-	}
-	pnRes, err := s.c.Upload(ctx, client.NewUploadHandleFromString(pn))
-	if err != nil {
-		return fmt.Errorf("uploading planned permanode: %w", err)
-	}
-	return s.applyChanges(ctx, pnRes.BlobRef, changes, claimTime)
-}
+// takeoutBytes formats n bytes in binary units.
+var takeoutBytes = takeoutimport.FormatBytes
 
 func takeoutConfigDir() string {
 	dir, err := osutil.PerkeepConfigDir()

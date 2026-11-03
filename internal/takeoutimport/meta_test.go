@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package takeoutimport
 
 import (
 	"archive/zip"
@@ -160,7 +160,7 @@ func testSidecar(title, desc string) string {
 
 // syncTakeoutDir uploads the Google Photos files of the one export in
 // dir, and syncs their metadata, returning the sync.
-func syncTakeoutDir(t *testing.T, st *takeoutStore, dir string) *takeoutMetaSync {
+func syncTakeoutDir(t *testing.T, st *Importer, dir string) *metaSync {
 	t.Helper()
 	ctx := context.Background()
 	exps, err := takeout.LocalExports(dir)
@@ -178,29 +178,29 @@ func syncTakeoutDir(t *testing.T, st *takeoutStore, dir string) *takeoutMetaSync
 		}
 	}
 	cs := takeout.Contents(ents)
-	_, missing, err := takeout.Check(ctx, st, cs, 2, nil)
+	_, missing, err := takeout.Check(ctx, st.store(false), cs, 2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failed, err := takeout.Upload(ctx, st, missing, 2, nil); err != nil || failed != 0 {
+	if failed, err := takeout.Upload(ctx, st.store(true), missing, 2, nil); err != nil || failed != 0 {
 		t.Fatalf("Upload: %d failed, %v", failed, err)
 	}
 	lib, err := takeout.NewLibrary(ctx, exp, cs, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms := &takeoutMetaSync{st: st, exp: exp, lib: lib, workers: 2}
+	ms := &metaSync{im: st, exp: exp, lib: lib}
 	if err := ms.run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%s: %s", exp.Name, ms.report())
+	t.Logf("%s: %s", exp.Name, ms.stats.String())
 	return ms
 }
 
 // permanodeAttrs returns the attributes of permanode pn.
-func permanodeAttrs(t *testing.T, st *takeoutStore, pn blob.Ref) url.Values {
+func permanodeAttrs(t *testing.T, st *Importer, pn blob.Ref) url.Values {
 	t.Helper()
-	res, err := st.c.Describe(context.Background(), &search.DescribeRequest{BlobRef: pn})
+	res, err := st.client().Describe(context.Background(), &search.DescribeRequest{BlobRef: pn})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,9 +213,9 @@ func permanodeAttrs(t *testing.T, st *takeoutStore, pn blob.Ref) url.Values {
 
 // photoPermanode returns the permanode whose camliContent is the file
 // named name.
-func photoPermanode(t *testing.T, st *takeoutStore, name string) blob.Ref {
+func photoPermanode(t *testing.T, st *Importer, name string) blob.Ref {
 	t.Helper()
-	res, err := st.c.Query(context.Background(), &search.SearchQuery{
+	res, err := st.client().Query(context.Background(), &search.SearchQuery{
 		Constraint: &search.Constraint{Permanode: &search.PermanodeConstraint{
 			Attr:       nodeattr.CamliContent,
 			ValueInSet: &search.Constraint{File: &search.FileConstraint{FileName: &search.StringConstraint{Equals: name}}},
@@ -231,7 +231,7 @@ func photoPermanode(t *testing.T, st *takeoutStore, name string) blob.Ref {
 }
 
 func TestTakeoutMetaSync(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	photoA := strings.Repeat("photo A ", 1000)
 	photoB := strings.Repeat("photo B ", 1000)
@@ -268,7 +268,7 @@ func TestTakeoutMetaSync(t *testing.T) {
 		t.Errorf("A's googlePhotosMetadata = %q", a.Get("googlePhotosMetadata"))
 	}
 
-	album, err := st.plannedPermanodeRef(ctx, albumPermanodeKeyPrefix+"Trip")
+	album, err := st.plannedPermanodeRef(ctx, AlbumPermanodeKeyPrefix+"Trip")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,27 +319,28 @@ func TestTakeoutMetaSync(t *testing.T) {
 	ms := syncTakeoutDir(t, st, dir2)
 	pnC := photoPermanode(t, st, "C.JPG")
 	checkMembers("album after the newer export", album, pnA, pnC)
-	if ms.stats.photosChanged != 2 { // C's new attributes, and B's Google title
-		t.Errorf("newer export changed %d photos; want 2", ms.stats.photosChanged)
+	// C's new attributes, B's Google title, and each's newer export.
+	if ms.stats.PhotosChanged != 3 {
+		t.Errorf("newer export changed %d photos; want 3", ms.stats.PhotosChanged)
 	}
 	if b := permanodeAttrs(t, st, pnB); b.Get("title") != "Bee" || b.Get("googlePhotosTitle") != "B.JPG" {
 		t.Errorf("B's title = %q, googlePhotosTitle = %q; want Bee, as set after the first export, and B.JPG", b.Get("title"), b.Get("googlePhotosTitle"))
 	}
 
-	// The older export again doesn't undo the newer one, and finds
-	// nothing to change in the photos.
+	// The older export again doesn't undo the newer one's albums or
+	// photos.
 	ms = syncTakeoutDir(t, st, dir1)
 	checkMembers("album after the older export again", album, pnA, pnC)
-	if ms.stats.albumsSkipped != 2 { // the album and the root
-		t.Errorf("older export skipped %d sets; want 2", ms.stats.albumsSkipped)
+	if ms.stats.AlbumsSkipped != 2 { // the album and the root
+		t.Errorf("older export skipped %d sets; want 2", ms.stats.AlbumsSkipped)
 	}
-	if ms.stats.photosChanged != 0 {
-		t.Errorf("older export changed %d photos; want 0", ms.stats.photosChanged)
+	if ms.stats.PhotosChanged != 0 || ms.stats.PhotosSkipped != 2 {
+		t.Errorf("older export changed %d photos and skipped %d; want none changed, A and B skipped", ms.stats.PhotosChanged, ms.stats.PhotosSkipped)
 	}
 }
 
 func TestApplyChangesSplitsClaims(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	pn, err := st.plannedPermanode(ctx, "big set")
 	if err != nil {
@@ -376,7 +377,7 @@ func TestApplyChangesSplitsClaims(t *testing.T) {
 // each photo's permanode's metadata in the claim of its camliContent, so
 // there's no permanode with contents and without metadata.
 func TestTakeoutUploadSetsMeta(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
@@ -399,10 +400,11 @@ func TestTakeoutUploadSetsMeta(t *testing.T) {
 		}
 	}
 	cs := takeout.Contents(ents)
-	if err := st.readMeta(ctx, exp, cs, 2); err != nil {
+	ps := st.store(true)
+	if err := ps.readMeta(ctx, exp, cs); err != nil {
 		t.Fatal(err)
 	}
-	if failed, err := takeout.Upload(ctx, st, cs, 2, nil); err != nil || failed != 0 {
+	if failed, err := takeout.Upload(ctx, ps, cs, 2, nil); err != nil || failed != 0 {
 		t.Fatalf("Upload: %d failed, %v", failed, err)
 	}
 
@@ -419,6 +421,7 @@ func TestTakeoutUploadSetsMeta(t *testing.T) {
 			"latitude":             "47.62825",
 			"longitude":            "-122.34935",
 			"googlePhotosMetadata": testSidecar("A.JPG", "Space Needle"),
+			"takeoutExport":        exp.Name,
 		}, time.Unix(1554366885, 0)}, // its modification time in Google Photos
 		{"B.JPG", nil, exp.Time},
 	} {
@@ -429,7 +432,7 @@ func TestTakeoutUploadSetsMeta(t *testing.T) {
 				t.Errorf("%s's %s = %q; want %q", tt.name, attr, got, want)
 			}
 		}
-		res, err := st.c.GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
+		res, err := st.client().GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -451,7 +454,7 @@ func TestTakeoutUploadSetsMeta(t *testing.T) {
 // set of all their photos, and that syncing an export again overrides
 // its own claims, dated the same.
 func TestTakeoutSameTitledAlbums(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	st := newTestImporter(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
@@ -463,7 +466,7 @@ func TestTakeoutSameTitledAlbums(t *testing.T) {
 		"Takeout/Google Photos/Trip(1)/metadata.json": `{"albumData": {"title": "Trip", "description": "Portland"}}`,
 	})
 	ms := syncTakeoutDir(t, st, dir)
-	album, err := st.plannedPermanodeRef(ctx, albumPermanodeKeyPrefix+"Trip")
+	album, err := st.plannedPermanodeRef(ctx, AlbumPermanodeKeyPrefix+"Trip")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,4 +492,45 @@ func TestTakeoutSameTitledAlbums(t *testing.T) {
 	}
 	syncTakeoutDir(t, st, dir)
 	checkMembers("after syncing again")
+}
+
+// TestTakeoutResyncPhotos checks that syncing an export again overrides
+// its own photo claims, dated the same, as when an earlier sync matched a
+// photo with another of its sidecars, rather than losing to them, and
+// that then it finds nothing to change.
+func TestTakeoutResyncPhotos(t *testing.T) {
+	st := newTestImporter(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	writeTakeoutZip(t, dir, "takeout-20240101T000000Z-001.zip", map[string]string{
+		"Takeout/Google Photos/2018-07-13/A.JPG":      strings.Repeat("photo A ", 1000),
+		"Takeout/Google Photos/2018-07-13/A.JPG.json": testSidecar("A.JPG", "Space Needle"),
+	})
+	syncTakeoutDir(t, st, dir)
+	pnA := photoPermanode(t, st, "A.JPG")
+	want := permanodeAttrs(t, st, pnA).Get("googlePhotosMetadata")
+
+	// A claim of another sidecar, after the sync's own, as an earlier
+	// sync of the export could have made.
+	other := testSidecar("A.JPG", "another sidecar's")
+	after, err := st.claimTimeAfter(ctx, pnA, time.Unix(1554366885, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.applyChanges(ctx, pnA, []attrChange{{"set", "googlePhotosMetadata", other}}, after); err != nil {
+		t.Fatal(err)
+	}
+	if got := permanodeAttrs(t, st, pnA).Get("googlePhotosMetadata"); got != other {
+		t.Fatalf("googlePhotosMetadata = %q; want the other sidecar", got)
+	}
+	ms := syncTakeoutDir(t, st, dir)
+	if got := permanodeAttrs(t, st, pnA).Get("googlePhotosMetadata"); got != want {
+		t.Errorf("after syncing again, googlePhotosMetadata = %q; want %q", got, want)
+	}
+	if ms.stats.PhotosChanged != 1 {
+		t.Errorf("syncing again changed %d photos; want 1", ms.stats.PhotosChanged)
+	}
+	if ms := syncTakeoutDir(t, st, dir); ms.stats.PhotosChanged != 0 {
+		t.Errorf("syncing a third time changed %d photos; want none", ms.stats.PhotosChanged)
+	}
 }

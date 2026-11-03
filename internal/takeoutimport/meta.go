@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package takeoutimport
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"net/url"
 	"slices"
@@ -33,7 +32,6 @@ import (
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
@@ -51,15 +49,16 @@ const (
 	// has another value.
 	googlePhotosAttrPrefix = "googlePhotos"
 
-	// attrTakeoutExport is the export that last updated an album or the
-	// albums' root, so an older export doesn't undo a newer one's changes.
+	// attrTakeoutExport is the export that last updated a photo's
+	// metadata, an album, or the albums' root, so an older export doesn't
+	// undo a newer one's changes.
 	attrTakeoutExport = "takeoutExport"
 
 	nodeTypeGooglePhotosAlbum = "photos.google.com:album"
 
 	// The keys of planned permanodes of albums (plus the title) and of
 	// the root of the albums.
-	albumPermanodeKeyPrefix = "googlePhotosAlbum:"
+	AlbumPermanodeKeyPrefix = "googlePhotosAlbum:"
 	albumsRootPermanodeKey  = "googlePhotosAlbums"
 )
 
@@ -243,39 +242,45 @@ func setChanges(cur url.Values, attrs []attrChange, members []string) []attrChan
 	return changes
 }
 
-// takeoutMetaSync applies the metadata of a Library to the permanodes of
-// its photos and albums.
-type takeoutMetaSync struct {
-	st      *takeoutStore
-	exp     *takeout.Export
-	lib     *takeout.Library
-	workers int
-	verbose bool
+// metaSync applies the metadata of a Library to the permanodes of its
+// photos and albums.
+type metaSync struct {
+	im  *Importer
+	exp *takeout.Export
+	lib *takeout.Library
 
 	mu sync.Mutex // guards the following
 	// photoNodes are the permanodes of lib's photos, if found or made.
 	photoNodes map[*takeout.Photo]blob.Ref
-	stats      takeoutMetaStats
+	stats      MetaStats
 }
 
-type takeoutMetaStats struct {
-	photosMissing      int // not on the server
-	photosNoMeta       int // without a sidecar
-	photoNodesCreated  int
-	photosChanged      int
-	photoAttrsSet      int
-	albumsChanged      int
-	albumMembersAdded  int
-	albumMembersDelete int
-	albumsSkipped      int // last updated by a newer export
+// MetaStats are the counts of a metadata sync.
+type MetaStats struct {
+	PhotosMissing      int // not on the server
+	PhotosNoMeta       int // without a sidecar
+	PhotoNodesCreated  int
+	PhotosChanged      int
+	PhotoAttrsSet      int
+	PhotosSkipped      int // last updated by a newer export
+	AlbumsChanged      int
+	AlbumMembersAdded  int
+	AlbumMembersDelete int
+	AlbumsSkipped      int // last updated by a newer export
 }
 
-func (s *takeoutMetaSync) run(ctx context.Context) error {
+func (st *MetaStats) String() string {
+	return fmt.Sprintf("metadata: updated %d photos' permanodes (%d attributes; %d permanodes new), %d without sidecars, %d not on the server, %d skipped as newer; updated %d sets (albums and their root): %d members added, %d removed; %d skipped as newer",
+		st.PhotosChanged, st.PhotoAttrsSet, st.PhotoNodesCreated, st.PhotosNoMeta, st.PhotosMissing, st.PhotosSkipped,
+		st.AlbumsChanged, st.AlbumMembersAdded, st.AlbumMembersDelete, st.AlbumsSkipped)
+}
+
+func (s *metaSync) run(ctx context.Context) error {
 	s.photoNodes = make(map[*takeout.Photo]blob.Ref)
-	log.Printf("Updating the permanodes of %d photos...", len(s.lib.Photos))
-	pr := newTakeoutProgress(len(s.lib.Photos), 0)
+	s.im.logf("Updating the permanodes of %d photos...", len(s.lib.Photos))
+	pr := s.im.newProgress(len(s.lib.Photos), 0)
 	done := 0
-	err := takeoutForEach(ctx, s.lib.Photos, s.workers, func(p *takeout.Photo) error {
+	err := forEach(ctx, s.lib.Photos, s.im.workers(), func(p *takeout.Photo) error {
 		if err := s.syncPhoto(ctx, p); err != nil {
 			return fmt.Errorf("%s: %w", p.Content.Entries[0].File.Name, err)
 		}
@@ -288,7 +293,7 @@ func (s *takeoutMetaSync) run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Updating %d albums...", len(s.lib.Albums))
+	s.im.logf("Updating %d albums...", len(s.lib.Albums))
 	var albumNodes []string
 	for _, a := range s.lib.Albums {
 		pn, err := s.syncAlbum(ctx, a)
@@ -301,15 +306,23 @@ func (s *takeoutMetaSync) run(ctx context.Context) error {
 	return err
 }
 
-// syncPhoto finds or makes the permanode of p, and sets its attributes.
-func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error {
+// syncPhoto finds or makes the permanode of p, and sets its attributes,
+// unless a newer export last set them.
+func (s *metaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error {
 	pn, cur, fileRef, err := s.findPhotoPermanode(ctx, p.Content)
 	if err != nil {
 		return err
 	}
 	if !pn.Valid() && !fileRef.Valid() {
 		s.mu.Lock()
-		s.stats.photosMissing++
+		s.stats.PhotosMissing++
+		s.mu.Unlock()
+		return nil
+	}
+	if last := cur.Get(attrTakeoutExport); last > s.exp.Name {
+		s.mu.Lock()
+		s.photoNodes[p] = pn
+		s.stats.PhotosSkipped++
 		s.mu.Unlock()
 		return nil
 	}
@@ -318,7 +331,7 @@ func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error
 	if !pn.Valid() {
 		// The contents are on the server without a permanode, so make
 		// the one that pk takeout upload and pk-put -filenodes make.
-		pn, err = s.st.plannedPermanode(ctx, fileRef.wholeRef.String())
+		pn, err = s.im.plannedPermanode(ctx, fileRef.wholeRef.String())
 		if err != nil {
 			return err
 		}
@@ -327,6 +340,9 @@ func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error
 	}
 	if p.Meta != nil {
 		changes = append(changes, photoAttrChanges(cur, p.Meta)...)
+		if cur.Get(attrTakeoutExport) != s.exp.Name {
+			changes = append(changes, attrChange{"set", attrTakeoutExport, s.exp.Name})
+		}
 		if !p.Meta.Modified.IsZero() {
 			claimTime = p.Meta.Modified
 		}
@@ -334,17 +350,24 @@ func (s *takeoutMetaSync) syncPhoto(ctx context.Context, p *takeout.Photo) error
 	s.mu.Lock()
 	s.photoNodes[p] = pn
 	if p.Meta == nil {
-		s.stats.photosNoMeta++
+		s.stats.PhotosNoMeta++
 	}
 	if fileRef.Valid() {
-		s.stats.photoNodesCreated++
+		s.stats.PhotoNodesCreated++
 	}
 	if len(changes) > 0 {
-		s.stats.photosChanged++
-		s.stats.photoAttrsSet += len(changes)
+		s.stats.PhotosChanged++
+		s.stats.PhotoAttrsSet += len(changes)
 	}
 	s.mu.Unlock()
-	return s.st.applyChanges(ctx, pn, changes, claimTime)
+	if len(changes) == 0 {
+		return nil
+	}
+	claimTime, err = s.im.claimTimeAfter(ctx, pn, claimTime)
+	if err != nil {
+		return err
+	}
+	return s.im.applyChanges(ctx, pn, changes, claimTime)
 }
 
 // contentFile is a file of some contents on the server.
@@ -359,13 +382,13 @@ func (f contentFile) Valid() bool { return f.ref.Valid() }
 // attributes: the permanode whose camliContent is a file with them that
 // pk takeout upload (or pk-put -filenodes) makes, if it exists, or else
 // any. If there's none, it returns a file with the contents, if any.
-func (s *takeoutMetaSync) findPhotoPermanode(ctx context.Context, c *takeout.Content) (pn blob.Ref, attrs url.Values, file contentFile, err error) {
+func (s *metaSync) findPhotoPermanode(ctx context.Context, c *takeout.Content) (pn blob.Ref, attrs url.Values, file contentFile, err error) {
 	size := c.Size
 	fileC := &search.Constraint{File: &search.FileConstraint{
 		FileSize: &search.IntConstraint{Equals: &size},
 		Digest:   c.Digest(),
 	}}
-	res, err := s.st.c.Query(ctx, &search.SearchQuery{
+	res, err := s.im.Server.Query(ctx, &search.SearchQuery{
 		Constraint: &search.Constraint{Permanode: &search.PermanodeConstraint{
 			Attr:       nodeattr.CamliContent,
 			ValueInSet: fileC,
@@ -387,7 +410,7 @@ func (s *takeoutMetaSync) findPhotoPermanode(ctx context.Context, c *takeout.Con
 			if db.File == nil || !db.File.WholeRef.Valid() {
 				continue
 			}
-			planned, err := s.st.plannedPermanodeRef(ctx, db.File.WholeRef.String())
+			planned, err := s.im.plannedPermanodeRef(ctx, db.File.WholeRef.String())
 			if err != nil {
 				return blob.Ref{}, nil, contentFile{}, err
 			}
@@ -402,7 +425,7 @@ func (s *takeoutMetaSync) findPhotoPermanode(ctx context.Context, c *takeout.Con
 		}
 		return pn, attrs, contentFile{}, nil
 	}
-	res, err = s.st.c.Query(ctx, &search.SearchQuery{Constraint: fileC, Limit: 1, Describe: &search.DescribeRequest{}})
+	res, err = s.im.Server.Query(ctx, &search.SearchQuery{Constraint: fileC, Limit: 1, Describe: &search.DescribeRequest{}})
 	if err != nil || len(res.Blobs) == 0 {
 		return blob.Ref{}, nil, contentFile{}, err
 	}
@@ -414,7 +437,7 @@ func (s *takeoutMetaSync) findPhotoPermanode(ctx context.Context, c *takeout.Con
 }
 
 // syncAlbum makes or updates the permanode of album a.
-func (s *takeoutMetaSync) syncAlbum(ctx context.Context, a *takeout.Album) (blob.Ref, error) {
+func (s *metaSync) syncAlbum(ctx context.Context, a *takeout.Album) (blob.Ref, error) {
 	var members []string
 	s.mu.Lock()
 	for _, p := range a.Photos {
@@ -423,19 +446,19 @@ func (s *takeoutMetaSync) syncAlbum(ctx context.Context, a *takeout.Album) (blob
 		}
 	}
 	s.mu.Unlock()
-	return s.syncSet(ctx, albumPermanodeKeyPrefix+a.Title(), albumAttrs(a), members)
+	return s.syncSet(ctx, AlbumPermanodeKeyPrefix+a.Title(), albumAttrs(a), members)
 }
 
 // syncSet makes or updates the planned permanode with key, of a set with
 // attributes attrs and exactly the given members, unless a newer export
 // last updated it.
-func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrChange, members []string) (blob.Ref, error) {
-	pn, err := s.st.plannedPermanode(ctx, key)
+func (s *metaSync) syncSet(ctx context.Context, key string, attrs []attrChange, members []string) (blob.Ref, error) {
+	pn, err := s.im.plannedPermanode(ctx, key)
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	cur := url.Values{}
-	res, err := s.st.c.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
+	res, err := s.im.Server.Describe(ctx, &search.DescribeRequest{BlobRef: pn})
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -444,9 +467,9 @@ func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrC
 	}
 	if last := cur.Get(attrTakeoutExport); last > s.exp.Name {
 		s.mu.Lock()
-		s.stats.albumsSkipped++
+		s.stats.AlbumsSkipped++
 		s.mu.Unlock()
-		log.Printf("Not updating %q: export %s updated it last.", key, last)
+		s.im.logf("Not updating %q: export %s updated it last.", key, last)
 		return pn, nil
 	}
 	attrs = append(slices.Clone(attrs), attrChange{"set", attrTakeoutExport, s.exp.Name})
@@ -455,66 +478,68 @@ func (s *takeoutMetaSync) syncSet(ctx context.Context, key string, attrs []attrC
 		return pn, nil
 	}
 	s.mu.Lock()
-	s.stats.albumsChanged++
+	s.stats.AlbumsChanged++
 	for _, c := range changes {
 		switch c.op {
 		case "add":
-			s.stats.albumMembersAdded++
+			s.stats.AlbumMembersAdded++
 		case "del":
-			s.stats.albumMembersDelete++
+			s.stats.AlbumMembersDelete++
 		}
 	}
 	s.mu.Unlock()
-	if s.verbose {
-		log.Printf("Updating %q: %d changes.", key, len(changes))
+	if s.im.Verbose {
+		s.im.logf("Updating %q: %d changes.", key, len(changes))
 	}
-	// Claims are dated by the export, so that an older export's don't
-	// override a newer's, but syncing this export again must override
-	// its own claims, which might be dated the same: so date them after
-	// any as late.
-	claimTime := s.exp.Time
-	claims, err := s.st.c.GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
+	claimTime, err := s.im.claimTimeAfter(ctx, pn, s.exp.Time)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	for _, cl := range claims.Claims {
-		if t := time.Time(cl.Date); !t.Before(claimTime) {
-			claimTime = t.Add(time.Millisecond)
-		}
-	}
-	return pn, s.st.applyChanges(ctx, pn, changes, claimTime)
+	return pn, s.im.applyChanges(ctx, pn, changes, claimTime)
 }
 
-func (s *takeoutMetaSync) report() string {
-	st := s.stats
-	return fmt.Sprintf("metadata: updated %d photos' permanodes (%d attributes; %d permanodes new), %d without sidecars, %d not on the server; updated %d sets (albums and their root): %d members added, %d removed; %d skipped as newer",
-		st.photosChanged, st.photoAttrsSet, st.photoNodesCreated, st.photosNoMeta, st.photosMissing,
-		st.albumsChanged, st.albumMembersAdded, st.albumMembersDelete, st.albumsSkipped)
+// claimTimeAfter returns the time to date claims of pn by, which would
+// be t: claims are dated by the export (or a photo's modification time
+// in it), so that an older export's don't override a newer's, but
+// syncing this export again must override its own claims, which might
+// be dated the same, so if pn has claims as late as t, it's just after
+// the latest. (Newer exports' updates aren't redone: see attrTakeoutExport.)
+func (im *Importer) claimTimeAfter(ctx context.Context, pn blob.Ref, t time.Time) (time.Time, error) {
+	claims, err := im.Server.GetClaims(ctx, &search.ClaimsRequest{Permanode: pn})
+	if err != nil {
+		return time.Time{}, err
+	}
+	for _, cl := range claims.Claims {
+		if ct := time.Time(cl.Date); !ct.Before(t) {
+			t = ct.Add(time.Millisecond)
+		}
+	}
+	return t, nil
 }
 
 // plannedPermanodeRef returns the ref of the planned permanode with key,
 // signed as pk-put -filenodes signs it.
-func (s *takeoutStore) plannedPermanodeRef(ctx context.Context, key string) (blob.Ref, error) {
-	_, ref, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
+func (im *Importer) plannedPermanodeRef(ctx context.Context, key string) (blob.Ref, error) {
+	_, ref, err := attrclaims.PlannedPermanode(ctx, im.Signer, key)
 	return ref, err
 }
 
 // plannedPermanode uploads and returns the planned permanode with key.
-func (s *takeoutStore) plannedPermanode(ctx context.Context, key string) (blob.Ref, error) {
-	signed, _, err := attrclaims.PlannedPermanode(ctx, s.signer, key)
+func (im *Importer) plannedPermanode(ctx context.Context, key string) (blob.Ref, error) {
+	signed, _, err := attrclaims.PlannedPermanode(ctx, im.Signer, key)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	res, err := s.c.Upload(ctx, client.NewUploadHandleFromString(signed))
+	br, err := im.Server.PutBlob(ctx, signed)
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("uploading planned permanode: %w", err)
 	}
-	return res.BlobRef, nil
+	return br, nil
 }
 
 // applyChanges uploads the claims, dated claimTime, of changes to pn.
 // (See attrclaims.Sign.)
-func (s *takeoutStore) applyChanges(ctx context.Context, pn blob.Ref, changes []attrChange, claimTime time.Time) error {
+func (im *Importer) applyChanges(ctx context.Context, pn blob.Ref, changes []attrChange, claimTime time.Time) error {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -522,43 +547,14 @@ func (s *takeoutStore) applyChanges(ctx context.Context, pn blob.Ref, changes []
 	for i, c := range changes {
 		cs[i] = attrclaims.Change{Op: c.op, Attr: c.attr, Value: c.value}
 	}
-	signed, err := attrclaims.Sign(ctx, s.signer, pn, cs, claimTime)
+	signed, err := attrclaims.Sign(ctx, im.Signer, pn, cs, claimTime)
 	if err != nil {
 		return err
 	}
 	for _, claim := range signed {
-		if _, err := s.c.Upload(ctx, client.NewUploadHandleFromString(claim)); err != nil {
+		if _, err := im.Server.PutBlob(ctx, claim); err != nil {
 			return fmt.Errorf("uploading claim: %w", err)
 		}
 	}
 	return nil
-}
-
-// takeoutForEach calls fn on each of items, up to workers at once,
-// stopping at the first error, which it returns.
-func takeoutForEach[T any](ctx context.Context, items []T, workers int, fn func(T) error) error {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	work := make(chan T)
-	var wg sync.WaitGroup
-	for range max(1, min(workers, len(items))) {
-		wg.Go(func() {
-			for it := range work {
-				if err := fn(it); err != nil {
-					cancel(err)
-				}
-			}
-		})
-	}
-feed:
-	for _, it := range items {
-		select {
-		case work <- it:
-		case <-ctx.Done():
-			break feed
-		}
-	}
-	close(work)
-	wg.Wait()
-	return context.Cause(ctx)
 }

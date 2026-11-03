@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/internal/attrclaims"
 	"perkeep.org/internal/livejournal"
 	"perkeep.org/pkg/blob"
 )
@@ -29,9 +30,9 @@ import (
 // twice: the second time changes nothing. Then, after an entry and a
 // comment are deleted, it keeps what LiveJournal no longer has.
 func TestLiveJournalSync(t *testing.T) {
-	st := newTakeoutTestStore(t)
+	c, signer := newTestClient(t)
 	ctx := context.Background()
-	store := ljClientStore{st.c, st.signer}
+	store := ljClientStore{c, signer}
 	j := &livejournal.Journal{
 		User: "brad",
 		Entries: []*livejournal.Entry{
@@ -55,7 +56,7 @@ func TestLiveJournalSync(t *testing.T) {
 		t.Errorf("first sync: %+v; want 5 permanodes, all made and changed", res)
 	}
 
-	journal := permanodeAttrs(t, st, res.Journal)
+	journal := permanodeAttrs(t, c, res.Journal)
 	if journal.Get("title") != "LiveJournal - brad" || len(journal["camliMember"]) != 2 {
 		t.Fatalf("journal attrs = %v", journal)
 	}
@@ -63,7 +64,7 @@ func TestLiveJournalSync(t *testing.T) {
 	if !ok {
 		t.Fatalf("journal member %q isn't a blobref", journal.Get("camliMember"))
 	}
-	entry := permanodeAttrs(t, st, entryRef)
+	entry := permanodeAttrs(t, c, entryRef)
 	if entry.Get("content") != "text\n\nmore" || entry.Get("startDate") != "2000-12-31T23:15:00Z" || len(entry["tag"]) != 2 {
 		t.Errorf("entry attrs = %v", entry)
 	}
@@ -87,14 +88,14 @@ func TestLiveJournalSync(t *testing.T) {
 	if res.Changed != 1 || res.AttrChanges != 1 {
 		t.Errorf("sync after deletions: %+v; want only the comment's state changed", res)
 	}
-	if got := permanodeAttrs(t, st, res.Journal)["camliMember"]; len(got) != 2 {
+	if got := permanodeAttrs(t, c, res.Journal)["camliMember"]; len(got) != 2 {
 		t.Errorf("journal members after deleting an entry = %q; want both still", got)
 	}
-	commentRef, err := st.plannedPermanodeRef(ctx, "livejournal:brad:comment:5")
+	_, commentRef, err := attrclaims.PlannedPermanode(ctx, signer, "livejournal:brad:comment:5")
 	if err != nil {
 		t.Fatal(err)
 	}
-	comment := permanodeAttrs(t, st, commentRef)
+	comment := permanodeAttrs(t, c, commentRef)
 	for attr, want := range map[string]string{
 		"livejournalState":  "D",
 		"title":             "Re",
