@@ -185,7 +185,7 @@ type ImporterSetupHTMLer interface {
 
 var (
 	importers           = map[string]Importer{}
-	reservedImporterKey = map[string]bool{}
+	reservedImporterKey = map[string]bool{fileSourcesName: true}
 
 	// removedImporters are importers that no longer exist, as the
 	// services' APIs they used are gone, whose configuration in an
@@ -595,6 +595,10 @@ type Host struct {
 	ownsSecrets          bool
 	requireOwnerForSetup bool
 
+	// fileSourceMu serializes starting and finishing file sources'
+	// authorizations.
+	fileSourceMu sync.Mutex
+
 	cache     sorted.KeyValue // explicitly injected caller-owned backing; otherwise nil
 	cacheRoot string
 	cacheType string
@@ -797,6 +801,10 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	impName := seg[0]
+	if impName == fileSourcesName {
+		h.serveFileSources(w, r, strings.TrimPrefix(strings.TrimPrefix(suffix, fileSourcesName), "/"))
+		return
+	}
 
 	imp, ok := h.imp[impName]
 	if !ok {

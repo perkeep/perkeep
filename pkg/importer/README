@@ -56,6 +56,27 @@ noncredential claims. These two stores cannot be committed atomically; if blob
 publication fails, the durable credential update remains and can be retried.
 No failed local-store read falls back to historical permanode credentials.
 
+File sources
+------------
+
+File sources are places that importers read files from, such as a directory
+on the server's disk or a Google Drive, set up by the owner on the pages at
+/importer/sources/, which only the owner may see. Each is a permanode:
+
+    camliNodeType: "fileSource"
+    fileSourceType: "local" or "gdrive"
+    fileSourceRoot: a local source's absolute directory
+    fileSourceOAuthKind: "web" or "desktop", for a Google Drive
+
+A Google Drive's OAuth client JSON, refresh token, and pending authorization
+(its state and PKCE verifier) are credentials, in the credential store like an
+account's. Clients are the owner's own, of either kind Google offers: a "Web
+application" redirects back to /importer/sources/callback, which must be HTTPS;
+a "Desktop app" redirects to http://127.0.0.1/, which fails to load, and the
+owner pastes that URL back. Host.FileSource returns a source, ready to read,
+for importers; reads of a Drive whose authorization has been revoked or has
+expired fail with ErrNeedsAuthorization.
+
 Chronological progress and reconciliation
 ----------------------------------------
 
