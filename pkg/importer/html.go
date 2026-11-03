@@ -321,6 +321,11 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 </section>
 
 <section class="card">
+  <h2>File sources</h2>
+  <p><a href="{{$base}}sources/">File sources</a> are places to import files from, such as a directory on this server, or a Google Drive.</p>
+</section>
+
+<section class="card">
   <h2>Importers</h2>
   <table class="list">
     <thead><tr><th>Importer</th><th>Imports</th><th>Setup</th></tr></thead>
@@ -397,7 +402,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{end}}
 {{end}}
 
-` + archiveUploadTmpl + `
+` + archiveUploadTmpl + fileSourcesTmpl + `
 
 {{define "acctPage"}}
   {{template "pageTop" .}}

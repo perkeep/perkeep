@@ -40,6 +40,7 @@ var secretAttributes = []string{
 	"oauthTempToken", "oauthTempSecret", "oauthAccessToken", "oauthAccessTokenSecret",
 	"authToken", "plaidAccountToken", "my_token", "oauthClientID", "oauthClientSecret",
 	"stravaRefreshToken", "stravaOAuthState", "stravaTokenClientID", "oauthToken", "instanceURL",
+	attrFileSourceOAuthClient, attrFileSourceRefreshToken, attrFileSourceOAuthPending,
 }
 
 func isSecretAttribute(key string) bool { return slices.Contains(secretAttributes, key) }
