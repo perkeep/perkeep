@@ -17,10 +17,13 @@ limitations under the License.
 package index
 
 import (
+	"bytes"
 	"fmt"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -32,6 +35,7 @@ var lockWaitReport = 30 * time.Second
 type readLockHolder struct {
 	since time.Time
 	pcs   []uintptr // the stack of RLock's caller
+	g     uint64    // its goroutine's ID, in tests only
 }
 
 // Lock write-locks the index. If that takes longer than lockWaitReport,
@@ -48,15 +52,30 @@ func (x *Index) Lock() {
 func (x *Index) Unlock() { x.mu.Unlock() }
 
 // RLock read-locks the index, and returns the func that unlocks it,
-// which must be called exactly once.
+// which must be called exactly once. The caller must not hold the read
+// lock already: a second read lock waits for any writer waiting for the
+// first, which is then never unlocked. In tests, RLock panics on such a
+// call, writer or not.
 //
 // Until then, the index keeps the stack of RLock's caller, for Lock to
 // log if it waits long for the lock.
 func (x *Index) RLock() (unlock func()) {
 	pcs := make([]uintptr, 32)
 	pcs = pcs[:runtime.Callers(2, pcs)]
+	var g uint64
+	if testing.Testing() {
+		g = goroutineID()
+		x.readLockHoldersMu.Lock()
+		for h := range x.readLockHolders {
+			if h.g == g {
+				x.readLockHoldersMu.Unlock()
+				panic("index: RLock by a goroutine that holds the read lock already")
+			}
+		}
+		x.readLockHoldersMu.Unlock()
+	}
 	x.mu.RLock()
-	h := &readLockHolder{since: time.Now(), pcs: pcs}
+	h := &readLockHolder{since: time.Now(), pcs: pcs, g: g}
 	x.readLockHoldersMu.Lock()
 	x.readLockHolders.Make()
 	x.readLockHolders.Add(h)
@@ -96,4 +115,14 @@ func (x *Index) logReadLockHolders() {
 		}
 	}
 	x.printf("%s", sb.String())
+}
+
+// goroutineID returns the ID of the calling goroutine.
+func goroutineID() uint64 {
+	var buf [64]byte
+	b := buf[:runtime.Stack(buf[:], false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b, _, _ = bytes.Cut(b, []byte(" "))
+	id, _ := strconv.ParseUint(string(b), 10, 64)
+	return id
 }
