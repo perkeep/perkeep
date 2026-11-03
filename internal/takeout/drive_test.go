@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -48,10 +50,14 @@ func (fd *fakeDrive) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/drive/v3/files":
 		q := r.FormValue("q")
+		type driveFile struct {
+			ID, Name, MimeType, HeadRevisionID string
+			Size                               int64
+		}
 		var files []driveFile
 		switch {
 		case strings.Contains(q, "name = 'Takeout'"):
-			files = []driveFile{{ID: "takeout-folder", Name: "Takeout"}}
+			files = []driveFile{{ID: "takeout-folder", Name: "Takeout", MimeType: "application/vnd.google-apps.folder"}}
 		case strings.HasPrefix(q, "'takeout-folder' in parents"):
 			for name, data := range fd.zips {
 				files = append(files, driveFile{ID: "id-" + name, Name: name, Size: int64(len(data)), HeadRevisionID: "rev-" + name})
@@ -66,6 +72,7 @@ func (fd *fakeDrive) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page["files"] = []map[string]string{{
 				"id":             files[start].ID,
 				"name":           files[start].Name,
+				"mimeType":       files[start].MimeType,
 				"size":           fmt.Sprint(files[start].Size),
 				"headRevisionId": files[start].HeadRevisionID,
 			}}
@@ -102,6 +109,24 @@ func TestDriveExports(t *testing.T) {
 	checkExport(t, exps)
 	if fd.ranges.Load() == 0 {
 		t.Fatal("no ranged reads")
+	}
+
+	// The cache keeps the layout that pk takeout's caches have: a table
+	// of contents by revision, and entries by revision and offset.
+	zipName := "takeout-20240101T120000Z-001.zip"
+	if _, err := os.Stat(filepath.Join(cacheDir, "rev-"+zipName+".toc")); err != nil {
+		t.Errorf("table of contents not cached by revision: %v", err)
+	}
+	for _, e := range exps[0].Entries() {
+		if e.Zip.Name == zipName && strings.HasSuffix(e.File.Name, ".json") {
+			if _, err := e.ReadAll(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			name := filepath.Join(cacheDir, "entries", "rev-"+zipName, fmt.Sprintf("%d-%08x", e.File.HeaderOffset, e.File.CRC32))
+			if _, err := os.Stat(name); err != nil {
+				t.Errorf("entry not cached by revision and offset: %v", err)
+			}
+		}
 	}
 
 	// With the tables of contents cached, loading them again reads
