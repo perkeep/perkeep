@@ -720,6 +720,89 @@ func TestKeywords(t *testing.T) {
 	}
 }
 
+func TestDateLiteral(t *testing.T) {
+	timeC := func(after, before string) *Constraint {
+		parse := func(s string) types.Time3339 {
+			t.Helper()
+			tm, err := time.Parse(time.RFC3339, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return types.Time3339(tm)
+		}
+		return &Constraint{
+			Permanode: &PermanodeConstraint{
+				Time: &TimeConstraint{
+					After:  parse(after),
+					Before: parse(before),
+				},
+			},
+		}
+	}
+	tests := []struct {
+		in          string
+		want        *Constraint
+		errContains string
+	}{
+		{in: "1998", want: timeC("1998-01-01T00:00:00Z", "1999-01-01T00:00:00Z")},
+		{in: "1998-07", want: timeC("1998-07-01T00:00:00Z", "1998-08-01T00:00:00Z")},
+		{in: "1998-12", want: timeC("1998-12-01T00:00:00Z", "1999-01-01T00:00:00Z")},
+		{in: "1998-07-04", want: timeC("1998-07-04T00:00:00Z", "1998-07-05T00:00:00Z")},
+		{in: "2000-02-29", want: timeC("2000-02-29T00:00:00Z", "2000-03-01T00:00:00Z")},
+		{in: "1998-12-31", want: timeC("1998-12-31T00:00:00Z", "1999-01-01T00:00:00Z")},
+		{in: "-1998", want: notConst(timeC("1998-01-01T00:00:00Z", "1999-01-01T00:00:00Z"))},
+		{
+			in: "1998 or 2003-05",
+			want: orConst(
+				timeC("1998-01-01T00:00:00Z", "1999-01-01T00:00:00Z"),
+				timeC("2003-05-01T00:00:00Z", "2003-06-01T00:00:00Z")),
+		},
+		{
+			in: "is:pano 1998",
+			want: andConst(
+				ispanoC,
+				timeC("1998-01-01T00:00:00Z", "1999-01-01T00:00:00Z")),
+		},
+		{
+			in: "is:pano (1998 or 2003-07) -2003-07-04",
+			want: andConst(
+				andConst(
+					ispanoC,
+					orConst(
+						timeC("1998-01-01T00:00:00Z", "1999-01-01T00:00:00Z"),
+						timeC("2003-07-01T00:00:00Z", "2003-08-01T00:00:00Z"))),
+				notConst(timeC("2003-07-04T00:00:00Z", "2003-07-05T00:00:00Z"))),
+		},
+		{in: "1998-13", errContains: `invalid date "1998-13"`},
+		{in: "1999-02-29", errContains: `invalid date "1999-02-29"`},
+		{in: "1998-00-01", errContains: `invalid date "1998-00-01"`},
+		{in: "199", errContains: noLiteralSupport},
+		{in: "19980", errContains: noLiteralSupport},
+		{in: "1998-7", errContains: noLiteralSupport},
+		{in: "1998-07-04T12", errContains: noLiteralSupport},
+		{in: "foo", errContains: noLiteralSupport},
+	}
+	for _, tt := range tests {
+		p := newParser(context.Background(), tt.in)
+		got, err := p.parseExp()
+		if tt.errContains != "" {
+			if err == nil || !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("%q: got error %v; want error containing %q", tt.in, err, tt.errContains)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%q: %v", tt.in, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			gotj, _ := json.Marshal(got)
+			wantj, _ := json.Marshal(tt.want)
+			t.Errorf("%q: got\n%s\nwant\n%s", tt.in, gotj, wantj)
+		}
+	}
+}
+
 func TestParseWHExpression(t *testing.T) {
 	tests := []struct {
 		in          string

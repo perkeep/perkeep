@@ -2206,6 +2206,28 @@ func TestIsBookmarkQuery(t *testing.T) {
 	})
 }
 
+func TestDateLiteralQuery(t *testing.T) {
+	testQueryTypes(t, []indexType{indexCorpusScan, indexCorpusBuild}, func(qt *queryTest) {
+		id := qt.id
+		dated := func(name, startDate string) blob.Ref {
+			pn := id.NewDeterministicPermanodeForTest(name)
+			id.SetAttribute(pn, "startDate", startDate)
+			return pn
+		}
+		lastOf1997 := dated("lastOf1997", "1997-12-31T23:59:59Z")
+		firstOf1998 := dated("firstOf1998", "1998-01-01T00:00:00Z")
+		july4 := dated("july4", "1998-07-04T12:00:00Z")
+		july5 := dated("july5", "1998-07-05T00:00:00Z")
+		lastOf1998 := dated("lastOf1998", "1998-12-31T23:59:59Z")
+		firstOf1999 := dated("firstOf1999", "1999-01-01T00:00:00Z")
+
+		qt.wantRes(&SearchQuery{Expression: "1998", Limit: -1}, firstOf1998, july4, july5, lastOf1998)
+		qt.wantRes(&SearchQuery{Expression: "1998-07", Limit: -1}, july4, july5)
+		qt.wantRes(&SearchQuery{Expression: "1998-07-04", Limit: -1}, july4)
+		qt.wantRes(&SearchQuery{Expression: "1997 or 1999", Limit: -1}, lastOf1997, firstOf1999)
+	})
+}
+
 func TestIsPostQuery(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id

@@ -293,6 +293,16 @@ func (p *parser) atomWords() (a atom, start int, err error) {
 }
 
 func (p *parser) parseAtom() (*Constraint, error) {
+	if i := p.peek(); i.typ == tokenLiteral {
+		c, ok, err := dateLiteral(i.val)
+		if err != nil {
+			return nil, newParseExpError(err.Error(), *i)
+		}
+		if ok {
+			p.next()
+			return c, nil
+		}
+	}
 	a, start, err := p.atomWords()
 	if err != nil {
 		return nil, err

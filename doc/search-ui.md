@@ -30,10 +30,22 @@ escaping.  For example:
 
     attr:bar:"He said: \"Hi\""
 
+## Dates
+
+A bare year, year-month, or year-month-day matches permanodes whose time falls
+in that year, month, or day. For example, `1998` is shorthand for
+`after:1998 before:1999`, `1998-07` for `after:1998-07 before:1998-08`, and
+`1998-07-04` for `after:1998-07-04 before:1998-07-05`. Like **after** and
+**before**, dates are in UTC. Dates combine with other predicates as usual:
+
+    is:pano (1998 or 2003-07) -2003-07-04
+
 ## Usable operators
 
 **<a name="after"></a>after**
-: date format is RFC3339, but can be shortened as required.
+: match permanodes whose time is at or after the given time, in UTC. The date
+  format is RFC3339, but can be shortened as required: `2011-01-01` is Jan 1 of
+  year 2011, and `2011` means the same.
 
 **<a name="attr"></a>attr**
 : match on attribute. Use attr:foo:bar to match nodes having their foo attribute
@@ -41,7 +53,8 @@ escaping.  For example:
   (case insensitive substring match).
 
 **<a name="before"></a>before**
-: i.e. `2011-01-01` is Jan 1 of year 2011, and `2011` means the same.
+: match permanodes whose time is before the given time, in UTC. The date format
+  is the same as for **after**.
 
 **<a name="camera"></a>camera**
 : search for permanodes of files by EXIF camera make or model, ignoring case.

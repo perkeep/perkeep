@@ -848,6 +848,43 @@ func parseTimePrefix(when string) (time.Time, error) {
 	return time.Parse(time.RFC3339, when)
 }
 
+// dateLiteralExpr matches the unquoted literals that dateLiteral parses:
+// a year, year-month, or year-month-day, such as 1998, 1998-07, or 1998-07-04.
+var dateLiteralExpr = regexp.MustCompile(`^\d{4}(-\d{2}(-\d{2})?)?$`)
+
+// dateLiteral returns a constraint matching permanodes whose time falls
+// in the year, month, or day named by lit. Like after: and before:, the
+// period is interpreted in UTC. It reports false if lit isn't shaped
+// like a date, and an error if it is but names no valid date.
+func dateLiteral(lit string) (c *Constraint, ok bool, err error) {
+	if !dateLiteralExpr.MatchString(lit) {
+		return nil, false, nil
+	}
+	var layout string
+	var years, months, days int
+	switch len(lit) {
+	case len("2006"):
+		layout, years = "2006", 1
+	case len("2006-01"):
+		layout, months = "2006-01", 1
+	default:
+		layout, days = "2006-01-02", 1
+	}
+	start, err := time.Parse(layout, lit)
+	if err != nil {
+		return nil, true, fmt.Errorf("invalid date %q", lit)
+	}
+	c = &Constraint{
+		Permanode: &PermanodeConstraint{
+			Time: &TimeConstraint{
+				After:  types.Time3339(start),
+				Before: types.Time3339(start.AddDate(years, months, days)),
+			},
+		},
+	}
+	return c, true, nil
+}
+
 func whIntConstraint(mins, maxs string) *IntConstraint {
 	ic := &IntConstraint{}
 	if mins != "" {
