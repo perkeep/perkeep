@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"perkeep.org/internal/httputil"
@@ -40,6 +41,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/health"
 	"perkeep.org/pkg/jsonsign/signhandler"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/secretstore"
@@ -517,6 +519,7 @@ type RunContext struct {
 
 	mu         sync.Mutex // guards following
 	archiveJob *camtypes.ArchiveImportStatus
+	progress   *progress.Set // or nil until Progress
 }
 
 // UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
@@ -1703,6 +1706,9 @@ type importerAcct struct {
 	pendingSince time.Time
 
 	log accountLog // of its runs, for its page
+
+	// progress is the progress bars of its latest run, if any.
+	progress atomic.Pointer[progress.Set]
 }
 
 func (ia *importerAcct) String() string {
@@ -1942,9 +1948,11 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 		Host:       ia.im.host,
 		ia:         ia,
 		archiveJob: job,
+		progress:   new(progress.Set),
 	}
 	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
 	ia.current = rc
+	ia.progress.Store(rc.progress)
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
 	go func() {
@@ -1997,11 +2005,13 @@ func (ia *importerAcct) run() error {
 		return err
 	}
 	rc := &RunContext{
-		Host: ia.im.host,
-		ia:   ia,
+		Host:     ia.im.host,
+		ia:       ia,
+		progress: new(progress.Set),
 	}
 	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(h.ctx, ctxutil.HTTPClient, h.HTTPClient()))
 	defer rc.cancel()
+	ia.progress.Store(rc.progress)
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()

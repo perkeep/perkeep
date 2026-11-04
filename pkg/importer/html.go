@@ -255,6 +255,10 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
    .warning {color: #b42318; font-weight: 600;}
    pre.log {max-height: 32em; overflow: auto; margin: 0; padding: .6em .8em; background: #f6f8fa; border-radius: 6px; font: .82em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere;}
    pre.log:empty {display: none;}
+   .bar {margin: 0 0 1em;}
+   .bar:last-child {margin-bottom: 0;}
+   .bar-title {font-weight: 600;}
+   .bar progress {width: 100%; height: 1em; margin: .25em 0;}
    </style>
 </head>
 <body>
@@ -477,6 +481,11 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 </section>
 {{end}}
 
+<section class="card" id="acct-progress" hidden>
+  <h2>Progress</h2>
+  <div id="acct-bars"></div>
+</section>
+
 <section class="card">
   <h2>Log</h2>
   <pre id="acct-log" class="log"></pre>
@@ -489,6 +498,44 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 	var status = document.getElementById("acct-status");
 	var next = 0;
 	var wasRunning = {{.Running}};
+	var progress = document.getElementById("acct-progress");
+	var bars = document.getElementById("acct-bars");
+	// showProgress shows the run's progress bars, from the log response.
+	function showProgress(list) {
+		progress.hidden = !list || list.length == 0;
+		bars.textContent = "";
+		(list || []).forEach(function(b) {
+			var div = document.createElement("div");
+			div.className = "bar";
+			var title = document.createElement("div");
+			title.className = "bar-title";
+			title.textContent = b.title + (b.finished ? " ✓" : "");
+			div.appendChild(title);
+			if (b.description) {
+				var desc = document.createElement("div");
+				desc.className = "muted";
+				desc.textContent = b.description;
+				div.appendChild(desc);
+			}
+			var p = document.createElement("progress");
+			if (b.finished) {
+				p.max = 1;
+				p.value = 1;
+			} else if (b.fraction >= 0) {
+				p.max = 1;
+				p.value = b.fraction;
+			} // else indeterminate, as the total's unknown
+			div.appendChild(p);
+			var detail = document.createElement("div");
+			detail.className = "muted";
+			detail.textContent = b.detail;
+			if (b.eta) {
+				detail.textContent += ", done at about " + new Date(b.eta).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+			}
+			div.appendChild(detail);
+			bars.appendChild(div);
+		});
+	}
 	function poll() {
 		fetch(location.pathname + "?log=" + next, {cache: "no-store"}).then(function(res) {
 			return res.json();
@@ -509,6 +556,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 				}
 			}
 			next = res.next;
+			showProgress(res.progress);
 			status.textContent = res.status;
 			status.className = res.running ? "running" : "";
 			// Poll often while running, and now and then otherwise, to
