@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +49,7 @@ import (
 	"perkeep.org/internal/takeoutimport"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/filesource"
+	"perkeep.org/pkg/filesource/gdrive"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
@@ -427,6 +429,8 @@ type browsed struct {
 }
 
 // browse returns where the form of r says to look, for the account of sc.
+// It's the folder with the ID in its folder value, or the one typed in
+// its goto value, or else the source's default Takeout folders.
 func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 	ref, ok := blob.Parse(r.FormValue("source"))
 	if !ok {
@@ -441,10 +445,16 @@ func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 		return nil, err
 	}
 	b := &browsed{src: src, info: info}
-	if id := r.FormValue("folder"); id != "" {
+	id := r.FormValue("folder")
+	if s := strings.TrimSpace(r.FormValue("goto")); s != "" {
+		if id, err = folderID(info, s); err != nil {
+			return nil, err
+		}
+	}
+	if id != "" {
 		f, err := src.Stat(sc, id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("finding the folder: %w", err)
 		}
 		if !f.Dir {
 			return nil, fmt.Errorf("%s is not a folder", f.Name)
@@ -455,6 +465,16 @@ func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// folderID returns the ID of the folder s, as typed to go to it: for a
+// Google Drive, its URL, as the Drive web app shows it, or its ID; for a
+// directory on the server, its path beneath the directory.
+func folderID(info importer.FileSourceInfo, s string) (string, error) {
+	if info.Type == "gdrive" {
+		return gdrive.FolderID(s)
+	}
+	return path.Clean(strings.TrimPrefix(s, "/")), nil
 }
 
 // exports returns the exports in b's folders.
@@ -813,6 +833,18 @@ button.link {border: none; background: none; color: #1f5fbf; padding: 0;}
   <p class="muted">It has no folders.</p>
   {{end}}
   {{if not .Default}}<p><button class="link" type="submit" name="folder" value="">Back to the default folders</button></p>{{end}}
+</form>
+<form method="post" action="{{.CallbackPath}}">
+  <input type="hidden" name="step" value="browse">
+  <input type="hidden" name="source" value="{{.Source.Ref}}">
+  {{if eq .Source.Type "gdrive"}}
+  <p><label for="goto">Or go to a folder by its URL, from Google Drive in a browser:</label><br>
+  <input id="goto" name="goto" type="text" size="70" placeholder="https://drive.google.com/drive/folders/..." required>
+  {{else}}
+  <p><label for="goto">Or go to a folder by its path, in the directory:</label><br>
+  <input id="goto" name="goto" type="text" size="50" placeholder="Takeout/2026" required>
+  {{end}}
+  <button type="submit">Go</button></p>
 </form>
 </section>
 {{template "pageBottom"}}

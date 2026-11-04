@@ -40,6 +40,45 @@ const Scope = "https://www.googleapis.com/auth/drive.readonly"
 // folderType is the MIME type of Drive folders.
 const folderType = "application/vnd.google-apps.folder"
 
+// FolderID returns the ID of the Drive folder s, which is the folder's
+// URL, as the Drive web app shows it, such as
+// "https://drive.google.com/drive/folders/1AbC" or
+// "https://drive.google.com/drive/u/0/folders/1AbC?usp=sharing", or a
+// URL with an id parameter, or else the ID itself.
+func FolderID(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if isID(s) {
+		return s, nil
+	}
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host != "drive.google.com" {
+		return "", fmt.Errorf("%q is neither a Google Drive folder's URL nor an ID", s)
+	}
+	if id := u.Query().Get("id"); isID(id) {
+		return id, nil
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	for i, p := range parts {
+		if p == "folders" && i+1 < len(parts) && isID(parts[i+1]) {
+			return parts[i+1], nil
+		}
+	}
+	return "", fmt.Errorf("%q is not a Google Drive folder's URL", s)
+}
+
+// isID reports whether s could be a Drive file ID.
+func isID(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 // Source is a user's Google Drive. A File's ID is its Drive file ID, and
 // its Version is the ID of its head revision, which Source reads, so a
 // File's contents don't change. Google Docs and other files without

@@ -156,6 +156,13 @@ func TestImport(t *testing.T) {
 		}
 		th.post(callback, url.Values{"step": {"confirm"}}, http.StatusBadRequest) // not scanned yet
 
+		// A folder can be gone to by its path, as typed.
+		w = th.post(callback, url.Values{"step": {"browse"}, "source": {src}, "goto": {"/Takeout/"}}, http.StatusOK)
+		if body := w.Body.String(); !strings.Contains(body, "Looked in Takeout/") || !strings.Contains(body, exportName) {
+			t.Fatalf("browse page of Takeout/ doesn't have the export:\n%s", body)
+		}
+		th.post(callback, url.Values{"step": {"browse"}, "source": {src}, "goto": {"missing"}}, http.StatusBadRequest)
+
 		// Picking the export scans it.
 		th.post(callback, url.Values{"step": {"pick"}, "source": {src}, "export": {exportName}}, http.StatusSeeOther)
 		synctest.Wait()

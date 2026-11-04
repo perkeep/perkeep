@@ -193,3 +193,30 @@ func TestRateLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestFolderID(t *testing.T) {
+	const id = "1tC6XLonVc2kyD-JHbu6_L59cOwFPuI4B"
+	for _, s := range []string{
+		id,
+		" " + id + "\n",
+		"https://drive.google.com/drive/folders/" + id,
+		"https://drive.google.com/drive/folders/" + id + "?usp=sharing",
+		"https://drive.google.com/drive/u/1/folders/" + id + "/",
+		"https://drive.google.com/open?id=" + id,
+	} {
+		if got, err := FolderID(s); err != nil || got != id {
+			t.Errorf("FolderID(%q) = %q, %v; want %q", s, got, err, id)
+		}
+	}
+	for _, s := range []string{
+		"",
+		"https://drive.google.com/drive/my-drive",
+		"https://evil.example/drive/folders/" + id,
+		"https://drive.google.com/drive/folders/a'b",
+		"not an id",
+	} {
+		if got, err := FolderID(s); err == nil {
+			t.Errorf("FolderID(%q) = %q; want an error", s, got)
+		}
+	}
+}
