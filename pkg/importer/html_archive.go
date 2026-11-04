@@ -41,6 +41,7 @@ const archiveUploadTmpl = `
   {{else}}
     <p>Choose an account export ZIP. After uploading, check the detected identity and confirm the import.
        Existing accounts and activities are reused on later imports.</p>
+    <p>Or <a href="{{.SourceURL}}">import a ZIP from a file source</a>, such as a Google Drive or Dropbox.</p>
   {{end}}
   <form id="archive-upload-form"{{if .AccountPage}} hidden{{end}}>
     <label for="archive-file">Account export ZIP</label><br>

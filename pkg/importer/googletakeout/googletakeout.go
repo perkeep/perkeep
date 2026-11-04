@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,8 +48,6 @@ import (
 	"perkeep.org/internal/takeoutimport"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/filesource"
-	"perkeep.org/pkg/filesource/dropbox"
-	"perkeep.org/pkg/filesource/gdrive"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
@@ -449,7 +446,7 @@ func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 	b := &browsed{src: src, info: info}
 	id := r.FormValue("folder")
 	if s := strings.TrimSpace(r.FormValue("goto")); s != "" {
-		if id, err = folderID(info, s); err != nil {
+		if id, err = importer.FileSourceFolderID(info.Type, s); err != nil {
 			return nil, err
 		}
 	}
@@ -467,20 +464,6 @@ func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 		return nil, err
 	}
 	return b, nil
-}
-
-// folderID returns the ID of the folder s, as typed to go to it: for a
-// Google Drive, its URL, as the Drive web app shows it, or its ID; for a
-// Dropbox, its URL, as the Dropbox web app shows it, or its path; for a
-// directory on the server, its path beneath the directory.
-func folderID(info importer.FileSourceInfo, s string) (string, error) {
-	switch info.Type {
-	case "gdrive":
-		return gdrive.FolderID(s)
-	case "dropbox":
-		return dropbox.FolderPath(s)
-	}
-	return path.Clean(strings.TrimPrefix(s, "/")), nil
 }
 
 // exports returns the exports in b's folders.

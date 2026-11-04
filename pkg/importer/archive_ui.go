@@ -21,6 +21,8 @@ import (
 	_ "embed"
 	"net/http"
 	"time"
+
+	"perkeep.org/pkg/blob"
 )
 
 //go:embed archive.js
@@ -38,9 +40,14 @@ type archiveUploadData struct {
 	AccountRef   string
 	FileRef      string
 	AccountPage  bool
+	SourceURL    string // of the pages to import a ZIP from a file source
 }
 
-func (im *importer) archiveUpload(ia *importerAcct) *archiveUploadData {
+// archiveUpload returns the data of the archive upload card of im's page,
+// or, with ia, of its account's page. On im's page, fileRef, if a valid
+// ref, is of a ZIP stored already, such as one copied from a file
+// source, to inspect and import.
+func (im *importer) archiveUpload(ia *importerAcct, fileRef string) *archiveUploadData {
 	if _, ok := im.impl.(ArchiveImporter); !ok {
 		return nil
 	}
@@ -51,6 +58,10 @@ func (im *importer) archiveUpload(ia *importerAcct) *archiveUploadData {
 		ArchiveURL:   base + "/archive",
 		ScriptURL:    base + "/archive.js",
 		AccountBase:  base + "/",
+		SourceURL:    base + "/archive-source",
+	}
+	if ref, ok := blob.Parse(fileRef); ok {
+		data.FileRef = ref.String()
 	}
 	if ia != nil {
 		data.AccountPage = true
