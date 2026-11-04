@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"perkeep.org/internal/takeoutimport"
 	"perkeep.org/pkg/blob"
@@ -81,18 +82,96 @@ func (s hostServer) PutFile(ctx context.Context, name string, r io.Reader) (file
 	return file, blob.RefFromHash(h), nil
 }
 
-// NewBatch returns a Batch storing each blob as it's put, as storing a
-// blob in the server, rather than over HTTP, is quick enough.
+// NewBatch returns a Batch storing its blobs in groups, as an upload
+// session does.
 func (s hostServer) NewBatch(ctx context.Context) (takeoutimport.Batch, error) {
-	return directBatch{s}, nil
+	return &groupBatch{s: s}, nil
 }
 
-type directBatch struct{ s hostServer }
+// A group is a Batch's group of blobs up to groupBlobs blobs, or of about
+// groupBytes bytes, whichever is reached first, which it stores together.
+const (
+	groupBlobs = 256
+	groupBytes = 32 << 20
+)
 
-func (b directBatch) Put(ctx context.Context, contents string) error {
-	_, err := b.s.PutBlob(ctx, contents)
+// groupBatch is a Batch storing the blobs put in it in groups, with
+// blobserver.ReceiveBlobs, so that storage shares the cost of making them
+// durable, such as syncs to disk, among each group's blobs, rather than
+// paying it for each, as storing blobs one at a time does.
+type groupBatch struct {
+	s hostServer
+
+	mu      sync.Mutex
+	pending []*blob.Blob // not yet being stored
+	size    int64        // of pending
+	err     error        // the first error storing a group
+	storing sync.WaitGroup
+}
+
+func (b *groupBatch) Put(ctx context.Context, contents string) error {
+	data := []byte(contents)
+	bl := blob.NewBlob(blob.RefFromBytes(data), uint32(len(data)), func(context.Context) ([]byte, error) { return data, nil })
+	b.mu.Lock()
+	if b.err != nil {
+		defer b.mu.Unlock()
+		return b.err
+	}
+	b.pending = append(b.pending, bl)
+	b.size += int64(len(data))
+	if len(b.pending) < groupBlobs && b.size < groupBytes {
+		b.mu.Unlock()
+		return nil
+	}
+	group := b.take()
+	b.mu.Unlock()
+	return b.store(ctx, group)
+}
+
+// take returns the pending blobs, as a group being stored. b.mu must be
+// held.
+func (b *groupBatch) take() []*blob.Blob {
+	group := b.pending
+	b.pending, b.size = nil, 0
+	b.storing.Add(1)
+	return group
+}
+
+// store stores group, returned by take.
+func (b *groupBatch) store(ctx context.Context, group []*blob.Blob) error {
+	defer b.storing.Done()
+	err := blobserver.ReceiveBlobs(ctx, b.s.h.Target(), group)
+	if err != nil {
+		b.mu.Lock()
+		if b.err == nil {
+			b.err = err
+		}
+		b.mu.Unlock()
+	}
 	return err
 }
 
-func (directBatch) Flush(context.Context) error { return nil }
-func (directBatch) Close() error                { return nil }
+// Flush stores the pending blobs, and waits for the groups being stored.
+func (b *groupBatch) Flush(ctx context.Context) error {
+	b.mu.Lock()
+	var group []*blob.Blob
+	if len(b.pending) > 0 && b.err == nil {
+		group = b.take()
+	}
+	b.mu.Unlock()
+	if group != nil {
+		b.store(ctx, group)
+	}
+	b.storing.Wait()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.err
+}
+
+// Close drops the blobs not yet stored.
+func (b *groupBatch) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.pending, b.size = nil, 0
+	return nil
+}
