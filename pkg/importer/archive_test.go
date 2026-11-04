@@ -530,8 +530,9 @@ func TestArchiveFailureCleanupDisconnectAndCancel(t *testing.T) {
 	ia, _ := h.imp[archiveTestName].account(result.AccountRef)
 	ia.stop()
 	status := waitArchiveIdle(t, h, result.AccountRef)
-	if status.State != "error" || !strings.Contains(status.Error, "canceled") {
-		t.Fatalf("canceled status = %+v", status)
+	// Stopped on the account's page, it's paused, not failed.
+	if status.State != "paused" || status.Error != "" {
+		t.Fatalf("paused status = %+v", status)
 	}
 	// A failure recording completion is reported in-process, not a false success;
 	// the previous durable running record becomes interrupted on restart.

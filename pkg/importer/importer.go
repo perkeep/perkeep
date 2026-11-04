@@ -1966,9 +1966,14 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 		// Bars the run didn't finish, it stopped short of finishing.
 		rc.Progress().StopAll()
 		err = rc.finishArchive(err)
-		if err != nil {
+		switch {
+		case err != nil && errors.Is(err, context.Canceled) && rc.StopRequested():
+			ia.logf("The run was paused.")
+		case err != nil:
 			ia.logf("The run failed: %v", err)
-		} else {
+		case rc.StopRequested():
+			ia.logf("The run was paused.")
+		default:
 			ia.logf("The run finished.")
 		}
 		ia.mu.Lock()

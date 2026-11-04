@@ -567,12 +567,25 @@ test fixture. Each test explicitly instantiates its own controller. -->
 		equal(c.nodes.progress.max, 10);
 		equal(c.nodes.progress.value, 2);
 		assert(!pause.disabled);
+		assert(!pause.hidden);
 		ctx.enqueue(status("complete", {progress: {itemsTotal: 10, itemsDone: 10, itemsUnchanged: 3, warningCount: 0}}));
 		await ctx.timer();
 		contains(c.nodes.message.textContent, "Import complete");
 		equal(c.nodes.retry.textContent, "Reimport ZIP");
 		equal(ctx.timers.size, 0);
 		assert(pause.disabled);
+		assert(pause.hidden, "only a running import can pause");
+	});
+
+	test("paused import offers to resume, without a pause button", async () => {
+		const ctx = fixture({account: accountRef, status: status("paused", {progress: {itemsTotal: 10, itemsDone: 4, itemsUnchanged: 0, warningCount: 0}}), pause: true});
+		await ctx.controller.ready;
+		const c = ctx.controller;
+		contains(c.nodes.message.textContent, "Import paused: 4 / 10 items");
+		equal(c.nodes.retry.textContent, "Resume import");
+		assert(!c.nodes.retry.hidden);
+		assert(ctx.pause.hidden);
+		equal(ctx.timers.size, 0);
 	});
 
 	test("account without stored ZIP shows neutral upload guidance without discovery or status requests", async () => {
