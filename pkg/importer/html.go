@@ -488,10 +488,18 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 	var empty = document.getElementById("acct-log-empty");
 	var status = document.getElementById("acct-status");
 	var next = 0;
+	var wasRunning = {{.Running}};
 	function poll() {
 		fetch(location.pathname + "?log=" + next, {cache: "no-store"}).then(function(res) {
 			return res.json();
 		}).then(function(res) {
+			if (wasRunning && !res.running) {
+				// The run finished: reload, for what it changed, such as
+				// the account's status and the actions it now has.
+				location.reload();
+				return;
+			}
+			wasRunning = res.running;
 			var atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
 			if (res.text) {
 				pre.textContent += res.text;

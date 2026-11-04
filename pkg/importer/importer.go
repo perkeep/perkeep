@@ -1950,16 +1950,16 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 	go func() {
 		defer h.work.Done()
 		defer rc.cancel()
-		ia.logf("Starting import: %s", ia.AccountLinkSummary())
+		ia.logf("Starting a run: %s", ia.AccountLinkSummary())
 		err := rc.runManaged()
 		if err == nil {
 			err = rc.Context().Err()
 		}
 		err = rc.finishArchive(err)
 		if err != nil {
-			ia.logf("Import failed: %v", err)
+			ia.logf("The run failed: %v", err)
 		} else {
-			ia.logf("Import finished.")
+			ia.logf("The run finished.")
 		}
 		ia.mu.Lock()
 		defer ia.mu.Unlock()
@@ -2005,7 +2005,7 @@ func (ia *importerAcct) run() error {
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
-	ia.logf("Starting import: %s", ia.AccountLinkSummary())
+	ia.logf("Starting a run: %s", ia.AccountLinkSummary())
 	err := ia.im.impl.Run(rc)
 	if err == nil {
 		err = ia.acct.CredentialError()
@@ -2013,7 +2013,7 @@ func (ia *importerAcct) run() error {
 	if err != nil {
 		return err
 	}
-	ia.logf("Import finished.")
+	ia.logf("The run finished.")
 	ia.current = nil
 	ia.stopped = false
 	ia.lastRunDone = time.Now()
