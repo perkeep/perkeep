@@ -471,18 +471,17 @@ limitations under the License.
 		showStatus(status) {
 			const progress = status.progress;
 			const labels = {running: "Import running", complete: "Import complete", error: "Import failed", interrupted: "Import interrupted", paused: "Import paused"};
-			this.nodes.message.textContent = labels[status.state] + ": " + progress.itemsDone + " / " + progress.itemsTotal +
-				" items; " + progress.itemsUnchanged + " unchanged; " + progress.warningCount + " warnings.";
+			const counts = progress.itemsDone + " / " + progress.itemsTotal + " items; " + progress.itemsUnchanged + " unchanged; " + progress.warningCount + " warnings";
+			// The stored counts are saved only now and then, so while the
+			// import runs they're behind: the run's own progress bars, above,
+			// are live.
+			this.nodes.message.textContent = status.state === "running" ?
+				labels.running + ". Its progress is shown above, as it goes; last saved: " + counts + "." :
+				labels[status.state] + ": " + counts + ".";
 			if (status.error) {
 				this.showError(boundedText(status.error));
 			}
-			this.nodes.progress.hidden = false;
-			this.nodes.progress.max = Math.max(1, progress.itemsTotal);
-			if (progress.itemsTotal > 0 || status.state !== "running") {
-				this.nodes.progress.value = progress.itemsDone;
-			} else {
-				this.nodes.progress.removeAttribute("value");
-			}
+			this.nodes.progress.hidden = true;
 			this.nodes.warnings.textContent = "";
 			const warnings = progress.warnings || [];
 			for (const warning of warnings.slice(0, 100)) {
