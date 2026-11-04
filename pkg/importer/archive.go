@@ -565,7 +565,7 @@ func (ia *importerAcct) archiveStatusLocked(ref blob.Ref) (*camtypes.ArchiveImpo
 	case "running":
 		status.State = "interrupted"
 		status.Error = "previous importer process stopped before recording completion"
-	case "complete", "error", "interrupted":
+	case "complete", "error", "interrupted", "paused":
 	default:
 		return nil, errors.New("invalid archive history state")
 	}
@@ -672,7 +672,13 @@ func (rc *RunContext) finishArchive(err error) error {
 	status.Finished = time.Now().UTC()
 	status.State = "complete"
 	status.Error = ""
-	if err != nil {
+	switch {
+	case err != nil && errors.Is(err, context.Canceled) && rc.StopRequested():
+		// Paused on the account's page, to resume later, as a retry
+		// of the same input skips what's imported.
+		status.State = "paused"
+		err = nil
+	case err != nil:
 		status.State = "error"
 		status.Error = err.Error()
 		if len(status.Error) > 4096 {

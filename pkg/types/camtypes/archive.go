@@ -48,7 +48,8 @@ type ArchiveImportProgress struct {
 }
 
 // ArchiveImportStatus is durable per-account, per-input run history. State is
-// running, complete, error, or interrupted (a previous process stopped running).
+// running, complete, error, interrupted (a previous process stopped running),
+// or paused (stopped on the account's page, to resume later).
 type ArchiveImportStatus struct {
 	AccountRef blob.Ref              `json:"accountRef"`
 	FileRef    blob.Ref              `json:"fileRef"`

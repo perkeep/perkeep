@@ -61,7 +61,7 @@ limitations under the License.
 		requireField(object(status), "missing archive status");
 		requireField(validRef(status.accountRef) && status.accountRef === accountRef, "status account reference does not match");
 		requireField(validRef(status.fileRef) && (!fileRef || status.fileRef === fileRef), "status file reference does not match");
-		requireField(["running", "complete", "error", "interrupted"].includes(status.state), "unknown archive state");
+		requireField(["running", "complete", "error", "interrupted", "paused"].includes(status.state), "unknown archive state");
 		requireField(status.error === undefined || typeof status.error === "string", "invalid status error");
 		const progress = status.progress;
 		requireField(object(progress), "missing import progress");
@@ -450,7 +450,9 @@ limitations under the License.
 				this.phase = status.state === "running" ? "status" : "terminal";
 				if (status.state !== "running") {
 					this.retry = {
-						label: status.state === "complete" ? "Reimport ZIP" : "Retry import of stored ZIP",
+						// Importing the ZIP again skips what's imported, so
+						// it resumes an import that didn't finish.
+						label: status.state === "complete" ? "Reimport ZIP" : status.state === "error" ? "Retry import" : "Resume import",
 						action: () => {
 							this.confirmed = true;
 							this.start();
@@ -468,7 +470,7 @@ limitations under the License.
 
 		showStatus(status) {
 			const progress = status.progress;
-			const labels = {running: "Import running", complete: "Import complete", error: "Import failed", interrupted: "Import interrupted"};
+			const labels = {running: "Import running", complete: "Import complete", error: "Import failed", interrupted: "Import interrupted", paused: "Import paused"};
 			this.nodes.message.textContent = labels[status.state] + ": " + progress.itemsDone + " / " + progress.itemsTotal +
 				" items; " + progress.itemsUnchanged + " unchanged; " + progress.warningCount + " warnings.";
 			if (status.error) {
@@ -533,7 +535,11 @@ limitations under the License.
 			this.nodes.retry.disabled = locked;
 			this.nodes.retry.textContent = this.retry ? this.retry.label : "";
 			if (this.nodes.pause) {
-				this.nodes.pause.disabled = !this.lastStatus || this.lastStatus.state !== "running" || this.phase === "start" || this.disposed;
+				// Only a running import can pause; one that isn't resumes
+				// with the retry button instead.
+				const running = Boolean(this.lastStatus) && this.lastStatus.state === "running" && this.phase !== "start" && !this.disposed;
+				this.nodes.pause.disabled = !running;
+				this.nodes.pause.hidden = !running;
 			}
 		}
 
