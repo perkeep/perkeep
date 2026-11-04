@@ -583,7 +583,7 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 
 // testFileSource lists the top of s, to see that it can be read, returning
 // some of what's there, or an error to show.
-func (h *Host) testFileSource(ctx context.Context, s fileSource) (files []filesource.File, errText string) {
+func (h *Host) testFileSource(ctx context.Context, s fileSource) (files []listedFile, errText string) {
 	src, err := h.FileSource(ctx, s.Ref())
 	if err != nil {
 		return nil, err.Error()
@@ -592,12 +592,36 @@ func (h *Host) testFileSource(ctx context.Context, s fileSource) (files []fileso
 	if err != nil {
 		return nil, err.Error()
 	}
-	files, err = src.List(ctx, root)
+	all, err := src.List(ctx, root)
 	if err != nil {
 		return nil, err.Error()
 	}
 	const max = 50
+	files = listedFiles(all)
 	return files[:min(len(files), max)], ""
+}
+
+// A listedFile is a file or directory as a page lists it.
+type listedFile struct {
+	filesource.File
+
+	// Ambiguous is whether others listed with it have its name, as
+	// Google Drive allows, so that the page shows its ID too.
+	Ambiguous bool
+}
+
+// listedFiles returns files for listing on a page, by name.
+func listedFiles(files []filesource.File) []listedFile {
+	named := make(map[string]int)
+	for _, f := range files {
+		named[f.Name]++
+	}
+	listed := make([]listedFile, len(files))
+	for i, f := range files {
+		listed[i] = listedFile{f, named[f.Name] > 1}
+	}
+	slices.SortStableFunc(listed, func(a, b listedFile) int { return strings.Compare(a.Name, b.Name) })
+	return listed
 }
 
 type fileSourcesPage struct {
@@ -626,9 +650,9 @@ type fileSourceBody struct {
 
 	AuthURL string // of a desktop OAuth client's authorization, started, to open
 
-	Tested    bool              // whether the source was tested
-	Listing   []filesource.File // of the top of the source, tested
-	TestError string            // of the test
+	Tested    bool         // whether the source was tested
+	Listing   []listedFile // of the top of the source, tested
+	TestError string       // of the test
 }
 
 const fileSourcesTmpl = `
@@ -760,7 +784,7 @@ const fileSourcesTmpl = `
   <p class="failed">{{.TestError}}</p>
   {{else if .Listing}}
   <p>It has, at the top:</p>
-  <ul>{{range .Listing}}<li>{{.Name}}{{if .Dir}}/{{end}}</li>{{end}}</ul>
+  <ul>{{range .Listing}}<li>{{.Name}}{{if .Dir}}/{{end}}{{if .Ambiguous}} <span class="muted ref">{{.ID}}</span>{{end}}</li>{{end}}</ul>
   {{else}}
   <p>It works, but it's empty.</p>
   {{end}}

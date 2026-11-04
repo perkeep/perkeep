@@ -105,7 +105,8 @@ func (g *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unauthorized "+a, http.StatusUnauthorized)
 			return
 		}
-		io.WriteString(w, `{"files": [{"id": "t", "name": "Takeout", "mimeType": "application/vnd.google-apps.folder"}]}`)
+		// Two folders named Takeout, as Drive allows.
+		io.WriteString(w, `{"files": [{"id": "t2", "name": "Takeout", "mimeType": "application/vnd.google-apps.folder"}, {"id": "n", "name": "Notes", "mimeType": "application/vnd.google-apps.folder"}, {"id": "t1", "name": "Takeout", "mimeType": "application/vnd.google-apps.folder"}]}`)
 	default:
 		http.NotFound(w, r)
 	}
@@ -328,7 +329,7 @@ func TestDesktopDriveFileSource(t *testing.T) {
 	}
 	root, _ := src.Root(ctx)
 	files, err := src.List(ctx, root)
-	if err != nil || len(files) != 1 || files[0].Name != "Takeout" {
+	if err != nil || len(files) != 3 || files[0].Name != "Takeout" {
 		t.Errorf("List = %+v, %v", files, err)
 	}
 
@@ -386,6 +387,11 @@ func TestWebDriveFileSource(t *testing.T) {
 	w = s.do("POST", "sources/"+ref.String(), url.Values{"mode": {"test"}})
 	if !strings.Contains(w.Body.String(), "Takeout/") {
 		t.Errorf("testing the source:\n%s", w.Body)
+	}
+	// By name, with the IDs of those of the same name only.
+	want := `<li>Notes/</li><li>Takeout/ <span class="muted ref">t2</span></li><li>Takeout/ <span class="muted ref">t1</span></li>`
+	if !strings.Contains(w.Body.String(), want) {
+		t.Errorf("test listing doesn't have %s:\n%s", want, w.Body)
 	}
 
 	// A new client needs authorizing again.
