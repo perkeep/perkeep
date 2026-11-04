@@ -203,7 +203,6 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 	}
 	bar := rc.Progress().Bar("activities", "Importing activities")
 	bar.SetTotal(int64(len(activities)))
-	defer bar.Finish()
 	for _, a := range activities {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -215,15 +214,19 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 		r.progress.Done++
 		if !changed {
 			r.progress.Unchanged++
+			// Unchanged, as by an earlier run, in next to no time: not
+			// work for the bar's estimate of the time left.
+			bar.Skip(1)
+		} else {
+			bar.Add(1)
 		}
-		bar.Set(int64(r.progress.Done))
-		bar.SetDescription(fmt.Sprintf("%d unchanged", r.progress.Unchanged))
 		if r.progress.Done%100 == 0 {
 			if err := r.notify(); err != nil {
 				return err
 			}
 		}
 	}
+	bar.Finish()
 	if err := r.notify(); err != nil {
 		return err
 	}

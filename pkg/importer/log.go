@@ -147,7 +147,8 @@ type progressBar struct {
 	Detail      string  `json:"detail"`   // its counts and estimates
 	Fraction    float64 `json:"fraction"` // done, from 0 to 1, or -1 if the total's unknown
 	Finished    bool    `json:"finished,omitempty"`
-	ETA         int64   `json:"eta,omitempty"` // when it's estimated to finish, in Unix milliseconds, if estimated
+	Stopped     bool    `json:"stopped,omitempty"` // before it finished
+	ETA         int64   `json:"eta,omitempty"`     // when it's estimated to finish, in Unix milliseconds, if estimated
 }
 
 // progressBars returns the progress bars of the account's latest run.
@@ -164,6 +165,7 @@ func (ia *importerAcct) progressBars() []progressBar {
 			Detail:      st.Detail(),
 			Fraction:    st.Fraction(),
 			Finished:    st.Finished,
+			Stopped:     st.Stopped,
 		}
 		if !st.ETA.IsZero() {
 			b.ETA = st.ETA.UnixMilli()

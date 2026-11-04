@@ -509,7 +509,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 			div.className = "bar";
 			var title = document.createElement("div");
 			title.className = "bar-title";
-			title.textContent = b.title + (b.finished ? " ✓" : "");
+			title.textContent = b.title + (b.finished ? " ✓" : b.stopped ? " (stopped)" : "");
 			div.appendChild(title);
 			if (b.description) {
 				var desc = document.createElement("div");
@@ -521,6 +521,9 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 			if (b.finished) {
 				p.max = 1;
 				p.value = 1;
+			} else if (b.stopped) {
+				p.max = 1;
+				p.value = Math.max(b.fraction, 0);
 			} else if (b.fraction >= 0) {
 				p.max = 1;
 				p.value = b.fraction;
