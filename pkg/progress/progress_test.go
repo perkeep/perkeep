@@ -59,6 +59,55 @@ func TestBar(t *testing.T) {
 	})
 }
 
+// TestSkip checks that work skipped, such as items done by an earlier run,
+// counts toward a bar's done, but not its rate or estimate of the time
+// left.
+func TestSkip(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var s Set
+		b := s.Bar("activities", "Importing activities")
+		b.SetTotal(1000)
+		b.Skip(400) // at once, as a resumed run skips what's done
+		for range 30 {
+			time.Sleep(time.Second)
+			b.Add(10)
+		}
+		st := b.Status()
+		if st.Done != 700 || st.Skipped != 400 || st.Rate != 10 || st.Remaining != 30*time.Second {
+			t.Errorf("status = %+v; want 700 done, 400 skipped, at 10/s, 30s left", st)
+		}
+		if got, want := st.Detail(), "700 of 1000 (70%), 400 skipped, 10.0/s, about 30s left"; got != want {
+			t.Errorf("Detail = %q; want %q", got, want)
+		}
+	})
+}
+
+// TestStop checks that a bar stopped short of finishing, as when its run
+// is paused, keeps its count, without an estimate, and isn't finished.
+func TestStop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var s Set
+		a := s.Bar("a", "Importing")
+		a.SetTotal(10)
+		done := s.Bar("b", "Checking")
+		done.SetTotal(1)
+		time.Sleep(time.Second)
+		a.Set(4)
+		done.Finish()
+		s.StopAll()
+		st := a.Status()
+		if st.Finished || !st.Stopped || st.Done != 4 || st.Remaining != 0 || st.Elapsed != time.Second {
+			t.Errorf("stopped status = %+v", st)
+		}
+		if got, want := st.Detail(), "4 of 10 (40%), 4.0/s, stopped after 1s"; got != want {
+			t.Errorf("Detail = %q; want %q", got, want)
+		}
+		if st := done.Status(); !st.Finished || st.Stopped {
+			t.Errorf("StopAll changed a finished bar: %+v", st)
+		}
+	})
+}
+
 func TestUnknownTotal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var s Set

@@ -89,13 +89,17 @@ type Bar struct {
 	name, title, desc string
 	unit              Unit
 	done, total       int64 // total is zero if unknown
+	skipped           int64 // of done, skipped rather than worked on
 	start, finished   time.Time
-	samples           []sample // in time order, within window of the last
+	stopped           time.Time // if stopped before finishing
+	samples           []sample  // in time order, within window of the last
 }
 
+// A sample is how much work a Bar had done at a time: its count done,
+// less what it skipped, so its rate is of the work done.
 type sample struct {
-	t    time.Time
-	done int64
+	t      time.Time
+	worked int64
 }
 
 // SetDescription sets the bar's description: more about its work, such
@@ -121,7 +125,7 @@ func (b *Bar) SetTotal(total int64) {
 	b.total = total
 }
 
-// Set sets the count of the bar's work done.
+// Set sets the count of the bar's work done, including what was skipped.
 func (b *Bar) Set(done int64) {
 	b.s.mu.Lock()
 	defer b.s.mu.Unlock()
@@ -135,13 +139,24 @@ func (b *Bar) Add(n int64) {
 	b.setLocked(b.done + n)
 }
 
+// Skip adds n to the count of the bar's work done, as work skipped, such as
+// items done already by an earlier run, which take next to no time. It
+// counts toward the bar's done, but not its rate, so that the estimate of
+// the time left is of the work still to do at the rate of work done.
+func (b *Bar) Skip(n int64) {
+	b.s.mu.Lock()
+	defer b.s.mu.Unlock()
+	b.skipped += n
+	b.setLocked(b.done + n)
+}
+
 func (b *Bar) setLocked(done int64) {
 	b.done = done
 	now := time.Now()
 	if n := len(b.samples); n > 0 && now.Sub(b.samples[n-1].t) < sampleEvery {
 		return
 	}
-	b.samples = append(b.samples, sample{now, done})
+	b.samples = append(b.samples, sample{now, done - b.skipped})
 	// Keep one sample from before the window, to measure across all of it.
 	i := 0
 	for i+1 < len(b.samples) && now.Sub(b.samples[i+1].t) >= window {
@@ -161,6 +176,32 @@ func (b *Bar) Finish() {
 	b.finished = time.Now()
 }
 
+// Stop marks the bar's work stopped before it finished, as when its run
+// failed or was paused, leaving its count done as it is. It does nothing
+// to a bar that's finished or stopped already.
+func (b *Bar) Stop() {
+	b.s.mu.Lock()
+	defer b.s.mu.Unlock()
+	b.stopLocked(time.Now())
+}
+
+func (b *Bar) stopLocked(now time.Time) {
+	if b.finished.IsZero() && b.stopped.IsZero() {
+		b.stopped = now
+	}
+}
+
+// StopAll stops all of s's bars that aren't finished, as when the work
+// they're of ends.
+func (s *Set) StopAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for _, b := range s.bars {
+		b.stopLocked(now)
+	}
+}
+
 // Status returns the bar's state.
 func (b *Bar) Status() Status {
 	b.s.mu.Lock()
@@ -176,27 +217,33 @@ func (b *Bar) statusLocked(now time.Time) Status {
 		Unit:        b.unit,
 		Done:        b.done,
 		Total:       b.total,
+		Skipped:     b.skipped,
 		Finished:    !b.finished.IsZero(),
+		Stopped:     !b.stopped.IsZero(),
 	}
+	worked := b.done - b.skipped
 	end := now
-	if st.Finished {
+	switch {
+	case st.Finished:
 		end = b.finished
+	case st.Stopped:
+		end = b.stopped
 	}
 	st.Elapsed = end.Sub(b.start)
-	if st.Finished {
+	if st.Finished || st.Stopped {
 		if s := st.Elapsed.Seconds(); s > 0 {
-			st.Rate = float64(b.done) / s
+			st.Rate = float64(worked) / s
 		}
 		return st
 	}
-	// The rate over the window, if there's a second of it, or else since
-	// the bar started.
+	// The rate of work over the window, if there's a second of it, or else
+	// since the bar started.
 	from := sample{b.start, 0}
 	if len(b.samples) > 0 && now.Sub(b.samples[0].t) >= sampleEvery {
 		from = b.samples[0]
 	}
 	if d := now.Sub(from.t).Seconds(); d > 0 {
-		st.Rate = float64(b.done-from.done) / d
+		st.Rate = float64(worked-from.worked) / d
 	}
 	if b.total > 0 && st.Rate > 0 && b.done < b.total {
 		st.Remaining = time.Duration(float64(b.total-b.done) / st.Rate * float64(time.Second))
@@ -213,10 +260,12 @@ type Status struct {
 	Unit        Unit
 	Done        int64
 	Total       int64 // or zero, if unknown
+	Skipped     int64 // of Done, skipped, rather than worked on
 	Finished    bool
+	Stopped     bool // before it finished, as when its run failed or was paused
 
-	Elapsed time.Duration // since the bar was made, until it finished
-	Rate    float64       // per second, recently, or overall once finished
+	Elapsed time.Duration // since the bar was made, until it finished or stopped
+	Rate    float64       // of work, not skipped, per second, recently, or overall once finished or stopped
 
 	// Remaining is the estimated time left, and ETA when it's estimated
 	// to finish, if the total's known and the work is going; or else
@@ -241,6 +290,9 @@ func (st Status) Detail() string {
 	if st.Total > 0 {
 		s += " of " + st.format(st.Total) + fmt.Sprintf(" (%.0f%%)", 100*st.Fraction())
 	}
+	if st.Skipped > 0 {
+		s += ", " + st.format(st.Skipped) + " skipped"
+	}
 	if st.Rate > 0 {
 		if st.Unit == Bytes {
 			s += ", " + FormatBytes(int64(st.Rate)) + "/s"
@@ -251,6 +303,8 @@ func (st Status) Detail() string {
 	switch {
 	case st.Finished:
 		s += ", in " + FormatDuration(st.Elapsed)
+	case st.Stopped:
+		s += ", stopped after " + FormatDuration(st.Elapsed)
 	case st.Remaining > 0:
 		s += ", about " + FormatDuration(st.Remaining) + " left"
 	}

@@ -299,12 +299,12 @@ func (s *metaSync) run(ctx context.Context) error {
 	defer apr.finish()
 	var albumNodes []string
 	for i, a := range s.lib.Albums {
-		apr.update(i, 0)
 		pn, err := s.syncAlbum(ctx, a)
 		if err != nil {
 			return fmt.Errorf("album %q: %w", a.Title(), err)
 		}
 		albumNodes = append(albumNodes, pn.String())
+		apr.update(i+1, 0)
 	}
 	_, err = s.syncSet(ctx, albumsRootPermanodeKey, []attrChange{{"set", nodeattr.Title, "Google Photos albums"}}, albumNodes)
 	return err

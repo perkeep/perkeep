@@ -1963,6 +1963,8 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 		if err == nil {
 			err = rc.Context().Err()
 		}
+		// Bars the run didn't finish, it stopped short of finishing.
+		rc.Progress().StopAll()
 		err = rc.finishArchive(err)
 		if err != nil {
 			ia.logf("The run failed: %v", err)
@@ -2017,6 +2019,7 @@ func (ia *importerAcct) run() error {
 	ia.lastRunStart = time.Now()
 	ia.logf("Starting a run: %s", ia.AccountLinkSummary())
 	err := ia.im.impl.Run(rc)
+	rc.Progress().StopAll()
 	if err == nil {
 		err = ia.acct.CredentialError()
 	}

@@ -28,6 +28,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	search "perkeep.org/internal/searchtypes"
@@ -247,6 +248,7 @@ type step struct {
 	total int
 	bytes bool
 	last  time.Time
+	done  atomic.Int64 // items done
 }
 
 // newProgress returns the step named name, with the title title, of
@@ -269,6 +271,7 @@ func (im *Importer) newProgress(name, title string, total int, totalBytes int64)
 
 // update records that done items, of doneBytes bytes, are done.
 func (p *step) update(done int, doneBytes int64) {
+	p.done.Store(int64(done))
 	if p.bytes {
 		p.bar.Set(doneBytes)
 		p.bar.SetDescription(fmt.Sprintf("%d of %d files", done, p.total))
@@ -288,7 +291,15 @@ func (p *step) update(done int, doneBytes int64) {
 }
 
 // finish marks the step finished.
-func (p *step) finish() { p.bar.Finish() }
+// finish marks the step's bar finished, if all of its items were done, or
+// else stopped short, as when the step failed or its run was stopped.
+func (p *step) finish() {
+	if p.done.Load() >= int64(p.total) {
+		p.bar.Finish()
+	} else {
+		p.bar.Stop()
+	}
+}
 
 // newLibrary returns takeout.NewLibrary's Library of the photos cs of
 // exp, as a step named name, with the title title.
