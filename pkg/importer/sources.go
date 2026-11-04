@@ -113,7 +113,7 @@ type fileSource struct {
 
 func (s fileSource) Ref() blob.Ref { return s.o.PermanodeRef() }
 func (s fileSource) URL() string {
-	return s.h.ImporterBasePath() + fileSourcesName + "/" + s.Ref().String()
+	return s.h.FileSourcePath(s.Ref())
 }
 func (s fileSource) Type() string { return s.o.Attr(attrFileSourceType) }
 func (s fileSource) Root() string { return s.o.Attr(attrFileSourceRoot) }
@@ -190,6 +190,46 @@ func (h *Host) fileSources(ctx context.Context) ([]fileSource, error) {
 
 // errNotFileSource is the error of a ref that's not of a file source.
 var errNotFileSource = errors.New("importer: not a file source")
+
+// FileSourceInfo describes a file source, for importers' pages.
+type FileSourceInfo struct {
+	Ref        blob.Ref
+	Title      string
+	TypeTitle  string // such as "Google Drive"
+	Authorized bool   // whether it has the authorization it needs, if any
+}
+
+// FileSources returns the file sources, by title.
+func (h *Host) FileSources(ctx context.Context) ([]FileSourceInfo, error) {
+	srcs, err := h.fileSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]FileSourceInfo, len(srcs))
+	for i, s := range srcs {
+		infos[i] = s.info()
+	}
+	return infos, nil
+}
+
+// FileSourceInfo returns the description of the file source ref.
+func (h *Host) FileSourceInfo(ref blob.Ref) (FileSourceInfo, error) {
+	s, err := h.fileSource(ref)
+	if err != nil {
+		return FileSourceInfo{}, err
+	}
+	return s.info(), nil
+}
+
+func (s fileSource) info() FileSourceInfo {
+	return FileSourceInfo{Ref: s.Ref(), Title: s.Title(), TypeTitle: s.TypeTitle(), Authorized: s.Authorized()}
+}
+
+// FileSourcesPath returns the URL path of the file sources' pages.
+func (h *Host) FileSourcesPath() string { return h.ImporterBasePath() + fileSourcesName + "/" }
+
+// FileSourcePath returns the URL path of the page of the file source ref.
+func (h *Host) FileSourcePath(ref blob.Ref) string { return h.FileSourcesPath() + ref.String() }
 
 // fileSource returns the file source of the permanode ref.
 func (h *Host) fileSource(ref blob.Ref) (fileSource, error) {
