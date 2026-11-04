@@ -2035,6 +2035,7 @@ type Object struct {
 	mu        sync.RWMutex
 	attr      map[string][]string
 	modtime   time.Time
+	lastClaim time.Time // the date of the latest claim written by this Object
 	secretMu  sync.Mutex
 	secretErr error // first credential read failure since the last successful check
 	// store, if non-nil, stores the object's permanode (and whatever
@@ -2156,7 +2157,8 @@ func (o *Object) DelAttr(key, value string) error {
 	if err := o.prepareWriteLocked(ctx); err != nil {
 		return err
 	}
-	_, err := o.h.upload(ctx, schema.NewDelAttributeClaim(o.pn, key, value))
+	date := o.nextClaimDateLocked()
+	_, err := o.h.uploadAt(ctx, schema.NewDelAttributeClaim(o.pn, key, value).SetClaimDate(date), date)
 	if err != nil {
 		return err
 	}
@@ -2374,11 +2376,25 @@ func (o *Object) uploadAttributeClaimsAt(ctx context.Context, claims []*schema.B
 		}
 		claim.SetMultiClaimPermanode(o.pn)
 	}
-	if !date.IsZero() {
-		claim.SetClaimDate(date)
+	if date.IsZero() {
+		date = o.nextClaimDateLocked()
 	}
+	claim.SetClaimDate(date)
 	_, err := o.h.uploadAt(ctx, claim, date)
 	return err
+}
+
+// nextClaimDateLocked returns the date of o's next claim: now, or else,
+// if the clock hasn't moved on, as with a coarse one, just after o's last
+// claim, so that its claims apply in the order it writes them, rather than
+// the arbitrary order of claims of the same date. o.mu must be held.
+func (o *Object) nextClaimDateLocked() time.Time {
+	date := time.Now()
+	if !date.After(o.lastClaim) {
+		date = o.lastClaim.Add(time.Nanosecond)
+	}
+	o.lastClaim = date
+	return date
 }
 
 func asSet(elts []string) map[string]bool {
