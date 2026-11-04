@@ -187,6 +187,10 @@ func TestImport(t *testing.T) {
 		if !strings.Contains(page, "To upload") || !strings.Contains(page, `value="confirm"`) {
 			t.Errorf("account page has no overview or confirmation:\n%s", page)
 		}
+		// Its script reloads it once a run that's running finishes.
+		if !regexp.MustCompile(`var wasRunning = *false *;`).MatchString(page) {
+			t.Errorf("account page's script doesn't know the account isn't running:\n%s", page)
+		}
 
 		// Confirming imports it.
 		th.post(callback, url.Values{"step": {"confirm"}}, http.StatusSeeOther)
