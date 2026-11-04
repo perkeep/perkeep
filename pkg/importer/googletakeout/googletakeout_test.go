@@ -205,6 +205,30 @@ func TestImport(t *testing.T) {
 		if res.Photos == nil || res.Photos.Uploaded != 2 {
 			t.Errorf("result = %+v; want 2 Google Photos files uploaded", res)
 		}
+
+		// The run's steps were progress bars, which the page polls for.
+		var logRes struct {
+			Progress []struct {
+				Title    string
+				Detail   string
+				Finished bool
+			}
+		}
+		if err := json.Unmarshal(th.do("GET", "googletakeout/"+acct.String()+"?log=0", nil).Body.Bytes(), &logRes); err != nil {
+			t.Fatal(err)
+		}
+		titles := make(map[string]bool)
+		for _, b := range logRes.Progress {
+			if !b.Finished {
+				t.Errorf("bar %q isn't finished: %s", b.Title, b.Detail)
+			}
+			titles[b.Title] = true
+		}
+		for _, title := range []string{"Uploading", "Reading the metadata of the photos to upload", "Writing the export's file schema blobs", "Updating the photos' permanodes"} {
+			if !titles[title] {
+				t.Errorf("no progress bar %q; got %+v", title, logRes.Progress)
+			}
+		}
 		ctx := context.Background()
 		_, pn, err := attrclaims.PlannedPermanode(ctx, h.Signer(), takeoutimport.ExportPermanodeKeyPrefix+exportName)
 		if err != nil {

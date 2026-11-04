@@ -221,7 +221,7 @@ func TestNewLibrary(t *testing.T) {
 	}
 	ctx := context.Background()
 	cs := Contents(photosEntries(t, exps[0]))
-	lib, err := NewLibrary(ctx, exps[0], cs, 4)
+	lib, err := NewLibrary(ctx, exps[0], cs, 4, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

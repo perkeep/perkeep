@@ -185,7 +185,7 @@ func syncTakeoutDir(t *testing.T, st *Importer, dir string) *metaSync {
 	if failed, err := takeout.Upload(ctx, st.store(true), missing, 2, nil); err != nil || failed != 0 {
 		t.Fatalf("Upload: %d failed, %v", failed, err)
 	}
-	lib, err := takeout.NewLibrary(ctx, exp, cs, 2)
+	lib, err := takeout.NewLibrary(ctx, exp, cs, 2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

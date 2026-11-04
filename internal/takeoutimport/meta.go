@@ -278,7 +278,8 @@ func (st *MetaStats) String() string {
 func (s *metaSync) run(ctx context.Context) error {
 	s.photoNodes = make(map[*takeout.Photo]blob.Ref)
 	s.im.logf("Updating the permanodes of %d photos...", len(s.lib.Photos))
-	pr := s.im.newProgress(len(s.lib.Photos), 0)
+	pr := s.im.newProgress("meta-photos", "Updating the photos' permanodes", len(s.lib.Photos), 0)
+	defer pr.finish()
 	done := 0
 	err := forEach(ctx, s.lib.Photos, s.im.workers(), func(p *takeout.Photo) error {
 		if err := s.syncPhoto(ctx, p); err != nil {
@@ -294,8 +295,11 @@ func (s *metaSync) run(ctx context.Context) error {
 		return err
 	}
 	s.im.logf("Updating %d albums...", len(s.lib.Albums))
+	apr := s.im.newProgress("meta-albums", "Updating the albums", len(s.lib.Albums), 0)
+	defer apr.finish()
 	var albumNodes []string
-	for _, a := range s.lib.Albums {
+	for i, a := range s.lib.Albums {
+		apr.update(i, 0)
 		pn, err := s.syncAlbum(ctx, a)
 		if err != nil {
 			return fmt.Errorf("album %q: %w", a.Title(), err)

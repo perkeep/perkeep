@@ -76,8 +76,10 @@ func (a *Album) Description() string {
 
 // NewLibrary returns the Library of the photos and videos cs, the
 // contents of entries of e that IsPhotosMedia, reading the sidecars and
-// album metadata files in their directories, up to workers at once.
-func NewLibrary(ctx context.Context, e *Export, cs []*Content, workers int) (*Library, error) {
+// album metadata files in their directories, up to workers at once. If
+// progress is non-nil, it's called as they're read, with how many of
+// them are, of the total to read.
+func NewLibrary(ctx context.Context, e *Export, cs []*Content, workers int, progress func(done, total int)) (*Library, error) {
 	type dir struct {
 		media    map[string]*Content // by base name
 		sidecars map[string]Entry    // by base name
@@ -121,6 +123,9 @@ func NewLibrary(ctx context.Context, e *Export, cs []*Content, workers int) (*Li
 
 	var mu sync.Mutex
 	contents := make(map[string][]byte) // by entry name
+	if progress != nil {
+		progress(0, len(toRead))
+	}
 	err := forEach(ctx, toRead, workers, func(ent Entry) error {
 		data, err := ent.ReadAll(ctx)
 		if err != nil {
@@ -129,6 +134,9 @@ func NewLibrary(ctx context.Context, e *Export, cs []*Content, workers int) (*Li
 		mu.Lock()
 		defer mu.Unlock()
 		contents[ent.File.Name] = data
+		if progress != nil {
+			progress(len(contents), len(toRead))
+		}
 		return nil
 	})
 	if err != nil {

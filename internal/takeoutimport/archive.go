@@ -79,13 +79,16 @@ func (a *archive) run(ctx context.Context) (rootDir blob.Ref, err error) {
 	// The contents that the server doesn't have, such as sidecars and
 	// edited copies, without permanodes.
 	files := a.im.store(false)
-	_, missing, err := takeout.Check(ctx, files, cs, a.im.workers(), nil)
+	cpr := a.im.newProgress("archive-check", "Checking which of the export's files the server has", len(cs), 0)
+	_, missing, err := takeout.Check(ctx, files, cs, a.im.workers(), func(done int) { cpr.update(done, 0) })
+	cpr.finish()
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	if len(missing) > 0 {
 		a.im.logf("Uploading %d contents the server doesn't have (%s)...", len(missing), FormatBytes(ContentsSize(missing)))
-		pr := a.im.newProgress(len(missing), ContentsSize(missing))
+		pr := a.im.newProgress("archive-upload", "Uploading the export's other files", len(missing), ContentsSize(missing))
+		defer pr.finish()
 		done, doneBytes := 0, int64(0)
 		failed, err := takeout.Upload(ctx, files, missing, a.im.workers(), func(c *takeout.Content, err error) {
 			done++
@@ -113,7 +116,8 @@ func (a *archive) run(ctx context.Context) (rootDir blob.Ref, err error) {
 	a.im.logf("Writing the file schema blobs of %d files...", len(ents))
 	fileRefs := make(map[*takeout.Entry]blob.Ref, len(ents))
 	var fmu sync.Mutex
-	pr := a.im.newProgress(len(cs), 0)
+	pr := a.im.newProgress("archive-schemas", "Writing the export's file schema blobs", len(cs), 0)
+	defer pr.finish()
 	done := 0
 	err = forEach(ctx, cs, a.im.workers(), func(c *takeout.Content) error {
 		size, parts, err := a.contentParts(ctx, c)
