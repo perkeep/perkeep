@@ -17,7 +17,9 @@ Each export is imported by an account of its own:
 
 1. Add a Google Takeout account, pick the file source, and pick the export.
    By default, exports are looked for in the source's top-level Takeout
-   folders; any other folder can be looked in instead.
+   folders; any other folder can be looked in instead, by browsing to it,
+   or by going straight to it: a Google Drive folder by its URL, as Drive
+   in a browser shows it, or a server directory's folder by its path.
 2. The account's first run scans the export: it reads the zip files' tables
    of contents, and asks the server what of the export it has already. The
    account's page then shows what the export has: each product's files,

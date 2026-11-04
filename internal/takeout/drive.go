@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"golang.org/x/time/rate"
 	"perkeep.org/pkg/filesource"
@@ -56,10 +55,12 @@ type Drive struct {
 // where Google Takeout saves them. folderID may also be the folder's URL.
 func (d *Drive) Exports(ctx context.Context, folderID string) ([]*Export, error) {
 	src := &gdrive.Source{Client: d.Client, Limiter: d.Limiter, APIBase: d.apiBase}
-	if i := strings.LastIndexByte(folderID, '/'); i >= 0 {
-		folderID = folderID[i+1:]
+	if folderID != "" {
+		var err error
+		if folderID, err = gdrive.FolderID(folderID); err != nil {
+			return nil, err
+		}
 	}
-	folderID, _, _ = strings.Cut(folderID, "?")
 	dirs := []filesource.File{{ID: folderID, Name: folderID, Dir: true}}
 	if folderID == "" {
 		root, err := src.Root(ctx)

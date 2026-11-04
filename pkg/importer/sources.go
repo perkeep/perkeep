@@ -195,6 +195,7 @@ var errNotFileSource = errors.New("importer: not a file source")
 type FileSourceInfo struct {
 	Ref        blob.Ref
 	Title      string
+	Type       string // "local" or "gdrive"
 	TypeTitle  string // such as "Google Drive"
 	Authorized bool   // whether it has the authorization it needs, if any
 }
@@ -222,7 +223,7 @@ func (h *Host) FileSourceInfo(ref blob.Ref) (FileSourceInfo, error) {
 }
 
 func (s fileSource) info() FileSourceInfo {
-	return FileSourceInfo{Ref: s.Ref(), Title: s.Title(), TypeTitle: s.TypeTitle(), Authorized: s.Authorized()}
+	return FileSourceInfo{Ref: s.Ref(), Title: s.Title(), Type: s.Type(), TypeTitle: s.TypeTitle(), Authorized: s.Authorized()}
 }
 
 // FileSourcesPath returns the URL path of the file sources' pages.
