@@ -564,8 +564,9 @@ test fixture. Each test explicitly instantiates its own controller. -->
 		equal(ctx.uploads.length, 0);
 		equal(ctx.postActions().length, 0);
 		contains(c.nodes.message.textContent, "2 / 10 items; 1 unchanged");
-		equal(c.nodes.progress.max, 10);
-		equal(c.nodes.progress.value, 2);
+		contains(c.nodes.message.textContent, "progress is shown above");
+		// Only the run's own, live, progress bars show its progress.
+		assert(c.nodes.progress.hidden);
 		assert(!pause.disabled);
 		assert(!pause.hidden);
 		ctx.enqueue(status("complete", {progress: {itemsTotal: 10, itemsDone: 10, itemsUnchanged: 3, warningCount: 0}}));
