@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/filesource"
+	"perkeep.org/pkg/filesource/dropbox"
 	"perkeep.org/pkg/filesource/gdrive"
 	"perkeep.org/pkg/filesource/local"
 	"perkeep.org/pkg/schema/nodeattr"
@@ -55,17 +57,18 @@ const (
 
 	nodeTypeFileSource = "fileSource"
 
-	attrFileSourceType      = "fileSourceType"      // fileSourceLocal or fileSourceGoogleDrive
+	attrFileSourceType      = "fileSourceType"      // fileSourceLocal, fileSourceGoogleDrive or fileSourceDropbox
 	attrFileSourceRoot      = "fileSourceRoot"      // a local source's absolute directory path
-	attrFileSourceOAuthKind = "fileSourceOAuthKind" // oauthKindWeb or oauthKindDesktop, of a Google Drive's OAuth client
+	attrFileSourceOAuthKind = "fileSourceOAuthKind" // the kind of its OAuth client, such as oauthKindWeb
 
 	// Credentials, which are in secretAttributes.
-	attrFileSourceOAuthClient  = "fileSourceOAuthClient"  // a Google OAuth client's JSON, as downloaded
+	attrFileSourceOAuthClient  = "fileSourceOAuthClient"  // a Google OAuth client's JSON, as downloaded, or a Dropbox app's key
 	attrFileSourceRefreshToken = "fileSourceRefreshToken" // an OAuth refresh token
 	attrFileSourceOAuthPending = "fileSourceOAuthPending" // a pendingAuthorization's JSON
 
 	fileSourceLocal       = "local"
 	fileSourceGoogleDrive = "gdrive"
+	fileSourceDropbox     = "dropbox"
 
 	// oauthKindWeb is an OAuth client of the kind Google calls a "Web
 	// application", which redirects the browser back to the server.
@@ -74,6 +77,10 @@ const (
 	// "Desktop app", which can only redirect the browser to the local
 	// machine, from which the owner pastes the URL back to the server.
 	oauthKindDesktop = "desktop"
+	// oauthKindCode is an OAuth client, such as a Dropbox app, whose
+	// authorization, without a redirect, shows a code, which the owner
+	// pastes back to the server.
+	oauthKindCode = "code"
 )
 
 // desktopRedirectURI is where a desktop OAuth client's authorization
@@ -90,6 +97,11 @@ const pendingAuthorizationLifetime = 10 * time.Minute
 // source makes. Drive limits requests per minute, rejecting those
 // beyond its quota without saying how long to wait.
 const driveRate = 10
+
+// dropboxRate is the most requests a second that a Dropbox file source
+// makes. Dropbox says how long to wait when it's over its limits, which
+// it doesn't publish.
+const dropboxRate = 10
 
 // ErrNeedsAuthorization is returned by the Sources of [Host.FileSource]
 // whose authorization is missing, or has been revoked or has expired,
@@ -118,7 +130,8 @@ func (s fileSource) URL() string {
 func (s fileSource) Type() string { return s.o.Attr(attrFileSourceType) }
 func (s fileSource) Root() string { return s.o.Attr(attrFileSourceRoot) }
 
-// OAuthKind returns oauthKindWeb or oauthKindDesktop, for a Google Drive.
+// OAuthKind returns the kind of the source's OAuth client, if it has one:
+// oauthKindWeb or oauthKindDesktop, for a Google Drive, or oauthKindCode.
 func (s fileSource) OAuthKind() string { return s.o.Attr(attrFileSourceOAuthKind) }
 
 // TitleAttr returns the source's title, which may be empty.
@@ -142,14 +155,21 @@ func (s fileSource) TypeTitle() string {
 		return "Directory on this server"
 	case fileSourceGoogleDrive:
 		return "Google Drive"
+	case fileSourceDropbox:
+		return "Dropbox"
 	}
 	return s.Type()
+}
+
+// UsesOAuth reports whether the source needs authorizing, with OAuth.
+func (s fileSource) UsesOAuth() bool {
+	return s.Type() == fileSourceGoogleDrive || s.Type() == fileSourceDropbox
 }
 
 // Authorized reports whether the source has the authorization that it
 // needs, if any.
 func (s fileSource) Authorized() bool {
-	return s.Type() != fileSourceGoogleDrive || s.o.Attr(attrFileSourceRefreshToken) != ""
+	return !s.UsesOAuth() || s.o.Attr(attrFileSourceRefreshToken) != ""
 }
 
 // fileSourceCallbackURL returns the URL that a Google web OAuth client
@@ -195,7 +215,7 @@ var errNotFileSource = errors.New("importer: not a file source")
 type FileSourceInfo struct {
 	Ref        blob.Ref
 	Title      string
-	Type       string // "local" or "gdrive"
+	Type       string // "local", "gdrive" or "dropbox"
 	TypeTitle  string // such as "Google Drive"
 	Authorized bool   // whether it has the authorization it needs, if any
 }
@@ -245,8 +265,8 @@ func (h *Host) fileSource(ref blob.Ref) (fileSource, error) {
 }
 
 // FileSource returns the file source of the permanode ref, set up on the
-// file sources' pages, ready to read. Reads of a Google Drive whose
-// authorization is missing, revoked or expired fail with an error
+// file sources' pages, ready to read. Reads of a Google Drive or Dropbox
+// whose authorization is missing, revoked or expired fail with an error
 // matching [ErrNeedsAuthorization].
 func (h *Host) FileSource(ctx context.Context, ref blob.Ref) (filesource.Source, error) {
 	s, err := h.fileSource(ref)
@@ -256,7 +276,7 @@ func (h *Host) FileSource(ctx context.Context, ref blob.Ref) (filesource.Source,
 	switch s.Type() {
 	case fileSourceLocal:
 		return local.New(s.Root())
-	case fileSourceGoogleDrive:
+	case fileSourceGoogleDrive, fileSourceDropbox:
 		conf, err := s.oauthConfig()
 		if err != nil {
 			return nil, err
@@ -272,10 +292,11 @@ func (h *Host) FileSource(ctx context.Context, ref blob.Ref) (filesource.Source,
 		// Host is closed.
 		tctx := h.oauthContext(h.ctx)
 		ts := reauthTokenSource{conf.TokenSource(tctx, &oauth2.Token{RefreshToken: rt})}
-		return &gdrive.Source{
-			Client:  oauth2.NewClient(tctx, ts),
-			Limiter: rate.NewLimiter(driveRate, 1),
-		}, nil
+		client := oauth2.NewClient(tctx, ts)
+		if s.Type() == fileSourceDropbox {
+			return &dropbox.Source{Client: client, Limiter: rate.NewLimiter(dropboxRate, 1)}, nil
+		}
+		return &gdrive.Source{Client: client, Limiter: rate.NewLimiter(driveRate, 1)}, nil
 	}
 	return nil, fmt.Errorf("importer: unknown file source type %q", s.Type())
 }
@@ -298,16 +319,26 @@ func (s reauthTokenSource) Token() (*oauth2.Token, error) {
 	return t, err
 }
 
-// parseOAuthClient parses a Google OAuth client's JSON, as downloaded
-// from the Google Cloud console, returning its kind, oauthKindWeb or
-// oauthKindDesktop.
-func parseOAuthClient(clientJSON string) (conf *oauth2.Config, kind string, err error) {
-	conf, err = google.ConfigFromJSON([]byte(clientJSON), gdrive.Scope)
+// dropboxAppKeyRx matches Dropbox apps' keys.
+var dropboxAppKeyRx = regexp.MustCompile(`^[a-z0-9]{8,32}$`)
+
+// parseOAuthClient parses the OAuth client of a source of type typ: for a
+// Google Drive, the client's JSON, as downloaded from the Google Cloud
+// console; for a Dropbox, its app's key. It returns the client's kind,
+// such as oauthKindWeb.
+func parseOAuthClient(typ, client string) (conf *oauth2.Config, kind string, err error) {
+	if typ == fileSourceDropbox {
+		if !dropboxAppKeyRx.MatchString(client) {
+			return nil, "", errors.New("not a Dropbox app's key")
+		}
+		return &oauth2.Config{ClientID: client, Endpoint: dropbox.Endpoint, Scopes: dropbox.Scopes}, oauthKindCode, nil
+	}
+	conf, err = google.ConfigFromJSON([]byte(client), gdrive.Scope)
 	if err != nil {
 		return nil, "", fmt.Errorf("not a Google OAuth client's JSON: %w", err)
 	}
 	var keys struct{ Web json.RawMessage }
-	if err := json.Unmarshal([]byte(clientJSON), &keys); err != nil {
+	if err := json.Unmarshal([]byte(client), &keys); err != nil {
 		return nil, "", err
 	}
 	if keys.Web != nil {
@@ -316,29 +347,39 @@ func parseOAuthClient(clientJSON string) (conf *oauth2.Config, kind string, err 
 	return conf, oauthKindDesktop, nil
 }
 
-// oauthConfig returns the configuration of the Google Drive's OAuth
-// client, redirecting to where its kind of client must.
+// oauthConfig returns the configuration of the source's OAuth client,
+// redirecting to where its kind of client must, if anywhere.
 func (s fileSource) oauthConfig() (*oauth2.Config, error) {
-	clientJSON, err := s.o.SecretAttr(context.TODO(), attrFileSourceOAuthClient)
+	client, err := s.o.SecretAttr(context.TODO(), attrFileSourceOAuthClient)
 	if err != nil {
 		return nil, err
 	}
-	if clientJSON == "" {
+	if client == "" {
 		return nil, errors.New("importer: file source has no OAuth client")
 	}
-	conf, kind, err := parseOAuthClient(clientJSON)
+	conf, kind, err := parseOAuthClient(s.Type(), client)
 	if err != nil {
 		return nil, err
 	}
-	conf.RedirectURL = desktopRedirectURI
-	if kind == oauthKindWeb {
+	switch kind {
+	case oauthKindWeb:
 		conf.RedirectURL = s.h.fileSourceCallbackURL()
+	case oauthKindDesktop:
+		conf.RedirectURL = desktopRedirectURI
 	}
 	return conf, nil
 }
 
-// startAuthorization starts authorizing the Google Drive s, returning
-// the URL of the page at Google for the owner to allow it on.
+// requiredScopes returns the OAuth scopes that the source needs.
+func (s fileSource) requiredScopes() []string {
+	if s.Type() == fileSourceDropbox {
+		return dropbox.Scopes
+	}
+	return []string{gdrive.Scope}
+}
+
+// startAuthorization starts authorizing s, returning the URL of the page
+// at Google or Dropbox for the owner to allow it on.
 func (s fileSource) startAuthorization() (string, error) {
 	conf, err := s.oauthConfig()
 	if err != nil {
@@ -361,6 +402,9 @@ func (s fileSource) startAuthorization() (string, error) {
 	if err := s.o.SetAttr(attrFileSourceOAuthPending, string(pj)); err != nil {
 		return "", err
 	}
+	if s.Type() == fileSourceDropbox {
+		return conf.AuthCodeURL(p.State, oauth2.SetAuthURLParam("token_access_type", "offline"), oauth2.S256ChallengeOption(p.Verifier)), nil
+	}
 	// ApprovalForce, so that there's a refresh token even if the client
 	// was allowed already.
 	return conf.AuthCodeURL(p.State, oauth2.AccessTypeOffline, oauth2.ApprovalForce, oauth2.S256ChallengeOption(p.Verifier)), nil
@@ -378,10 +422,12 @@ func (h *Host) fileSourceOfState(state string) (fileSource, error) {
 	return h.fileSource(ref)
 }
 
-// finishAuthorization finishes authorizing the Google Drive s, with q,
-// the query parameters of the redirect from Google, getting a refresh
-// token to keep. The authorization that was started is used up, even if
-// this fails, so that a redirect can't be replayed.
+// finishAuthorization finishes authorizing s, with q, the query
+// parameters of the redirect from Google, or for a client of
+// oauthKindCode, the code pasted, getting a refresh token to keep. The
+// authorization that was started is used up, even if this fails, so that
+// a redirect can't be replayed. A pasted code needs no state, as only the
+// verifier of the authorization started can use it.
 func (s fileSource) finishAuthorization(ctx context.Context, q url.Values) error {
 	s.h.fileSourceMu.Lock()
 	defer s.h.fileSourceMu.Unlock()
@@ -393,7 +439,7 @@ func (s fileSource) finishAuthorization(ctx context.Context, q url.Values) error
 	if pj == "" || json.Unmarshal([]byte(pj), &p) != nil || p.State == "" {
 		return errors.New("no authorization was started; start it again")
 	}
-	if subtle.ConstantTimeCompare([]byte(p.State), []byte(q.Get("state"))) != 1 {
+	if s.OAuthKind() != oauthKindCode && subtle.ConstantTimeCompare([]byte(p.State), []byte(q.Get("state"))) != 1 {
 		return errors.New("that's not the latest authorization started; start it again")
 	}
 	if err := s.o.DelAttr(attrFileSourceOAuthPending, ""); err != nil {
@@ -416,10 +462,14 @@ func (s fileSource) finishAuthorization(ctx context.Context, q url.Values) error
 		return fmt.Errorf("getting a token: %w", err)
 	}
 	if tok.RefreshToken == "" {
-		return errors.New("no refresh token from Google")
+		return fmt.Errorf("no refresh token from %s", s.TypeTitle())
 	}
-	if scope, _ := tok.Extra("scope").(string); scope != "" && !slices.Contains(strings.Fields(scope), gdrive.Scope) {
-		return errors.New("reading Google Drive wasn't allowed")
+	if scope, _ := tok.Extra("scope").(string); scope != "" {
+		for _, want := range s.requiredScopes() {
+			if !slices.Contains(strings.Fields(scope), want) {
+				return fmt.Errorf("reading %s wasn't allowed: no %s permission", s.TypeTitle(), want)
+			}
+		}
 	}
 	return s.o.SetAttr(attrFileSourceRefreshToken, tok.RefreshToken)
 }
@@ -494,14 +544,14 @@ func (h *Host) serveNewFileSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		attrs = append(attrs, attrFileSourceType, typ, attrFileSourceRoot, dir)
-	case fileSourceGoogleDrive:
-		clientJSON := strings.TrimSpace(r.FormValue("client"))
-		_, kind, err := parseOAuthClient(clientJSON)
+	case fileSourceGoogleDrive, fileSourceDropbox:
+		client := strings.TrimSpace(r.FormValue("client"))
+		_, kind, err := parseOAuthClient(typ, client)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		attrs = append(attrs, attrFileSourceType, typ, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, clientJSON)
+		attrs = append(attrs, attrFileSourceType, typ, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, client)
 	default:
 		http.Error(w, "unknown file source type", http.StatusBadRequest)
 		return
@@ -556,15 +606,15 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 				attrs = append(attrs, attrFileSourceRoot, dir)
 			}
 			var deletes []string
-			if clientJSON := strings.TrimSpace(r.FormValue("client")); clientJSON != "" && s.Type() == fileSourceGoogleDrive {
-				_, kind, err := parseOAuthClient(clientJSON)
+			if client := strings.TrimSpace(r.FormValue("client")); client != "" && s.UsesOAuth() {
+				_, kind, err := parseOAuthClient(s.Type(), client)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
 				// The authorization was the old client's.
 				deletes = []string{attrFileSourceRefreshToken, attrFileSourceOAuthPending}
-				attrs = append(attrs, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, clientJSON)
+				attrs = append(attrs, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, client)
 			}
 			if err := s.o.SetAttrsWithDeletes(deletes, attrs...); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -583,7 +633,7 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 			http.Redirect(w, r, h.ImporterBasePath()+fileSourcesName+"/", http.StatusSeeOther)
 			return
 		case "authorize":
-			if s.Type() != fileSourceGoogleDrive {
+			if !s.UsesOAuth() {
 				http.Error(w, "this file source needs no authorization", http.StatusBadRequest)
 				return
 			}
@@ -596,9 +646,22 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 				http.Redirect(w, r, authURL, http.StatusSeeOther)
 				return
 			}
-			// A desktop client's authorization can't come back here, so
-			// the page has a form to paste where it went.
+			// A desktop client's or a Dropbox app's authorization can't
+			// come back here, so the page has a form to paste where it
+			// went, or the code it showed.
 			body.AuthURL = authURL
+		case "code":
+			code := strings.TrimSpace(r.FormValue("code"))
+			if s.OAuthKind() != oauthKindCode || code == "" {
+				http.Error(w, "paste the code shown once authorized", http.StatusBadRequest)
+				return
+			}
+			if err := s.finishAuthorization(r.Context(), url.Values{"code": {code}}); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			http.Redirect(w, r, s.URL(), http.StatusSeeOther)
+			return
 		case "paste":
 			u, err := url.Parse(strings.TrimSpace(r.FormValue("url")))
 			if err != nil || !u.Query().Has("state") {
@@ -707,7 +770,7 @@ const fileSourcesTmpl = `
 {{$base := .Host.ImporterBasePath}}
 <nav class="crumbs"><a href="{{$base}}">Importers</a> › File sources</nav>
 <h1>File sources</h1>
-<p class="lede">Places that importers read files from, such as Google Takeout exports' zip files.</p>
+<p class="lede">Places that importers read files from, such as Google Takeout exports' zip files: a directory on this server, a Google Drive, or a Dropbox.</p>
 
 <section class="card">
   <h2>Sources</h2>
@@ -761,6 +824,25 @@ const fileSourcesTmpl = `
     <div class="actions"><button class="primary" type="submit">Add</button></div>
   </form>
 </section>
+
+<section class="card">
+  <h2>Add a Dropbox</h2>
+  <p>Reading Dropbox needs an app of your own, from the <a href="https://www.dropbox.com/developers/apps">Dropbox App Console</a>:</p>
+  <ol>
+    <li>Create an app with <b>Scoped access</b> and <b>Full Dropbox</b> access, as Google Takeout saves exports in its own app's folder, Apps/Google Download Your Data.</li>
+    <li>On its Permissions tab, check <code>files.metadata.read</code> and <code>files.content.read</code>, and submit.</li>
+    <li>On its Settings tab, allow public clients (Implicit Grant &amp; PKCE), and paste its App key here. Its secret isn't needed, nor a redirect URI: you'll paste a code from Dropbox back here instead.</li>
+  </ol>
+  <form method="post">
+    <input type="hidden" name="type" value="dropbox">
+    <dl class="props">
+      <dt><label for="dropbox-client">App key</label></dt><dd><input id="dropbox-client" name="client" type="text" size="30" autocomplete="off" required></dd>
+      <dt><label for="dropbox-title">Title</label></dt><dd><input id="dropbox-title" name="title" type="text" size="30" placeholder="Dropbox"></dd>
+    </dl>
+    <p class="muted">It's stored in this server's credential store.</p>
+    <div class="actions"><button class="primary" type="submit">Add</button></div>
+  </form>
+</section>
 {{end}}
 
 {{define "fileSourcePage"}}
@@ -779,14 +861,14 @@ const fileSourcesTmpl = `
   <dl class="props">
     <dt>Type</dt><dd>{{$src.TypeTitle}}</dd>
     {{if eq $src.Type "local"}}<dt>Directory</dt><dd class="ref">{{$src.Root}}</dd>{{end}}
-    {{if eq $src.Type "gdrive"}}
-    <dt>OAuth client</dt><dd>{{if eq $src.OAuthKind "web"}}Web application, redirecting to <code>{{.CallbackURL}}</code>{{else}}Desktop app{{end}}</dd>
+    {{if $src.UsesOAuth}}
+    <dt>OAuth client</dt><dd>{{if eq $src.OAuthKind "web"}}Web application, redirecting to <code>{{.CallbackURL}}</code>{{else if eq $src.OAuthKind "desktop"}}Desktop app{{else}}App{{end}}</dd>
     <dt>Status</dt><dd{{if not $src.Authorized}} class="failed"{{end}}>{{if $src.Authorized}}Authorized{{else}}Needs authorizing{{end}}</dd>
     {{end}}
     <dt>Permanode</dt><dd class="ref">{{bloblink $src.Ref}}</dd>
   </dl>
   <div class="actions">
-    {{if eq $src.Type "gdrive"}}
+    {{if $src.UsesOAuth}}
     <form method="post" class="inline">
       <input type="hidden" name="mode" value="authorize">
       <button{{if not $src.Authorized}} class="primary"{{end}} type="submit">{{if $src.Authorized}}Authorize again{{else}}Authorize{{end}}</button>
@@ -806,6 +888,17 @@ const fileSourcesTmpl = `
 {{with .AuthURL}}
 <section class="card">
   <h2>Authorize</h2>
+  {{if eq $src.OAuthKind "code"}}
+  <ol>
+    <li><a href="{{.}}" target="_blank" rel="noopener">Open {{$src.TypeTitle}}'s page</a>, and allow reading your files.</li>
+    <li>It then shows a code. Paste it here:</li>
+  </ol>
+  <form method="post">
+    <input type="hidden" name="mode" value="code">
+    <input name="code" type="text" size="50" autocomplete="off" required>
+    <div class="actions"><button class="primary" type="submit">Finish</button></div>
+  </form>
+  {{else}}
   <ol>
     <li><a href="{{.}}" target="_blank" rel="noopener">Open Google's page</a>, and allow reading Google Drive.</li>
     <li>Google then sends the browser to a page at <code>http://127.0.0.1/</code>, which fails to load. Paste its whole URL, from the browser's address bar, here:</li>
@@ -815,6 +908,7 @@ const fileSourcesTmpl = `
     <input name="url" type="text" size="70" autocomplete="off" required>
     <div class="actions"><button class="primary" type="submit">Finish</button></div>
   </form>
+  {{end}}
 </section>
 {{end}}
 
@@ -843,9 +937,11 @@ const fileSourcesTmpl = `
       {{end}}
       {{if eq $src.Type "gdrive"}}
       <dt><label for="client">New client JSON</label></dt><dd><textarea id="client" name="client" rows="3" cols="60" autocomplete="off"></textarea></dd>
+      {{else if eq $src.Type "dropbox"}}
+      <dt><label for="client">New app key</label></dt><dd><input id="client" name="client" type="text" size="30" autocomplete="off"></dd>
       {{end}}
     </dl>
-    {{if eq $src.Type "gdrive"}}<p class="muted">Leave the client blank to keep it. A new client needs authorizing.</p>{{end}}
+    {{if $src.UsesOAuth}}<p class="muted">Leave the client blank to keep it. A new client needs authorizing.</p>{{end}}
     <div class="actions"><button type="submit">Save</button></div>
   </form>
 </section>

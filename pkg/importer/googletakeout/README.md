@@ -9,17 +9,20 @@ Google Photos: its photos and videos, with their metadata, and its albums,
 as `pk takeout upload` imports them. Other products' files are archived,
 for importing later, when the importer knows them.
 
-An export's zip files are read from a file source: a Google Drive, which is
-where Takeout can put exports, or a directory on the server. Add one on the
-importer pages' file sources page (/importer/sources/) first.
+An export's zip files are read from a file source: a Google Drive or a
+Dropbox, which are where Takeout can put exports, or a directory on the
+server. Add one on the importer pages' file sources page (/importer/sources/)
+first.
 
 Each export is imported by an account of its own:
 
 1. Add a Google Takeout account, pick the file source, and pick the export.
-   By default, exports are looked for in the source's top-level Takeout
-   folders; any other folder can be looked in instead, by browsing to it,
-   or by going straight to it: a Google Drive folder by its URL, as Drive
-   in a browser shows it, or a server directory's folder by its path.
+   By default, exports are looked for where Takeout puts them: in Google
+   Drive, the top-level Takeout folders, and in Dropbox, Apps/Google
+   Download Your Data. Any other folder can be looked in instead, by
+   browsing to it, or by going straight to it: a Google Drive or Dropbox
+   folder by its URL, as the service shows it in a browser, a Dropbox
+   folder by its path, or a server directory's folder by its path.
 2. The account's first run scans the export: it reads the zip files' tables
    of contents, and asks the server what of the export it has already. The
    account's page then shows what the export has: each product's files,
@@ -37,8 +40,8 @@ has, and an archive that's done isn't made again.
 
 The zip files are pinned to the versions that were picked: if they change,
 such as by an export being made again, set the account up again. If a
-Google Drive's authorization expires or is revoked, authorize the file
-source again, and start the import again.
+Google Drive's or Dropbox's authorization expires or is revoked, authorize
+the file source again, and start the import again.
 
 Account attributes
 ------------------

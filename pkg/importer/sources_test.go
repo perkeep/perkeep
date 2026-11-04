@@ -49,6 +49,7 @@ const (
 	testClientID     = "test-client-id.apps.googleusercontent.com"
 	testClientSecret = "test-client-secret-1234"
 	testRefreshToken = "test-refresh-token-5678"
+	testAppKey       = "testappkey1234"
 )
 
 // fakeGoogle serves Google's OAuth token endpoint and the parts of the
@@ -107,6 +108,42 @@ func (g *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// Two folders named Takeout, as Drive allows.
 		io.WriteString(w, `{"files": [{"id": "t2", "name": "Takeout", "mimeType": "application/vnd.google-apps.folder"}, {"id": "n", "name": "Notes", "mimeType": "application/vnd.google-apps.folder"}, {"id": "t1", "name": "Takeout", "mimeType": "application/vnd.google-apps.folder"}]}`)
+	case "/oauth2/token":
+		// Dropbox's, for PKCE: the app key and verifier, without a
+		// secret or a redirect URI.
+		w.Header().Set("Content-Type", "application/json")
+		if r.FormValue("client_id") != testAppKey || r.FormValue("client_secret") != "" || r.FormValue("redirect_uri") != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"error": "invalid_client"}`)
+			return
+		}
+		switch r.FormValue("grant_type") {
+		case "authorization_code":
+			if r.FormValue("code") != "dropbox-code" || !g.verified(r.FormValue("code_verifier")) {
+				w.WriteHeader(http.StatusBadRequest)
+				io.WriteString(w, `{"error": "invalid_grant"}`)
+				return
+			}
+			g.codes++
+			json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "access-1", "token_type": "bearer", "expires_in": 14400,
+				"refresh_token": testRefreshToken, "scope": "account_info.read files.content.read files.metadata.read",
+				"account_id": "dbid:test",
+			})
+		case "refresh_token":
+			if g.revoked || r.FormValue("refresh_token") != testRefreshToken {
+				w.WriteHeader(http.StatusBadRequest)
+				io.WriteString(w, `{"error": "invalid_grant", "error_description": "refresh token is invalid or revoked"}`)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"access_token": "access-2", "token_type": "bearer", "expires_in": 14400})
+		}
+	case "/2/files/list_folder":
+		if a := r.Header.Get("Authorization"); a != "Bearer access-2" {
+			http.Error(w, "unauthorized "+a, http.StatusUnauthorized)
+			return
+		}
+		io.WriteString(w, `{"entries": [{".tag": "folder", "name": "Apps", "id": "id:apps"}], "cursor": "c", "has_more": false}`)
 	default:
 		http.NotFound(w, r)
 	}
@@ -196,7 +233,7 @@ func (s *sourcesHost) checkNoSecrets() {
 		if err != nil {
 			return err
 		}
-		for _, secret := range []string{testClientID, testClientSecret, testRefreshToken} {
+		for _, secret := range []string{testClientID, testClientSecret, testRefreshToken, testAppKey} {
 			if strings.Contains(string(b), secret) {
 				s.t.Errorf("blob %v has %q", sb.Ref, secret)
 			}
@@ -401,6 +438,64 @@ func TestWebDriveFileSource(t *testing.T) {
 	}
 	if _, err := s.h.FileSource(context.Background(), ref); !errors.Is(err, importer.ErrNeedsAuthorization) {
 		t.Errorf("FileSource with a new client: %v; want ErrNeedsAuthorization", err)
+	}
+	s.checkNoSecrets()
+}
+
+var dropboxAuthLinkRx = regexp.MustCompile(`href="(https://www\.dropbox\.com/oauth2/authorize[^"]+)"`)
+
+func TestDropboxFileSource(t *testing.T) {
+	s := newSourcesHost(t, importer.HostConfig{})
+	ctx := context.Background()
+	if w := s.do("POST", "sources/", url.Values{"type": {"dropbox"}, "client": {"Not A Key!"}}); w.Code != http.StatusBadRequest {
+		t.Errorf("adding a Dropbox with a bad app key: %d; want 400", w.Code)
+	}
+	ref := s.add(url.Values{"type": {"dropbox"}, "client": {testAppKey}})
+	if _, err := s.h.FileSource(ctx, ref); !errors.Is(err, importer.ErrNeedsAuthorization) {
+		t.Errorf("FileSource before authorizing: %v; want ErrNeedsAuthorization", err)
+	}
+
+	w := s.do("POST", "sources/"+ref.String(), url.Values{"mode": {"authorize"}})
+	m := dropboxAuthLinkRx.FindStringSubmatch(w.Body.String())
+	if w.Code != http.StatusOK || m == nil || !strings.Contains(w.Body.String(), `value="code"`) {
+		t.Fatalf("authorizing: %d\n%s", w.Code, w.Body)
+	}
+	u, err := url.Parse(html.UnescapeString(m[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	if q.Get("client_id") != testAppKey || q.Get("token_access_type") != "offline" || q.Get("code_challenge_method") != "S256" || q.Has("redirect_uri") {
+		t.Errorf("authorization URL %s", u)
+	}
+	s.g.mu.Lock()
+	s.g.challenge = q.Get("code_challenge")
+	s.g.mu.Unlock()
+
+	code := func(c string) *httptest.ResponseRecorder {
+		return s.do("POST", "sources/"+ref.String(), url.Values{"mode": {"code"}, "code": {c}})
+	}
+	if w := code("dropbox-code"); w.Code != http.StatusSeeOther {
+		t.Fatalf("pasting the code: %d %s", w.Code, w.Body)
+	}
+	if w := code("dropbox-code"); w.Code != http.StatusBadRequest || s.g.exchanged() != 1 {
+		t.Errorf("pasting the code again: %d, %d codes exchanged; want 400 and 1", w.Code, s.g.exchanged())
+	}
+	w = s.do("POST", "sources/"+ref.String(), url.Values{"mode": {"test"}})
+	if !strings.Contains(w.Body.String(), "<li>Apps/</li>") {
+		t.Errorf("testing the source:\n%s", w.Body)
+	}
+
+	s.g.mu.Lock()
+	s.g.revoked = true
+	s.g.mu.Unlock()
+	src, err := s.h.FileSource(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, _ := src.Root(ctx)
+	if _, err := src.List(ctx, root); !errors.Is(err, importer.ErrNeedsAuthorization) {
+		t.Errorf("List with a revoked token: %v; want ErrNeedsAuthorization", err)
 	}
 	s.checkNoSecrets()
 }
