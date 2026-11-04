@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -181,6 +182,24 @@ type TestDataMaker interface {
 // Importers to return some HTML to be included on the importer setup page.
 type ImporterSetupHTMLer interface {
 	AccountSetupHTML(*Host) string
+}
+
+// AccountStatusHTMLer is an optional interface of Importers whose
+// accounts' pages show more of their status, such as what a run found,
+// or forms to go on with a run.
+type AccountStatusHTMLer interface {
+	// AccountStatusHTML returns the HTML of the account's status, or
+	// none. Its forms may post to ctx.CallbackPath.
+	AccountStatusHTML(ctx *SetupContext) template.HTML
+}
+
+// Resumer is an optional interface of Importers whose runs, interrupted
+// by the server stopping, resume when it starts again, rather than
+// waiting to be started again.
+type Resumer interface {
+	// ResumeRun reports whether the account's run was interrupted,
+	// and should be started.
+	ResumeRun(acctNode *Object) bool
 }
 
 var (
@@ -484,6 +503,9 @@ func (sc *SetupContext) AccountURL() string {
 	return sc.ia.im.URL() + "/" + sc.AccountNode.PermanodeRef().String()
 }
 
+// StartRun starts a run of the account, if one isn't running.
+func (sc *SetupContext) StartRun() { sc.ia.start() }
+
 // RunContext is the context provided for a given Run of an importer, importing
 // a certain account on a certain importer.
 type RunContext struct {
@@ -508,6 +530,35 @@ func (rc *RunContext) Context() context.Context {
 		return rc.ctx
 	}
 	return context.Background()
+}
+
+// StopRequested reports whether the run's been asked to stop, on the
+// account's page, rather than by the server stopping.
+func (rc *RunContext) StopRequested() bool {
+	rc.ia.mu.Lock()
+	defer rc.ia.mu.Unlock()
+	return rc.ia.current == rc && rc.ia.stopped
+}
+
+// ImporterCacheDir returns a directory for the importer's files cached
+// on local disk, shared by its accounts, as ImporterCache is, or the
+// empty string if the server has no place for persistent caches. Files
+// in it are disposable optimizations, like ImporterCache's entries.
+func (rc *RunContext) ImporterCacheDir() (string, error) {
+	h := rc.Host
+	if h.cacheRoot == "" {
+		return "", nil
+	}
+	name, err := cacheImporterDirName(rc.ia.im.name)
+	if err != nil {
+		return "", err
+	}
+	// Not a directory of cacheImporterDirName, which escapes underscores.
+	dir := filepath.Join(h.cacheRoot, "_files", name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("importer cache directory: %w", err)
+	}
+	return dir, nil
 }
 
 // CreateAccount creates a new importer account for the Host h, and the importer
@@ -1061,6 +1112,11 @@ func (h *Host) startPeriodicImporters() {
 		ia, err := imp.account(blob)
 		if err != nil {
 			log.Printf("Can't load importer account %v for regular importing: %v", blob, err)
+			continue
+		}
+		if r, ok := imp.impl.(Resumer); ok && !disableImporters && r.ResumeRun(ia.acct) {
+			log.Printf("importer: resuming the interrupted run of %v", ia)
+			go ia.start()
 			continue
 		}
 		go ia.maybeStart()
@@ -1749,12 +1805,22 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status, running, _ := ia.status()
+	var statusHTML template.HTML
+	if sh, ok := ia.im.impl.(AccountStatusHTMLer); ok && !ia.acct.isPending() {
+		statusHTML = sh.AccountStatusHTML(&SetupContext{
+			Context:     r.Context(),
+			Host:        ia.im.host,
+			AccountNode: ia.acct,
+			ia:          ia,
+		})
+	}
 	ia.mu.Lock()
 	defer ia.mu.Unlock()
 	body := acctBody{
 		Acct:           ia,
 		Importer:       ia.im,
 		Status:         status,
+		StatusHTML:     statusHTML,
 		Running:        running,
 		HasSomePaidAPI: ia.im.props.HasSomePaidAPI,
 		ArchiveUpload:  ia.im.archiveUpload(ia),

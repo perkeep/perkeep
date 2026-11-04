@@ -74,6 +74,7 @@ type acctBody struct {
 	Acct           *importerAcct
 	Importer       *importer
 	Status         string
+	StatusHTML     template.HTML // more of the account's status, from its importer, or none
 	Running        bool
 	HasSomePaidAPI bool
 	ArchiveUpload  *archiveUploadData
@@ -469,6 +470,12 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
     </form>
   </div>
 </section>
+
+{{with .StatusHTML}}
+<section class="card">
+{{.}}
+</section>
+{{end}}
 
 <section class="card">
   <h2>Log</h2>
