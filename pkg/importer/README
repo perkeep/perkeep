@@ -79,6 +79,12 @@ Dropbox shows a code, which the owner pastes back. Host.FileSource returns a
 source, ready to read, for importers; reads of a source whose authorization has
 been revoked or has expired fail with ErrNeedsAuthorization.
 
+An archive importer's ZIP, such as a Runkeeper export's, can come from a file
+source instead of being uploaded from the browser: the owner browses a source
+for it at /importer/TYPE/archive-source, which copies the one picked into the
+server as a file, for the importer's page to inspect and import, as it does an
+uploaded one.
+
 Chronological progress and reconciliation
 ----------------------------------------
 

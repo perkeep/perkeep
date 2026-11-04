@@ -878,6 +878,10 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveArchive(w, r, imp)
 		return
 	}
+	if seg[1] == "archive-source" && len(seg) == 2 {
+		h.serveArchiveSource(w, r, imp)
+		return
+	}
 	if seg[1] == "archive.js" && len(seg) == 2 {
 		h.serveArchiveScript(w, r, imp)
 		return
@@ -960,7 +964,7 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 			Importer:                   imp,
 			Accounts:                   accounts,
 			SetupHelp:                  template.HTML(setup),
-			ArchiveUpload:              imp.archiveUpload(nil),
+			ArchiveUpload:              imp.archiveUpload(nil, r.FormValue("fileRef")),
 		},
 	})
 }
@@ -1830,7 +1834,7 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		StatusHTML:     statusHTML,
 		Running:        running,
 		HasSomePaidAPI: ia.im.props.HasSomePaidAPI,
-		ArchiveUpload:  ia.im.archiveUpload(ia),
+		ArchiveUpload:  ia.im.archiveUpload(ia, ""),
 		ArchiveOnly:    ia.im.props.ArchiveOnly,
 	}
 	title := fmt.Sprintf("%s account: ", ia.im.name)

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/progress"
 )
 
 func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data any) {
@@ -212,6 +213,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 		}
 		return s
 	},
+	"bytes": progress.FormatBytes,
 	"accountsTable": func(rows []accountRow, showType bool) accountsTableData {
 		return accountsTableData{Rows: rows, ShowType: showType}
 	},
@@ -250,6 +252,8 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
    button.danger:hover {background: #fdf1f0;}
    select, input[type=text], input[type=password], input:not([type]) {font: inherit; padding: .3em .45em; border: 1px solid #c9ced4; border-radius: 6px;}
    form.inline {display: inline;}
+   button.link {border: none; background: none; color: #1f5fbf; padding: 0; cursor: pointer;}
+   button.link:hover {background: none; text-decoration: underline;}
    .actions {display: flex; flex-wrap: wrap; gap: .5em; margin-top: 1em;}
    dl.props {display: grid; grid-template-columns: max-content 1fr; gap: .45em 1.6em; margin: 0;}
    dl.props dt {color: #6a737d;}
@@ -409,7 +413,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 {{end}}
 {{end}}
 
-` + archiveUploadTmpl + fileSourcesTmpl + `
+` + archiveUploadTmpl + fileSourcesTmpl + archiveSourceTmpl + `
 
 {{define "acctPage"}}
   {{template "pageTop" .}}

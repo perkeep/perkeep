@@ -183,7 +183,11 @@ limitations under the License.
 				this.setFileRef(this.fileRef);
 				this.nodes["upload-form"].hidden = this.accountPage;
 				this.render();
-				if (this.accountPage) {
+				if (!this.accountPage && this.fileRef) {
+					// A ZIP stored already, such as one copied from a
+					// file source.
+					await this.inspect();
+				} else if (this.accountPage) {
 					this.showAccountLink(this.accountRef);
 					if (this.fileRef) {
 						await this.pollStatus();
