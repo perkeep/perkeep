@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"perkeep.org/pkg/progress"
 )
 
 // A RetryAfterError is an error of a run that stopped before it was done
@@ -92,6 +94,19 @@ func (ia *importerAcct) logf(format string, args ...any) {
 	log.Printf("%v: %s", ia, msg)
 }
 
+// Progress returns the run's progress bars, for the importer to make and
+// update, which the account's page shows, with estimates of the time
+// each bar's work has left, while the run goes on, and after it ends,
+// until the next starts.
+func (rc *RunContext) Progress() *progress.Set {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if rc.progress == nil {
+		rc.progress = new(progress.Set)
+	}
+	return rc.progress
+}
+
 // Logf logs a message of the run: to the server's log, prefixed by the
 // account, and to the account's log, which its page shows while it
 // runs. It's a tailscale.com/types/logger.Logf, for importers to use
@@ -105,6 +120,8 @@ type logResponse struct {
 	Next    int64  `json:"next"`    // the offset to ask for next
 	Running bool   `json:"running"` // whether a run is going, so more may come
 	Status  string `json:"status"`  // the account's status, as its page shows it
+
+	Progress []progressBar `json:"progress,omitempty"` // of the latest run, if it has any
 }
 
 // serveLog serves the account's log after offset v, as a logResponse.
@@ -117,7 +134,41 @@ func (ia *importerAcct) serveLog(w http.ResponseWriter, v string) {
 	var res logResponse
 	res.Text, res.Next = ia.log.since(off)
 	res.Status, res.Running, _ = ia.status()
+	res.Progress = ia.progressBars()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(res)
+}
+
+// progressBar is a progress bar of a run, as an account's page shows it.
+type progressBar struct {
+	Title       string  `json:"title"`
+	Description string  `json:"description,omitempty"`
+	Detail      string  `json:"detail"`   // its counts and estimates
+	Fraction    float64 `json:"fraction"` // done, from 0 to 1, or -1 if the total's unknown
+	Finished    bool    `json:"finished,omitempty"`
+	ETA         int64   `json:"eta,omitempty"` // when it's estimated to finish, in Unix milliseconds, if estimated
+}
+
+// progressBars returns the progress bars of the account's latest run.
+func (ia *importerAcct) progressBars() []progressBar {
+	set := ia.progress.Load()
+	if set == nil {
+		return nil
+	}
+	var bars []progressBar
+	for _, st := range set.Snapshot() {
+		b := progressBar{
+			Title:       st.Title,
+			Description: st.Description,
+			Detail:      st.Detail(),
+			Fraction:    st.Fraction(),
+			Finished:    st.Finished,
+		}
+		if !st.ETA.IsZero() {
+			b.ETA = st.ETA.UnixMilli()
+		}
+		bars = append(bars, b)
+	}
+	return bars
 }
