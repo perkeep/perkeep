@@ -54,8 +54,16 @@ type archive struct {
 	batch Batch
 
 	mu       sync.Mutex
-	uploaded map[blob.Ref]bool // uploaded already, as identical blobs repeat
+	uploaded map[blob.Ref]bool                       // uploaded already, as identical blobs repeat
+	parts    map[*takeout.Content][]schema.BytesPart // of contents uploaded as one blob, by putSmall
 }
+
+// smallContentMax is the size of contents up to which the archive puts
+// them in its batch as one blob each, rather than uploading them as files,
+// so it knows their parts without asking the server for them, and reads
+// them with ReadAll, which may have them cached, as sidecars are. It's
+// well under the largest blob size.
+const smallContentMax = 1 << 20
 
 // Archive archives all of exp's files, of every kind: a directory of each
 // zip file's files, in a directory of the export, which is the content of
@@ -85,31 +93,50 @@ func (a *archive) run(ctx context.Context) (rootDir blob.Ref, err error) {
 	if err != nil {
 		return blob.Ref{}, err
 	}
+	if a.batch, err = a.im.Server.NewBatch(ctx); err != nil {
+		return blob.Ref{}, err
+	}
+	defer a.batch.Close()
+
 	if len(missing) > 0 {
 		a.im.logf("Uploading %d contents the server doesn't have (%s)...", len(missing), FormatBytes(ContentsSize(missing)))
 		pr := a.im.newProgress("archive-upload", "Uploading the export's other files", len(missing), ContentsSize(missing))
 		defer pr.finish()
-		done, doneBytes := 0, int64(0)
-		failed, err := takeout.Upload(ctx, files, missing, a.im.workers(), func(c *takeout.Content, err error) {
+		var small, large []*takeout.Content
+		for _, c := range missing {
+			if c.Size <= smallContentMax {
+				small = append(small, c)
+			} else {
+				large = append(large, c)
+			}
+		}
+		var mu sync.Mutex
+		done, doneBytes, failed := 0, int64(0), 0
+		result := func(c *takeout.Content, err error) {
+			mu.Lock()
+			defer mu.Unlock()
 			done++
 			doneBytes += c.Size
 			if err != nil {
+				failed++
 				a.im.logf("Error uploading %s: %v", c.Entries[0].File.Name, err)
 			}
 			pr.update(done, doneBytes)
+		}
+		err := forEach(ctx, small, a.im.workers(), func(c *takeout.Content) error {
+			result(c, a.putSmall(ctx, c))
+			return nil
 		})
 		if err != nil {
+			return blob.Ref{}, err
+		}
+		if _, err := takeout.Upload(ctx, files, large, a.im.workers(), result); err != nil {
 			return blob.Ref{}, err
 		}
 		if failed > 0 {
 			return blob.Ref{}, fmt.Errorf("%d of %d contents failed to upload; run archive again to retry", failed, len(missing))
 		}
 	}
-
-	if a.batch, err = a.im.Server.NewBatch(ctx); err != nil {
-		return blob.Ref{}, err
-	}
-	defer a.batch.Close()
 
 	// A file schema blob for each entry, with the parts of a file with
 	// its contents.
@@ -215,11 +242,40 @@ func (a *archive) run(ctx context.Context) (rootDir blob.Ref, err error) {
 	return rootDir, nil
 }
 
-// contentParts returns the size and parts of a file on the server with
-// contents c.
+// putSmall puts c, a small content, in the batch, as one blob, recording
+// its parts for contentParts.
+func (a *archive) putSmall(ctx context.Context, c *takeout.Content) error {
+	if c.Size == 0 {
+		return nil
+	}
+	data, err := c.Entries[0].ReadAll(ctx)
+	if err != nil {
+		return err
+	}
+	br, err := a.putBlob(ctx, string(data))
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.parts == nil {
+		a.parts = make(map[*takeout.Content][]schema.BytesPart)
+	}
+	a.parts[c] = []schema.BytesPart{{Size: uint64(len(data)), BlobRef: br}}
+	return nil
+}
+
+// contentParts returns the size and parts of contents c: those putSmall
+// put, or else of a file on the server with them.
 func (a *archive) contentParts(ctx context.Context, c *takeout.Content) (int64, []schema.BytesPart, error) {
 	if c.Size == 0 {
 		return 0, nil, nil
+	}
+	a.mu.Lock()
+	parts, ok := a.parts[c]
+	a.mu.Unlock()
+	if ok {
+		return c.Size, parts, nil
 	}
 	size := c.Size
 	res, err := a.im.Server.Query(ctx, &search.SearchQuery{
@@ -248,17 +304,24 @@ func (a *archive) contentParts(ctx context.Context, c *takeout.Content) (int64, 
 // upload uploads b, a small schema blob, into the batch, unless it
 // already has.
 func (a *archive) upload(ctx context.Context, b *schema.Blob) (blob.Ref, error) {
+	return a.putBlob(ctx, b.JSON())
+}
+
+// putBlob puts the blob with the given contents into the batch, unless it
+// has already, returning its ref.
+func (a *archive) putBlob(ctx context.Context, contents string) (blob.Ref, error) {
+	br := blob.RefFromString(contents)
 	a.mu.Lock()
 	if a.uploaded == nil {
 		a.uploaded = make(map[blob.Ref]bool)
 	}
-	dup := a.uploaded[b.BlobRef()]
-	a.uploaded[b.BlobRef()] = true
+	dup := a.uploaded[br]
+	a.uploaded[br] = true
 	a.mu.Unlock()
 	if dup {
-		return b.BlobRef(), nil
+		return br, nil
 	}
-	return b.BlobRef(), a.batch.Put(ctx, b.JSON())
+	return br, a.batch.Put(ctx, contents)
 }
 
 // archiveDir is a directory to archive.
