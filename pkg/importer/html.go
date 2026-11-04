@@ -135,6 +135,8 @@ func (ia *importerAcct) status() (status string, running, failed bool) {
 		return "Credential store unavailable: " + readinessErr.Error(), false, true
 	case ia.current != nil:
 		return "Running for " + roughDuration(time.Since(ia.lastRunStart)), true, false
+	case !ia.lastRunDone.IsZero() && ia.lastRunPaused:
+		return fmt.Sprintf("Paused %s ago", roughDuration(time.Since(ia.lastRunDone))), false, false
 	case !ia.lastRunDone.IsZero() && ia.lastRunErr != nil:
 		var rae RetryAfterError
 		if errors.As(ia.lastRunErr, &rae) {

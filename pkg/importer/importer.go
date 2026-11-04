@@ -1694,13 +1694,14 @@ type importerAcct struct {
 	acct *Object
 	root *Object
 
-	mu           sync.Mutex
-	current      *RunContext // or nil if not running
-	stopped      bool        // stop requested (context canceled)
-	lastRunErr   error
-	lastRunStart time.Time
-	lastRunDone  time.Time
-	lastArchive  *camtypes.ArchiveImportStatus
+	mu            sync.Mutex
+	current       *RunContext // or nil if not running
+	stopped       bool        // stop requested (context canceled)
+	lastRunErr    error
+	lastRunPaused bool // whether the last run was stopped on the account's page
+	lastRunStart  time.Time
+	lastRunDone   time.Time
+	lastArchive   *camtypes.ArchiveImportStatus
 	// pendingSince, for an account whose permanode isn't stored yet
 	// (see importer.newPendingAccount), is when it was made.
 	pendingSince time.Time
@@ -1966,18 +1967,18 @@ func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error 
 		// Bars the run didn't finish, it stopped short of finishing.
 		rc.Progress().StopAll()
 		err = rc.finishArchive(err)
+		paused := rc.StopRequested() && (err == nil || errors.Is(err, context.Canceled))
 		switch {
-		case err != nil && errors.Is(err, context.Canceled) && rc.StopRequested():
+		case paused:
 			ia.logf("The run was paused.")
 		case err != nil:
 			ia.logf("The run failed: %v", err)
-		case rc.StopRequested():
-			ia.logf("The run was paused.")
 		default:
 			ia.logf("The run finished.")
 		}
 		ia.mu.Lock()
 		defer ia.mu.Unlock()
+		ia.lastRunPaused = paused
 		rc.mu.Lock()
 		if rc.archiveJob != nil {
 			status := *rc.archiveJob
