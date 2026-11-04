@@ -331,7 +331,10 @@ func parseOAuthClient(typ, client string) (conf *oauth2.Config, kind string, err
 		if !dropboxAppKeyRx.MatchString(client) {
 			return nil, "", errors.New("not a Dropbox app's key")
 		}
-		return &oauth2.Config{ClientID: client, Endpoint: dropbox.Endpoint, Scopes: dropbox.Scopes}, oauthKindCode, nil
+		// No scopes: a scoped app is granted those of its permissions, and
+		// an app from before scopes, which Dropbox gives all of its access,
+		// rejects any. (finishAuthorization checks those granted, if any.)
+		return &oauth2.Config{ClientID: client, Endpoint: dropbox.Endpoint}, oauthKindCode, nil
 	}
 	conf, err = google.ConfigFromJSON([]byte(client), gdrive.Scope)
 	if err != nil {

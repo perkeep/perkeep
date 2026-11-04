@@ -48,7 +48,8 @@ var Endpoint = oauth2.Endpoint{
 }
 
 // Scopes are the scopes of Dropbox's permissions that a Source needs:
-// listing files and reading them.
+// listing files and reading them. A scoped app must have them, set in its
+// settings; apps from before Dropbox's scopes have all of them.
 var Scopes = []string{"files.metadata.read", "files.content.read"}
 
 // rootID is the ID of a Source's root File. Dropbox's own name for the

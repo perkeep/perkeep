@@ -465,7 +465,7 @@ func TestDropboxFileSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := u.Query()
-	if q.Get("client_id") != testAppKey || q.Get("token_access_type") != "offline" || q.Get("code_challenge_method") != "S256" || q.Has("redirect_uri") {
+	if q.Get("client_id") != testAppKey || q.Get("token_access_type") != "offline" || q.Get("code_challenge_method") != "S256" || q.Has("redirect_uri") || q.Has("scope") {
 		t.Errorf("authorization URL %s", u)
 	}
 	s.g.mu.Lock()
