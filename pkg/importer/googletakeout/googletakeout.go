@@ -237,10 +237,11 @@ func newRun(rc *importer.RunContext) (*run, error) {
 		return nil, err
 	}
 	im := &takeoutimport.Importer{
-		Server:  hostServer{rc.Host},
-		Signer:  rc.Host.Signer(),
-		Workers: workers,
-		Logf:    rc.Logf,
+		Server:   hostServer{rc.Host},
+		Signer:   rc.Host.Signer(),
+		Workers:  workers,
+		Logf:     rc.Logf,
+		Progress: rc.Progress(),
 	}
 	if err := im.CheckServer(ctx); err != nil {
 		return nil, err

@@ -33,6 +33,7 @@ import (
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/internal/takeout"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
@@ -81,6 +82,11 @@ type Importer struct {
 
 	// Logf, if non-nil, logs progress, instead of log.Printf.
 	Logf func(format string, args ...any)
+
+	// Progress, if non-nil, gets a progress bar of each step of an
+	// import, such as uploading, rather than the step's progress being
+	// logged every few seconds.
+	Progress *progress.Set
 }
 
 func (im *Importer) logf(format string, args ...any) {
@@ -109,7 +115,8 @@ func (im *Importer) CheckServer(ctx context.Context) error {
 
 // Check reports which of cs the server has, as takeout.Check does.
 func (im *Importer) Check(ctx context.Context, cs []*takeout.Content) (have, missing []*takeout.Content, err error) {
-	pr := im.newProgress(len(cs), 0)
+	pr := im.newProgress("check", "Checking which files the server has", len(cs), 0)
+	defer pr.finish()
 	return takeout.Check(ctx, im.store(false), cs, im.workers(), func(done int) { pr.update(done, 0) })
 }
 
@@ -179,7 +186,7 @@ func (im *Importer) archiveNew(ctx context.Context, exp *takeout.Export) error {
 // to their permanodes.
 func (im *Importer) SyncMeta(ctx context.Context, exp *takeout.Export, cs []*takeout.Content) (*MetaStats, error) {
 	im.logf("Reading the metadata of %d photos...", len(cs))
-	lib, err := takeout.NewLibrary(ctx, exp, cs, im.workers())
+	lib, err := im.newLibrary(ctx, exp, cs, "meta-read", "Reading the photos' metadata")
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +201,8 @@ func (im *Importer) upload(ctx context.Context, st *store, missing []*takeout.Co
 		return nil
 	}
 	im.logf("Uploading %d files (%s)...", len(missing), FormatBytes(ContentsSize(missing)))
-	pr := im.newProgress(len(missing), ContentsSize(missing))
+	pr := im.newProgress("upload", "Uploading", len(missing), ContentsSize(missing))
+	defer pr.finish()
 	done, doneBytes := 0, int64(0)
 	failed, err := takeout.Upload(ctx, st, missing, im.workers(), func(mc *takeout.Content, err error) {
 		done++
@@ -227,52 +235,76 @@ func ContentsSize(cs []*takeout.Content) int64 {
 }
 
 // FormatBytes formats n bytes in binary units, such as "1.5 GiB".
-func FormatBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for n/div >= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
-}
+func FormatBytes(n int64) string { return progress.FormatBytes(n) }
 
-// progress logs progress through a number of items, at most every few
-// seconds. If they have sizes, its estimate of the time left is by
+// step tracks the progress of a step of an import through a number of
+// items, as a bar of im.Progress, or if im has no Progress, by logging it
+// at most every few seconds. If the items have sizes, the bar counts
 // bytes, as their sizes vary a lot.
-type progress struct {
-	logf       func(format string, args ...any)
-	total      int
-	totalBytes int64 // or zero, to estimate by items
-	start      time.Time
-	last       time.Time
+type step struct {
+	im    *Importer
+	bar   *progress.Bar
+	total int
+	bytes bool
+	last  time.Time
 }
 
-func (im *Importer) newProgress(total int, totalBytes int64) *progress {
-	now := time.Now()
-	return &progress{logf: im.logf, total: total, totalBytes: totalBytes, start: now, last: now}
+// newProgress returns the step named name, with the title title, of
+// total items, of totalBytes bytes, or zero if they have no sizes.
+func (im *Importer) newProgress(name, title string, total int, totalBytes int64) *step {
+	set := im.Progress
+	if set == nil {
+		set = new(progress.Set)
+	}
+	p := &step{im: im, bar: set.Bar(name, title), total: total, bytes: totalBytes > 0, last: time.Now()}
+	if p.bytes {
+		p.bar.SetUnit(progress.Bytes)
+		p.bar.SetTotal(totalBytes)
+		p.bar.SetDescription(fmt.Sprintf("0 of %d files", total))
+	} else {
+		p.bar.SetTotal(int64(total))
+	}
+	return p
 }
 
 // update records that done items, of doneBytes bytes, are done.
-func (p *progress) update(done int, doneBytes int64) {
+func (p *step) update(done int, doneBytes int64) {
+	if p.bytes {
+		p.bar.Set(doneBytes)
+		p.bar.SetDescription(fmt.Sprintf("%d of %d files", done, p.total))
+	} else {
+		p.bar.Set(int64(done))
+	}
 	now := time.Now()
-	if now.Sub(p.last) < 5*time.Second || done == p.total {
+	if p.im.Progress != nil || now.Sub(p.last) < 5*time.Second || done == p.total {
 		return
 	}
 	p.last = now
-	elapsed := now.Sub(p.start)
-	if p.totalBytes == 0 || doneBytes == 0 {
-		eta := time.Duration(float64(elapsed) / float64(done) * float64(p.total-done))
-		p.logf("%d of %d done; about %v left", done, p.total, eta.Round(time.Second))
-		return
+	detail := p.bar.Status().Detail()
+	if p.bytes {
+		detail = fmt.Sprintf("%d of %d files, %s", done, p.total, detail)
 	}
-	rate := float64(doneBytes) / elapsed.Seconds()
-	eta := time.Duration(float64(p.totalBytes-doneBytes) / rate * float64(time.Second))
-	p.logf("%d of %d done, %s of %s (%s/s); about %v left", done, p.total,
-		FormatBytes(doneBytes), FormatBytes(p.totalBytes), FormatBytes(int64(rate)), eta.Round(time.Second))
+	p.im.logf("%s: %s", p.bar.Status().Title, detail)
+}
+
+// finish marks the step finished.
+func (p *step) finish() { p.bar.Finish() }
+
+// newLibrary returns takeout.NewLibrary's Library of the photos cs of
+// exp, as a step named name, with the title title.
+func (im *Importer) newLibrary(ctx context.Context, exp *takeout.Export, cs []*takeout.Content, name, title string) (*takeout.Library, error) {
+	var pr *step
+	defer func() {
+		if pr != nil {
+			pr.finish()
+		}
+	}()
+	return takeout.NewLibrary(ctx, exp, cs, im.workers(), func(done, total int) {
+		if pr == nil {
+			pr = im.newProgress(name, title, total, 0)
+		}
+		pr.update(done, 0)
+	})
 }
 
 // store is a takeout.Store of the Importer's server.
@@ -297,7 +329,7 @@ func (im *Importer) store(permanodes bool) *store {
 // readMeta reads the Google Photos metadata of the photos cs of exp, for
 // Put to set on their permanodes.
 func (s *store) readMeta(ctx context.Context, exp *takeout.Export, cs []*takeout.Content) error {
-	lib, err := takeout.NewLibrary(ctx, exp, cs, s.im.workers())
+	lib, err := s.im.newLibrary(ctx, exp, cs, "upload-meta", "Reading the metadata of the photos to upload")
 	if err != nil {
 		return err
 	}
