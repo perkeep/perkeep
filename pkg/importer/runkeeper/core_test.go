@@ -351,6 +351,11 @@ func TestArchiveIncremental(t *testing.T) {
 	if p.Done != 2 || p.Unchanged != 0 || p.WarningCount != 0 {
 		t.Fatalf("progress: %+v", p)
 	}
+	// The run's progress bars, which the account's page shows.
+	bars := f.rc.Progress().Snapshot()
+	if len(bars) != 2 || bars[0].Name != "prepare" || !bars[0].Finished || bars[1].Name != "activities" || !bars[1].Finished || bars[1].Done != 2 || bars[1].Total != 2 {
+		t.Errorf("progress bars: %+v", bars)
+	}
 	a, b := f.activity(t, idA), f.activity(t, idB)
 	if a.PermanodeRef() == b.PermanodeRef() {
 		t.Fatal("shared GPX collapsed UUIDs")

@@ -102,6 +102,10 @@ func (r *archiveRun) warn(s string) {
 func importArchive(rc *importer.RunContext, src memberSource, names map[string]bool, report func(importProgress) error) error {
 	r := &archiveRun{rc: rc, src: src, names: names, tracks: make(map[string]trackInfo), hashes: make(map[string]string), report: report}
 	ctx := rc.Context()
+	// The steps before the activities: their CSV, photos.csv, and the
+	// sensor CSVs, spooled.
+	prep := rc.Progress().Bar("prepare", "Reading the export's activities, photos and sensor data")
+	prep.SetTotal(4)
 	var activities []*activity
 	ids := make(map[string]bool)
 	if err := readCSV(ctx, src, "cardioActivities.csv", maxMetadata, func(row rawRow) error {
@@ -133,6 +137,7 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 	if err := r.notify(); err != nil {
 		return err
 	}
+	prep.Add(1)
 	photos := make(map[string][]rawRow)
 	if names["photos.csv"] {
 		count := 0
@@ -164,6 +169,7 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 			return err
 		}
 	}
+	prep.Add(1)
 	var err error
 	r.spool, err = newSpool()
 	if err != nil {
@@ -176,10 +182,12 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 				return err
 			}
 		}
+		prep.Add(1)
 	}
 	if err := r.spool.flush(); err != nil {
 		return err
 	}
+	prep.Finish()
 	if err := rc.RootNode().SetAttrs(nodeattr.Title, "Runkeeper workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
 		return err
 	}
@@ -193,6 +201,9 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 	if err := r.attachAccountSources(); err != nil {
 		return err
 	}
+	bar := rc.Progress().Bar("activities", "Importing activities")
+	bar.SetTotal(int64(len(activities)))
+	defer bar.Finish()
 	for _, a := range activities {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -205,6 +216,8 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 		if !changed {
 			r.progress.Unchanged++
 		}
+		bar.Set(int64(r.progress.Done))
+		bar.SetDescription(fmt.Sprintf("%d unchanged", r.progress.Unchanged))
 		if r.progress.Done%100 == 0 {
 			if err := r.notify(); err != nil {
 				return err
