@@ -49,6 +49,7 @@ import (
 	"perkeep.org/internal/takeoutimport"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/filesource"
+	"perkeep.org/pkg/filesource/dropbox"
 	"perkeep.org/pkg/filesource/gdrive"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema/nodeattr"
@@ -470,10 +471,14 @@ func browse(r *http.Request, sc *importer.SetupContext) (*browsed, error) {
 
 // folderID returns the ID of the folder s, as typed to go to it: for a
 // Google Drive, its URL, as the Drive web app shows it, or its ID; for a
+// Dropbox, its URL, as the Dropbox web app shows it, or its path; for a
 // directory on the server, its path beneath the directory.
 func folderID(info importer.FileSourceInfo, s string) (string, error) {
-	if info.Type == "gdrive" {
+	switch info.Type {
+	case "gdrive":
 		return gdrive.FolderID(s)
+	case "dropbox":
+		return dropbox.FolderPath(s)
 	}
 	return path.Clean(strings.TrimPrefix(s, "/")), nil
 }
@@ -841,6 +846,9 @@ button.link {border: none; background: none; color: #1f5fbf; padding: 0;}
   {{if eq .Source.Type "gdrive"}}
   <p><label for="goto">Or go to a folder by its URL, from Google Drive in a browser:</label><br>
   <input id="goto" name="goto" type="text" size="70" placeholder="https://drive.google.com/drive/folders/..." required>
+  {{else if eq .Source.Type "dropbox"}}
+  <p><label for="goto">Or go to a folder by its URL, from Dropbox in a browser, or its path:</label><br>
+  <input id="goto" name="goto" type="text" size="70" placeholder="https://www.dropbox.com/home/..." required>
   {{else}}
   <p><label for="goto">Or go to a folder by its path, in the directory:</label><br>
   <input id="goto" name="goto" type="text" size="50" placeholder="Takeout/2026" required>

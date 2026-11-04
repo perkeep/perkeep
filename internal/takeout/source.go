@@ -97,28 +97,53 @@ func FindExports(ctx context.Context, src filesource.Source, dir filesource.File
 	return ExportsFromFiles(src, files, cache), nil
 }
 
+// defaultPaths are the paths of the folders where Google Takeout saves
+// exports: in Google Drive, "Takeout" in its root (of which there may be
+// more than one), and in Dropbox, its app's folder.
+var defaultPaths = [][]string{
+	{"Takeout"},
+	{"Apps", "Google Download Your Data"},
+}
+
 // DefaultDirs returns the directories of src where Google Takeout saves
-// exports by default: in Google Drive, those named "Takeout" in its
-// root, or else, for other places, the root itself.
+// exports by default, or else, for other places, the root itself.
 func DefaultDirs(ctx context.Context, src filesource.Source) ([]filesource.File, error) {
 	root, err := src.Root(ctx)
 	if err != nil {
 		return nil, err
 	}
-	found, err := filesource.Find(ctx, src, root, "Takeout")
-	if err != nil {
-		return nil, err
-	}
 	var dirs []filesource.File
-	for _, f := range found {
-		if f.Dir {
-			dirs = append(dirs, f)
+	for _, p := range defaultPaths {
+		found, err := findDirs(ctx, src, []filesource.File{root}, p)
+		if err != nil {
+			return nil, err
 		}
+		dirs = append(dirs, found...)
 	}
 	if len(dirs) == 0 {
 		dirs = []filesource.File{root}
 	}
 	return dirs, nil
+}
+
+// findDirs returns the directories at the path p beneath those of in.
+func findDirs(ctx context.Context, src filesource.Source, in []filesource.File, p []string) ([]filesource.File, error) {
+	for _, name := range p {
+		var next []filesource.File
+		for _, d := range in {
+			found, err := filesource.Find(ctx, src, d, name)
+			if err != nil {
+				return nil, err
+			}
+			for _, f := range found {
+				if f.Dir {
+					next = append(next, f)
+				}
+			}
+		}
+		in = next
+	}
+	return in, nil
 }
 
 // sourceZip is a zip file of a filesource.Source.
