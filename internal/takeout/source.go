@@ -128,9 +128,17 @@ type sourceZip struct {
 	cache Cache // or nil
 }
 
+// File returns the zip file as its file source has it, if it's from one.
+func (z *Zip) File() (f filesource.File, ok bool) {
+	sz, ok := z.src.(*sourceZip)
+	if !ok {
+		return filesource.File{}, false
+	}
+	return sz.f, true
+}
+
 // tocKey and entryKey are the keys of the cached table of contents and
-// entries of a file of Version v. (Version, as a Drive revision ID, used
-// to be the name.)
+// entries of a file of Version v.
 func tocKey(v string) string { return url.PathEscape(v) + ".toc" }
 
 func entryKey(v string, f *ziputil.FileHeader) string {
