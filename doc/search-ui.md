@@ -30,6 +30,13 @@ escaping.  For example:
 
     attr:bar:"He said: \"Hi\""
 
+Searches, including the default view without one, leave out permanodes that
+are only parts of others, which show them: the media of imported Bluesky
+posts, others' posts that a Bluesky account liked or reposted, and the
+profiles of the accounts it follows. A search that asks for them by type,
+such as `is:profile` or `attr:camliNodeType:"bluesky:linkedPost"`, or for a
+permanode's children, with **childrenof**, finds them.
+
 ## Dates
 
 A bare year, year-month, or year-month-day matches permanodes whose time falls
@@ -177,6 +184,10 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
   LiveJournal entry, or a Bluesky post. Others' Bluesky posts, which the
   importer fetches for the account's likes and reposts, are left out; use
   `is:like` or `is:repost` to find those.
+
+**<a name="profile"></a>is:profile**
+: the object is the profile of another's account: of an account a Bluesky
+  account follows.
 
 **<a name="repost"></a>is:repost**
 : the object is a repost of a Bluesky post. Its content is the post it

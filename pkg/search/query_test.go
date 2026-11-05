@@ -2268,6 +2268,34 @@ func TestIsLikeAndRepostQuery(t *testing.T) {
 	})
 }
 
+// TestHiddenNodeTypes tests that searches leave out permanodes of the
+// hiddenNodeTypes, unless they ask for them by type, or as children.
+func TestHiddenNodeTypes(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		post := id.NewDeterministicPermanodeForTest("post")
+		id.SetAttribute(post, "camliNodeType", "bluesky:app.bsky.feed.post")
+		image := id.NewDeterministicPermanodeForTest("image")
+		id.SetAttribute(image, "camliNodeType", "bluesky:image")
+		id.SetAttribute(post, "camliPath:image1", image.String())
+		follow := id.NewDeterministicPermanodeForTest("follow")
+		id.SetAttribute(follow, "camliNodeType", "bluesky:app.bsky.graph.follow")
+		profile := id.NewDeterministicPermanodeForTest("profile")
+		id.SetAttribute(profile, "camliNodeType", "bluesky:profile")
+		linked := id.NewDeterministicPermanodeForTest("linked")
+		id.SetAttribute(linked, "camliNodeType", "bluesky:linkedPost")
+
+		qt.wantRes(&SearchQuery{Expression: "", Limit: -1}, post, follow)
+		qt.wantRes(&SearchQuery{Expression: `attr:camliNodeType:"bluesky:linkedPost"`, Limit: -1}, linked)
+		qt.wantRes(&SearchQuery{Expression: "-is:post", Limit: -1}, follow)
+		qt.wantRes(&SearchQuery{Expression: `-attr:camliNodeType:"bluesky:profile"`, Limit: -1}, post, follow)
+		qt.wantRes(&SearchQuery{Expression: "is:profile", Limit: -1}, profile)
+		qt.wantRes(&SearchQuery{Expression: "is:profile or is:post", Limit: -1}, profile, post)
+		qt.wantRes(&SearchQuery{Expression: `attr:camliNodeType:"bluesky:image"`, Limit: -1}, image)
+		qt.wantRes(&SearchQuery{Expression: "childrenof:" + post.String(), Limit: -1}, image)
+	})
+}
+
 func TestIsBookmarkQuerySource(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id

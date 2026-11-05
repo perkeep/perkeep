@@ -137,6 +137,7 @@ func init() {
 	registerKeyword(newIsPost())
 	registerKeyword(newIsLike())
 	registerKeyword(newIsRepost())
+	registerKeyword(newIsProfile())
 	registerKeyword(newIsCheckin())
 	registerKeyword(newIsBookmark())
 	registerKeyword(newIsUntagged())
@@ -1020,6 +1021,27 @@ var repostNodeTypes = []string{
 
 func (k isRepost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	return typesConstraint(repostNodeTypes), nil
+}
+
+type isProfile struct {
+	matchEqual
+}
+
+func newIsProfile() keyword {
+	return isProfile{"is:profile"}
+}
+
+func (k isProfile) Description() string {
+	return "matches the profiles of others' accounts (Bluesky follows, etc)"
+}
+
+// profileNodeTypes are the camliNodeType values of profile permanodes.
+var profileNodeTypes = []string{
+	"bluesky:profile",
+}
+
+func (k isProfile) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return typesConstraint(profileNodeTypes), nil
 }
 
 type isCheckin struct {
