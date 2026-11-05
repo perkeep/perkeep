@@ -67,6 +67,12 @@ func TestIntegration(t *testing.T) {
 		if err := imp.Run(rc); err != nil {
 			t.Fatal(err)
 		}
+		// The run's progress bars, which the account's page shows: a
+		// running count of its statuses, and none of media, as they have
+		// none.
+		if bars := rc.Progress().Snapshot(); len(bars) != 1 || bars[0].Name != "statuses" || !bars[0].Finished || bars[0].Done != int64(len(expectedPosts)) || bars[0].Total != 0 || bars[0].Skipped != 0 {
+			t.Errorf("progress bars: %+v", bars)
+		}
 
 		statuses, err := imptest.GetRequiredChildPathObj(rc.RootNode(), "statuses")
 		if err != nil {
