@@ -30,6 +30,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 
@@ -197,6 +198,8 @@ func (r *run) importPhotosets() error {
 		return err
 	}
 	r.Logf("Importing %d sets", len(resp.Photosets.Photoset))
+	bar := r.Progress().Bar("sets", "Importing sets")
+	bar.SetTotal(int64(len(resp.Photosets.Photoset)))
 
 	for _, item := range resp.Photosets.Photoset {
 		select {
@@ -212,7 +215,12 @@ func (r *run) importPhotosets() error {
 				continue
 			}
 		}
+		bar.Add(1)
 	}
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	bar.Finish()
 	return nil
 }
 
@@ -328,17 +336,26 @@ func (jf *jsonFloat) UnmarshalJSON(p []byte) error {
 }
 
 func (r *run) importPhotos() error {
+	// The total, of all the account's photos, is known from the first
+	// page of them.
+	bar := r.Progress().Bar("photos", "Importing photos")
 	for page := 1; page >= 1; {
 		var err error
-		page, err = r.importPhotosPage(page)
+		page, err = r.importPhotosPage(page, bar)
 		if err != nil {
 			return err
 		}
 	}
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	bar.Finish()
 	return nil
 }
 
-func (r *run) importPhotosPage(page int) (int, error) {
+// importPhotosPage imports page page of the account's photos, counting
+// them on bar, and returns the next page, or 0 after the last.
+func (r *run) importPhotosPage(page int, bar *progress.Bar) (int, error) {
 	resp := photosSearch{}
 	if err := r.flickrAPIRequest(&resp, photosAPIPath, "user_id", r.userID, "page", fmt.Sprintf("%d", page),
 		"extras", "description,date_upload,date_taken,original_format,last_update,geo,tags,machine_tags,views,media,url_o"); err != nil {
@@ -350,11 +367,22 @@ func (r *run) importPhotosPage(page int) (int, error) {
 		return 0, err
 	}
 	r.Logf("Importing %d photos on page %d of %d", len(resp.Photos.Photo), page, resp.Photos.Pages)
+	if resp.Photos.Total > 0 {
+		bar.SetTotal(int64(resp.Photos.Total))
+	}
 
 	for _, item := range resp.Photos.Photo {
-		if err := r.importPhoto(photosNode, item); err != nil {
+		fetched, err := r.importPhoto(photosNode, item)
+		switch {
+		case err != nil:
 			r.Logf("error importing %s: %s", item.Id, err)
-			continue
+			bar.Add(1)
+		case fetched:
+			bar.Add(1)
+		default:
+			// Unchanged since an earlier run fetched it, in next to no
+			// time: not work for the bar's estimate of the time left.
+			bar.Skip(1)
 		}
 	}
 
@@ -371,11 +399,14 @@ func (r *run) importPhotosPage(page int) (int, error) {
 // * All the rest of the metadata (see photoMeta)
 // * Conflicts: For all metadata changes, prefer any non-imported claims
 // * Test!
-func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) error {
+//
+// importPhoto reports whether it fetched the photo's image, rather than
+// finding it unchanged since an earlier run fetched it.
+func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) (fetched bool, err error) {
 	filename := fmt.Sprintf("%s.%s", photo.Id, photo.OriginalFormat)
 	photoNode, err := parent.ChildPathObject(filename)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// https://www.flickr.com/services/api/misc.dates.html
@@ -385,7 +416,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 		r.Logf("problem with date taken of photo %v, defaulting to published date instead.", photo.Id)
 		seconds, err := strconv.ParseInt(photo.DateUpload, 10, 64)
 		if err != nil {
-			return fmt.Errorf("could not parse date upload time %q for image %v: %w", photo.DateUpload, photo.Id, err)
+			return false, fmt.Errorf("could not parse date upload time %q for image %v: %w", photo.DateUpload, photo.Id, err)
 		}
 		dateTaken = time.Unix(seconds, 0)
 	}
@@ -401,26 +432,26 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	// Import all the metadata. SetAttrs() is a no-op if the value hasn't changed, so there's no cost to doing these on every run.
 	// And this way if we add more things to import, they will get picked up.
 	if err := photoNode.SetAttrs(attrs...); err != nil {
-		return err
+		return false, err
 	}
 
 	// Import the photo itself. Since it is expensive to fetch the image, we store its lastupdate and only refetch if it might have changed.
 	// lastupdate is a Unix timestamp according to https://www.flickr.com/services/api/flickr.photos.getInfo.html
 	seconds, err := strconv.ParseInt(photo.LastUpdate, 10, 64)
 	if err != nil {
-		return fmt.Errorf("could not parse lastupdate time for image %v: %w", photo.Id, err)
+		return false, fmt.Errorf("could not parse lastupdate time for image %v: %w", photo.Id, err)
 	}
 	lastUpdate := time.Unix(seconds, 0)
 	if lastUpdateString := photoNode.Attr(nodeattr.DateModified); lastUpdateString != "" {
 		oldLastUpdate, err := time.Parse(time.RFC3339, lastUpdateString)
 		if err != nil {
-			return fmt.Errorf("could not parse last stored update time for image %v: %w", photo.Id, err)
+			return false, fmt.Errorf("could not parse last stored update time for image %v: %w", photo.Id, err)
 		}
 		if lastUpdate.Equal(oldLastUpdate) {
 			if err := r.updatePrimaryPhoto(photoNode); err != nil {
-				return err
+				return false, err
 			}
-			return nil
+			return false, nil
 		}
 	}
 	form := url.Values{}
@@ -428,26 +459,26 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	res, err := r.fetch(photo.URL, form)
 	if err != nil {
 		r.Logf("Could not fetch %s: %s", photo.URL, err)
-		return err
+		return false, err
 	}
 	defer res.Body.Close()
 
 	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := photoNode.SetAttr(nodeattr.CamliContent, fileRef.String()); err != nil {
-		return err
+		return false, err
 	}
 	if err := r.updatePrimaryPhoto(photoNode); err != nil {
-		return err
+		return false, err
 	}
 	// Write lastupdate last, so that if any of the preceding fails, we will try again next time.
 	if err := photoNode.SetAttr(nodeattr.DateModified, schema.RFC3339FromTime(lastUpdate)); err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 // updatePrimaryPhoto uses the camliContent of photoNode to set the

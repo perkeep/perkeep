@@ -265,6 +265,7 @@ func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
 			Page:    jsonInt(page),
 			Pages:   jsonInt(pages),
 			Perpage: jsonInt(perPage),
+			Total:   jsonInt(len(photoIds)),
 			Photo:   photos,
 		},
 	}
