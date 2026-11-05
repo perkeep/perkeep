@@ -191,12 +191,15 @@ func fakeCheckinsList(offset, maxCheckin int, towns map[int]*venueLocationItem, 
 
 	response := struct {
 		Checkins struct {
+			Count int
 			Items []*checkinItem
 		}
 	}{
 		Checkins: struct {
+			Count int
 			Items []*checkinItem
 		}{
+			Count: maxCheckin,
 			Items: items,
 		},
 	}
