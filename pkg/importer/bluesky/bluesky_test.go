@@ -46,6 +46,7 @@ import (
 
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/test"
 )
@@ -446,12 +447,11 @@ func TestIntegration(t *testing.T) {
 	})
 }
 
-// TestLoadCARStopsWhenCanceled tests that a run stops storing its repo's
-// blocks when its context is canceled, as when it's paused.
-func TestLoadCARStopsWhenCanceled(t *testing.T) {
+// postsCAR returns the CAR of a repo of n posts.
+func postsCAR(t *testing.T, n int) []byte {
+	t.Helper()
 	tr := newTestRepo(t)
-	const posts = 100
-	for i := range posts {
+	for i := range n {
 		tr.put(fmt.Sprintf("app.bsky.feed.post/3post%08d", i), &bsky.FeedPost{
 			LexiconTypeID: "app.bsky.feed.post",
 			Text:          fmt.Sprintf("post %d", i),
@@ -459,6 +459,49 @@ func TestLoadCARStopsWhenCanceled(t *testing.T) {
 		})
 	}
 	carBytes, _ := tr.car()
+	return carBytes
+}
+
+// TestLoadCARSkipsStoredBlocks tests that a run doesn't store again the
+// repo's blocks that are stored already, as by an earlier run that
+// stopped before it finished.
+func TestLoadCARSkipsStoredBlocks(t *testing.T) {
+	carBytes := postsCAR(t, 10)
+	h := imptest.NewMemoryHost(t, importer.HostConfig{})
+	t.Cleanup(func() { h.Close() })
+	var puts atomic.Int32
+	testHookPutBlock = func() { puts.Add(1) }
+	t.Cleanup(func() { testHookPutBlock = nil })
+
+	load := func() progress.Status {
+		t.Helper()
+		puts.Store(0)
+		rc, err := importer.CreateAccount(h, "bluesky")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := &run{RunContext: rc}
+		if _, _, _, _, err := r.loadCAR(carBytes); err != nil {
+			t.Fatal(err)
+		}
+		return rc.Progress().Bar("blocks", "").Status()
+	}
+	st := load()
+	if n := puts.Load(); n == 0 || st.Done != int64(n) || st.Skipped != 0 || !st.Finished {
+		t.Fatalf("first run stored %d blocks, bar %+v; want all stored, none skipped", n, st)
+	}
+	total := st.Total
+	st = load()
+	if n := puts.Load(); n != 0 || st.Total != total || st.Skipped != total || !st.Finished {
+		t.Errorf("second run stored %d blocks, bar %+v; want all %d skipped", n, st, total)
+	}
+}
+
+// TestLoadCARStopsWhenCanceled tests that a run stops storing its repo's
+// blocks when its context is canceled, as when it's paused.
+func TestLoadCARStopsWhenCanceled(t *testing.T) {
+	const posts = 100
+	carBytes := postsCAR(t, posts)
 
 	h := imptest.NewMemoryHost(t, importer.HostConfig{})
 	t.Cleanup(func() { h.Close() })
