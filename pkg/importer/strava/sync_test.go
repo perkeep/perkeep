@@ -168,6 +168,15 @@ func TestSyncInitialBackfillOldestFirstAcrossPages(t *testing.T) {
 	syncRun(t, f, now)
 	syncWantHeavy(t, api, syncIDs(activities))
 	syncWantProgress(t, f, activities[len(activities)-1], true)
+	// The run's progress bars, which the account's page shows: none of the
+	// activities is from the last week, for the daily refresh.
+	bars := f.rc.Progress().Snapshot()
+	if len(bars) != 3 ||
+		bars[0].Name != "list" || !bars[0].Finished || bars[0].Done != 205 || bars[0].Total != 0 ||
+		bars[1].Name != "activities" || !bars[1].Finished || bars[1].Done != 205 || bars[1].Total != 205 || bars[1].Skipped != 0 ||
+		bars[2].Name != "recent" || !bars[2].Finished || bars[2].Done != 0 {
+		t.Errorf("progress bars: %+v", bars)
+	}
 	if len(api.queries) < 4 {
 		t.Fatalf("listing queries = %v; want multiple pages and final empty page", api.queries)
 	}
@@ -552,6 +561,11 @@ func TestSyncDailyDescriptionStreamsAndFrozenHistory(t *testing.T) {
 	f := newCoreFixture(t, api)
 	f.configure(t)
 	syncRun(t, f, now)
+	// The backfill fetched the recent activities just now, so the daily
+	// refresh skips them.
+	if st := f.rc.Progress().Bar("recent", "").Status(); !st.Finished || st.Done != 2 || st.Total != 2 || st.Skipped != 2 {
+		t.Errorf("daily refresh's progress bar: %+v", st)
+	}
 	oldObject := f.activity(t, activities[0].ID)
 	oldState := f.activityState(oldObject.PermanodeRef())
 	recent := f.activity(t, activities[1].ID)

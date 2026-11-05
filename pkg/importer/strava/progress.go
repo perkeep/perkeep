@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 )
 
 const (
@@ -141,7 +142,8 @@ func writeImportProgress(acct *importer.Object, p importProgress, complete bool)
 // Enumerate the entire selected range, restarting at page one and deduplicating
 // shifted pages by ID, not by position. Filter locally too: the API's strict
 // whole-second bound can include activities just before our inclusive boundary.
-func (r *run) discoverActivities(boundary time.Time) ([]activity, error) {
+// If bar is non-nil, it counts the activities found.
+func (r *run) discoverActivities(boundary time.Time, bar *progress.Bar) ([]activity, error) {
 	var summaries []activity
 	seen := make(map[int64]string)
 	for page := 1; ; page++ {
@@ -176,6 +178,12 @@ func (r *run) discoverActivities(boundary time.Time) ([]activity, error) {
 			}
 			summaries = append(summaries, a)
 		}
+		if bar != nil {
+			bar.Set(int64(len(summaries)))
+		}
+	}
+	if bar != nil {
+		bar.Finish()
 	}
 	if boundary.IsZero() {
 		r.Logf("Found %d activities", len(summaries))
@@ -200,15 +208,19 @@ func (r *run) importChronologicalActivities(parent *importer.Object, progress im
 // importChronologicalActivitiesAt keeps the clock and activity publication hook
 // local to one run. Discovery still finishes before any activity is published,
 // and only whole timestamp groups may advance the authoritative progress.
-func (r *run) importChronologicalActivitiesAt(parent *importer.Object, progress importProgress, now func() time.Time, visit func(*activity) error) (latest *activity, err error) {
+// visit reports whether it fetched the activity, rather than finding it
+// imported already.
+func (r *run) importChronologicalActivitiesAt(parent *importer.Object, progress importProgress, now func() time.Time, visit func(*activity) (fetched bool, err error)) (latest *activity, err error) {
 	if visit == nil {
-		visit = func(a *activity) error { return r.importActivity(parent, a) }
+		visit = func(a *activity) (bool, error) { return r.importActivityWithForce(parent, a, false) }
 	}
 	lastCheckpoint := now()
-	summaries, err := r.discoverActivities(progress.through)
+	summaries, err := r.discoverActivities(progress.through, r.Progress().Bar("list", "Listing activities"))
 	if err != nil {
 		return nil, err
 	}
+	bar := r.Progress().Bar("activities", "Importing activities")
+	bar.SetTotal(int64(len(summaries)))
 	considered := 0
 	checkpointFailed := false
 	checkpoint := func(complete bool) error {
@@ -233,8 +245,16 @@ func (r *run) importChronologicalActivitiesAt(parent *importer.Object, progress 
 			last++
 		}
 		for i := first; i < last; i++ {
-			if err := visit(&summaries[i]); err != nil {
+			fetched, err := visit(&summaries[i])
+			if err != nil {
 				return latest, fmt.Errorf("strava: activity %d: %w", summaries[i].ID, err)
+			}
+			if fetched {
+				bar.Add(1)
+			} else {
+				// Imported already, as by an earlier run, in next to no
+				// time: not work for the bar's estimate of the time left.
+				bar.Skip(1)
 			}
 		}
 		if err := r.Context().Err(); err != nil {
@@ -257,5 +277,6 @@ func (r *run) importChronologicalActivitiesAt(parent *importer.Object, progress 
 	if err := r.Context().Err(); err != nil {
 		return latest, err
 	}
+	bar.Finish()
 	return latest, checkpoint(true)
 }

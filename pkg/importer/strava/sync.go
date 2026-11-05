@@ -100,7 +100,7 @@ func (r *run) syncActivities(activities *importer.Object, progress importProgres
 // discovers the complete inclusive range before sorting and publishing groups;
 // the list API does not promise a global timestamp order.
 func (s *activitySyncer) catchUp() (*activity, error) {
-	latest, err := s.r.importChronologicalActivitiesAt(s.activities, s.progress, s.now, func(a *activity) error {
+	latest, err := s.r.importChronologicalActivitiesAt(s.activities, s.progress, s.now, func(a *activity) (bool, error) {
 		return s.importSummary(a, false)
 	})
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *activitySyncer) poll() error {
 		}
 		changed := latest.ID != s.schedule.MostRecentID || summaryHash(latest) != s.schedule.MostRecentHash
 		if changed && !latest.StartDate.Before(s.now().Add(-syncRecentWindow)) {
-			if err := s.importSummary(latest, false); err != nil {
+			if _, err := s.importSummary(latest, false); err != nil {
 				return err
 			}
 		}
@@ -167,26 +167,36 @@ func (s *activitySyncer) rememberPoll(latest *activity) {
 }
 
 func (s *activitySyncer) reconcileRecent() error {
-	summaries, err := s.r.discoverActivities(s.now().Add(-syncRecentWindow))
+	summaries, err := s.r.discoverActivities(s.now().Add(-syncRecentWindow), nil)
 	if err != nil {
 		return err
 	}
+	bar := s.r.Progress().Bar("recent", "Refreshing the last week's activities")
+	bar.SetTotal(int64(len(summaries)))
 	for i := range summaries {
 		a := &summaries[i]
 		if s.freshlyFetched(a.ID) {
+			bar.Skip(1)
 			continue
 		}
-		if err := s.importSummary(a, true); err != nil {
+		if _, err := s.importSummary(a, true); err != nil {
 			return err
 		}
+		bar.Add(1)
 	}
-	return s.r.Context().Err()
+	if err := s.r.Context().Err(); err != nil {
+		return err
+	}
+	bar.Finish()
+	return nil
 }
 
-func (s *activitySyncer) importSummary(a *activity, force bool) error {
-	fetched, err := s.r.importActivityWithForce(s.activities, a, force)
+// importSummary imports a, reporting whether it fetched it, rather than
+// finding it imported already.
+func (s *activitySyncer) importSummary(a *activity, force bool) (fetched bool, err error) {
+	fetched, err = s.r.importActivityWithForce(s.activities, a, force)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if fetched {
 		// Persist before advancing the durable cursor: a checkpoint write
@@ -198,7 +208,7 @@ func (s *activitySyncer) importSummary(a *activity, force bool) error {
 		s.fetchedAt[a.ID] = fetchedAt
 		s.cacheSet(fullRefreshCacheKey(a.ID), fetchedAt.UTC().Format(time.RFC3339Nano))
 	}
-	return nil
+	return fetched, nil
 }
 
 func (s *activitySyncer) freshlyFetched(id int64) bool {
