@@ -48,6 +48,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"tailscale.com/tstest"
 )
 
 const debug = false
@@ -1513,15 +1514,13 @@ func TestCheckLargeIntegrity(t *testing.T) {
 				for s, row := range tt.rows {
 					setRow(s, row)
 				}
-				oldWait := largeIntegrityRecheckWait
-				t.Cleanup(func() { largeIntegrityRecheckWait = oldWait })
-				largeIntegrityRecheckWait = func(context.Context) error {
+				tstest.Replace(t, &largeIntegrityRecheckWait, func(context.Context) error {
 					if tt.packed != "" {
 						(&test.Blob{Contents: tt.packed}).MustUpload(t, large)
 						setRow(tt.packed, "")
 					}
 					return nil
-				}
+				})
 				s := &storage{large: large, meta: meta, log: test.NewLogger(t, "blobpacked: ")}
 				mode, err := s.checkLargeIntegrity(t.Context())
 				if mode != tt.wantMode {
