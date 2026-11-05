@@ -336,6 +336,10 @@ func (r *run) importBookmarks(userID string, folders []folder) error {
 		grp  syncutil.Group
 	)
 
+	// The folders' bookmarks are listed one folder at a time, so the
+	// bar's total is of those of the folders listed so far.
+	bar := r.Progress().Bar("bookmarks", "Importing bookmarks")
+	var listed int64
 	for fi := range folders {
 		f := folders[fi]
 		var bList []*bookmark
@@ -344,6 +348,13 @@ func (r *run) importBookmarks(userID string, folders []folder) error {
 		if err != nil {
 			return err
 		}
+		for _, b := range bList {
+			if b.BookmarkId != 0 {
+				listed++
+			}
+		}
+		bar.SetTotal(listed)
+		bar.SetDescription(fmt.Sprintf("%d of %d folders listed", fi+1, len(folders)))
 
 		for bi := range bList {
 			select {
@@ -371,7 +382,18 @@ func (r *run) importBookmarks(userID string, folders []folder) error {
 					r.txtReqs = append(r.txtReqs, txtReq{bmNode: bNode, bm: b})
 					r.mu.Unlock()
 				}
-				return r.importHighlights(hsParent, bNode, b)
+				if err := r.importHighlights(hsParent, bNode, b); err != nil {
+					return err
+				}
+				if dup {
+					// Unchanged since an earlier run, in next to no
+					// time: not work for the bar's estimate of the
+					// time left.
+					bar.Skip(1)
+				} else {
+					bar.Add(1)
+				}
+				return nil
 			})
 		}
 	}
@@ -380,15 +402,29 @@ func (r *run) importBookmarks(userID string, folders []folder) error {
 	if err != nil {
 		return err
 	}
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	bar.Finish()
 
 	// Process requests for bookmark text serially because
 	// Instapaper's API TOS specify that /get_text requests must be performed in series.
 	// All other API requests can happen in parallel.
+	if len(r.txtReqs) == 0 {
+		return nil
+	}
+	textBar := r.Progress().Bar("text", "Fetching bookmarks' text")
+	textBar.SetTotal(int64(len(r.txtReqs)))
 	for _, req := range r.txtReqs {
 		if err := r.importBookmarkText(req); err != nil {
 			return err
 		}
+		textBar.Add(1)
 	}
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	textBar.Finish()
 	return nil
 }
 
