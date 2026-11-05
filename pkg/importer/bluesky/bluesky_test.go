@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -325,6 +326,14 @@ func TestIntegration(t *testing.T) {
 		}
 		if got := acct.Attr(importer.AcctAttrUserName); got != "test.example" {
 			t.Errorf("username = %q", got)
+		}
+		// The run's progress bars, which the account's page shows.
+		var bars []string
+		for _, st := range rc.Progress().Snapshot() {
+			bars = append(bars, fmt.Sprintf("%s %d/%d %v", st.Name, st.Done, st.Total, st.Finished))
+		}
+		if got, want := strings.Join(bars, ", "), "blocks 11/11 true, records 5/5 true, posts 2/2 true, profiles 1/1 true"; got != want {
+			t.Errorf("progress bars = %q; want %q", got, want)
 		}
 
 		child := func(parent *importer.Object, path ...string) *importer.Object {
