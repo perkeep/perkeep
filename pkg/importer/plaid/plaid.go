@@ -169,8 +169,13 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 		return fmt.Errorf("connectGet: %w", err)
 	}
 
+	bar := ctx.Progress().Bar("transactions", "Importing transactions")
+	bar.SetTotal(int64(len(resp.Transactions)))
 	var latestTrans string
 	for _, t := range resp.Transactions {
+		if err := ctx.Context().Err(); err != nil {
+			return err
+		}
 		tdate, err := im.importTransaction(ctx, &t)
 		if err != nil {
 			return err
@@ -178,7 +183,9 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 			latestTrans = tdate
 			ctx.AccountNode().SetAttr(plaidLastTransaction, latestTrans)
 		}
+		bar.Add(1)
 	}
+	bar.Finish()
 
 	return nil
 }
