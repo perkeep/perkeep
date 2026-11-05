@@ -239,6 +239,11 @@ type storage struct {
 
 	loggerOnce sync.Once
 	log        *log.Logger // nil means default
+
+	// stopBackground stops the background integrity check, if any, and
+	// background waits for it, so that Close doesn't close meta under it.
+	stopBackground context.CancelFunc // or nil
+	background     sync.WaitGroup
 }
 
 var (
@@ -364,7 +369,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 			return nil, err
 		}
 		check.Start()
-		if _, err := sto.checkLargeIntegrity(); err != nil {
+		if _, err := sto.checkLargeIntegrity(context.TODO()); err != nil {
 			condFatalf("blobpacked: reindexed successfully, but error after validation: %v", err)
 		} else {
 			check.OK()
@@ -387,11 +392,16 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	// Check that large storage and meta agree in the background, so it
 	// doesn't hold up the rest of startup.
 	check.Start()
-	go func() {
-		mode, err := sto.checkLargeIntegrity()
+	ctx, cancel := context.WithCancel(context.Background())
+	sto.stopBackground = cancel
+	sto.background.Go(func() {
+		mode, err := sto.checkLargeIntegrity(ctx)
 		switch {
 		case err == nil:
 			check.OK()
+		case ctx.Err() != nil:
+			// Closed before the check finished, which says nothing
+			// about the storage.
 		case mode <= NoRecovery:
 			condFatalf("%v", err)
 		case env.OnGCE():
@@ -399,7 +409,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		default:
 			condFatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
 		}
-	}()
+	})
 
 	return sto, nil
 }
@@ -409,14 +419,15 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 // correspond to an existing large blob in the large storage. If any of the above
 // is not true, it returns the recovery mode that should be used to fix the
 // problem, as well as the error detailing the problem. It does not perform any
-// check about the contents of the large blobs themselves.
-func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
+// check about the contents of the large blobs themselves. It stops early,
+// with ctx's error, if ctx is done.
+func (s *storage) checkLargeIntegrity(ctx context.Context) (RecoveryMode, error) {
 	s.Logf("checking integrity of packed blobs against index...")
 	// Collect the large blobs first, rather than walking the z: rows
 	// alongside a sorted enumeration, so that large storage can list
 	// them in whatever order is fastest (see blobserver.RefLister).
 	unindexed := make(map[blob.Ref]bool) // in large but not (yet seen) in meta
-	if err := blobserver.ListAllRefs(context.Background(), s.large, func(br blob.Ref) error {
+	if err := blobserver.ListAllRefs(ctx, s.large, func(br blob.Ref) error {
 		unindexed[br] = true
 		return nil
 	}); err != nil {
@@ -427,6 +438,9 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 	t := s.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
 	defer t.Close()
 	for t.Next() {
+		if err := ctx.Err(); err != nil {
+			return FullRecovery, err
+		}
 		metaKey := t.Key()
 		zipRef, ok := blob.Parse(strings.TrimPrefix(metaKey, zipMetaPrefix))
 		if !ok {
@@ -470,8 +484,10 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		// packed (written to large, then to meta) after large was listed
 		// or meta was read. Look at those blobs again, after giving any
 		// such packing a moment to finish.
-		largeIntegrityRecheckWait()
-		missing, extra = s.stillMismatched(missing, extra)
+		if err := largeIntegrityRecheckWait(ctx); err != nil {
+			return FullRecovery, err
+		}
+		missing, extra = s.stillMismatched(ctx, missing, extra)
 	}
 	s.Logf("%d large blobs found in index, %d missing from index", inLarge, len(missing))
 	if len(missing) > 0 {
@@ -489,12 +505,22 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 
 // largeIntegrityRecheckWait is called by checkLargeIntegrity before it
 // looks again at blobs that seemed to be in only one of large and meta.
-var largeIntegrityRecheckWait = func() { time.Sleep(5 * time.Second) }
+// It returns ctx's error if ctx is done first.
+var largeIntegrityRecheckWait = func(ctx context.Context) error {
+	t := time.NewTimer(5 * time.Second)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 // stillMismatched returns which of missing (blobs in large but not in
 // meta) are still missing from meta, and which of extra (blobs in meta
 // but not in large) are still not in large.
-func (s *storage) stillMismatched(missing, extra []blob.Ref) (stillMissing, stillExtra []blob.Ref) {
+func (s *storage) stillMismatched(ctx context.Context, missing, extra []blob.Ref) (stillMissing, stillExtra []blob.Ref) {
 	for _, br := range missing {
 		if _, err := s.meta.Get(zipMetaPrefix + br.String()); err != nil {
 			stillMissing = append(stillMissing, br)
@@ -503,7 +529,7 @@ func (s *storage) stillMismatched(missing, extra []blob.Ref) (stillMissing, stil
 	if len(extra) == 0 {
 		return stillMissing, nil
 	}
-	inLarge, err := blobserver.StatBlobs(context.Background(), s.large, extra)
+	inLarge, err := blobserver.StatBlobs(ctx, s.large, extra)
 	if err != nil {
 		s.Logf("rechecking large blobs: %v", err)
 		return stillMissing, extra
@@ -1081,7 +1107,13 @@ func (s *storage) anyZipPacks() (v bool) {
 	return ok
 }
 
+// Close stops the background integrity check, if it's running, and waits
+// for it, before closing meta.
 func (s *storage) Close() error {
+	if s.stopBackground != nil {
+		s.stopBackground()
+	}
+	s.background.Wait()
 	return s.meta.Close()
 }
 
