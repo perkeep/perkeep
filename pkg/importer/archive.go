@@ -327,15 +327,15 @@ func checkZIPRecords(r io.ReaderAt, offset, size int64, entries uint64) error {
 }
 
 func normalizeArchiveIdentity(id camtypes.ArchiveIdentity) (camtypes.ArchiveIdentity, error) {
-	fields := []*string{&id.UserName, &id.Email, &id.Name, &id.FilenameUserID}
+	fields := []*string{&id.UserID, &id.UserName, &id.Email, &id.Name, &id.FilenameUserID}
 	for _, p := range fields {
 		*p = strings.TrimSpace(*p)
 		if len(*p) > 4096 || strings.ContainsFunc(*p, unicode.IsControl) {
 			return id, errors.New("invalid archive owner identity")
 		}
 	}
-	if id.UserName == "" && id.Email == "" {
-		return id, errors.New("archive must identify its owner by username or email")
+	if id.UserID == "" && id.UserName == "" && id.Email == "" {
+		return id, errors.New("archive must identify its owner by user ID, username or email")
 	}
 	return id, nil
 }
@@ -345,8 +345,26 @@ var errArchiveActive = errors.New("account already has an active import with a d
 
 func matchArchiveAccount(accounts []*importerAcct, id camtypes.ArchiveIdentity) (*importerAcct, error) {
 	var matches []*importerAcct
+	if id.UserID != "" {
+		for _, ia := range accounts {
+			if ia.acct.Attr(attrNodeType) == nodeTypeImporterAccount && strings.TrimSpace(ia.acct.Attr(AcctAttrUserID)) == id.UserID {
+				matches = append(matches, ia)
+			}
+		}
+		switch len(matches) {
+		case 0:
+		case 1:
+			return matches[0], nil
+		default:
+			return nil, errArchiveConflict
+		}
+	}
 	for _, ia := range accounts {
 		if ia.acct.Attr(attrNodeType) != nodeTypeImporterAccount {
+			continue
+		}
+		// An account of another user ID is another's, whatever its name.
+		if stored := strings.TrimSpace(ia.acct.Attr(AcctAttrUserID)); id.UserID != "" && stored != "" && stored != id.UserID {
 			continue
 		}
 		if (id.UserName != "" && strings.TrimSpace(ia.acct.Attr(AcctAttrUserName)) == id.UserName) || (id.Email != "" && strings.EqualFold(strings.TrimSpace(ia.acct.Attr(AcctAttrEmail)), id.Email)) {
@@ -439,8 +457,11 @@ func (h *Host) ImportArchive(ctx context.Context, name string, req camtypes.Arch
 	}
 	result := &camtypes.ArchiveImportResult{Identity: id}
 	var identityAttrs []string
-	for _, p := range [][2]string{{AcctAttrUserName, id.UserName}, {AcctAttrEmail, id.Email}, {AcctAttrName, id.Name}} {
-		if p[1] != "" {
+	for _, p := range [][2]string{{AcctAttrUserID, id.UserID}, {AcctAttrUserName, id.UserName}, {AcctAttrEmail, id.Email}, {AcctAttrName, id.Name}} {
+		// An API importer's account has the identity its API gave it,
+		// which an archive only fills in.
+		keep := ia != nil && (!im.props.ArchiveOnly || p[0] == AcctAttrUserID) && ia.acct.Attr(p[0]) != ""
+		if p[1] != "" && !keep {
 			identityAttrs = append(identityAttrs, p[0], p[1])
 		}
 	}
@@ -576,6 +597,9 @@ func (ia *importerAcct) archiveStatusLocked(ref blob.Ref) (*camtypes.ArchiveImpo
 // prepareArchiveLocked runs before setting current, with ia.mu held. Persisting
 // input plus running status in one claim makes a failed/disconnected start
 // retryable; neither mutable request state nor a scratch cache is authoritative.
+// Without ref, it prepares the stored input again, or for an importer that
+// isn't ArchiveOnly, only one whose import was interrupted or paused, and
+// otherwise returns no job, for a run of the importer's API.
 func (ia *importerAcct) prepareArchiveLocked(ref blob.Ref, attrs ...string) (*camtypes.ArchiveImportStatus, error) {
 	if _, ok := ia.im.impl.(ArchiveImporter); !ok {
 		return nil, nil
@@ -589,6 +613,18 @@ func (ia *importerAcct) prepareArchiveLocked(ref blob.Ref, attrs ...string) (*ca
 		ref, ok = blob.Parse(input)
 		if !ok {
 			return nil, errors.New("invalid stored archive input")
+		}
+		// An importer that also imports from its API imports its
+		// archive input again only to finish it; its other runs are of
+		// its API.
+		if !ia.im.props.ArchiveOnly {
+			status, err := ia.archiveStatusLocked(ref)
+			if err != nil {
+				return nil, err
+			}
+			if status == nil || (status.State != "interrupted" && status.State != "paused") {
+				return nil, nil
+			}
 		}
 	}
 	job := &camtypes.ArchiveImportStatus{AccountRef: ia.acct.PermanodeRef(), FileRef: ref, State: "running", Started: time.Now().UTC()}
