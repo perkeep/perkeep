@@ -38,16 +38,27 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # decodes HEVC 4:4:4 with corrupt chroma. iOS saves edited photos as such
 # HEICs. libde265 1.0.16 fixed it (upstream commit 9959d27, "fix decoding
 # of 32x32 chroma TUs"), so install a later libde265, of the same soname,
-# from Debian testing. It's fetched from Debian's snapshot archive, at a
-# fixed version and checksum, so builds don't change as testing does.
-# Bump it, or drop this once trixie has the fix, deliberately.
-FROM scratch AS libde265
-ADD --checksum=sha256:7b7fc4f5d17c726abd320db4c0a3102d89bc74ca6a15810f9a0b03a73fce5b45 \
-    https://snapshot.debian.org/archive/debian/20260920T203924Z/pool/main/libd/libde265/libde265-0_1.1.3-1+b1_amd64.deb \
-    /amd64.deb
-ADD --checksum=sha256:cac60078299b8fee2a43bcfc043026d5f6ecdd0a681bdbbe4b3e913523bb0a06 \
-    https://snapshot.debian.org/archive/debian/20260920T203924Z/pool/main/libd/libde265/libde265-0_1.1.3-1+b1_arm64.deb \
-    /arm64.deb
+# from Debian testing. It's fetched at a fixed version and checksum, so
+# builds don't change as testing does: from Debian's mirrors while testing
+# has it, or else from Debian's snapshot archive, which keeps it, but is
+# often slow or failing. Bump it, or drop this once trixie has the fix,
+# deliberately.
+FROM --platform=$BUILDPLATFORM golang:1.27 AS libde265
+RUN set -e; \
+    fetch() { \
+        for base in https://deb.debian.org/debian https://snapshot.debian.org/archive/debian/20260920T203924Z; do \
+            url="$base/pool/main/libd/libde265/libde265-0_1.1.3-1+b1_$1.deb"; \
+            if curl -fsSL --retry 3 -o "/libde265/$1.deb" "$url" && \
+               echo "$2  /libde265/$1.deb" | sha256sum -c -; then \
+                return 0; \
+            fi; \
+            echo "fetching $url failed" >&2; \
+        done; \
+        return 1; \
+    }; \
+    mkdir /libde265; \
+    fetch amd64 7b7fc4f5d17c726abd320db4c0a3102d89bc74ca6a15810f9a0b03a73fce5b45; \
+    fetch arm64 cac60078299b8fee2a43bcfc043026d5f6ecdd0a681bdbbe4b3e913523bb0a06
 
 ###########################################################################
 
@@ -65,7 +76,7 @@ ARG TARGETARCH
 # "libheif.so", which Debian only ships in libheif-dev, so rather than
 # install that and its dependencies, link it to libheif1's libheif.so.1.
 # Then replace trixie's libde265 with the later one (see above).
-RUN --mount=type=bind,from=libde265,target=/tmp/libde265 \
+RUN --mount=type=bind,from=libde265,source=/libde265,target=/tmp/libde265 \
     apt-get update && \
     apt-get install -y ca-certificates $([ "$TARGETARCH" = arm ] || echo libheif1) && \
     rm -rf /var/lib/apt/lists/* && \
