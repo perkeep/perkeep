@@ -136,6 +136,26 @@ func TestRun(t *testing.T) {
 		if err := (imp{}).Run(rc); err != nil {
 			t.Fatalf("run %d: %v", run, err)
 		}
+		if run > 0 {
+			// The runs share rc's bars, which the host gives each run
+			// its own of.
+			continue
+		}
+		// The first run's progress bars, which the account's page shows:
+		// all finished, with each of its permanodes made.
+		var names []string
+		for _, st := range rc.Progress().Snapshot() {
+			names = append(names, st.Name)
+			if !st.Finished {
+				t.Errorf("bar %q not finished: %+v", st.Name, st)
+			}
+			if st.Name == "update" && (st.Total <= int64(len(s.Entries())) || st.Done != st.Total || st.Skipped != 0) {
+				t.Errorf("update bar = %+v; want all of more than %d permanodes, none skipped", st, len(s.Entries()))
+			}
+		}
+		if got, want := strings.Join(names, ","), "list,entries,comments,read,update"; got != want {
+			t.Errorf("progress bars = %s; want %s", got, want)
+		}
 	}
 	if n := s.Logins(); n != 2 {
 		t.Errorf("logged in %d times in two runs; want once each", n)

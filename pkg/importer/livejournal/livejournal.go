@@ -223,7 +223,7 @@ func (im imp) Run(rc *importer.RunContext) error {
 	if err != nil {
 		return err
 	}
-	j, err := cl.Fetch(ctx, rc.Logf)
+	j, err := cl.Fetch(ctx, rc.Logf, rc.Progress())
 	if err != nil {
 		return err
 	}
@@ -231,6 +231,7 @@ func (im imp) Run(rc *importer.RunContext) error {
 		Location: c.loc,
 		Workers:  8,
 		Logf:     rc.Logf,
+		Progress: rc.Progress(),
 	})
 	if err != nil {
 		return err

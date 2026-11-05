@@ -35,7 +35,7 @@ func TestEntries(t *testing.T) {
 	if err := c.Login(ctx); err != nil {
 		t.Fatal(err)
 	}
-	items, err := c.SyncItems(ctx)
+	items, err := c.SyncItems(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestEntries(t *testing.T) {
 	if len(items) != len(want) {
 		t.Fatalf("got %d sync items; want %d", len(items), len(want))
 	}
-	es, err := c.Entries(ctx, items)
+	es, err := c.Entries(ctx, items, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,11 @@ func TestCookieAuthRejected(t *testing.T) {
 	s.RejectCookieAuth()
 	c := s.Client(ljtest.Password)
 	ctx := context.Background()
-	items, err := c.SyncItems(ctx)
+	items, err := c.SyncItems(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	es, err := c.Entries(ctx, items)
+	es, err := c.Entries(ctx, items, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestComments(t *testing.T) {
 
 func TestFetch(t *testing.T) {
 	s := ljtest.New(t)
-	j, err := s.Client(ljtest.Password).Fetch(context.Background(), t.Logf)
+	j, err := s.Client(ljtest.Password).Fetch(context.Background(), t.Logf, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

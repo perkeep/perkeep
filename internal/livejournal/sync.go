@@ -31,6 +31,7 @@ import (
 	"perkeep.org/internal/attrclaims"
 	search "perkeep.org/internal/searchtypes"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
@@ -43,25 +44,42 @@ type Journal struct {
 }
 
 // Fetch returns the journal of the client's user. logf, if non-nil,
-// reports its progress.
-func (c *Client) Fetch(ctx context.Context, logf func(format string, args ...any)) (*Journal, error) {
+// reports its progress, as do bars of its steps in ps, if non-nil.
+func (c *Client) Fetch(ctx context.Context, logf func(format string, args ...any), ps *progress.Set) (*Journal, error) {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
+	if ps == nil {
+		ps = new(progress.Set)
+	}
 	logf("listing %s's entries...", c.User)
-	items, err := c.SyncItems(ctx)
+	// The server's count of items is of those after each page's
+	// lastsync, which overlap, so the bar is a running count.
+	list := ps.Bar("list", "Listing the journal's entries")
+	items, err := c.SyncItems(ctx, func(n int) { list.Set(int64(n)) })
 	if err != nil {
 		return nil, err
 	}
-	entries, err := c.Entries(ctx, items)
+	list.Finish()
+	bar := ps.Bar("entries", "Fetching entries")
+	entries, err := c.Entries(ctx, items, func(done, total int) {
+		bar.SetTotal(int64(total))
+		bar.Set(int64(done))
+	})
 	if err != nil {
 		return nil, err
 	}
+	bar.Finish()
 	logf("got %d entries; getting the comments on them...", len(entries))
-	comments, err := c.Comments(ctx, nil)
+	bar = ps.Bar("comments", "Fetching comments")
+	comments, err := c.Comments(ctx, func(done, max int) {
+		bar.SetTotal(int64(max))
+		bar.Set(int64(done))
+	})
 	if err != nil {
 		return nil, err
 	}
+	bar.Finish()
 	logf("got %d comments", len(comments))
 	return &Journal{User: c.User, Entries: entries, Comments: comments}, nil
 }
@@ -312,6 +330,10 @@ type SyncOptions struct {
 	DryRun bool
 	// Logf, if non-nil, reports progress.
 	Logf func(format string, args ...any)
+	// Progress, if non-nil, gets bars of Sync's steps: reading the
+	// permanodes' attributes, then updating them, skipping those
+	// unchanged.
+	Progress *progress.Set
 }
 
 // SyncResult is what Sync did, or with SyncOptions.DryRun, would do.
@@ -366,22 +388,43 @@ func Sync(ctx context.Context, st Store, j *Journal, opts SyncOptions) (*SyncRes
 		}
 	}
 
+	ps := opts.Progress
+	if ps == nil {
+		ps = new(progress.Set)
+	}
 	logf("reading the current attributes of %d permanodes...", len(nodes))
-	cur, err := describeAttrs(ctx, st, nodes)
+	read := ps.Bar("read", "Reading the permanodes' attributes")
+	read.SetTotal(int64(len(nodes)))
+	cur, err := describeAttrs(ctx, st, nodes, read)
 	if err != nil {
 		return nil, err
 	}
+	read.Finish()
 
 	logf("updating them...")
+	bar := ps.Bar("update", "Updating permanodes")
+	bar.SetTotal(int64(len(nodes)))
 	var mu sync.Mutex
 	done := 0
 	now := time.Now()
-	err = forEach(ctx, nodes, opts.Workers, func(n *node) error {
+	err = forEach(ctx, nodes, opts.Workers, func(n *node) (err error) {
 		attrs, exists := cur[n.pn]
 		if n.textless {
 			keepLost(attrs, n.attrs)
 		}
 		changes := attrChanges(attrs, n.attrs)
+		defer func() {
+			switch {
+			case err != nil:
+			case !exists || len(changes) > 0:
+				bar.Add(1)
+			default:
+				// Unchanged, as by an earlier run, in next to no
+				// time: not work for the bar's estimate of the time
+				// left.
+				bar.Skip(1)
+			}
+		}()
 		mu.Lock()
 		if !exists {
 			res.Created++
@@ -420,12 +463,13 @@ func Sync(ctx context.Context, st Store, j *Journal, opts SyncOptions) (*SyncRes
 	if err != nil {
 		return nil, err
 	}
+	bar.Finish()
 	return res, nil
 }
 
 // describeAttrs returns the attributes of those of nodes' permanodes that
-// st has.
-func describeAttrs(ctx context.Context, st Store, nodes []*node) (map[blob.Ref]url.Values, error) {
+// st has, counting the nodes described on bar.
+func describeAttrs(ctx context.Context, st Store, nodes []*node, bar *progress.Bar) (map[blob.Ref]url.Values, error) {
 	cur := map[blob.Ref]url.Values{}
 	const batch = 500
 	for i := 0; i < len(nodes); i += batch {
@@ -442,6 +486,7 @@ func describeAttrs(ctx context.Context, st Store, nodes []*node) (map[blob.Ref]u
 				cur[br] = db.Permanode.Attr
 			}
 		}
+		bar.Add(int64(len(refs)))
 	}
 	return cur, nil
 }
