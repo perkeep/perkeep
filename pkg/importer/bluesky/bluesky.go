@@ -452,6 +452,9 @@ func (r *run) importRepo(since string) error {
 // the CAR doesn't contain its root commit block.
 var errNoCommitBlock = errors.New("commit block missing from CAR")
 
+// testHookPutBlock, if non-nil, is called before loadCAR stores each block.
+var testHookPutBlock func()
+
 // loadCAR parses a repo CAR file, uploads all its blocks as sha256 blobs,
 // and returns its commit and (possibly partial) MST, along with the CAR's
 // blocks keyed by cid.Cid.KeyString.
@@ -490,7 +493,16 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(importConcurrency)
 	for _, c := range cids {
+		if gctx.Err() != nil {
+			break
+		}
 		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
+				return err
+			}
+			if fn := testHookPutBlock; fn != nil {
+				fn()
+			}
 			if err := r.putBlock(gctx, c, blocks[c.KeyString()]); err != nil {
 				return err
 			}
@@ -500,6 +512,9 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 	}
 	if err := g.Wait(); err != nil {
 		return cid.Undef, nil, nil, nil, fmt.Errorf("storing blocks: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return cid.Undef, nil, nil, nil, err
 	}
 	bar.Finish()
 
