@@ -520,6 +520,7 @@ type RunContext struct {
 	mu         sync.Mutex // guards following
 	archiveJob *camtypes.ArchiveImportStatus
 	progress   *progress.Set // or nil until Progress
+	archiveBar *progress.Bar // of the archive progress reported, or nil if none is shown
 }
 
 // UsePaidAPI reports whether the run is going to use the paid API(s) when retrieving data.
