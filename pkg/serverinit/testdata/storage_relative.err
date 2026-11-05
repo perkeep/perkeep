@@ -1,0 +1,1 @@
+storage "nas": dir "mnt/nas" must be an absolute path

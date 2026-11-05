@@ -198,7 +198,12 @@ func testConfig(name string, t *testing.T) {
 	}
 
 	lowLevelConf, err := serverinit.GenLowLevelConfig(&hiLevelConf)
-	if g, w := strings.TrimSpace(fmt.Sprint(err)), strings.TrimSpace(fmt.Sprint(wantedError())); g != w {
+	g, w := strings.TrimSpace(fmt.Sprint(err)), strings.TrimSpace(fmt.Sprint(wantedError()))
+	if runtime.GOOS == "windows" {
+		// Undo backslashEscape, for paths in errors.
+		g = strings.ReplaceAll(g, `\`, "/")
+	}
+	if g != w {
 		t.Fatalf("test %s: got GenLowLevelConfig error %q; want %q", name, g, w)
 	}
 	if err != nil {

@@ -1,0 +1,1 @@
+storage "nas": dir /tmp/blobs/replica overlaps blobPath, /tmp/blobs

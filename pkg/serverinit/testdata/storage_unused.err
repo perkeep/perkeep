@@ -1,0 +1,1 @@
+storage "nas" isn't used: list it in replicateTo, or in unwiredStorage to define it without using it

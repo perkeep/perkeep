@@ -1,0 +1,47 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"packRelated": true,
+	"sqlite": "/tmp/blobs/index.sqlite",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"s3": "key:secret:bucket",
+	"storage": {
+		"slow-nfs": {
+			"type": "blobpacked",
+			"dir": "/mnt/nfs"
+		},
+		"old": {
+			"type": "filesystem",
+			"dir": "/mnt/old-blobs"
+		},
+		"packs": {
+			"type": "diskpacked",
+			"dir": "/mnt/packs"
+		},
+		"offsite": {
+			"type": "s3",
+			"bucket": "offsite/perkeep",
+			"accessKey": "key2",
+			"secretKey": "secret2"
+		},
+		"minio": {
+			"type": "s3",
+			"bucket": "pk",
+			"accessKey": "key3",
+			"secretKey": "secret3",
+			"hostname": "minio.example.com",
+			"packed": false
+		}
+	},
+	"replicateTo": [
+		"slow-nfs",
+		"packs",
+		"offsite",
+		"minio"
+	],
+	"unwiredStorage": [
+		"old"
+	]
+}

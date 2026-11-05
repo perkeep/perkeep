@@ -1,0 +1,19 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"packRelated": true,
+	"sqlite": "/tmp/blobs/index.sqlite",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"s3": "key:secret:bucket",
+	"storage": {
+		"nas": {
+			"type": "blobpacked",
+			"dir": "/tmp/blobs/replica"
+		}
+	},
+	"replicateTo": [
+		"nas"
+	]
+}

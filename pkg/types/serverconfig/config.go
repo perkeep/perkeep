@@ -18,8 +18,140 @@ limitations under the License.
 package serverconfig // import "perkeep.org/pkg/types/serverconfig"
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"slices"
 )
+
+// Storage is a blob storage of Config.Storage: its type, and the fields
+// of its type, beside "type" in the JSON object.
+type Storage struct {
+	// Type is the storage's type, which says which of the fields below
+	// it has.
+	//
+	// The local types, whose fields are Local's, are those of the
+	// layouts that BlobPath can have:
+	//
+	//   - "blobpacked": as BlobPath with PackRelated: small blobs in its
+	//     dir, and large ones packed in zip files in dir/packed, whose
+	//     index is dir/packed/packindex.<type>, of the type of the
+	//     server's file-based indexes, such as sqlite.
+	//   - "filesystem": blobs in its dir, as BlobPath alone.
+	//   - "diskpacked": as BlobPath with PackBlobs, with its index in
+	//     dir/diskpacked-index.<type>.
+	//
+	// The "s3" type, whose fields are S3's, is an S3 bucket, or one of
+	// another service with S3's API.
+	Type string
+
+	Local *LocalStorage // of a local type, or nil
+	S3    *S3Storage    // of type "s3", or nil
+}
+
+// LocalStorage is the configuration of a Storage of a local type, such as
+// "blobpacked".
+type LocalStorage struct {
+	// Dir is the storage's directory, an absolute path. It mustn't be,
+	// or be within or contain, BlobPath or another storage's dir.
+	Dir string `json:"dir"`
+}
+
+// S3Storage is the configuration of a Storage of type "s3".
+type S3Storage struct {
+	// Bucket is the bucket, and optionally a directory in it, such as
+	// "my-bucket/perkeep".
+	Bucket string `json:"bucket"`
+
+	// AccessKey and SecretKey are the credentials. Either may be
+	// "@path", for one read from the file at path.
+	AccessKey string `json:"accessKey"`
+	SecretKey string `json:"secretKey"`
+
+	// Hostname, if non-empty, is the hostname of a service with S3's API,
+	// rather than AWS's.
+	Hostname string `json:"hostname,omitempty"`
+
+	// Packed is whether the storage is blobpacked: small blobs under
+	// "loose/" and large ones packed in zip files under "packed/" in the
+	// bucket, whose index is on local disk, beside the server's index,
+	// as packindex-<name>.<type>; or else loose blobs at the bucket's
+	// root (or its directory). If nil, it's PackRelated, unless
+	// PackRelatedExcludeTypes has "s3".
+	Packed *bool `json:"packed,omitempty"`
+}
+
+// localStorageTypes are the Storage types whose fields are LocalStorage's.
+var localStorageTypes = []string{"blobpacked", "filesystem", "diskpacked"}
+
+// storageTypes are all of the Storage types.
+var storageTypes = append(slices.Clone(localStorageTypes), "s3")
+
+// UnmarshalJSON decodes s from data: its type, and then the fields of its
+// type, failing on fields that its type doesn't have, which are likely
+// typos.
+func (s *Storage) UnmarshalJSON(data []byte) error {
+	var t struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &t); err != nil {
+		return err
+	}
+	strict := func(v any) error {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(v); err != nil {
+			return fmt.Errorf("storage of type %q: %w", t.Type, err)
+		}
+		return nil
+	}
+	*s = Storage{Type: t.Type}
+	switch {
+	case t.Type == "":
+		return fmt.Errorf("storage has no type; want one of %q", storageTypes)
+	case slices.Contains(localStorageTypes, t.Type):
+		var v struct {
+			Type string `json:"type"`
+			LocalStorage
+		}
+		if err := strict(&v); err != nil {
+			return err
+		}
+		s.Local = &v.LocalStorage
+		return nil
+	case t.Type == "s3":
+		var v struct {
+			Type string `json:"type"`
+			S3Storage
+		}
+		if err := strict(&v); err != nil {
+			return err
+		}
+		s.S3 = &v.S3Storage
+		return nil
+	}
+	return fmt.Errorf("storage of unknown type %q; want one of %q", t.Type, storageTypes)
+}
+
+// MarshalJSON encodes s as UnmarshalJSON decodes it: its type, with the
+// fields of its type.
+func (s Storage) MarshalJSON() ([]byte, error) {
+	switch {
+	case s.Local != nil:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			LocalStorage
+		}{s.Type, *s.Local})
+	case s.S3 != nil:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			S3Storage
+		}{s.Type, *s.S3})
+	}
+	return json.Marshal(struct {
+		Type string `json:"type"`
+	}{s.Type})
+}
 
 // Config holds the values from the JSON (high-level) server config
 // file that is exposed to users (and is by default at
@@ -114,7 +246,24 @@ type Config struct {
 	// than 2027-04-13; see https://github.com/perkeep/perkeep/issues/1850.
 	KVFile string `json:"kvIndexFile,omitempty"`
 
-	ReplicateTo []any `json:"replicateTo,omitempty"` // NOOP for now.
+	// Storage maps names to blob storages besides the primary one, such
+	// as a replica on another disk, or in another S3 bucket. Each is served
+	// at /sto-<name>/, and must be used by ReplicateTo, or listed in
+	// UnwiredStorage, so that a storage defined but forgotten is an
+	// error rather than silently unused. Names are lowercase letters,
+	// digits and hyphens, and mustn't be those of storages that the
+	// high-level config makes itself, such as "s3".
+	Storage map[string]*Storage `json:"storage,omitempty"`
+
+	// ReplicateTo names Storage storages to replicate the primary storage
+	// to, asynchronously, each by a sync handler at /sync-to-<name>/,
+	// whose queue is in BlobPath, as for S3.
+	ReplicateTo []string `json:"replicateTo,omitempty"`
+
+	// UnwiredStorage names Storage storages that nothing uses: they're
+	// served at /sto-<name>/, but nothing reads from, writes to, or syncs
+	// to them. It's for a storage being set up, or no longer used.
+	UnwiredStorage []string `json:"unwiredStorage,omitempty"`
 	// Publish maps a URL prefix path used as a root for published paths (a.k.a. a camliRoot path), to the configuration of the publish handler that serves all the published paths under this root.
 	Publish map[string]*Publish `json:"publish,omitempty"`
 	ScanCab *ScanCab            `json:"scancab,omitempty"` // Scanning cabinet app configuration.
