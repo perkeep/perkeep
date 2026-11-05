@@ -733,6 +733,51 @@ func TestArchiveProgressBounded(t *testing.T) {
 	}
 }
 
+// TestArchiveProgressBar tests that an archive run's progress shows as a
+// bar, unless the run made bars of its own before it reported progress.
+func TestArchiveProgressBar(t *testing.T) {
+	for _, ownBar := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ownBar=%v", ownBar), func(t *testing.T) {
+			h, im, target := archiveTestHost(t)
+			rcs := make(chan *RunContext, 1)
+			im.run = func(rc *RunContext, a *Archive) error {
+				rcs <- rc
+				if ownBar {
+					b := rc.Progress().Bar("items", "Importing items")
+					b.SetTotal(5)
+					b.Set(5)
+					b.Finish()
+				}
+				for _, done := range []int{2, 5} {
+					if err := rc.SetArchiveProgress(camtypes.ArchiveImportProgress{ItemsTotal: 5, ItemsDone: done, ItemsUnchanged: done - 1, WarningCount: 1}); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			ref := archiveTestUpload(t, target, "export.zip", camtypes.ArchiveIdentity{UserName: "alice"})
+			result, err := h.ImportArchive(context.Background(), archiveTestName, camtypes.ArchiveImportRequest{Action: "start", FileRef: ref})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status := waitArchiveIdle(t, h, result.AccountRef); status.State != "complete" {
+				t.Fatalf("status = %+v", status)
+			}
+			bars := (<-rcs).Progress().Snapshot()
+			if ownBar {
+				if len(bars) != 1 || bars[0].Name != "items" {
+					t.Errorf("bars = %+v; want only the run's own", bars)
+				}
+				return
+			}
+			if len(bars) != 1 || bars[0].Name != archiveBarName || !bars[0].Finished || bars[0].Stopped ||
+				bars[0].Done != 5 || bars[0].Total != 5 || bars[0].Skipped != 4 || bars[0].Description != "1 warning" {
+				t.Errorf("bars = %+v; want the archive's, finished, 5 of 5, 4 skipped", bars)
+			}
+		})
+	}
+}
+
 // The first 1.5 GiB of this file is deliberately unavailable. Only the small
 // tail is stored. Opening and inspecting the ZIP must never try to fetch the
 // prefix, allocate an archive-sized buffer, or copy the archive to scratch.

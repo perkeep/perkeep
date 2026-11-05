@@ -620,14 +620,27 @@ func boundedArchiveProgress(p camtypes.ArchiveImportProgress) camtypes.ArchiveIm
 // SetArchiveProgress publishes a bounded durable progress snapshot. Providers
 // should batch calls, rather than upload one claim per item. The final snapshot
 // is also stored with completion/error by the managed run lifecycle.
+//
+// It also shows the progress as a bar of the run's, unless the run made
+// bars of its own before it first reported progress, which are taken to
+// show the same work.
 func (rc *RunContext) SetArchiveProgress(p camtypes.ArchiveImportProgress) error {
+	p = boundedArchiveProgress(p)
+	if err := rc.storeArchiveProgress(p); err != nil {
+		return err
+	}
+	rc.showArchiveProgress(p)
+	return nil
+}
+
+func (rc *RunContext) storeArchiveProgress(p camtypes.ArchiveImportProgress) error {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	if rc.archiveJob == nil {
 		return errors.New("not an archive run")
 	}
 	status := *rc.archiveJob
-	status.Progress = boundedArchiveProgress(p)
+	status.Progress = p
 	raw, err := json.Marshal(status)
 	if err != nil {
 		return err
@@ -637,6 +650,45 @@ func (rc *RunContext) SetArchiveProgress(p camtypes.ArchiveImportProgress) error
 	}
 	*rc.archiveJob = status
 	return nil
+}
+
+// archiveBarName is the name of the bar of the run's that shows its
+// archive progress, if any.
+const archiveBarName = "archive"
+
+// showArchiveProgress shows p as the run's archive bar, making it if the
+// run has no bars, counting the items unchanged as skipped.
+func (rc *RunContext) showArchiveProgress(p camtypes.ArchiveImportProgress) {
+	set := rc.Progress()
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if rc.archiveBar == nil {
+		if len(set.Snapshot()) > 0 {
+			return
+		}
+		rc.archiveBar = set.Bar(archiveBarName, "Importing the archive")
+	}
+	bar := rc.archiveBar
+	bar.SetTotal(int64(p.ItemsTotal))
+	if skipped := bar.Status().Skipped; int64(p.ItemsUnchanged) > skipped {
+		bar.Skip(int64(p.ItemsUnchanged) - skipped)
+	}
+	bar.Set(int64(p.ItemsDone))
+	switch {
+	case p.WarningCount == 1:
+		bar.SetDescription("1 warning")
+	case p.WarningCount > 1:
+		bar.SetDescription(fmt.Sprintf("%d warnings", p.WarningCount))
+	}
+}
+
+// finishArchiveBar marks the run's archive bar finished, if it has one.
+func (rc *RunContext) finishArchiveBar() {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if rc.archiveBar != nil {
+		rc.archiveBar.Finish()
+	}
 }
 
 func (rc *RunContext) runManaged() (runErr error) {
@@ -659,7 +711,14 @@ func (rc *RunContext) runManaged() (runErr error) {
 		return err
 	}
 	defer a.file.Close()
-	return rc.ia.im.impl.(ArchiveImporter).RunArchive(rc, a)
+	if err := rc.ia.im.impl.(ArchiveImporter).RunArchive(rc, a); err != nil {
+		return err
+	}
+	if err := rc.Context().Err(); err != nil {
+		return err
+	}
+	rc.finishArchiveBar()
+	return nil
 }
 
 func (rc *RunContext) finishArchive(err error) error {
