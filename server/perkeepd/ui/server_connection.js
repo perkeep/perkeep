@@ -58,6 +58,29 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 			rules: [
 				{ attrs: ['camliPath:*'] }
 			]
+		},
+		// The posts of Bluesky likes and reposts, and the profiles of
+		// follows, with their images.
+		{
+			ifCamliNodeType: 'bluesky:app.bsky.feed.like',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
+		},
+		{
+			ifCamliNodeType: 'bluesky:app.bsky.feed.repost',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
+		},
+		{
+			ifCamliNodeType: 'bluesky:app.bsky.graph.follow',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
 		}
 	]
 };
