@@ -220,10 +220,9 @@ func constraintCheckValid(c *Constraint) error {
 	return permanodeConstraintCheckValid(c.Permanode)
 }
 
-// matchesPermanodeTypes returns a set of valid permanode types that a matching
-// permanode must have as its "camliNodeType" attribute.
-// It returns a zero-length slice if this constraint might include things other
-// things.
+// constraintMatchesPermanodeTypes returns a set of valid permanode types that a
+// matching permanode must have as its "camliNodeType" attribute.
+// It returns a zero-length slice if c might match other things too.
 func constraintMatchesPermanodeTypes(c *Constraint) []string {
 	if c == nil {
 		return nil
@@ -241,6 +240,11 @@ func constraintMatchesPermanodeTypes(c *Constraint) []string {
 			}
 			return sb
 		case "or":
+			// Only if both sides are of some types: one that isn't
+			// matches permanodes of any type.
+			if len(sa) == 0 || len(sb) == 0 {
+				return nil
+			}
 			return append(sa, sb...)
 		}
 	}
@@ -680,12 +684,28 @@ func shownNodeTypes(c *Constraint) []string {
 		return hiddenNodeTypes
 	}
 	var shown []string
-	for _, typ := range constraintMatchesPermanodeTypes(c) {
+	for _, typ := range constraintAsksForPermanodeTypes(c) {
 		if slices.Contains(hiddenNodeTypes, typ) {
 			shown = append(shown, typ)
 		}
 	}
 	return shown
+}
+
+// constraintAsksForPermanodeTypes returns the camliNodeType values that c
+// matches permanodes of, other than by not matching them, on either side
+// of an "and" or "or", unlike constraintMatchesPermanodeTypes.
+func constraintAsksForPermanodeTypes(c *Constraint) []string {
+	if c == nil {
+		return nil
+	}
+	if pc := c.Permanode; pc != nil && pc.Attr == "camliNodeType" && pc.Value != "" {
+		return []string{pc.Value}
+	}
+	if lc := c.Logical; lc != nil && lc.Op != "not" {
+		return append(constraintAsksForPermanodeTypes(lc.A), constraintAsksForPermanodeTypes(lc.B)...)
+	}
+	return nil
 }
 
 // constraintAsksForChildren reports whether c matches permanodes by their

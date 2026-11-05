@@ -2310,6 +2310,26 @@ func TestIsBookmarkQuerySource(t *testing.T) {
 	})
 }
 
+// TestOrQueryOfTypesAndNot tests that an "or" of permanode types and
+// something else matches the something else too, not only permanodes of
+// the types.
+func TestOrQueryOfTypesAndNot(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		pinboard := id.NewDeterministicPermanodeForTest("pinboard")
+		id.SetAttribute(pinboard, "camliNodeType", "pinboard.in:post")
+		tagged := id.NewDeterministicPermanodeForTest("tagged")
+		id.SetAttribute(tagged, "tag", "foo")
+		profile := id.NewDeterministicPermanodeForTest("profile")
+		id.SetAttribute(profile, "camliNodeType", "bluesky:profile")
+
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark or tag:foo", Sort: MapSort}, pinboard, tagged)
+		qt.wantRes(&SearchQuery{Expression: "tag:foo or is:bookmark", Sort: MapSort}, pinboard, tagged)
+		// A hidden type asked for on one side of an "or" is shown.
+		qt.wantRes(&SearchQuery{Expression: "is:profile or tag:foo", Sort: MapSort}, profile, tagged)
+	})
+}
+
 // BenchmarkLocationPredicate aims at measuring the impact of
 // https://camlistore-review.googlesource.com/8049
 // ( + https://camlistore-review.googlesource.com/8649)
