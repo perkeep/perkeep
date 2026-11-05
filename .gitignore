@@ -35,9 +35,9 @@ misc/docker/perkeepd/djpeg
 # vendored data we don't want to retain
 /vendor/**/.travis.yml
 /vendor/**/.gitignore
-/vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg
-/vendor/github.com/rwcarlsen/goexif/tiff/sample1.tif
-/vendor/github.com/rwcarlsen/goexif/exif/regen_regress.go
+/vendor/github.com/perkeep/goexif/exif/sample1.jpg
+/vendor/github.com/perkeep/goexif/tiff/sample1.tif
+/vendor/github.com/perkeep/goexif/exif/regen_regress.go
 /vendor/myitcv.io/react/internal/dev/dev.inc.js
 /vendor/myitcv.io/react/internal/preact/preact.inc.js
 /vendor/myitcv.io/react/internal/prod/prod.inc.js

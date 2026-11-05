@@ -37,9 +37,11 @@ import (
 // Version 10: HEIC files recognized by any of their HEVC brands, major or compatible.
 // Version 11: digests of file contents (see DigestTypes).
 // Version 12: QuickTime and MP4 videos' recording times in their file times.
+// Version 13: JPEGs' EXIF from their first APP1 segment with EXIF, not their first APP1.
 // Versions 7 to 9 are upgraded at startup, by addMediaTags, and then
-// version 10 by addDigests, and version 11 by addVideoTimes.
-const requiredSchemaVersion = 12
+// version 10 by addDigests, version 11 by addVideoTimes, and version 12
+// by addJPEGEXIF.
+const requiredSchemaVersion = 13
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)

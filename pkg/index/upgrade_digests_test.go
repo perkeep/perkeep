@@ -66,7 +66,7 @@ func TestAddDigests(t *testing.T) {
 		fileRefs[f.name] = file.BlobRef()
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "12"
+	want[keySchemaVersion.name] = "13"
 	for _, data := range []string{"hello", "already has digests"} {
 		wantDigestRows := make(map[string]string)
 		addWantDigestRows(wantDigestRows, []byte(data))

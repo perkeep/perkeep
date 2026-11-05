@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rwcarlsen/goexif/tiff"
+	"github.com/perkeep/goexif/tiff"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/schema"

@@ -38,8 +38,8 @@ import (
 	"time"
 
 	"github.com/hjfreyer/taglib-go/taglib"
-	"github.com/rwcarlsen/goexif/exif"
-	"github.com/rwcarlsen/goexif/tiff"
+	"github.com/perkeep/goexif/exif"
+	"github.com/perkeep/goexif/tiff"
 	_ "go4.org/media/heif"
 	"go4.org/readerutil"
 	"go4.org/types"
@@ -786,8 +786,9 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 }
 
 // jpegAPP1Finder watches the entire file, not just its retained image prefix.
-// goexif searches raw bytes for FF E1, even past SOS or EOI. Only the absence
-// of that pair proves there is no APP1 section for it to decode.
+// Without an APP1 segment with EXIF in the JPEG headers, exif.Decode searches
+// raw bytes for FF E1, even past SOS or EOI. Only the absence of that pair
+// proves there is no APP1 section for it to decode.
 type jpegAPP1Finder struct {
 	found  bool
 	lastFF bool
