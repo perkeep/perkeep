@@ -17,9 +17,11 @@ limitations under the License.
 package importer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -176,7 +178,20 @@ func (octx OAuthContext) do(method string, url string, form url.Values) (*http.R
 		return nil, fmt.Errorf("error fetching %s: %w", url, err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return res, fmt.Errorf("%s request on %s failed with: %s", method, url, res.Status)
+		// Say why, as APIs do in their bodies, such as which access
+		// a 403 lacks, and leave the body for the caller to read too.
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+		res.Body.Close()
+		res.Body = io.NopCloser(bytes.NewReader(body))
+		err := fmt.Errorf("%s request on %s failed with: %s", method, url, res.Status)
+		if excerpt := strings.TrimSpace(string(body)); excerpt != "" {
+			const max = 500
+			if len(excerpt) > max {
+				excerpt = excerpt[:max] + "…"
+			}
+			err = fmt.Errorf("%w: %s", err, excerpt)
+		}
+		return res, err
 	}
 	return res, nil
 }
