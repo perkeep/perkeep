@@ -269,8 +269,9 @@ type SyncItem struct {
 // syncTimeLayout is the layout of the flat protocol's times in UTC.
 const syncTimeLayout = "2006-01-02 15:04:05"
 
-// SyncItems returns all of the journal's sync items.
-func (c *Client) SyncItems(ctx context.Context) ([]SyncItem, error) {
+// SyncItems returns all of the journal's sync items. progress, if non-nil,
+// is called after each page with how many items have been listed.
+func (c *Client) SyncItems(ctx context.Context, progress func(items int)) ([]SyncItem, error) {
 	var items []SyncItem
 	seen := map[string]int{} // item to index in items
 	var last time.Time
@@ -309,6 +310,9 @@ func (c *Client) SyncItems(ctx context.Context) ([]SyncItem, error) {
 			if t.After(last) {
 				last = t
 			}
+		}
+		if progress != nil {
+			progress(len(items))
 		}
 		if n == total || (added == 0 && stuck) {
 			return items, nil
@@ -350,8 +354,9 @@ func (e *Entry) Tags() []string {
 
 // Entries returns the journal's entries, given its sync items. An entry
 // that the server lists but doesn't return (such as one since deleted)
-// is left out.
-func (c *Client) Entries(ctx context.Context, items []SyncItem) ([]*Entry, error) {
+// is left out. progress, if non-nil, is called after each batch with how
+// many entries have been read, and how many the sync items list.
+func (c *Client) Entries(ctx context.Context, items []SyncItem, progress func(done, total int)) ([]*Entry, error) {
 	syncTime := map[int]time.Time{}
 	for _, it := range items {
 		if id, ok := strings.CutPrefix(it.Item, "L-"); ok {
@@ -371,6 +376,9 @@ func (c *Client) Entries(ctx context.Context, items []SyncItem) ([]*Entry, error
 		for _, e := range es {
 			e.SyncTime = syncTime[e.ItemID]
 			got[e.ItemID] = e
+		}
+		if progress != nil {
+			progress(len(got), len(syncTime))
 		}
 		return nil
 	}

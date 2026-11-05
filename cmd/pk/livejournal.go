@@ -105,7 +105,7 @@ func (c *livejournalCmd) RunCommand(args []string) error {
 	if err := lj.Login(ctx); err != nil {
 		return err
 	}
-	j, err := lj.Fetch(ctx, log.Printf)
+	j, err := lj.Fetch(ctx, log.Printf, nil)
 	if err != nil {
 		return err
 	}
