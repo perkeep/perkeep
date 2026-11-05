@@ -20,11 +20,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/bluesky-social/indigo/api/atproto"
@@ -442,4 +444,48 @@ func TestIntegration(t *testing.T) {
 			t.Errorf("rev after no-op run = %q; want %q", got, rev2)
 		}
 	})
+}
+
+// TestLoadCARStopsWhenCanceled tests that a run stops storing its repo's
+// blocks when its context is canceled, as when it's paused.
+func TestLoadCARStopsWhenCanceled(t *testing.T) {
+	tr := newTestRepo(t)
+	const posts = 100
+	for i := range posts {
+		tr.put(fmt.Sprintf("app.bsky.feed.post/3post%08d", i), &bsky.FeedPost{
+			LexiconTypeID: "app.bsky.feed.post",
+			Text:          fmt.Sprintf("post %d", i),
+			CreatedAt:     "2025-01-01T00:00:00.000Z",
+		})
+	}
+	carBytes, _ := tr.car()
+
+	h := imptest.NewMemoryHost(t, importer.HostConfig{})
+	t.Cleanup(func() { h.Close() })
+	rc, err := importer.CreateAccount(h, "bluesky")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Once a few blocks are stored, cancel the run's context, by closing
+	// its host.
+	const stopAt = 5
+	var puts atomic.Int32
+	testHookPutBlock = func() {
+		if puts.Add(1) == stopAt {
+			h.Close()
+		}
+	}
+	t.Cleanup(func() { testHookPutBlock = nil })
+
+	r := &run{RunContext: rc}
+	if _, _, _, _, err := r.loadCAR(carBytes); !errors.Is(err, context.Canceled) {
+		t.Fatalf("loadCAR = %v; want context.Canceled", err)
+	}
+	// Those being stored when it was canceled may finish.
+	if n := puts.Load(); n > stopAt+importConcurrency {
+		t.Errorf("stored %d blocks; want at most %d", n, stopAt+importConcurrency)
+	}
+	if st := rc.Progress().Bar("blocks", "").Status(); st.Finished || st.Total <= posts || st.Done >= st.Total {
+		t.Errorf("blocks bar = %+v; want unfinished, of more than %d blocks", st, posts)
+	}
 }
