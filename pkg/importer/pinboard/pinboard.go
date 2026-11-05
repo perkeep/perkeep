@@ -56,6 +56,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 
@@ -220,6 +221,8 @@ type run struct {
 	lastPause time.Duration
 
 	incremental bool // whether we've completed a run in the past
+
+	bar *progress.Bar // of posts imported
 }
 
 func (r *run) getPostsNode() (*importer.Object, error) {
@@ -245,6 +248,9 @@ func (r *run) importPosts() error {
 		return err
 	}
 
+	// The API gives no count of the posts to come, so the bar is a
+	// running count.
+	r.bar = r.Progress().Bar("posts", "Importing posts")
 	keepTrying := true
 	for keepTrying {
 		keepTrying, err = r.importBatch(authToken, parent)
@@ -252,6 +258,7 @@ func (r *run) importPosts() error {
 			return err
 		}
 	}
+	r.bar.Finish()
 
 	return nil
 }
@@ -339,6 +346,15 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 				allDupMu.Lock()
 				allDups = false
 				allDupMu.Unlock()
+			}
+			switch {
+			case err != nil:
+			case dup:
+				// Imported already, by an earlier run, in next to no
+				// time: not work for the bar's rate.
+				r.bar.Skip(1)
+			default:
+				r.bar.Add(1)
 			}
 			return err
 		})

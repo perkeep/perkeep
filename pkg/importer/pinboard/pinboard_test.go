@@ -64,6 +64,12 @@ func TestIntegrationRun(t *testing.T) {
 		if err := testee.Run(rc); err != nil {
 			t.Fatal(err)
 		}
+		// The run's progress bar, which the account's page shows: a
+		// running count, as the API gives no count of the posts.
+		bars := rc.Progress().Snapshot()
+		if len(bars) != 1 || bars[0].Name != "posts" || !bars[0].Finished || bars[0].Done != 3 || bars[0].Total != 0 || bars[0].Skipped != 0 {
+			t.Errorf("progress bars: %+v", bars)
+		}
 
 		postsNode, err := imptest.GetRequiredChildPathObj(rc.RootNode(), "posts")
 		if err != nil {
