@@ -27,26 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/gen2brain/heic"
 )
-
-// forEachHEICDecoder runs f as a subtest with each of the heic package's
-// decoders: the system's libheif, if it can be loaded, and the embedded
-// WebAssembly one.
-func forEachHEICDecoder(t *testing.T, f func(t *testing.T)) {
-	t.Run("libheif", func(t *testing.T) {
-		if err := heic.Dynamic(); err != nil {
-			t.Skipf("libheif not available: %v", err)
-		}
-		f(t)
-	})
-	t.Run("wasm", func(t *testing.T) {
-		heic.ForceWasmMode = true
-		defer func() { heic.ForceWasmMode = false }()
-		f(t)
-	})
-}
 
 // uiOpts returns DecodeOpts like those of a UI thumbnail request for
 // height mh.
@@ -96,15 +77,13 @@ func TestHEICGenericMajorBrand(t *testing.T) {
 	if conf.Format != "heic" || conf.Width != want.Width || conf.Height != want.Height {
 		t.Errorf("DecodeConfig = %+v; want %+v", conf, want)
 	}
-	forEachHEICDecoder(t, func(t *testing.T) {
-		im, conf, err := Decode(bytes.NewReader(src), uiOpts(256))
-		if err != nil {
-			t.Fatalf("Decode: %v", err)
-		}
-		if conf.Format != "heic" || im.Bounds().Dx() != 192 || im.Bounds().Dy() != 256 {
-			t.Errorf("Decode = %v, config %+v; want 192x256 heic", im.Bounds(), conf)
-		}
-	})
+	im, conf, err := Decode(bytes.NewReader(src), uiOpts(256))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if conf.Format != "heic" || im.Bounds().Dx() != 192 || im.Bounds().Dy() != 256 {
+		t.Errorf("Decode = %v, config %+v; want 192x256 heic", im.Bounds(), conf)
+	}
 }
 
 func TestOpenHEIC(t *testing.T) {
@@ -152,45 +131,43 @@ func TestHEICThumbnail(t *testing.T) {
 	// ski-throne.heic is a 3024x4032 portrait photo whose 416x312
 	// thumbnail item is rotated, like its primary image.
 	src := readTestdata(t, "ski-throne.heic")
-	forEachHEICDecoder(t, func(t *testing.T) {
-		for _, tt := range []struct {
-			mh         int
-			wantW      int
-			wantH      int
-			wantNoThmb bool
-		}{
-			{mh: 416, wantW: 312, wantH: 416},
-			{mh: 300, wantW: 312, wantH: 416}, // within maxThumbnailOversize
-			{mh: 256, wantW: 192, wantH: 256}, // rescaled
-			{mh: 64, wantW: 48, wantH: 64},
-			{mh: 500, wantNoThmb: true},
-		} {
-			th, err := findHEICThumbnail(bytes.NewReader(src), uiOpts(tt.mh))
-			if tt.wantNoThmb {
-				if !errors.Is(err, ErrNoUsableThumbnail) {
-					t.Errorf("mh=%d: findHEICThumbnail error = %v; want ErrNoUsableThumbnail", tt.mh, err)
-				}
-				continue
+	for _, tt := range []struct {
+		mh         int
+		wantW      int
+		wantH      int
+		wantNoThmb bool
+	}{
+		{mh: 416, wantW: 312, wantH: 416},
+		{mh: 300, wantW: 312, wantH: 416}, // within maxThumbnailOversize
+		{mh: 256, wantW: 192, wantH: 256}, // rescaled
+		{mh: 64, wantW: 48, wantH: 64},
+		{mh: 500, wantNoThmb: true},
+	} {
+		th, err := findHEICThumbnail(bytes.NewReader(src), uiOpts(tt.mh))
+		if tt.wantNoThmb {
+			if !errors.Is(err, ErrNoUsableThumbnail) {
+				t.Errorf("mh=%d: findHEICThumbnail error = %v; want ErrNoUsableThumbnail", tt.mh, err)
 			}
-			if err != nil {
-				t.Fatalf("mh=%d: findHEICThumbnail: %v", tt.mh, err)
-			}
-			if th.Width != 312 || th.Height != 416 {
-				t.Errorf("mh=%d: thumbnail is %dx%d; want 312x416", tt.mh, th.Width, th.Height)
-			}
-			im, conf, err := th.Decode()
-			if err != nil {
-				t.Fatalf("mh=%d: Decode: %v", tt.mh, err)
-			}
-			b := im.Bounds()
-			if b.Dx() != tt.wantW || b.Dy() != tt.wantH || conf.Width != tt.wantW || conf.Height != tt.wantH {
-				t.Errorf("mh=%d: decoded %v, config %dx%d; want %dx%d", tt.mh, b, conf.Width, conf.Height, tt.wantW, tt.wantH)
-			}
-			if conf.Format != "heic" || !conf.Modified {
-				t.Errorf("mh=%d: config = %+v; want heic format, modified", tt.mh, conf)
-			}
+			continue
 		}
-	})
+		if err != nil {
+			t.Fatalf("mh=%d: findHEICThumbnail: %v", tt.mh, err)
+		}
+		if th.Width != 312 || th.Height != 416 {
+			t.Errorf("mh=%d: thumbnail is %dx%d; want 312x416", tt.mh, th.Width, th.Height)
+		}
+		im, conf, err := th.Decode()
+		if err != nil {
+			t.Fatalf("mh=%d: Decode: %v", tt.mh, err)
+		}
+		b := im.Bounds()
+		if b.Dx() != tt.wantW || b.Dy() != tt.wantH || conf.Width != tt.wantW || conf.Height != tt.wantH {
+			t.Errorf("mh=%d: decoded %v, config %dx%d; want %dx%d", tt.mh, b, conf.Width, conf.Height, tt.wantW, tt.wantH)
+		}
+		if conf.Format != "heic" || !conf.Modified {
+			t.Errorf("mh=%d: config = %+v; want heic format, modified", tt.mh, conf)
+		}
+	}
 }
 
 // TestHEICThumbnailMatchesPrimary checks that the thumbnail looks like
@@ -376,8 +353,7 @@ func jpegThumbHEIC(thumb []byte, tw, th int, irot byte) []byte {
 
 // TestHEICJPEGThumbnailRotation checks that a rotated JPEG thumbnail
 // item is rotated counter-clockwise, as HEIF's irot specifies, by
-// tracking a red marker in the corner of the stored image. If libheif
-// can decode JPEG items, it also checks that libheif decodes the same.
+// tracking a red marker in the corner of the stored image.
 func TestHEICJPEGThumbnailRotation(t *testing.T) {
 	const tw, th = 80, 40
 	in := image.NewRGBA(image.Rect(0, 0, tw, th))
@@ -420,23 +396,6 @@ func TestHEICJPEGThumbnailRotation(t *testing.T) {
 		if got := redCorner(im); got != tt.corner {
 			t.Errorf("irot %d: marker at %s; want %s", tt.irot, got, tt.corner)
 		}
-
-		forEachHEICDecoder(t, func(t *testing.T) {
-			standalone, err := thumb.f.StandaloneHEIF(thumb.item)
-			if err != nil {
-				t.Fatal(err)
-			}
-			ref, err := heic.Decode(bytes.NewReader(standalone))
-			if err != nil {
-				t.Skipf("can't decode JPEG items: %v", err)
-			}
-			if ref.Bounds().Size() != b.Size() {
-				t.Fatalf("irot %d: decoded to %v; want %v", tt.irot, ref.Bounds().Size(), b.Size())
-			}
-			if got := redCorner(ref); got != tt.corner {
-				t.Errorf("irot %d: decoded with marker at %s; want %s", tt.irot, got, tt.corner)
-			}
-		})
 	}
 }
 

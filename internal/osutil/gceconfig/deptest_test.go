@@ -42,7 +42,8 @@ func TestDeps(t *testing.T) {
 		"tailscale.com/tsnet":             "clients use HTTP and do not run a tailnet node",
 		"github.com/tetratelabs/wazero":   "clients must not embed a WebAssembly runtime",
 		"github.com/gen2brain/avif":       "clients must not embed an AVIF decoder",
-		"github.com/gen2brain/heic":       "clients must not embed a HEIC decoder",
+		"github.com/gen2brain/h265/heic":  "clients must not embed a HEIC decoder",
+		"github.com/gen2brain/h265/hevc":  "clients must not embed an HEVC decoder",
 	}
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},

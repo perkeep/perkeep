@@ -563,10 +563,14 @@ func TestDecodePortraitHEIC(t *testing.T) {
 						t.Logf("Got format %q; want %q", format, wantFormat)
 					}
 					got := dimensions{conf.Width, conf.Height}
-					if wantFormat != "jpeg" {
+					switch {
+					case wantFormat != "jpeg" && wantFormat != "heic":
 						check(t, got)
-					} else if got != wantDim {
-						t.Logf("[expected] std image package jpeg dimensions = %v (not %v post-EXIF)", got, wantDim)
+					case got != wantDim:
+						// The image package doesn't apply JPEG's EXIF
+						// orientation, nor the heic package's
+						// registered decoder HEIF's rotation.
+						t.Logf("[expected] std image package %s dimensions = %v (not %v rotated)", wantFormat, got, wantDim)
 					}
 				})
 				t.Run("images.DecodeConfig", func(t *testing.T) {
@@ -590,11 +594,7 @@ func TestDecodePortraitHEIC(t *testing.T) {
 					}
 				})
 			}
-			if wantFormat == "heic" {
-				forEachHEICDecoder(t, test)
-			} else {
-				test(t)
-			}
+			test(t)
 		})
 	}
 }

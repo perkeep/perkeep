@@ -26,27 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gen2brain/heic"
+	"github.com/gen2brain/h265/heic"
 	"go4.org/media/heif"
 	"perkeep.org/internal/media/quicktime"
 )
-
-// forEachHEICDecoder runs f as a subtest with each of the heic package's
-// decoders: the system's libheif, if it can be loaded, and the embedded
-// WebAssembly one.
-func forEachHEICDecoder(t *testing.T, f func(t *testing.T)) {
-	t.Run("libheif", func(t *testing.T) {
-		if err := heic.Dynamic(); err != nil {
-			t.Skipf("libheif not available: %v", err)
-		}
-		f(t)
-	})
-	t.Run("wasm", func(t *testing.T) {
-		heic.ForceWasmMode = true
-		defer func() { heic.ForceWasmMode = false }()
-		f(t)
-	})
-}
 
 // openTestdata opens the test video name (see testdata/gen.sh).
 func openTestdata(t *testing.T, name, mimeType string) (*Video, error) {
@@ -78,39 +61,37 @@ func mustDecode(t *testing.T, name, mimeType string) (*Video, image.Image) {
 }
 
 func TestDecodeHEVC(t *testing.T) {
-	forEachHEICDecoder(t, func(t *testing.T) {
-		// fade.mov's keyframes at 0.5 and 1 seconds are black, so
-		// Decode moves on to the one at 1.5 seconds. It's rotated
-		// 90 degrees clockwise for display.
-		v, im := mustDecode(t, "fade.mov", "video/quicktime")
-		if v.Width != 48 || v.Height != 64 {
-			t.Errorf("fade.mov size = %dx%d; want 48x64", v.Width, v.Height)
+	// fade.mov's keyframes at 0.5 and 1 seconds are black, so
+	// Decode moves on to the one at 1.5 seconds. It's rotated
+	// 90 degrees clockwise for display.
+	v, im := mustDecode(t, "fade.mov", "video/quicktime")
+	if v.Width != 48 || v.Height != 64 {
+		t.Errorf("fade.mov size = %dx%d; want 48x64", v.Width, v.Height)
+	}
+	// Compare with the unrotated frame, rotated here.
+	f := v.frames[v.frameAt(1500*time.Millisecond)]
+	raw := decodeUnrotated(t, "fade.mov", f)
+	rb := raw.Bounds()
+	if rb.Dx() != 64 || rb.Dy() != 48 {
+		t.Fatalf("unrotated frame is %v; want 64x48", rb.Size())
+	}
+	var cw, ccw float64
+	for y := range 64 {
+		for x := range 48 {
+			// Rotating clockwise, (x, y) comes from (y, 47-x).
+			cw += colorDistance(im.At(x, y), raw.At(rb.Min.X+y, rb.Min.Y+47-x))
+			ccw += colorDistance(im.At(x, y), raw.At(rb.Min.X+63-y, rb.Min.Y+x))
 		}
-		// Compare with the unrotated frame, rotated here.
-		f := v.frames[v.frameAt(1500*time.Millisecond)]
-		raw := decodeUnrotated(t, "fade.mov", f)
-		rb := raw.Bounds()
-		if rb.Dx() != 64 || rb.Dy() != 48 {
-			t.Fatalf("unrotated frame is %v; want 64x48", rb.Size())
-		}
-		var cw, ccw float64
-		for y := range 64 {
-			for x := range 48 {
-				// Rotating clockwise, (x, y) comes from (y, 47-x).
-				cw += colorDistance(im.At(x, y), raw.At(rb.Min.X+y, rb.Min.Y+47-x))
-				ccw += colorDistance(im.At(x, y), raw.At(rb.Min.X+63-y, rb.Min.Y+x))
-			}
-		}
-		// The decoder's rotation of the subsampled chroma of so small a
-		// test pattern differs slightly from rotating its RGB here.
-		cw, ccw = cw/(48*64), ccw/(48*64)
-		if cw > 20 || cw*4 > ccw {
-			t.Errorf("still differs from the keyframe rotated clockwise by %.1f per pixel, counterclockwise by %.1f", cw, ccw)
-		}
+	}
+	// The decoder's rotation of the subsampled chroma of so small a
+	// test pattern differs slightly from rotating its RGB here.
+	cw, ccw = cw/(48*64), ccw/(48*64)
+	if cw > 20 || cw*4 > ccw {
+		t.Errorf("still differs from the keyframe rotated clockwise by %.1f per pixel, counterclockwise by %.1f", cw, ccw)
+	}
 
-		mustDecode(t, "hdr.mov", "video/quicktime")    // 10-bit
-		mustDecode(t, "onekey.mov", "video/quicktime") // its only keyframe is first
-	})
+	mustDecode(t, "hdr.mov", "video/quicktime")    // 10-bit
+	mustDecode(t, "onekey.mov", "video/quicktime") // its only keyframe is first
 }
 
 // decodeUnrotated decodes frame f of the QuickTime test video name
