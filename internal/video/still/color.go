@@ -42,9 +42,9 @@ const (
 )
 
 // colorConversion converts decoded frames of a video's color space to
-// sRGB. HEIF decoders give frames as R'G'B', or as full range BT.601
-// Y'CbCr (as in JPEG, and as Go's image.YCbCr assumes), converting their
-// samples' range and matrix but not their primaries or transfer function.
+// sRGB. The decoders give frames as R'G'B', of 8 bits or, for videos of
+// more, 16, converting their samples' range and matrix but not their
+// primaries or transfer function.
 type colorConversion struct {
 	// linear converts R'G'B' (as 0 to lutSize-1) to linear light,
 	// relative to SDR white, or for HDR, to HDR reference white.
@@ -91,20 +91,18 @@ func newColorConversion(ci quicktime.ColorInfo) *colorConversion {
 func (c *colorConversion) convert(im image.Image) image.Image {
 	// pixel returns the R'G'B' of a pixel, from 0 to 1.
 	var pixel func(x, y int) (r, g, b float64)
+	// Opaque, as video frames are.
 	switch im := im.(type) {
-	case *image.YCbCr:
-		pixel = func(x, y int) (r, g, b float64) {
-			yy := float64(im.Y[im.YOffset(x, y)]) / 255
-			ci := im.COffset(x, y)
-			cb, cr := (float64(im.Cb[ci])-128)/255, (float64(im.Cr[ci])-128)/255
-			// BT.601 full range, as in JFIF.
-			return yy + 1.402*cr, yy - 0.344136*cb - 0.714136*cr, yy + 1.772*cb
-		}
 	case *image.NRGBA:
-		// Opaque, as video frames are.
 		pixel = func(x, y int) (r, g, b float64) {
 			p := im.Pix[im.PixOffset(x, y):]
 			return float64(p[0]) / 255, float64(p[1]) / 255, float64(p[2]) / 255
+		}
+	case *image.NRGBA64:
+		pixel = func(x, y int) (r, g, b float64) {
+			p := im.Pix[im.PixOffset(x, y):]
+			c := func(i int) float64 { return float64(uint16(p[i])<<8|uint16(p[i+1])) / 65535 }
+			return c(0), c(2), c(4)
 		}
 	default:
 		return im

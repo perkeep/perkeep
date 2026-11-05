@@ -24,7 +24,7 @@ import (
 	"image/jpeg"
 	"io"
 
-	"github.com/gen2brain/heic"
+	"github.com/gen2brain/h265/heic"
 	"go4.org/media/heif"
 )
 
@@ -50,8 +50,8 @@ type HEIC struct {
 }
 
 // OpenHEIC reads the metadata of the HEIC file ra. Unlike decoding the
-// image or its config with the heic package, which has libheif parse up
-// to 256 KB of the file, it only reads the metadata boxes.
+// image or its config with the heic package, which reads all of the
+// file, it only reads the metadata boxes.
 func OpenHEIC(ra io.ReaderAt) (*HEIC, error) {
 	f := heif.Open(ra)
 	primary, err := f.PrimaryItem()
@@ -160,8 +160,8 @@ func (t *HEICThumbnail) Decode() (image.Image, Config, error) {
 		if err != nil {
 			return nil, Config{}, err
 		}
-		// libheif applies the copied irot and imir properties.
-		if im, err = heic.Decode(bytes.NewReader(b)); err != nil {
+		// With the copied irot and imir properties applied.
+		if im, err = heic.Decode(bytes.NewReader(b), heic.Options{AutoRotate: true}); err != nil {
 			return nil, Config{}, fmt.Errorf("decoding HEIC thumbnail: %w", err)
 		}
 	case "jpeg":

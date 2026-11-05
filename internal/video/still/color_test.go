@@ -29,23 +29,21 @@ import (
 var sienna = color.RGBA{0x99, 0x66, 0x33, 0xff}
 
 func TestDecodeP3(t *testing.T) {
-	forEachHEICDecoder(t, func(t *testing.T) {
-		v, err := openTestdata(t, "p3.mov", "video/quicktime")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v.color == nil {
-			t.Fatal("no color conversion for a Display P3 video")
-		}
-		im, err := v.Decode()
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Without the conversion, it's about #91683c.
-		if d := maxDiff(im.At(32, 24), sienna); d > 2 {
-			t.Errorf("decoded %v; want about %v", im.At(32, 24), sienna)
-		}
-	})
+	v, err := openTestdata(t, "p3.mov", "video/quicktime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.color == nil {
+		t.Fatal("no color conversion for a Display P3 video")
+	}
+	im, err := v.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Without the conversion, it's about #91683c.
+	if d := maxDiff(im.At(32, 24), sienna); d > 2 {
+		t.Errorf("decoded %v; want about %v", im.At(32, 24), sienna)
+	}
 }
 
 func TestNoColorConversion(t *testing.T) {
@@ -80,14 +78,22 @@ func TestHDR(t *testing.T) {
 		{"hlg peak", hlg, [3]float64{1, 1, 1}, color.RGBA{245, 245, 245, 0xff}, 1},
 		{"pq peak", pq, [3]float64{1, 1, 1}, color.RGBA{0xff, 0xff, 0xff, 0xff}, 1},
 	} {
+		// As 8-bit and 16-bit R'G'B', as decoders give frames of 8 bits
+		// and of more.
 		im := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+		im16 := image.NewNRGBA64(image.Rect(0, 0, 1, 1))
 		for i, v := range tt.in {
 			im.Pix[i] = uint8(math.Round(v * 255))
+			v16 := uint16(math.Round(v * 65535))
+			im16.Pix[2*i], im16.Pix[2*i+1] = uint8(v16>>8), uint8(v16)
 		}
 		im.Pix[3] = 0xff
-		got := tt.c.convert(im).At(0, 0)
-		if d := maxDiff(got, tt.want); d > tt.tol {
-			t.Errorf("%s: got %v; want %v", tt.name, got, tt.want)
+		im16.Pix[6], im16.Pix[7] = 0xff, 0xff
+		for _, in := range []image.Image{im, im16} {
+			got := tt.c.convert(in).At(0, 0)
+			if d := maxDiff(got, tt.want); d > tt.tol {
+				t.Errorf("%s, from %T: got %v; want %v", tt.name, in, got, tt.want)
+			}
 		}
 	}
 }

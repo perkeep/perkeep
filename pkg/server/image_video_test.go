@@ -91,8 +91,9 @@ func TestScaleImageVideo(t *testing.T) {
 
 	// Files indexed as videos by their names, but that aren't, are
 	// unsupported rather than decoded as images. (ffmpeg, which reads
-	// WMV videos, has memory reserved for a still of up to 1920x1920.)
-	ih, ref = jpegScaleTestFile(t, bytes.Repeat([]byte("not a video "), 100), 32<<20, 32, 32)
+	// WMV videos, has memory reserved for a still of up to 1920x1920, of
+	// videoStillBytesPerPixel.)
+	ih, ref = jpegScaleTestFile(t, bytes.Repeat([]byte("not a video "), 100), 64<<20, 32, 32)
 	if _, err := ih.scaleImage(context.Background(), ref, "video/3gpp", false); !errors.Is(err, still.ErrUnsupported) {
 		t.Errorf("scaleImage of a non-video indexed as a video: %v; want still.ErrUnsupported", err)
 	}

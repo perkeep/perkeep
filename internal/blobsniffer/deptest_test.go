@@ -29,16 +29,17 @@ func TestDeps(t *testing.T) {
 	// must not pull in servers, network stacks, or image decoder implementations.
 	// Lightweight magic, go4.org, and schema/EXIF helpers remain allowed.
 	badDeps := map[string]string{
-		"perkeep.org/pkg/server":        "blob sniffing must not depend on server handlers",
-		"perkeep.org/pkg/serverinit":    "blob sniffing must not assemble a server",
-		"perkeep.org/pkg/search":        "blob sniffing must not depend on search",
-		"perkeep.org/pkg/index":         "blob sniffing must not depend on the index",
-		"perkeep.org/pkg/webserver":     "blob sniffing must not depend on the HTTP server implementation",
-		"perkeep.org/internal/images":   "MIME recognition must not decode or transform images",
-		"tailscale.com/tsnet":           "blob sniffing must not run a tailnet node",
-		"github.com/tetratelabs/wazero": "blob sniffing must not embed a WebAssembly runtime",
-		"github.com/gen2brain/avif":     "MIME recognition must not embed an AVIF decoder",
-		"github.com/gen2brain/heic":     "MIME recognition must not embed a HEIC decoder",
+		"perkeep.org/pkg/server":         "blob sniffing must not depend on server handlers",
+		"perkeep.org/pkg/serverinit":     "blob sniffing must not assemble a server",
+		"perkeep.org/pkg/search":         "blob sniffing must not depend on search",
+		"perkeep.org/pkg/index":          "blob sniffing must not depend on the index",
+		"perkeep.org/pkg/webserver":      "blob sniffing must not depend on the HTTP server implementation",
+		"perkeep.org/internal/images":    "MIME recognition must not decode or transform images",
+		"tailscale.com/tsnet":            "blob sniffing must not run a tailnet node",
+		"github.com/tetratelabs/wazero":  "blob sniffing must not embed a WebAssembly runtime",
+		"github.com/gen2brain/avif":      "MIME recognition must not embed an AVIF decoder",
+		"github.com/gen2brain/h265/heic": "MIME recognition must not embed a HEIC decoder",
+		"github.com/gen2brain/h265/hevc": "MIME recognition must not embed an HEVC decoder",
 	}
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},

@@ -251,9 +251,9 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, string, error)
 	tr := io.TeeReader(r, header)
 	// We just need width & height for memory considerations, so we use the
 	// standard library's DecodeConfig, skipping the EXIF parsing and
-	// orientation correction for images.DecodeConfig. image.DecodeConfig is
-	// able to deal with HEIC because it's registered indirectly in
-	// internal/images via the gen2brain/heic package.
+	// orientation correction for images.DecodeConfig. HEIC is handled
+	// before this, with its own metadata, as image.DecodeConfig reports
+	// HEIC images' sizes before their rotations.
 	conf, format, err := image.DecodeConfig(tr)
 	return io.MultiReader(header, r), conf, format, err
 }
@@ -317,6 +317,17 @@ func imageMemoryEstimate(width, height int, bytesPerPixel int64) (int64, error) 
 	return int64(width) * int64(height) * bytesPerPixel, nil
 }
 
+// heicBytesPerPixel is the memory reserved for decoding HEIC images, per
+// pixel: their decoded RGBA, and a copy of it if they're rotated. (10-bit
+// ones, such as photos that iOS saves after editing, take twice that, but
+// are rarer and smaller.)
+const heicBytesPerPixel = 8
+
+// videoStillBytesPerPixel is the memory reserved for decoding video
+// stills, per pixel: a frame's decoded RGBA, of 8 or 16 bits per sample,
+// and its conversion to sRGB, for HDR and wide color videos.
+const videoStillBytesPerPixel = 16
+
 // jpegPostDecodeMemory budgets rotation and the encoded output buffer in
 // addition to resizejpeg's decode plan. Rotation may swap the target bounds,
 // but cannot increase their area or the source area.
@@ -352,8 +363,7 @@ func (ih *ImageHandler) heicThumbnail(ctx context.Context, h *images.HEIC, opts 
 		heicThumbPrimary.Add(1)
 		return nil, images.Config{}, nil
 	}
-	// As for other non-JPEG images, an approximation of 3 bytes per pixel.
-	ramSize, err := imageMemoryEstimate(th.Width, th.Height, 3)
+	ramSize, err := imageMemoryEstimate(th.Width, th.Height, heicBytesPerPixel)
 	if err != nil {
 		return nil, images.Config{}, err
 	}
@@ -413,8 +423,8 @@ func (ih *ImageHandler) videoStill(ctx context.Context, fileRef blob.Ref, mimeTy
 		}
 		return nil, err
 	}
-	// Decoded frames are YCbCr or RGBA, besides the frame's coded data.
-	ramSize, err := imageMemoryEstimate(v.Width, v.Height, 4)
+	// Besides the frame's coded data.
+	ramSize, err := imageMemoryEstimate(v.Width, v.Height, videoStillBytesPerPixel)
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +585,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeTy
 	var heicFile *images.HEIC
 	if i == nil {
 		// HEIC metadata is read without the heic package's DecodeConfig,
-		// which has libheif parse up to 256 KB of the file.
+		// which reads all of the file.
 		heicFile = openHEIC(head)
 		if heicFile != nil {
 			conf = image.Config{Width: heicFile.Width, Height: heicFile.Height}
@@ -620,7 +630,11 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref, mimeTy
 		} else {
 			// Preserve the legacy estimate for other formats: 3 bytes per source
 			// pixel (an approximation; e.g. PNGs have varying pixel depths).
-			ramSize, err := imageMemoryEstimate(conf.Width, conf.Height, 3)
+			bytesPerPixel := int64(3)
+			if sourceFormat == "heic" {
+				bytesPerPixel = heicBytesPerPixel
+			}
+			ramSize, err := imageMemoryEstimate(conf.Width, conf.Height, bytesPerPixel)
 			if err != nil {
 				return nil, err
 			}

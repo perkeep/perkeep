@@ -30,16 +30,17 @@ func TestDeps(t *testing.T) {
 	// SQLite and localdisk remain allowed; do not ban cloud SDKs or their
 	// shared gRPC/protobuf dependencies wholesale.
 	badDeps := map[string]string{
-		"perkeep.org/pkg/server":        "clients must not depend on server handlers",
-		"perkeep.org/pkg/serverinit":    "clients must not assemble a server",
-		"perkeep.org/pkg/search":        "clients must use internal/searchtypes instead of the search implementation",
-		"perkeep.org/pkg/index":         "clients must not depend on the index",
-		"perkeep.org/pkg/webserver":     "client authentication must not depend on the HTTP server implementation",
-		"perkeep.org/internal/images":   "clients must not decode or transform images",
-		"tailscale.com/tsnet":           "clients use HTTP and do not run a tailnet node",
-		"github.com/tetratelabs/wazero": "clients must not embed a WebAssembly runtime",
-		"github.com/gen2brain/avif":     "clients must not embed an AVIF decoder",
-		"github.com/gen2brain/heic":     "clients must not embed a HEIC decoder",
+		"perkeep.org/pkg/server":         "clients must not depend on server handlers",
+		"perkeep.org/pkg/serverinit":     "clients must not assemble a server",
+		"perkeep.org/pkg/search":         "clients must use internal/searchtypes instead of the search implementation",
+		"perkeep.org/pkg/index":          "clients must not depend on the index",
+		"perkeep.org/pkg/webserver":      "client authentication must not depend on the HTTP server implementation",
+		"perkeep.org/internal/images":    "clients must not decode or transform images",
+		"tailscale.com/tsnet":            "clients use HTTP and do not run a tailnet node",
+		"github.com/tetratelabs/wazero":  "clients must not embed a WebAssembly runtime",
+		"github.com/gen2brain/avif":      "clients must not embed an AVIF decoder",
+		"github.com/gen2brain/h265/heic": "clients must not embed a HEIC decoder",
+		"github.com/gen2brain/h265/hevc": "clients must not embed an HEVC decoder",
 	}
 	for _, target := range []struct{ name, goos, goarch, cgo string }{
 		{"native-linux-cgo1", "", "", "1"},

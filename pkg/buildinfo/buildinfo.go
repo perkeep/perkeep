@@ -61,12 +61,10 @@ type Features struct {
 	GOARCH    string `json:"goarch"`
 	CGO       bool   `json:"cgo"` // whether built with CGO_ENABLED=1
 
-	// HEIC is how HEIC images are decoded: "libheif" for the system's
-	// libheif, loaded at runtime, or "wasm" for the slower embedded
-	// WebAssembly build of it. It's empty if HEIC support isn't linked in.
+	// HEIC is how HEIC images are decoded: "h265" for the pure Go
+	// decoder of github.com/gen2brain/h265. It's empty if HEIC support
+	// isn't linked in.
 	HEIC string `json:"heic"`
-	// LibheifError, if HEIC is "wasm", is why libheif wasn't used.
-	LibheifError string `json:"libheifError,omitempty"`
 }
 
 var featureFuncs []func(*Features)
@@ -99,15 +97,15 @@ func CurrentFeatures() Features {
 	return f
 }
 
-// HEICStatus returns a plaintext (non-HTML) string describing the
-// state of HEIC image decoder variant.
+// HEICStatus returns a plaintext (non-HTML) string describing the HEIC
+// image decoder.
 func HEICStatus() string {
 	f := CurrentFeatures()
 	switch f.HEIC {
 	case "":
-		return "unknown"
-	case "libheif":
-		return "libheif available (optimized)"
+		return "none"
+	case "h265":
+		return "github.com/gen2brain/h265 (pure Go)"
 	}
-	return "libheif not available (using WASM fallback): " + f.LibheifError
+	return f.HEIC
 }

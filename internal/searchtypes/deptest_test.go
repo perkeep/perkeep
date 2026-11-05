@@ -28,16 +28,17 @@ func TestDeps(t *testing.T) {
 	// network stacks, or image decoders. Schema helpers and their blobserver
 	// interfaces (via filewriter) remain allowed.
 	badDeps := map[string]string{
-		"perkeep.org/pkg/server":        "search protocol helpers must not depend on server handlers",
-		"perkeep.org/pkg/serverinit":    "search protocol helpers must not assemble a server",
-		"perkeep.org/pkg/search":        "search protocol helpers must not depend on the search implementation",
-		"perkeep.org/pkg/index":         "search protocol helpers must not depend on the index",
-		"perkeep.org/pkg/webserver":     "search protocol helpers must not depend on the HTTP server implementation",
-		"perkeep.org/internal/images":   "search protocol helpers must not decode or transform images",
-		"tailscale.com/tsnet":           "search protocol helpers must not run a tailnet node",
-		"github.com/tetratelabs/wazero": "search protocol helpers must not embed a WebAssembly runtime",
-		"github.com/gen2brain/avif":     "search protocol helpers must not embed an AVIF decoder",
-		"github.com/gen2brain/heic":     "search protocol helpers must not embed a HEIC decoder",
+		"perkeep.org/pkg/server":         "search protocol helpers must not depend on server handlers",
+		"perkeep.org/pkg/serverinit":     "search protocol helpers must not assemble a server",
+		"perkeep.org/pkg/search":         "search protocol helpers must not depend on the search implementation",
+		"perkeep.org/pkg/index":          "search protocol helpers must not depend on the index",
+		"perkeep.org/pkg/webserver":      "search protocol helpers must not depend on the HTTP server implementation",
+		"perkeep.org/internal/images":    "search protocol helpers must not decode or transform images",
+		"tailscale.com/tsnet":            "search protocol helpers must not run a tailnet node",
+		"github.com/tetratelabs/wazero":  "search protocol helpers must not embed a WebAssembly runtime",
+		"github.com/gen2brain/avif":      "search protocol helpers must not embed an AVIF decoder",
+		"github.com/gen2brain/h265/heic": "search protocol helpers must not embed a HEIC decoder",
+		"github.com/gen2brain/h265/hevc": "search protocol helpers must not embed an HEVC decoder",
 	}
 	for _, target := range []struct{ name, goos, goarch string }{
 		{"native", "", ""},

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package still decodes still images of videos, for thumbnails. In
 // process, it decodes HEVC keyframes of QuickTime, MP4, and 3GPP videos
-// with the HEIF decoder of github.com/gen2brain/heic, and Motion JPEG
+// with the HEIF decoder of github.com/gen2brain/h265, and Motion JPEG
 // frames of AVI videos.
 //
 // If ffmpeg is installed, it also decodes keyframes of other codecs in
@@ -35,7 +35,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gen2brain/heic"
+	"github.com/gen2brain/h265/heic"
 	"go4.org/media/heif"
 	"perkeep.org/internal/media/avi"
 	"perkeep.org/internal/media/quicktime"
@@ -210,7 +210,7 @@ func openQuickTime(r io.ReaderAt, size int64) (*Video, error) {
 		if err != nil {
 			return nil, err
 		}
-		return heic.Decode(bytes.NewReader(b))
+		return heic.Decode(bytes.NewReader(b), heic.Options{AutoRotate: true})
 	}
 	return v, nil
 }
