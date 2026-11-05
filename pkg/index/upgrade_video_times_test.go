@@ -33,7 +33,8 @@ import (
 )
 
 // upgradeVideoTimes upgrades the version 11 index kv to version 12 with
-// addVideoTimes, reading files from fetcher.
+// addVideoTimes, and then to the required version, reading files from
+// fetcher.
 func upgradeVideoTimes(t *testing.T, kv sorted.KeyValue, fetcher blob.Fetcher) {
 	t.Helper()
 	ix, err := New(kv)
@@ -44,9 +45,7 @@ func upgradeVideoTimes(t *testing.T, kv sorted.KeyValue, fetcher blob.Fetcher) {
 	if err := ix.addVideoTimes(context.Background(), fetcher); err != nil {
 		t.Fatalf("addVideoTimes: %v", err)
 	}
-	if _, err := New(kv); err != nil {
-		t.Fatalf("New after upgrade: %v", err)
-	}
+	upgradeJPEGEXIF(t, kv, fetcher)
 }
 
 // TestAddVideoTimes checks that upgrading a version 11 index to version 12
@@ -91,7 +90,7 @@ func TestAddVideoTimes(t *testing.T) {
 		oldTimes[keyFileTimes.Key(file.BlobRef())] = keyFileTimes.Val(fileTimesValue([]time.Time{f.modTime}))
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "12"
+	want[keySchemaVersion.name] = "13"
 	for k, v := range map[string]string{
 		"exported.MOV":   "2024-05-31T01:48:50Z,2026-10-31T17:28:02Z",
 		"no-modtime.MOV": "2024-05-31T01:48:50Z",

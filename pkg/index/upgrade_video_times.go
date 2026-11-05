@@ -32,10 +32,15 @@ import (
 	"perkeep.org/pkg/sorted"
 )
 
+// videoTimesSchemaVersion is the index schema version that addVideoTimes
+// upgrades version 11 indexes to.
+const videoTimesSchemaVersion = 12
+
 // isVideoTimesUpgrade reports whether an index of schemaVersion can be
-// upgraded to the required version by addVideoTimes, without a reindex.
+// upgraded to the required version by addVideoTimes, and the upgrades
+// after it, without a reindex.
 func isVideoTimesUpgrade(schemaVersion int) bool {
-	return schemaVersion == digestsSchemaVersion && requiredSchemaVersion == 12
+	return schemaVersion == digestsSchemaVersion && isJPEGEXIFUpgrade(videoTimesSchemaVersion)
 }
 
 var errMissingVideoTimes = errors.New("index: missing the video recording times of index schema version 12")
@@ -59,7 +64,7 @@ func (x *Index) addVideoTimes(ctx context.Context, fetcher blob.Fetcher) (err er
 		panic("addVideoTimes should only be used when upgrading from v11 to v12 of the index schema")
 	}
 	start := time.Now()
-	x.logf("upgrading index schema from version %d to %d by adding videos' recording times...", digestsSchemaVersion, requiredSchemaVersion)
+	x.logf("upgrading index schema from version %d to %d by adding videos' recording times...", digestsSchemaVersion, videoTimesSchemaVersion)
 	defer func() {
 		if err != nil {
 			x.logf("adding videos' recording times failed: %v", err)
@@ -151,11 +156,11 @@ func (x *Index) addVideoTimes(ctx context.Context, fetcher blob.Fetcher) (err er
 	if err := commit(); err != nil {
 		return err
 	}
-	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion)); err != nil {
-		return fmt.Errorf("could not write index schema version %d: %w", requiredSchemaVersion, err)
+	if err := x.s.Set(keySchemaVersion.name, fmt.Sprint(videoTimesSchemaVersion)); err != nil {
+		return fmt.Errorf("could not write index schema version %d: %w", videoTimesSchemaVersion, err)
 	}
 	x.logf("upgraded index schema to version %d in %v; %d video files' times changed, %d failed",
-		requiredSchemaVersion, time.Since(start).Round(time.Millisecond), changed.Load(), failed.Load())
+		videoTimesSchemaVersion, time.Since(start).Round(time.Millisecond), changed.Load(), failed.Load())
 	return nil
 }
 

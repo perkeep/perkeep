@@ -36,7 +36,7 @@ import (
 
 	"github.com/bradfitz/resizejpeg"
 	"github.com/nf/cr2"
-	"github.com/rwcarlsen/goexif/exif"
+	"github.com/perkeep/goexif/exif"
 	"go4.org/media/heif"
 	"go4.org/readerutil"
 	"perkeep.org/internal/images/resize"
@@ -547,8 +547,9 @@ func DecodeConfig(r io.Reader) (Config, error) {
 
 	mr = io.MultiReader(bytes.NewReader(buf.Bytes()), r)
 	ex, err := exif.Decode(mr)
-	// trigger a retry when there isn't enough data for reading exif data from a tiff file
-	if exif.IsShortReadTagValueError(err) {
+	// trigger a retry when there isn't enough data for reading exif data from a tiff file,
+	// or for finding a JPEG's exif
+	if exif.IsShortReadTagValueError(err) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return c, io.ErrUnexpectedEOF
 	}
 	if err != nil {

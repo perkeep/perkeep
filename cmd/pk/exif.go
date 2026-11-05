@@ -21,7 +21,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/rwcarlsen/goexif/exif"
+	"github.com/perkeep/goexif/exif"
 )
 
 func showEXIF(file string) {

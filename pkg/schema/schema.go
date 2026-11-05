@@ -43,8 +43,8 @@ import (
 	"perkeep.org/internal/pools"
 	"perkeep.org/pkg/blob"
 
-	"github.com/rwcarlsen/goexif/exif"
-	"github.com/rwcarlsen/goexif/tiff"
+	"github.com/perkeep/goexif/exif"
+	"github.com/perkeep/goexif/tiff"
 	"go4.org/strutil"
 	"go4.org/types"
 )
@@ -1031,7 +1031,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	ex, err := exif.Decode(r)
 	if err != nil {
 		tiffErr = err
-		if exif.IsShortReadTagValueError(err) {
+		if exif.IsShortReadTagValueError(err) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return ct, io.ErrUnexpectedEOF
 		}
 		if exif.IsCriticalError(err) || exif.IsExifError(err) {

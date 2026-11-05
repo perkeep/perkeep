@@ -22,7 +22,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/rwcarlsen/goexif/exif"
+	"github.com/perkeep/goexif/exif"
 	"perkeep.org/internal/media/applemakernote"
 	"perkeep.org/internal/media/avi"
 	"perkeep.org/internal/media/quicktime"

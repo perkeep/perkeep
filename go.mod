@@ -32,10 +32,10 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/pdfcpu/pdfcpu v0.16.2
+	github.com/perkeep/goexif v0.0.0-20261105220536-9c082a381f2f
 	github.com/pkg/sftp v1.13.9
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
-	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	github.com/studio-b12/gowebdav v0.13.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d
 	github.com/tailscale/tailcat v0.7.0

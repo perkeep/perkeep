@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rwcarlsen/goexif/tiff"
+	"github.com/perkeep/goexif/tiff"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/schema"
@@ -145,7 +145,7 @@ func TestAddMediaTags(t *testing.T) {
 		}
 	}
 	want := maps.Clone(mm.kv)
-	want[keySchemaVersion.name] = "12"
+	want[keySchemaVersion.name] = "13"
 
 	// The test needs files with new rows to upgrade: both Apple images
 	// (including the HEIC, with its EXIF item), the videos, and the heix

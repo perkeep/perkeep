@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/bradfitz/resizejpeg"
-	"github.com/rwcarlsen/goexif/exif"
+	"github.com/perkeep/goexif/exif"
 )
 
 const datadir = "testdata"

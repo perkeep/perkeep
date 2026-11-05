@@ -24,7 +24,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/rwcarlsen/goexif/tiff"
+	"github.com/perkeep/goexif/tiff"
 	"perkeep.org/pkg/blob"
 )
 

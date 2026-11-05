@@ -149,6 +149,7 @@ var (
 		"reindex_session_test.go",
 		"sniff_test.go",
 		"upgrade_digests_test.go",
+		"upgrade_jpeg_exif_test.go",
 		"upgrade_media_test.go",
 		"upgrade_video_times_test.go",
 		"util_test.go",
