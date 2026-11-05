@@ -1,0 +1,30 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+    # all PRs on all branches
+name: "ios"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # The app is built with the Xcode 26 SDKs.
+    runs-on: macos-26
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/setup-go
+
+    # Both builds, as each uses its own SDK. Neither needs Apple
+    # credentials: the simulator build is ad-hoc signed, and the device
+    # build is left for dev/iossign to sign.
+    - name: Build for the simulator
+      run: clients/mobile/ios/build.sh sim
+    - name: Build for devices
+      run: clients/mobile/ios/build.sh device
+
+    - uses: ./.github/actions/save-go-cache
