@@ -398,6 +398,9 @@ func TestIntegration(t *testing.T) {
 
 		like := child(root, collLike, "3like00000001")
 		liked := child(root, nodeLinkedPosts, likedPost)
+		if got := liked.Attr(nodeattr.Type); got != nodeTypeLinkedPost {
+			t.Errorf("liked post type = %q; want %q", got, nodeTypeLinkedPost)
+		}
 		if got := like.Attr(nodeattr.CamliContent); got != liked.PermanodeRef().String() {
 			t.Errorf("like content = %q; want %v", got, liked.PermanodeRef())
 		}
@@ -655,5 +658,41 @@ func TestFetchOptions(t *testing.T) {
 	setOptions(true, false)
 	if got := acct.Attr(acctAttrRev); got != rev {
 		t.Errorf("rev after turning off reposts = %q; want %q", got, rev)
+	}
+}
+
+// TestRetypeLinkedPosts tests that others' posts imported with the type of
+// the account's own get nodeTypeLinkedPost.
+func TestRetypeLinkedPosts(t *testing.T) {
+	h := imptest.NewMemoryHost(t, importer.HostConfig{})
+	t.Cleanup(func() { h.Close() })
+	rc, err := importer.CreateAccount(h, "bluesky")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &run{RunContext: rc}
+	cn, err := r.collNode(nodeLinkedPosts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	post, err := cn.ChildPathObject(likedPost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := post.SetAttr(nodeattr.Type, nodeTypePrefix+collPost); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.retypeLinkedPosts(); err != nil {
+		t.Fatal(err)
+	}
+	post, err = rc.Host.ObjectFromRef(post.PermanodeRef())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := post.Attr(nodeattr.Type); got != nodeTypeLinkedPost {
+		t.Errorf("type = %q; want %q", got, nodeTypeLinkedPost)
+	}
+	if got := rc.AccountNode().Attr(acctAttrLinkedPostsTyped); got != "true" {
+		t.Errorf("%s = %q; want true", acctAttrLinkedPostsTyped, got)
 	}
 }
