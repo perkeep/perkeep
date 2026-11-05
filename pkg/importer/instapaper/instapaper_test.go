@@ -160,5 +160,15 @@ func TestIntegrationRun(t *testing.T) {
 		if len(expectedHighlights) != 0 {
 			t.Fatalf("The following entries were expected but not found: %#v", expectedHighlights)
 		}
+
+		// The run's progress bars, which the account's page shows. The
+		// fake API lists the same bookmark in each of the 4 folders.
+		var bars []string
+		for _, st := range rc.Progress().Snapshot() {
+			bars = append(bars, fmt.Sprintf("%s %d/%d skipped %d %v %q", st.Name, st.Done, st.Total, st.Skipped, st.Finished, st.Description))
+		}
+		if got, want := strings.Join(bars, ", "), `bookmarks 4/4 skipped 0 true "4 of 4 folders listed", text 4/4 skipped 0 true ""`; got != want {
+			t.Errorf("progress bars = %q; want %q", got, want)
+		}
 	})
 }
