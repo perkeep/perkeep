@@ -92,7 +92,8 @@ const (
 	appViewHost = "https://public.api.bsky.app"
 
 	importConcurrency = 10
-	hydrateBatchSize  = 25 // max URIs or actors per getPosts or getProfiles call
+	statBatchSize     = 1000 // max repo blocks statted at once
+	hydrateBatchSize  = 25   // max URIs or actors per getPosts or getProfiles call
 )
 
 const (
@@ -492,26 +493,55 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 	bar.SetTotal(int64(len(cids)))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(importConcurrency)
-	for _, c := range cids {
-		if gctx.Err() != nil {
-			break
-		}
-		g.Go(func() error {
+	statErr := func() error {
+		for batch := range slices.Chunk(cids, statBatchSize) {
 			if err := gctx.Err(); err != nil {
 				return err
 			}
-			if fn := testHookPutBlock; fn != nil {
-				fn()
+			// Skip the blocks stored already, as by an earlier run that
+			// stopped before it finished.
+			refs := make([]blob.Ref, len(batch))
+			for i, c := range batch {
+				br, ok := blobRefOfCID(c)
+				if !ok {
+					return fmt.Errorf("block %s isn't sha2-256", c)
+				}
+				refs[i] = br
 			}
-			if err := r.putBlock(gctx, c, blocks[c.KeyString()]); err != nil {
-				return err
+			have, err := blobserver.StatBlobs(gctx, r.Host.Target(), refs)
+			if err != nil {
+				return fmt.Errorf("statting blocks: %w", err)
 			}
-			bar.Add(1)
-			return nil
-		})
-	}
+			for i, c := range batch {
+				if _, ok := have[refs[i]]; ok {
+					bar.Skip(1)
+					continue
+				}
+				if gctx.Err() != nil {
+					break
+				}
+				g.Go(func() error {
+					if err := gctx.Err(); err != nil {
+						return err
+					}
+					if fn := testHookPutBlock; fn != nil {
+						fn()
+					}
+					if err := r.putBlock(gctx, c, blocks[c.KeyString()]); err != nil {
+						return err
+					}
+					bar.Add(1)
+					return nil
+				})
+			}
+		}
+		return nil
+	}()
 	if err := g.Wait(); err != nil {
 		return cid.Undef, nil, nil, nil, fmt.Errorf("storing blocks: %w", err)
+	}
+	if statErr != nil {
+		return cid.Undef, nil, nil, nil, statErr
 	}
 	if err := ctx.Err(); err != nil {
 		return cid.Undef, nil, nil, nil, err
