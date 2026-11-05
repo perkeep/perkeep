@@ -93,7 +93,11 @@
   },
   {
     "Name": "is:like",
-    "Description": "matches liked tweets"
+    "Description": "matches likes (of tweets, Bluesky posts, etc)"
+  },
+  {
+    "Name": "is:repost",
+    "Description": "matches reposts (of Bluesky posts, etc)"
   },
   {
     "Name": "is:checkin",
