@@ -747,7 +747,7 @@ func TestReindex(t *testing.T) {
 		t.Errorf("z: rows whole file parts mismatch;\n got: %q\nwant: %q", gotWholeParts, wantWholeParts)
 	}
 
-	recoMode, err := pt.sto.checkLargeIntegrity()
+	recoMode, err := pt.sto.checkLargeIntegrity(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1515,14 +1515,15 @@ func TestCheckLargeIntegrity(t *testing.T) {
 				}
 				oldWait := largeIntegrityRecheckWait
 				t.Cleanup(func() { largeIntegrityRecheckWait = oldWait })
-				largeIntegrityRecheckWait = func() {
+				largeIntegrityRecheckWait = func(context.Context) error {
 					if tt.packed != "" {
 						(&test.Blob{Contents: tt.packed}).MustUpload(t, large)
 						setRow(tt.packed, "")
 					}
+					return nil
 				}
 				s := &storage{large: large, meta: meta, log: test.NewLogger(t, "blobpacked: ")}
-				mode, err := s.checkLargeIntegrity()
+				mode, err := s.checkLargeIntegrity(t.Context())
 				if mode != tt.wantMode {
 					t.Errorf("mode = %v; want %v", mode, tt.wantMode)
 				}
@@ -1647,7 +1648,7 @@ func TestReindexMissingPart(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if mode, err := s.checkLargeIntegrity(); err != nil || mode != NoRecovery {
+			if mode, err := s.checkLargeIntegrity(t.Context()); err != nil || mode != NoRecovery {
 				t.Errorf("checkLargeIntegrity = %v, %v; want %v, nil", mode, err, NoRecovery)
 			}
 		})
@@ -1822,7 +1823,7 @@ func TestReindexCorruptZip(t *testing.T) {
 		t.Errorf("multi-zip file's first zip: %v", err)
 	}
 
-	if mode, err := s.checkLargeIntegrity(); err != nil || mode != NoRecovery {
+	if mode, err := s.checkLargeIntegrity(t.Context()); err != nil || mode != NoRecovery {
 		t.Errorf("checkLargeIntegrity = %v, %v; want %v, nil", mode, err, NoRecovery)
 	}
 
@@ -1988,4 +1989,48 @@ func TestNewFromConfigHealth(t *testing.T) {
 			})
 		})
 	}
+}
+
+// blockingLister is large storage whose listing blocks until its context is
+// done, as a slow listing of a big remote store would.
+type blockingLister struct {
+	*test.Fetcher
+	listing chan struct{} // closed when ListBlobRefs is called
+}
+
+func (s blockingLister) ListBlobRefs(ctx context.Context, fn func(blob.Ref) error) error {
+	close(s.listing)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// TestCloseStopsIntegrityCheck checks that Close stops the background check
+// of large storage against meta, and waits for it, rather than closing
+// meta under it, and that a check stopped so isn't reported as a failure.
+func TestCloseStopsIntegrityCheck(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mon := health.New()
+		ld := &test.Loader{HealthMonitor: mon}
+		large := blockingLister{new(test.Fetcher), make(chan struct{})}
+		ld.SetStorage("/small/", new(test.Fetcher))
+		ld.SetStorage("/large/", large)
+		sto, err := newFromConfig(ld, jsonconfig.Obj{
+			"smallBlobs": "/small/",
+			"largeBlobs": "/large/",
+			"metaIndex":  map[string]any{"type": "memory"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-large.listing
+		// If Close didn't stop the check, synctest.Test would fail with
+		// its goroutine blocked forever.
+		if err := sto.(*storage).Close(); err != nil {
+			t.Fatal(err)
+		}
+		st := mon.Status()
+		if len(st.Checks) != 1 || st.Checks[0].State == health.StateFailed || st.ReadOnly {
+			t.Errorf("after Close, health = %+v; want its check not failed, and not read-only", st)
+		}
+	})
 }
