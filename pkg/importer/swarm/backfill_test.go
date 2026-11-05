@@ -51,6 +51,7 @@ func (f *fakeFoursquare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Host == "api.foursquare.com" && r.URL.Path == "/v2/"+checkinsAPIPath:
 		var resp checkinsList
+		resp.Response.Checkins.Count = len(f.checkins)
 		if r.FormValue("offset") == "0" {
 			resp.Response.Checkins.Items = f.checkins
 		}
@@ -123,6 +124,12 @@ func TestPaidAPIBackfill(t *testing.T) {
 	if got := f.lookups(); len(got) != 0 {
 		t.Fatalf("run without the paid API looked up photos: %v", got)
 	}
+	// The run's progress bars, which the account's page shows: its
+	// checkins, of the API's count, and no photos without the paid API.
+	bars := rc.Progress().Snapshot()
+	if len(bars) != 1 || bars[0].Name != "checkins" || !bars[0].Finished || bars[0].Done != 3 || bars[0].Total != 3 || bars[0].Skipped != 0 {
+		t.Errorf("progress bars: %+v", bars)
+	}
 
 	// Turn on the paid API on the account's page.
 	req := httptest.NewRequest("POST", "/importer/swarm/"+acct.PermanodeRef().String(),
@@ -144,6 +151,11 @@ func TestPaidAPIBackfill(t *testing.T) {
 	run()
 	if got, want := f.lookups(), map[string]int{"venue0": 1, "venue1": 1}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("paid run's photo lookups = %v; want %v (only the recent checkins' venues)", got, want)
+	}
+	// The paid run's photos bar. The host gives each run its own bars,
+	// but these runs share rc's, after the first run's checkins bar.
+	if bars := rc.Progress().Snapshot(); len(bars) != 2 || bars[1].Name != "photos" || !bars[1].Finished || bars[1].Done != 2 {
+		t.Errorf("paid run's progress bars: %+v", bars)
 	}
 	for _, v := range []string{"venue0", "venue1"} {
 		photos, err := imptest.GetRequiredChildPathObj(placeNode(t, rc, v), "photos")

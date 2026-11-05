@@ -34,6 +34,7 @@ type userInfo struct {
 type checkinsList struct {
 	Response struct {
 		Checkins struct {
+			Count int // of all the user's checkins
 			Items []*checkinItem
 		}
 	}

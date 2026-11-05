@@ -37,6 +37,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 
@@ -153,6 +154,7 @@ type run struct {
 	ignoreCreatedAtBeforeSec int64 // checkItem.CreatedAt less than this are already imported
 	lastCompletedVersion     string
 	forceFullRun             bool
+	photoBar                 *progress.Bar // venue photos imported, or nil without the paid API
 
 	mu            sync.Mutex // guards anyErr
 	anyErr        bool
@@ -258,6 +260,7 @@ func (r *run) importCheckins() error {
 
 	if r.RunContext.UsePaidAPI() {
 		r.Logf("importing photos will be done via paid API")
+		r.photoBar = r.Progress().Bar("photos", "Importing venue photos")
 	} else {
 		r.Logf("will skip importing photos via paid API")
 	}
@@ -294,12 +297,17 @@ func (r *run) importCheckins() error {
 		}
 	}
 	backfilled := 0
+	bar := r.Progress().Bar("checkins", "Importing check-ins")
+	seen := 0 // checkins the bar has counted
 	for continueRequests {
 		resp := checkinsList{}
 		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(checkinsRequestLimit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
 		isFirstPage := offset == 0
+		if n := resp.Response.Checkins.Count; n > 0 {
+			bar.SetTotal(int64(n))
+		}
 
 		items := resp.Response.Checkins.Items
 		itemCount := len(items)
@@ -319,6 +327,7 @@ func (r *run) importCheckins() error {
 		sawOldItem := false
 		sawNewItem := false
 		for i, checkin := range items {
+			seen++
 			if i == 0 && isFirstPage {
 				r.mu.Lock()
 				r.highWaterItem = checkin
@@ -327,6 +336,7 @@ func (r *run) importCheckins() error {
 			if checkin.CreatedAt < r.ignoreCreatedAtBeforeSec {
 				sawOldItem = true
 				if !r.forceFullRun {
+					bar.Skip(1)
 					// An earlier run without the paid API imported
 					// the checkin but not its venue's photos, so
 					// get those of recent checkins' venues that
@@ -348,18 +358,21 @@ func (r *run) importCheckins() error {
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
 				r.errorf("error importing place %s: %v", checkin.Venue.Id, err)
+				bar.Add(1)
 				continue
 			}
 
 			companionRefs, err := r.importCompanions(pplNode, checkin.With)
 			if err != nil {
 				r.errorf("error importing companions for checkin %s: %v", checkin.Id, err)
+				bar.Add(1)
 				continue
 			}
 
 			_, dup, err := r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef(), companionRefs)
 			if err != nil {
 				r.errorf("error importing checkin %s: %v", checkin.Id, err)
+				bar.Add(1)
 				continue
 			}
 
@@ -367,16 +380,26 @@ func (r *run) importCheckins() error {
 			if dup {
 				sawOldItem = true
 				r.Logf("checkin %s from %v already imported; skipping", checkin.Id, checkinTime.Format(time.RFC3339))
+				bar.Skip(1)
 			} else {
 				sawNewItem = true
+				bar.Add(1)
 			}
 
 			importPhotos(checkin, placeNode, dup)
 		}
 		if sawOldItem && !sawNewItem && r.lastCompletedVersion == runCompleteVersion && !r.forceFullRun {
 			r.Logf("all checkins in this page are old; stopping import")
+			// The rest were imported by earlier runs.
+			if total := bar.Status().Total; total > int64(seen) {
+				bar.Skip(total - int64(seen))
+			}
 			break
 		}
+	}
+	bar.Finish()
+	if r.photoBar != nil && !sawPaidErr {
+		r.photoBar.Finish()
 	}
 
 	return nil
@@ -445,6 +468,8 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 			}
 			if err := photosNode.SetAttr(attr, ref); err != nil {
 				r.errorf("Error adding venue photo: %#v", err)
+			} else if r.photoBar != nil {
+				r.photoBar.Add(1)
 			}
 		}
 	}
