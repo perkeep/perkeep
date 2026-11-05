@@ -18,8 +18,54 @@ package flickr
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
 	"testing"
+
+	"perkeep.org/pkg/importer"
+	imptest "perkeep.org/pkg/importer/test"
 )
+
+// TestRunProgress tests a run's progress bars, on the fake API of
+// MakeTestData: of its 5 sets, then its 15 photos, all fetched.
+func TestRunProgress(t *testing.T) {
+	h := imptest.NewMemoryHost(t, importer.HostConfig{
+		HTTPClient:   &http.Client{Transport: imp{}.MakeTestData()},
+		ClientId:     map[string]string{"flickr": "fakeClientId"},
+		ClientSecret: map[string]string{"flickr": "fakeClientSecret"},
+	})
+	t.Cleanup(func() { h.Close() })
+	rc, err := importer.CreateAccount(h, "flickr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := (imp{}).SetTestAccount(rc.AccountNode()); err != nil {
+		t.Fatal(err)
+	}
+	if err := (imp{}).Run(rc); err != nil {
+		t.Fatal(err)
+	}
+	var bars []string
+	for _, st := range rc.Progress().Snapshot() {
+		bars = append(bars, fmt.Sprintf("%s %d/%d skipped %d %v", st.Name, st.Done, st.Total, st.Skipped, st.Finished))
+	}
+	if got, want := strings.Join(bars, ", "), "sets 5/5 skipped 0 true, photos 15/15 skipped 0 true"; got != want {
+		t.Errorf("progress bars = %q; want %q", got, want)
+	}
+
+	// Run again: the photos are unchanged, so they're skipped. The host
+	// gives each run its own bars, but this run is on rc's, so it counts
+	// on the first run's photos bar.
+	if err := (imp{}).Run(rc); err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range rc.Progress().Snapshot() {
+		if st.Name == "photos" && st.Skipped != 15 {
+			t.Errorf("second run's skipped photos = %d; want 15", st.Skipped)
+		}
+	}
+}
 
 func TestParseJSONFloat(t *testing.T) {
 	var ps photosSearch
