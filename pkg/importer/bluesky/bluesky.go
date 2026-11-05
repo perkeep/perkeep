@@ -77,6 +77,10 @@ const (
 	acctAttrFetchLiked    = "fetchLikedPosts"
 	acctAttrFetchReposted = "fetchRepostedPosts"
 
+	// acctAttrLinkedPostsTyped is "true" once others' posts imported
+	// before they had nodeTypeLinkedPost have it.
+	acctAttrLinkedPostsTyped = "linkedPostsTyped"
+
 	// Attributes on imported nodes.
 	attrURI        = "atURI"         // at:// URI of the record
 	attrCID        = "atprotoCID"    // CID of the record (or blob); set last, so it marks the node as complete
@@ -90,6 +94,10 @@ const (
 	attrLinkTitle  = "linkTitle"
 	attrBanner     = "banner"
 	nodeTypePrefix = "bluesky:"
+
+	// nodeTypeLinkedPost is the camliNodeType of others' posts, under
+	// nodeLinkedPosts, unlike the account's own, of their collection.
+	nodeTypeLinkedPost = nodeTypePrefix + "linkedPost"
 
 	// Children of the root node, in addition to one per collection NSID.
 	nodeLinkedPosts = "linkedPosts" // posts by others that were liked or reposted, keyed by at:// URI
@@ -295,7 +303,65 @@ func (im *imp) Run(rctx *importer.RunContext) error {
 		fetchLiked:    acct.Attr(acctAttrFetchLiked) != "false",
 		fetchReposted: acct.Attr(acctAttrFetchReposted) != "false",
 	}
+	if err := r.retypeLinkedPosts(); err != nil {
+		return err
+	}
 	return r.importRepo(acct.Attr(acctAttrRev))
+}
+
+// retypeLinkedPosts gives others' posts, under nodeLinkedPosts, imported
+// with the camliNodeType of the account's own posts, nodeTypeLinkedPost,
+// once per account.
+func (r *run) retypeLinkedPosts() error {
+	acct := r.AccountNode()
+	if acct.Attr(acctAttrLinkedPostsTyped) == "true" {
+		return nil
+	}
+	cn, err := r.collNode(nodeLinkedPosts)
+	if err != nil {
+		return err
+	}
+	var refs []blob.Ref
+	cn.ForeachAttr(func(k, v string) {
+		if strings.HasPrefix(k, "camliPath:") {
+			if br, ok := blob.Parse(v); ok {
+				refs = append(refs, br)
+			}
+		}
+	})
+	if len(refs) > 0 {
+		r.Logf("updating the type of %d liked or reposted posts", len(refs))
+		bar := r.Progress().Bar("retype", "Updating liked and reposted posts")
+		bar.SetTotal(int64(len(refs)))
+		g, gctx := errgroup.WithContext(r.Context())
+		g.SetLimit(importConcurrency)
+		for _, br := range refs {
+			if gctx.Err() != nil {
+				break
+			}
+			g.Go(func() error {
+				n, err := r.Host.ObjectFromRef(br)
+				if err != nil {
+					return fmt.Errorf("bluesky: retyping post %v: %w", br, err)
+				}
+				if n.Attr(nodeattr.Type) == nodeTypePrefix+collPost {
+					if err := n.SetAttr(nodeattr.Type, nodeTypeLinkedPost); err != nil {
+						return err
+					}
+				}
+				bar.Add(1)
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			return err
+		}
+		if err := r.Context().Err(); err != nil {
+			return err
+		}
+		bar.Finish()
+	}
+	return acct.SetAttr(acctAttrLinkedPostsTyped, "true")
 }
 
 func newClient(rctx *importer.RunContext, host string) *atclient.APIClient {
@@ -1078,8 +1144,12 @@ func (r *run) importPostView(pv *bsky.FeedDefs_PostView, refs []pendingRef) erro
 		if err != nil {
 			return err
 		}
+		typ := nodeTypeLinkedPost
+		if did == r.did {
+			typ = nodeTypePrefix + collPost
+		}
 		attrs := []string{
-			nodeattr.Type, nodeTypePrefix + collPost,
+			nodeattr.Type, typ,
 			attrURI, pv.Uri,
 			nodeattr.URL, fmt.Sprintf("https://bsky.app/profile/%s/post/%s", did, uri.RecordKey()),
 		}
