@@ -33,6 +33,7 @@ import (
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 
@@ -251,6 +252,23 @@ type run struct {
 	cl          *mastodon.Client
 
 	userAddress string // address in the form of user@example.com, used in logs
+
+	// statusBar counts the statuses imported, or skipped, as imported
+	// already, by an incremental run. The account's statuses_count
+	// isn't its total, as it counts reblogs, which aren't imported, and
+	// an incremental run stops at the first it has.
+	statusBar *progress.Bar
+
+	mediaOnce sync.Once
+	mediaBar  *progress.Bar // of media attachments fetched; made with the first
+}
+
+// media returns the bar of media attachments fetched.
+func (r *run) media() *progress.Bar {
+	r.mediaOnce.Do(func() {
+		r.mediaBar = r.Progress().Bar("media", "Fetching media attachments")
+	})
+	return r.mediaBar
 }
 
 var fullImportOverride, _ = strconv.ParseBool(os.Getenv("PERKEEP_MASTODON_FULL_IMPORT"))
@@ -279,8 +297,16 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return errors.New("missing user ID")
 	}
 
+	r.statusBar = r.Progress().Bar("statuses", "Importing statuses")
 	if err := r.importStatuses(userID); err != nil {
 		return err
+	}
+	if err := r.Context().Err(); err != nil {
+		return err
+	}
+	r.statusBar.Finish()
+	if r.mediaBar != nil {
+		r.mediaBar.Finish()
 	}
 
 	if err := acct.SetAttr(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
@@ -401,6 +427,7 @@ func (r *run) importStatus(listNode *importer.Object, st *mastodon.Status) (bool
 	}
 
 	if r.incremental && statusNode.Attr(attrURI) == st.URI {
+		r.statusBar.Skip(1)
 		return true, nil
 	}
 
@@ -454,12 +481,16 @@ func (r *run) importStatus(listNode *importer.Object, st *mastodon.Status) (bool
 		}
 
 		r.Logf("adding attachment %s to permanode %s for status %s", fileRef.String(), statusNode.PermanodeRef(), st.URI)
+		r.media().Add(1)
 
 	}
 
 	changed, err := statusNode.SetAttrs2(attrs...)
-	if err == nil && changed {
-		r.Logf("Imported status %s to %s", st.URI, statusNode.PermanodeRef())
+	if err == nil {
+		r.statusBar.Add(1)
+		if changed {
+			r.Logf("Imported status %s to %s", st.URI, statusNode.PermanodeRef())
+		}
 	}
 
 	return !changed, err
