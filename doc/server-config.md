@@ -181,6 +181,76 @@ For now, if more than one storage option is set, one of them is the primary
 storage and the other ones are set up as mirrors. The precedence order is the
 same as the order they are listed above.
 
+### Named storage and replicas {#storage}
+
+`storage` defines more blob storages, by name, besides those above, such as
+a replica on another disk or in another S3 bucket. `replicateTo` lists the
+ones to replicate the primary storage to:
+
+```json
+{
+    "blobPath": "/mnt/nvme/perkeep",
+    "packRelated": true,
+    "storage": {
+        "slow-nfs": {
+            "type": "blobpacked",
+            "dir": "/mnt/nas/perkeep"
+        },
+        "offsite": {
+            "type": "s3",
+            "bucket": "my-bucket/perkeep",
+            "accessKey": "@/etc/perkeep/s3-access-key",
+            "secretKey": "@/etc/perkeep/s3-secret-key"
+        }
+    },
+    "replicateTo": ["slow-nfs", "offsite"]
+}
+```
+
+Each storage has a `type`, and the fields of its type; others are an error.
+The local types are those of the layouts that `blobPath` can have, whose
+only field is `dir`, an absolute path:
+
+* `blobpacked`: as `blobPath` with `packRelated`: loose blobs in `dir`, and
+  packed ones in `dir/packed`, whose index is `dir/packed/packindex.<type>`,
+  of the type of the server's file-based indexes, such as `sqlite`. A copy
+  of a `packRelated` `blobPath` is such a storage, replicated to already.
+* `filesystem`: loose blobs in `dir`, as `blobPath` alone.
+* `diskpacked`: as `blobPath` with `packBlobs`.
+
+Their directories must exist already, so that a storage on a disk that isn't
+mounted fails when the server starts, rather than filling its mount point;
+for `blobpacked`, so must `dir/packed`. They mustn't be, or be within or
+contain, `blobPath` or each other.
+
+The `s3` type is an S3 bucket, or one of another service with S3's API, as
+for the `s3` option above. Its fields are:
+
+* `bucket`: the bucket, optionally with a directory in it, as `my-bucket/dir`.
+* `accessKey` and `secretKey`: the credentials. Either may be `@path`, for
+  one read from the file at path, as with other credentials.
+* `hostname` (optional): the hostname of a service other than AWS.
+* `packed` (optional): whether the storage is blobpacked, as the `s3`
+  option is with `packRelated`: loose blobs under `loose/` and packed ones
+  under `packed/` in the bucket, whose index is `packindex-<name>.<type>`,
+  beside the server's index file, or else in `blobPath`. It defaults to
+  `packRelated`, unless `packRelatedExcludeTypes` has `s3`.
+
+Each storage is served at `/sto-<name>/` (and, for `blobpacked` and packed
+`s3` storages, its parts at `/sto-<name>-loose/` and `/sto-<name>-packed/`),
+so names are lowercase letters, digits and hyphens, and mustn't be those of
+the storages that the server makes itself, such as `s3`, or make prefixes
+that other handlers have. Each storage in `replicateTo` is replicated to
+asynchronously, as an `s3` mirror is, by a sync handler at
+`/sync-to-<name>/`, whose queue is in `blobPath`, so a replica that's slow
+or unavailable delays only itself.
+
+Every storage must be in `replicateTo`, or in `unwiredStorage`, which lists
+storages that nothing uses: they're served at `/sto-<name>/`, but nothing
+reads from, writes to, or syncs to them, as for a storage being set up. A
+storage in neither is an error, so that one defined but forgotten isn't
+silently unused.
+
 Others aren't yet supported by the simple config mode. Patches to
 [pkg/serverinit](https://perkeep.org/pkg/serverinit/genconfig.go) welcome.
 

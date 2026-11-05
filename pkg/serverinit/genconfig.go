@@ -1211,6 +1211,11 @@ func (b *lowBuilder) build() (*Config, error) {
 			return nil, err
 		}
 	}
+	// Last, so that its handlers' prefixes can be checked against all of
+	// the others'.
+	if err := b.addStorage(); err != nil {
+		return nil, err
+	}
 
 	return &Config{jconf: b.low}, nil
 }

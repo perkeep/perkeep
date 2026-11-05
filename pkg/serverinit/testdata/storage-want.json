@@ -1,0 +1,273 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
+				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs-loose/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs"
+			}
+		},
+		"/bs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/packed"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packed/packindex.sqlite",
+					"type": "sqlite"
+				},
+				"smallBlobs": "/bs-loose/"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {
+				"cacheRoot": "/tmp/blobs/importer-cache",
+				"cacheType": "sqlite",
+				"secretRoot": "/secrets/"
+			}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"file": "/tmp/blobs/index.sqlite",
+					"type": "sqlite"
+				}
+			}
+		},
+		"/search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "2931A67C26F5ABDA",
+				"publicKeyDest": "/bs/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sto-minio/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key3",
+				"aws_secret_access_key": "secret3",
+				"bucket": "pk",
+				"hostname": "minio.example.com"
+			}
+		},
+		"/sto-offsite-loose/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key2",
+				"aws_secret_access_key": "secret2",
+				"bucket": "offsite/perkeep/loose"
+			}
+		},
+		"/sto-offsite-packed/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key2",
+				"aws_secret_access_key": "secret2",
+				"bucket": "offsite/perkeep/packed"
+			}
+		},
+		"/sto-offsite/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/sto-offsite-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packindex-offsite.sqlite",
+					"type": "sqlite"
+				},
+				"smallBlobs": "/sto-offsite-loose/"
+			}
+		},
+		"/sto-old/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/mnt/old-blobs"
+			}
+		},
+		"/sto-packs/": {
+			"handler": "storage-diskpacked",
+			"handlerArgs": {
+				"metaIndex": {
+					"file": "/mnt/packs/diskpacked-index.sqlite",
+					"type": "sqlite"
+				},
+				"path": "/mnt/packs"
+			}
+		},
+		"/sto-s3-bs-loose/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key",
+				"aws_secret_access_key": "secret",
+				"bucket": "bucket/loose"
+			}
+		},
+		"/sto-s3-bs-packed/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key",
+				"aws_secret_access_key": "secret",
+				"bucket": "bucket/packed"
+			}
+		},
+		"/sto-s3/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/sto-s3-bs-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packindex.sqlite",
+					"type": "sqlite"
+				},
+				"smallBlobs": "/sto-s3-bs-loose/"
+			}
+		},
+		"/sto-slow-nfs-loose/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/mnt/nfs"
+			}
+		},
+		"/sto-slow-nfs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/mnt/nfs/packed"
+			}
+		},
+		"/sto-slow-nfs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/sto-slow-nfs-packed/",
+				"metaIndex": {
+					"file": "/mnt/nfs/packed/packindex.sqlite",
+					"type": "sqlite"
+				},
+				"smallBlobs": "/sto-slow-nfs-loose/"
+			}
+		},
+		"/sync-to-minio/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-minio-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/sto-minio/"
+			}
+		},
+		"/sync-to-offsite/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-offsite-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/sto-offsite/"
+			}
+		},
+		"/sync-to-packs/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-packs-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/sto-packs/"
+			}
+		},
+		"/sync-to-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-s3-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/sto-s3/"
+			}
+		},
+		"/sync-to-slow-nfs/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-slow-nfs-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/sto-slow-nfs/"
+			}
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-index-queue.sqlite",
+					"type": "sqlite"
+				},
+				"to": "/index/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"scaledImage": {
+					"file": "/tmp/blobs/thumbmeta.sqlite",
+					"type": "sqlite"
+				}
+			}
+		}
+	}
+}
