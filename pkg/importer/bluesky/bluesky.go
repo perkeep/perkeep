@@ -550,6 +550,10 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 		blocks[blk.Cid().KeyString()] = blk.RawData()
 		cids = append(cids, blk.Cid())
 	}
+	commitBlk, ok := blocks[commitCID.KeyString()]
+	if !ok {
+		return commitCID, nil, nil, nil, errNoCommitBlock
+	}
 	// Read all the blocks, from memory, before storing any, so the bar's
 	// total is known from the start.
 	bar := r.Progress().Bar("blocks", "Storing the repo's blocks")
@@ -611,10 +615,6 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 	}
 	bar.Finish()
 
-	commitBlk, ok := blocks[commitCID.KeyString()]
-	if !ok {
-		return commitCID, nil, nil, nil, errNoCommitBlock
-	}
 	var commit repo.Commit
 	if err := commit.UnmarshalCBOR(bytes.NewReader(commitBlk)); err != nil {
 		return cid.Undef, nil, nil, nil, fmt.Errorf("parsing commit: %w", err)
@@ -1003,43 +1003,56 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 	}
 	bar := r.Progress().Bar("posts", title)
 	bar.SetTotal(int64(len(uris)))
-	for batch := range slices.Chunk(uris, hydrateBatchSize) {
-		if err := r.Context().Err(); err != nil {
-			return err
-		}
-		out, err := bsky.FeedGetPosts(r.Context(), r.appView, batch)
-		if err != nil {
-			return fmt.Errorf("bluesky: getPosts: %w", err)
-		}
-		found := map[string]bool{}
-		g, _ := errgroup.WithContext(r.Context())
-		g.SetLimit(importConcurrency)
-		for _, pv := range out.Posts {
-			if pv == nil || posts[pv.Uri] == nil {
-				continue
+	// The posts of each batch are imported while the next batches are
+	// fetched, so a slow post, such as one with big media, doesn't hold
+	// up the rest.
+	g, gctx := errgroup.WithContext(r.Context())
+	g.SetLimit(importConcurrency)
+	fetchErr := func() error {
+		for batch := range slices.Chunk(uris, hydrateBatchSize) {
+			if err := gctx.Err(); err != nil {
+				return err
 			}
-			found[pv.Uri] = true
-			g.Go(func() error {
-				if err := r.importPostView(pv, posts[pv.Uri]); err != nil {
-					return fmt.Errorf("bluesky: importing %s: %w", pv.Uri, err)
+			out, err := bsky.FeedGetPosts(gctx, r.appView, batch)
+			if err != nil {
+				return fmt.Errorf("bluesky: getPosts: %w", err)
+			}
+			found := map[string]bool{}
+			for _, pv := range out.Posts {
+				if pv == nil || posts[pv.Uri] == nil || found[pv.Uri] {
+					continue
 				}
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return err
-		}
-		for _, uri := range batch {
-			if !found[uri] {
-				// Deleted, or its author is gone or private. The like
-				// or repost node still has the subject URI.
-				r.Logf("post %s not found", uri)
-				if err := markDone(posts[uri]); err != nil {
-					return err
+				found[pv.Uri] = true
+				g.Go(func() error {
+					if err := r.importPostView(pv, posts[pv.Uri]); err != nil {
+						return fmt.Errorf("bluesky: importing %s: %w", pv.Uri, err)
+					}
+					bar.Add(1)
+					return nil
+				})
+			}
+			for _, uri := range batch {
+				if !found[uri] {
+					// Deleted, or its author is gone or private. The like
+					// or repost node still has the subject URI.
+					r.Logf("post %s not found", uri)
+					if err := markDone(posts[uri]); err != nil {
+						return err
+					}
+					bar.Add(1)
 				}
 			}
 		}
-		bar.Add(int64(len(batch)))
+		return nil
+	}()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	if fetchErr != nil {
+		return fetchErr
+	}
+	if err := r.Context().Err(); err != nil {
+		return err
 	}
 	bar.Finish()
 	return nil
@@ -1141,41 +1154,53 @@ func (r *run) hydrateProfiles(profiles map[string][]pendingRef) error {
 	}
 	bar := r.Progress().Bar("profiles", "Fetching followed profiles")
 	bar.SetTotal(int64(len(dids)))
-	for batch := range slices.Chunk(dids, hydrateBatchSize) {
-		if err := r.Context().Err(); err != nil {
-			return err
-		}
-		out, err := bsky.ActorGetProfiles(r.Context(), r.appView, batch)
-		if err != nil {
-			return fmt.Errorf("bluesky: getProfiles: %w", err)
-		}
-		found := map[string]bool{}
-		g, _ := errgroup.WithContext(r.Context())
-		g.SetLimit(importConcurrency)
-		for _, p := range out.Profiles {
-			if p == nil || profiles[p.Did] == nil {
-				continue
+	// As in hydratePosts, the profiles of each batch are imported while
+	// the next batches are fetched.
+	g, gctx := errgroup.WithContext(r.Context())
+	g.SetLimit(importConcurrency)
+	fetchErr := func() error {
+		for batch := range slices.Chunk(dids, hydrateBatchSize) {
+			if err := gctx.Err(); err != nil {
+				return err
 			}
-			found[p.Did] = true
-			g.Go(func() error {
-				if err := r.importProfileView(p, profiles[p.Did]); err != nil {
-					return fmt.Errorf("bluesky: importing profile %s: %w", p.Did, err)
+			out, err := bsky.ActorGetProfiles(gctx, r.appView, batch)
+			if err != nil {
+				return fmt.Errorf("bluesky: getProfiles: %w", err)
+			}
+			found := map[string]bool{}
+			for _, p := range out.Profiles {
+				if p == nil || profiles[p.Did] == nil || found[p.Did] {
+					continue
 				}
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return err
-		}
-		for _, did := range batch {
-			if !found[did] {
-				r.Logf("profile %s not found", did)
-				if err := markDone(profiles[did]); err != nil {
-					return err
+				found[p.Did] = true
+				g.Go(func() error {
+					if err := r.importProfileView(p, profiles[p.Did]); err != nil {
+						return fmt.Errorf("bluesky: importing profile %s: %w", p.Did, err)
+					}
+					bar.Add(1)
+					return nil
+				})
+			}
+			for _, did := range batch {
+				if !found[did] {
+					r.Logf("profile %s not found", did)
+					if err := markDone(profiles[did]); err != nil {
+						return err
+					}
+					bar.Add(1)
 				}
 			}
 		}
-		bar.Add(int64(len(batch)))
+		return nil
+	}()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	if fetchErr != nil {
+		return fetchErr
+	}
+	if err := r.Context().Err(); err != nil {
+		return err
 	}
 	bar.Finish()
 	return nil
