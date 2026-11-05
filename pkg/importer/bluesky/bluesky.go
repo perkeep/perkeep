@@ -405,6 +405,8 @@ func (r *run) importRepo(since string) error {
 		posts:    map[string][]pendingRef{},
 		profiles: map[string][]pendingRef{},
 	}
+	bar := r.Progress().Bar("records", "Importing records")
+	bar.SetTotal(int64(len(recs)))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(importConcurrency)
 	for _, rec := range recs {
@@ -412,8 +414,16 @@ func (r *run) importRepo(since string) error {
 			break
 		}
 		g.Go(func() error {
-			if err := r.importRecord(rec, h); err != nil {
+			imported, err := r.importRecord(rec, h)
+			if err != nil {
 				return fmt.Errorf("bluesky: importing %s: %w", rec.uri(r.did), err)
+			}
+			if imported {
+				bar.Add(1)
+			} else {
+				// Imported already, by an earlier run, in next to no
+				// time: not work for the bar's estimate of the time left.
+				bar.Skip(1)
 			}
 			return nil
 		})
@@ -424,6 +434,7 @@ func (r *run) importRepo(since string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	bar.Finish()
 	if err := r.hydratePosts(h.posts); err != nil {
 		return err
 	}
@@ -457,8 +468,7 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 
 	bs := repo.NewTinyBlockstore()
 	blocks := map[string][]byte{}
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(importConcurrency)
+	var cids []cid.Cid // of blocks, in the CAR's order
 	for {
 		blk, err := cr.Next()
 		if err == io.EOF {
@@ -471,13 +481,27 @@ func (r *run) loadCAR(carBytes []byte) (cid.Cid, *repo.Commit, *mst.Tree, map[st
 			return cid.Undef, nil, nil, nil, err
 		}
 		blocks[blk.Cid().KeyString()] = blk.RawData()
+		cids = append(cids, blk.Cid())
+	}
+	// Read all the blocks, from memory, before storing any, so the bar's
+	// total is known from the start.
+	bar := r.Progress().Bar("blocks", "Storing the repo's blocks")
+	bar.SetTotal(int64(len(cids)))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(importConcurrency)
+	for _, c := range cids {
 		g.Go(func() error {
-			return r.putBlock(gctx, blk.Cid(), blk.RawData())
+			if err := r.putBlock(gctx, c, blocks[c.KeyString()]); err != nil {
+				return err
+			}
+			bar.Add(1)
+			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return cid.Undef, nil, nil, nil, fmt.Errorf("storing blocks: %w", err)
 	}
+	bar.Finish()
 
 	commitBlk, ok := blocks[commitCID.KeyString()]
 	if !ok {
@@ -547,17 +571,17 @@ func (h *hydrator) addProfile(did string, p pendingRef) {
 }
 
 // importRecord imports one record from the account's repo, unless it was
-// already imported.
-func (r *run) importRecord(rec repoRecord, h *hydrator) error {
+// already imported, and reports whether it imported it.
+func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err error) {
 	if err := r.Context().Err(); err != nil {
-		return err
+		return false, err
 	}
 	n, err := r.recordNode(rec.path)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if n.Attr(attrCID) == rec.cid.String() {
-		return nil
+		return false, nil
 	}
 	recRef, _ := blobRefOfCID(rec.cid)
 	attrs := []string{
@@ -593,18 +617,18 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) error {
 		// TODO: titles, dates and media for more record types.
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	attrs = append(attrs, more...)
 
 	if !slices.Contains(attrs, nodeattr.CamliContent) {
 		obj, err := atdata.UnmarshalCBOR(rec.data)
 		if err != nil {
-			return fmt.Errorf("decoding record: %w", err)
+			return false, fmt.Errorf("decoding record: %w", err)
 		}
 		ref, err := r.writeJSON(obj)
 		if err != nil {
-			return err
+			return false, err
 		}
 		attrs = append(attrs, nodeattr.CamliContent, ref.String())
 	}
@@ -614,7 +638,7 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) error {
 	if !pending {
 		attrs = append(attrs, attrCID, rec.cid.String())
 	}
-	return n.SetAttrs(attrs...)
+	return true, n.SetAttrs(attrs...)
 }
 
 func collectionTitle(coll string) string {
@@ -854,6 +878,11 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 	}
 	slices.Sort(uris)
 	r.Logf("fetching %d liked or reposted posts", len(uris))
+	if len(uris) == 0 {
+		return nil
+	}
+	bar := r.Progress().Bar("posts", "Fetching liked and reposted posts")
+	bar.SetTotal(int64(len(uris)))
 	for batch := range slices.Chunk(uris, hydrateBatchSize) {
 		if err := r.Context().Err(); err != nil {
 			return err
@@ -890,7 +919,9 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 				}
 			}
 		}
+		bar.Add(int64(len(batch)))
 	}
+	bar.Finish()
 	return nil
 }
 
@@ -985,6 +1016,11 @@ func (r *run) hydrateProfiles(profiles map[string][]pendingRef) error {
 	}
 	slices.Sort(dids)
 	r.Logf("fetching %d followed profiles", len(dids))
+	if len(dids) == 0 {
+		return nil
+	}
+	bar := r.Progress().Bar("profiles", "Fetching followed profiles")
+	bar.SetTotal(int64(len(dids)))
 	for batch := range slices.Chunk(dids, hydrateBatchSize) {
 		if err := r.Context().Err(); err != nil {
 			return err
@@ -1019,7 +1055,9 @@ func (r *run) hydrateProfiles(profiles map[string][]pendingRef) error {
 				}
 			}
 		}
+		bar.Add(int64(len(batch)))
 	}
+	bar.Finish()
 	return nil
 }
 
