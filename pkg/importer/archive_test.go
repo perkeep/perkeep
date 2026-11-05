@@ -48,8 +48,15 @@ const archiveTestName = "archive-test"
 type archiveTestImporter struct {
 	Importer
 	run       func(*RunContext, *Archive) error
-	calls     atomic.Int32
+	calls     atomic.Int32 // of RunArchive
+	apiRuns   atomic.Int32 // of Run
 	inspected func()
+}
+
+// Run is the importer's run of its API, as it isn't ArchiveOnly.
+func (im *archiveTestImporter) Run(*RunContext) error {
+	im.apiRuns.Add(1)
+	return nil
 }
 
 func (im *archiveTestImporter) InspectArchive(ctx context.Context, a *Archive) (camtypes.ArchiveIdentity, error) {
@@ -305,6 +312,11 @@ func TestArchiveAccountMatching(t *testing.T) {
 		{name: "filename cannot override unique", id: camtypes.ArchiveIdentity{UserName: "alice", FilenameUserID: "2"}, accounts: []*importerAcct{a, b}, want: a},
 		{name: "unmatched filename ambiguity", id: camtypes.ArchiveIdentity{UserName: "alice", Email: "bob@example.test", FilenameUserID: "3"}, accounts: []*importerAcct{a, b}, conflict: true},
 		{name: "duplicate IDs ambiguous", id: camtypes.ArchiveIdentity{UserName: "alice", Email: "bob@example.test", FilenameUserID: "1"}, accounts: []*importerAcct{a, account("c", "bob", "bob@example.test", "1")}, conflict: true},
+		{name: "user ID over username", id: camtypes.ArchiveIdentity{UserID: "2", UserName: "alice"}, accounts: []*importerAcct{a, b}, want: b},
+		{name: "user ID alone", id: camtypes.ArchiveIdentity{UserID: "1"}, accounts: []*importerAcct{a, b}, want: a},
+		{name: "another user ID's username", id: camtypes.ArchiveIdentity{UserID: "9", UserName: "alice"}, accounts: []*importerAcct{a, b}},
+		{name: "username of account without user ID", id: camtypes.ArchiveIdentity{UserID: "9", UserName: "bob"}, accounts: []*importerAcct{a, advisory}, want: advisory},
+		{name: "duplicate user IDs ambiguous", id: camtypes.ArchiveIdentity{UserID: "1"}, accounts: []*importerAcct{a, account("c", "carol", "", "1")}, conflict: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -318,6 +330,43 @@ func TestArchiveAccountMatching(t *testing.T) {
 		if _, err := normalizeArchiveIdentity(id); err == nil {
 			t.Errorf("accepted invalid identity %+v", id)
 		}
+	}
+}
+
+// TestArchiveOfAPIImporter tests an archive of an importer that also
+// imports from its API: it's of the account of its user ID, whose
+// identity from the API it only fills in, and the account's later runs
+// are of the API, not the archive again.
+func TestArchiveOfAPIImporter(t *testing.T) {
+	h, im, target := archiveTestHost(t)
+	ia, err := h.imp[archiveTestName].newAccountWithAttrs(AcctAttrUserID, "42", AcctAttrUserName, "oauthname", AcctAttrName, "OAuth Name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := archiveTestUpload(t, target, "export.zip", camtypes.ArchiveIdentity{UserID: "42", UserName: "archivename", Name: "Archive Name", Email: "me@example.test"})
+	result, err := h.ImportArchive(context.Background(), archiveTestName, camtypes.ArchiveImportRequest{Action: "start", FileRef: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Created || result.AccountRef != ia.acct.PermanodeRef() {
+		t.Fatalf("start = %+v; want the account of user ID 42", result)
+	}
+	if s := waitArchiveIdle(t, h, result.AccountRef); s.State != "complete" {
+		t.Fatalf("status = %+v", s)
+	}
+	if got := [...]string{ia.acct.Attr(AcctAttrUserName), ia.acct.Attr(AcctAttrName), ia.acct.Attr(AcctAttrEmail)}; got != [...]string{"oauthname", "OAuth Name", "me@example.test"} {
+		t.Errorf("identity = %q; want the API's, with the archive's email", got)
+	}
+
+	ia.mu.Lock()
+	err = ia.startLocked(blob.Ref{})
+	ia.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitArchiveIdle(t, h, result.AccountRef)
+	if im.calls.Load() != 1 || im.apiRuns.Load() != 1 {
+		t.Errorf("after the archive, a start ran RunArchive %d times and Run %d; want 1 and 1", im.calls.Load(), im.apiRuns.Load())
 	}
 }
 

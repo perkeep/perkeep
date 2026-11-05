@@ -24,6 +24,11 @@ import (
 // ArchiveIdentity identifies the owner described inside a provider's export.
 // FilenameUserID is only an advisory tie-breaker, never sufficient identity.
 type ArchiveIdentity struct {
+	// UserID, if set, is the provider's own unchanging ID of the owner,
+	// as an API importer's accounts store in their "userID" attribute.
+	// It identifies the account, before UserName and Email.
+	UserID string `json:"userID,omitempty"`
+
 	UserName       string `json:"userName,omitempty"`
 	Email          string `json:"email,omitempty"`
 	Name           string `json:"name,omitempty"`
