@@ -40,6 +40,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -70,6 +71,11 @@ const (
 	acctAttrDID    = "did"
 	acctAttrRev    = "repoRev"    // rev of the last fully imported commit; used for getRepo?since=
 	acctAttrCommit = "repoCommit" // CID of the last fully imported commit
+
+	// Account options: "false" if the posts the account liked, or
+	// reposted, aren't fetched from the AppView; they are by default.
+	acctAttrFetchLiked    = "fetchLikedPosts"
+	acctAttrFetchReposted = "fetchRepostedPosts"
 
 	// Attributes on imported nodes.
 	attrURI        = "atURI"         // at:// URI of the record
@@ -124,6 +130,8 @@ func init() {
 	importer.Register("bluesky", &imp{})
 }
 
+var _ importer.AccountStatusHTMLer = (*imp)(nil)
+
 type imp struct {
 	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 
@@ -134,9 +142,10 @@ type imp struct {
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
-		Title:               "Bluesky",
-		Description:         "import posts, likes, reposts and follows from a Bluesky (atproto) account",
-		SupportsIncremental: true,
+		Title:                "Bluesky",
+		Description:          "import posts, likes, reposts and follows from a Bluesky (atproto) account",
+		SupportsIncremental:  true,
+		CallbackRequiresPOST: true,
 	}
 }
 
@@ -164,11 +173,21 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{define "serveSetup"}}
 <h1>Configuring Bluesky account</h1>
 <p>Only public data is imported, so no password is needed.</p>
-<form method="get" action="{{.CallbackPath}}">
+<form method="post" action="{{.CallbackPath}}">
 	<input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
 	<label>Handle or DID (e.g. perkeep.bsky.social) <input name="handle" size="40" required></label>
 	<input type="submit" value="Add">
 </form>
+{{end}}
+
+{{define "options"}}
+<h2>Options</h2>
+<form method="post" action="{{.CallbackPath}}">
+	<input type="hidden" name="step" value="options">
+	<p><label><input type="checkbox" name="fetchLiked" {{if .FetchLiked}}checked{{end}} onchange="this.form.submit()"> Fetch the posts you liked, with their media</label></p>
+	<p><label><input type="checkbox" name="fetchReposted" {{if .FetchReposted}}checked{{end}} onchange="this.form.submit()"> Fetch the posts you reposted, with their media</label></p>
+</form>
+<p class="muted">Your likes and reposts are imported either way, with the addresses of their posts. Changes apply from the next run.</p>
 {{end}}
 `))
 
@@ -176,7 +195,29 @@ func (*imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Set
 	return tmpl.ExecuteTemplate(w, "serveSetup", ctx)
 }
 
+// AccountStatusHTML shows the account's options.
+func (*imp) AccountStatusHTML(ctx *importer.SetupContext) template.HTML {
+	acct := ctx.AccountNode
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "options", map[string]any{
+		"CallbackPath":  ctx.CallbackPath(),
+		"FetchLiked":    acct.Attr(acctAttrFetchLiked) != "false",
+		"FetchReposted": acct.Attr(acctAttrFetchReposted) != "false",
+	}); err != nil {
+		return template.HTML(template.HTMLEscapeString(err.Error()))
+	}
+	return template.HTML(buf.String())
+}
+
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
+	if r.FormValue("step") == "options" {
+		if err := setOptions(ctx.AccountNode, r.FormValue("fetchLiked") == "on", r.FormValue("fetchReposted") == "on"); err != nil {
+			httputil.ServeError(w, r, err)
+			return
+		}
+		http.Redirect(w, r, ctx.AccountURL(), http.StatusSeeOther)
+		return
+	}
 	raw := strings.TrimPrefix(strings.TrimSpace(r.FormValue("handle")), "@")
 	atid, err := syntax.ParseAtIdentifier(raw)
 	if err != nil {
@@ -197,6 +238,22 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+}
+
+// setOptions sets whether the account's runs fetch the posts it liked, and
+// those it reposted. Turning either on forgets the repo's rev, so the next
+// run fetches the whole repo, with the likes or reposts imported without
+// their posts.
+func setOptions(acct *importer.Object, fetchLiked, fetchReposted bool) error {
+	var deletes []string
+	if (fetchLiked && acct.Attr(acctAttrFetchLiked) == "false") ||
+		(fetchReposted && acct.Attr(acctAttrFetchReposted) == "false") {
+		deletes = []string{acctAttrRev}
+	}
+	return acct.SetAttrsWithDeletes(deletes,
+		acctAttrFetchLiked, strconv.FormatBool(fetchLiked),
+		acctAttrFetchReposted, strconv.FormatBool(fetchReposted),
+	)
 }
 
 func (im *imp) Run(rctx *importer.RunContext) error {
@@ -234,6 +291,9 @@ func (im *imp) Run(rctx *importer.RunContext) error {
 		did:        did,
 		appView:    newClient(rctx, appViewHost),
 		pdsClients: map[syntax.DID]*atclient.APIClient{did: newClient(rctx, pds)},
+
+		fetchLiked:    acct.Attr(acctAttrFetchLiked) != "false",
+		fetchReposted: acct.Attr(acctAttrFetchReposted) != "false",
 	}
 	return r.importRepo(acct.Attr(acctAttrRev))
 }
@@ -250,6 +310,9 @@ type run struct {
 	dir     identity.Directory
 	did     syntax.DID
 	appView *atclient.APIClient
+
+	// Whether the posts the account liked, and reposted, are fetched.
+	fetchLiked, fetchReposted bool
 
 	mu         sync.Mutex
 	pdsClients map[syntax.DID]*atclient.APIClient
@@ -597,7 +660,8 @@ type hydrator struct {
 
 // pendingRef is a like, repost or follow node waiting for its subject to
 // be imported. Its attrCID isn't set until then, so it's retried if the
-// import is interrupted.
+// import is interrupted, or, for a like or repost whose post isn't
+// fetched, by the next run that fetches the whole repo once it is.
 type pendingRef struct {
 	n   *importer.Object
 	cid string // of the like, repost or follow record
@@ -643,15 +707,15 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 	}
 
 	var more []string
-	pending := false // whether attrCID is set later, by hydration
+	pending := false // whether attrCID is set later, by hydration, if at all
 	pr := pendingRef{n, rec.cid.String()}
 	switch v := val.(type) {
 	case *bsky.FeedPost:
 		more, err = r.postAttrs(n, r.did, v)
 	case *bsky.FeedLike:
-		more, pending = r.subjectAttrs(pr, v.CreatedAt, v.Subject, h)
+		more, pending = r.subjectAttrs(pr, v.CreatedAt, v.Subject, h, r.fetchLiked)
 	case *bsky.FeedRepost:
-		more, pending = r.subjectAttrs(pr, v.CreatedAt, v.Subject, h)
+		more, pending = r.subjectAttrs(pr, v.CreatedAt, v.Subject, h, r.fetchReposted)
 	case *bsky.GraphFollow:
 		more = append(dateAttrs(v.CreatedAt), attrSubject, v.Subject)
 		h.addProfile(v.Subject, pr)
@@ -712,16 +776,20 @@ func dateAttrs(createdAt string) []string {
 }
 
 // subjectAttrs returns the attributes for a like or repost of subject, and
-// arranges for the subject to be hydrated if it's a post. Likes of other
-// things (feed generators, lists, ...) just record the subject URI.
-func (r *run) subjectAttrs(p pendingRef, createdAt string, subject *atproto.RepoStrongRef, h *hydrator) (attrs []string, pending bool) {
+// arranges for the subject to be hydrated if it's a post and fetch is set;
+// if it's a post and fetch isn't set, the like or repost is left pending.
+// Likes of other things (feed generators, lists, ...) just record the
+// subject URI.
+func (r *run) subjectAttrs(p pendingRef, createdAt string, subject *atproto.RepoStrongRef, h *hydrator, fetch bool) (attrs []string, pending bool) {
 	attrs = dateAttrs(createdAt)
 	if subject == nil {
 		return attrs, false
 	}
 	attrs = append(attrs, attrSubject, subject.Uri)
 	if uri, err := syntax.ParseATURI(subject.Uri); err == nil && uri.Collection() == collPost {
-		h.addPost(subject.Uri, p)
+		if fetch {
+			h.addPost(subject.Uri, p)
+		}
 		return attrs, true
 	}
 	return attrs, false
@@ -926,7 +994,14 @@ func (r *run) hydratePosts(posts map[string][]pendingRef) error {
 	if len(uris) == 0 {
 		return nil
 	}
-	bar := r.Progress().Bar("posts", "Fetching liked and reposted posts")
+	title := "Fetching liked and reposted posts"
+	switch {
+	case !r.fetchReposted:
+		title = "Fetching liked posts"
+	case !r.fetchLiked:
+		title = "Fetching reposted posts"
+	}
+	bar := r.Progress().Bar("posts", title)
 	bar.SetTotal(int64(len(uris)))
 	for batch := range slices.Chunk(uris, hydrateBatchSize) {
 		if err := r.Context().Err(); err != nil {

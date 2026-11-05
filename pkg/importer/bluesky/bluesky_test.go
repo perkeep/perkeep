@@ -24,6 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -44,6 +47,7 @@ import (
 	"github.com/multiformats/go-multihash"
 	cbg "github.com/whyrusleeping/cbor-gen"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/progress"
@@ -253,8 +257,8 @@ func (fn *fakeNet) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: 404, Body: io.NopCloser(strings.NewReader("{}")), Request: req}, nil
 }
 
-func TestIntegration(t *testing.T) {
-	test.TLog(t)
+// testDirectory returns a directory of the test account and the other.
+func testDirectory() *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      testDID,
@@ -266,6 +270,12 @@ func TestIntegration(t *testing.T) {
 		Handle:   "other.example",
 		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: otherPDS}},
 	})
+	return dir
+}
+
+func TestIntegration(t *testing.T) {
+	test.TLog(t)
+	dir := testDirectory()
 
 	tr := newTestRepo(t)
 	tr.put("app.bsky.feed.post/3post00000001", &bsky.FeedPost{
@@ -530,5 +540,120 @@ func TestLoadCARStopsWhenCanceled(t *testing.T) {
 	}
 	if st := rc.Progress().Bar("blocks", "").Status(); st.Finished || st.Total <= posts || st.Done >= st.Total {
 		t.Errorf("blocks bar = %+v; want unfinished, of more than %d blocks", st, posts)
+	}
+}
+
+// TestFetchOptions tests the account's options to fetch the posts it liked
+// and reposted, each independently.
+func TestFetchOptions(t *testing.T) {
+	tr := newTestRepo(t)
+	tr.put("app.bsky.feed.like/3like00000001", &bsky.FeedLike{
+		LexiconTypeID: "app.bsky.feed.like",
+		CreatedAt:     "2025-01-03T00:00:00.000Z",
+		Subject:       &atproto.RepoStrongRef{Uri: likedPost, Cid: likedPostCID},
+	})
+	tr.put("app.bsky.feed.repost/3repost0000001", &bsky.FeedRepost{
+		LexiconTypeID: "app.bsky.feed.repost",
+		CreatedAt:     "2025-01-03T00:00:00.000Z",
+		Subject:       &atproto.RepoStrongRef{Uri: likedPost, Cid: likedPostCID},
+	})
+	fullCAR, rev := tr.car()
+	fn := &fakeNet{t: t, repoCARs: map[string][]byte{"": fullCAR}}
+
+	h := imptest.NewMemoryHost(t, importer.HostConfig{HTTPClient: &http.Client{Transport: fn}})
+	t.Cleanup(func() { h.Close() })
+	rc, err := importer.CreateAccount(h, "bluesky")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acct := rc.AccountNode()
+	if err := acct.SetAttrs(acctAttrDID, testDID); err != nil {
+		t.Fatal(err)
+	}
+	im := &imp{dir: testDirectory()}
+
+	// setOptions sets the options as the account's page does.
+	setOptions := func(fetchLiked, fetchReposted bool) {
+		t.Helper()
+		form := url.Values{"step": {"options"}}
+		if fetchLiked {
+			form.Set("fetchLiked", "on")
+		}
+		if fetchReposted {
+			form.Set("fetchReposted", "on")
+		}
+		req := httptest.NewRequest("POST", "/importer/bluesky/callback?acct="+acct.PermanodeRef().String(), strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set(httputil.PathSuffixHeader, "bluesky/callback")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("setting options: %d %s", w.Code, w.Body.String())
+		}
+	}
+	// run runs an import, and returns the like and repost nodes, and
+	// whether it fetched the posts.
+	run := func() (like, repost *importer.Object, fetched bool) {
+		t.Helper()
+		fn.mu.Lock()
+		fn.requests = nil
+		fn.mu.Unlock()
+		if err := im.Run(rc); err != nil {
+			t.Fatal(err)
+		}
+		if got := acct.Attr(acctAttrRev); got != rev {
+			t.Errorf("rev = %q; want %q", got, rev)
+		}
+		fn.mu.Lock()
+		fetched = slices.ContainsFunc(fn.requests, func(u string) bool { return strings.Contains(u, "getPosts") })
+		fn.mu.Unlock()
+		node := func(coll, rkey string) *importer.Object {
+			t.Helper()
+			n, err := imptest.GetRequiredChildPathObj(rc.RootNode(), coll)
+			if err == nil {
+				n, err = imptest.GetRequiredChildPathObj(n, rkey)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		return node(collLike, "3like00000001"), node(collRepost, "3repost0000001"), fetched
+	}
+	// hydrated reports whether n, a like or repost, is of the fetched post.
+	hydrated := func(n *importer.Object) bool {
+		return strings.HasSuffix(n.Attr(nodeattr.Title), ": a post worth liking") && n.Attr(attrCID) != ""
+	}
+
+	setOptions(false, false)
+	like, repost, fetched := run()
+	if fetched || hydrated(like) || hydrated(repost) {
+		t.Errorf("with neither: fetched = %v, like hydrated = %v, repost hydrated = %v", fetched, hydrated(like), hydrated(repost))
+	}
+	if like.Attr(attrSubject) != likedPost || repost.Attr(attrSubject) != likedPost {
+		t.Errorf("like and repost don't have their subjects")
+	}
+
+	// Turning on reposts makes the next run fetch the whole repo again, for
+	// the reposts imported without their posts.
+	setOptions(false, true)
+	if got := acct.Attr(acctAttrRev); got != "" {
+		t.Errorf("rev after turning on reposts = %q; want none", got)
+	}
+	like, repost, fetched = run()
+	if !fetched || hydrated(like) || !hydrated(repost) {
+		t.Errorf("with reposts: fetched = %v, like hydrated = %v, repost hydrated = %v", fetched, hydrated(like), hydrated(repost))
+	}
+
+	setOptions(true, true)
+	like, repost, _ = run()
+	if !hydrated(like) || !hydrated(repost) {
+		t.Errorf("with both: like hydrated = %v, repost hydrated = %v", hydrated(like), hydrated(repost))
+	}
+
+	// Turning one off leaves the rev, as there's nothing to fetch again.
+	setOptions(true, false)
+	if got := acct.Attr(acctAttrRev); got != rev {
+		t.Errorf("rev after turning off reposts = %q; want %q", got, rev)
 	}
 }
