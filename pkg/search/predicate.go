@@ -136,6 +136,7 @@ func init() {
 	// Custom predicates
 	registerKeyword(newIsPost())
 	registerKeyword(newIsLike())
+	registerKeyword(newIsRepost())
 	registerKeyword(newIsCheckin())
 	registerKeyword(newIsBookmark())
 	registerKeyword(newIsUntagged())
@@ -949,16 +950,25 @@ func (k isPost) Description() string {
 	return "matches tweets, status updates, blog posts, etc"
 }
 
-// postNodeTypes are the camliNodeType values of post permanodes.
+// postNodeTypes are the camliNodeType values of post permanodes: the posts
+// of imported accounts, but not others' posts that they liked or reposted,
+// such as Bluesky's "bluesky:linkedPost".
 var postNodeTypes = []string{
 	"twitter.com:tweet",
 	"mastodon:status",
 	"livejournal.com:entry",
+	"bluesky:app.bsky.feed.post",
 }
 
 func (k isPost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return typesConstraint(postNodeTypes), nil
+}
+
+// typesConstraint returns a constraint matching permanodes of any of the
+// camliNodeType values typs.
+func typesConstraint(typs []string) *Constraint {
 	var c *Constraint
-	for _, typ := range postNodeTypes {
+	for _, typ := range typs {
 		tc := permWithAttr(nodeattr.Type, typ)
 		if c == nil {
 			c = tc
@@ -966,7 +976,7 @@ func (k isPost) Predicate(ctx context.Context, args []string) (*Constraint, erro
 			c = orConst(c, tc)
 		}
 	}
-	return c, nil
+	return c
 }
 
 type isLike struct {
@@ -978,16 +988,38 @@ func newIsLike() keyword {
 }
 
 func (k isLike) Description() string {
-	return "matches liked tweets"
+	return "matches likes (of tweets, Bluesky posts, etc)"
+}
+
+// likeNodeTypes are the camliNodeType values of like permanodes.
+var likeNodeTypes = []string{
+	"twitter.com:like",
+	"bluesky:app.bsky.feed.like",
 }
 
 func (k isLike) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	return &Constraint{
-		Permanode: &PermanodeConstraint{
-			Attr:  nodeattr.Type,
-			Value: "twitter.com:like",
-		},
-	}, nil
+	return typesConstraint(likeNodeTypes), nil
+}
+
+type isRepost struct {
+	matchEqual
+}
+
+func newIsRepost() keyword {
+	return isRepost{"is:repost"}
+}
+
+func (k isRepost) Description() string {
+	return "matches reposts (of Bluesky posts, etc)"
+}
+
+// repostNodeTypes are the camliNodeType values of repost permanodes.
+var repostNodeTypes = []string{
+	"bluesky:app.bsky.feed.repost",
+}
+
+func (k isRepost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return typesConstraint(repostNodeTypes), nil
 }
 
 type isCheckin struct {
@@ -1030,16 +1062,7 @@ func (k isBookmark) Description() string {
 }
 
 func (k isBookmark) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	var c *Constraint
-	for _, typ := range bookmarkNodeTypes {
-		tc := permWithAttr(nodeattr.Type, typ)
-		if c == nil {
-			c = tc
-		} else {
-			c = orConst(c, tc)
-		}
-	}
-	return c, nil
+	return typesConstraint(bookmarkNodeTypes), nil
 }
 
 type isUntagged struct {

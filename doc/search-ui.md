@@ -147,7 +147,8 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 : the image has a landscape aspect
 
 **<a name="like"></a>is:like**
-: the object is a liked tweet
+: the object is a like: of a tweet, or of a Bluesky post. A Bluesky like's
+  content is the post it likes, if the importer fetched it.
 
 **<a name="livephoto"></a>is:livephoto**
 : the image is the still image of an Apple Live Photo whose video is also
@@ -170,6 +171,16 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 
 **<a name="portrait"></a>is:portrait**
 : the image has a portrait aspect.
+
+**<a name="post"></a>is:post**
+: the object is a post of an imported account: a tweet, a Mastodon status, a
+  LiveJournal entry, or a Bluesky post. Others' Bluesky posts, which the
+  importer fetches for the account's likes and reposts, are left out; use
+  `is:like` or `is:repost` to find those.
+
+**<a name="repost"></a>is:repost**
+: the object is a repost of a Bluesky post. Its content is the post it
+  reposts, if the importer fetched it.
 
 **<a name="video"></a>is:video**
 : the object is a video. Apple Live Photo videos whose still images are

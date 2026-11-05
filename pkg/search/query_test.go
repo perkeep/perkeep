@@ -2239,8 +2239,32 @@ func TestIsPostQuery(t *testing.T) {
 		id.SetAttribute(entry, "camliNodeType", "livejournal.com:entry")
 		comment := id.NewDeterministicPermanodeForTest("comment")
 		id.SetAttribute(comment, "camliNodeType", "livejournal.com:comment")
+		// The account's own Bluesky post, and another's, fetched for a
+		// like, which isn't one of its posts.
+		skeet := id.NewDeterministicPermanodeForTest("skeet")
+		id.SetAttribute(skeet, "camliNodeType", "bluesky:app.bsky.feed.post")
+		othersSkeet := id.NewDeterministicPermanodeForTest("othersSkeet")
+		id.SetAttribute(othersSkeet, "camliNodeType", "bluesky:linkedPost")
 
-		qt.wantRes(&SearchQuery{Expression: "is:post", Limit: -1}, tweet, toot, entry)
+		qt.wantRes(&SearchQuery{Expression: "is:post", Limit: -1}, tweet, toot, entry, skeet)
+	})
+}
+
+func TestIsLikeAndRepostQuery(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		likedTweet := id.NewDeterministicPermanodeForTest("likedTweet")
+		id.SetAttribute(likedTweet, "camliNodeType", "twitter.com:like")
+		like := id.NewDeterministicPermanodeForTest("like")
+		id.SetAttribute(like, "camliNodeType", "bluesky:app.bsky.feed.like")
+		repost := id.NewDeterministicPermanodeForTest("repost")
+		id.SetAttribute(repost, "camliNodeType", "bluesky:app.bsky.feed.repost")
+		post := id.NewDeterministicPermanodeForTest("post")
+		id.SetAttribute(post, "camliNodeType", "bluesky:app.bsky.feed.post")
+
+		qt.wantRes(&SearchQuery{Expression: "is:like", Limit: -1}, likedTweet, like)
+		qt.wantRes(&SearchQuery{Expression: "is:repost", Limit: -1}, repost)
+		qt.wantRes(&SearchQuery{Expression: "is:like or is:repost", Limit: -1}, likedTweet, like, repost)
 	})
 }
 
