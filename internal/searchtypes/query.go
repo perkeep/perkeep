@@ -335,7 +335,10 @@ type PermanodeConstraint struct {
 	// This is required if any of the items below are used.
 	Attr string `json:"attr,omitempty"`
 
-	// SkipHidden skips hidden or other boring files.
+	// SkipHidden skips hidden or other boring files: permanodes
+	// whose camliDefVis is "hide", and those of some camliNodeType
+	// values, such as those of posts' media, unless the search asks
+	// for permanodes of their type, or for permanodes' children.
 	SkipHidden bool `json:"skipHidden,omitempty"`
 
 	// NumValue optionally tests the number of values this

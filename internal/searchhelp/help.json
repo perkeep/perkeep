@@ -100,6 +100,10 @@
     "Description": "matches reposts (of Bluesky posts, etc)"
   },
   {
+    "Name": "is:profile",
+    "Description": "matches the profiles of others' accounts (Bluesky follows, etc)"
+  },
+  {
     "Name": "is:checkin",
     "Description": "matches location check-ins (foursquare, etc)"
   },

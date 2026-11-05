@@ -25,6 +25,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -651,6 +652,55 @@ type search struct {
 	// the corpus instead, then we wouldn't need this. And then
 	// searches would be faster anyway. This is a hack.
 	loc map[blob.Ref]camtypes.Location
+
+	// shownTypes are the hiddenNodeTypes that q asks for, which
+	// SkipHidden doesn't skip.
+	shownTypes []string
+}
+
+// hiddenNodeTypes are the camliNodeType values of permanodes that
+// SkipHidden skips, unless the search asks for them: those that are parts
+// of others, which show them, such as the media of posts, others' posts
+// that likes and reposts are of, and the profiles of follows.
+var hiddenNodeTypes = []string{
+	"bluesky:linkedPost",
+	"bluesky:image",
+	"bluesky:video",
+	"bluesky:thumb",
+	"bluesky:avatar",
+	"bluesky:banner",
+	"bluesky:profile",
+}
+
+// shownNodeTypes returns the hiddenNodeTypes that the search constraint c
+// asks for: those it matches permanodes of by type, or all of them, if it
+// matches permanodes by their parents, as childrenof does.
+func shownNodeTypes(c *Constraint) []string {
+	if constraintAsksForChildren(c) {
+		return hiddenNodeTypes
+	}
+	var shown []string
+	for _, typ := range constraintMatchesPermanodeTypes(c) {
+		if slices.Contains(hiddenNodeTypes, typ) {
+			shown = append(shown, typ)
+		}
+	}
+	return shown
+}
+
+// constraintAsksForChildren reports whether c matches permanodes by their
+// parents, other than by not matching them.
+func constraintAsksForChildren(c *Constraint) bool {
+	if c == nil {
+		return false
+	}
+	if pc := c.Permanode; pc != nil && pc.Relation != nil && pc.Relation.Relation == "parent" {
+		return true
+	}
+	if lc := c.Logical; lc != nil && lc.Op != "not" {
+		return constraintAsksForChildren(lc.A) || constraintAsksForChildren(lc.B)
+	}
+	return false
 }
 
 func (s *search) blobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
@@ -725,10 +775,11 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	q := searchQueryPlannedQuery(rawq, exprResult)
 	res := new(SearchResult)
 	s := &search{
-		h:   h,
-		q:   q,
-		res: res,
-		loc: make(map[blob.Ref]camtypes.Location),
+		h:          h,
+		q:          q,
+		res:        res,
+		loc:        make(map[blob.Ref]camtypes.Location),
+		shownTypes: shownNodeTypes(q.Constraint),
 	}
 
 	defer h.index.RLock()()
@@ -1470,6 +1521,9 @@ func permanodeConstraintBlobMatches(c *PermanodeConstraint, ctx context.Context,
 			// when/where (time) we show these.  But these
 			// are flooding my results and I'm about to
 			// demo this.
+			return false, nil
+		}
+		if slices.Contains(hiddenNodeTypes, nodeType) && !slices.Contains(s.shownTypes, nodeType) {
 			return false, nil
 		}
 	}

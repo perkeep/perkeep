@@ -40,6 +40,7 @@
   "is:post\t\t\tmatches tweets, status updates, blog posts, etc",
   "is:like\t\t\tmatches likes (of tweets, Bluesky posts, etc)",
   "is:repost\t\tmatches reposts (of Bluesky posts, etc)",
+  "is:profile\t\tmatches the profiles of others' accounts (Bluesky follows, etc)",
   "is:checkin\t\tmatches location check-ins (foursquare, etc)",
   "is:bookmark\t\tmatches bookmarks (raindrop.io, pinboard, etc)",
   "is:untagged\t\tmatches untagged permanodes",
