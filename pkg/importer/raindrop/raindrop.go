@@ -16,6 +16,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/progress"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 
@@ -155,6 +156,7 @@ type run struct {
 	im               imp
 	lastUpdateCursor string
 	incremental      bool
+	bar              *progress.Bar // of bookmarks imported
 }
 
 func (r *run) getBookmarksNode() (*importer.Object, error) {
@@ -182,6 +184,7 @@ func (r *run) importBookmarks() error {
 
 	var page int
 
+	r.bar = r.Progress().Bar("bookmarks", "Importing bookmarks")
 	for {
 		if more, err := r.importBatch(page, authToken, parent); err != nil {
 			return err
@@ -190,6 +193,7 @@ func (r *run) importBookmarks() error {
 		}
 		page++
 	}
+	r.bar.Finish()
 
 	return nil
 }
@@ -285,10 +289,22 @@ func (r *run) importBatch(page int, authToken string, parent *importer.Object) (
 		return false, nil
 	}
 
+	// Count is of all the bookmarks of the query, on all its pages.
+	if n := bookmarkBatch.Count; n > 0 {
+		r.bar.SetTotal(int64(n))
+	}
 	r.Logf("Importing %d bookmarks...", count)
 	for _, bookmark := range bookmarkBatch.Items {
-		if err := r.importBookmark(&bookmark, parent); err != nil {
+		imported, err := r.importBookmark(&bookmark, parent)
+		if err != nil {
 			return false, err
+		}
+		if imported {
+			r.bar.Add(1)
+		} else {
+			// Unchanged since an earlier run imported it, in next to
+			// no time: not work for the bar's estimate of the time left.
+			r.bar.Skip(1)
 		}
 	}
 
@@ -297,16 +313,19 @@ func (r *run) importBatch(page int, authToken string, parent *importer.Object) (
 	return true, nil
 }
 
-func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error {
+// importBookmark imports bookmark as a child of parent, and reports
+// whether it did, rather than finding it unchanged since an earlier run
+// imported it.
+func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) (imported bool, err error) {
 	r.Logf("Importing bookmark %s...", bookmark.Link)
 	bookmarkNode, err := parent.ChildPathObject(fmt.Sprint(bookmark.ID))
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Check for duplicates
 	if bookmarkNode.Attr(nodeattr.DateModified) == schema.RFC3339FromTime(bookmark.LastUpdate) {
-		return nil
+		return false, nil
 	}
 
 	attrs := []string{
@@ -320,7 +339,7 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 	if bookmark.Cover != "" {
 		coverRef, err := r.importCover(bookmark)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if coverRef.Valid() {
 			attrs = append(attrs, nodeattr.CamliContentImage, coverRef.String())
@@ -328,13 +347,13 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) error 
 	}
 
 	if err := bookmarkNode.SetAttrs(attrs...); err != nil {
-		return err
+		return false, err
 	}
 	if err := bookmarkNode.SetAttrValues("tag", bookmark.Tags); err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 // importCover fetches bookmark's cover image and writes it to the
