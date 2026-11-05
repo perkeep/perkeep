@@ -95,9 +95,16 @@ func TestFeedURLRemainsAccountMetadata(t *testing.T) {
 	if got := (new(imp)).SummarizeAccount(reloaded); got != "feed "+feedURL {
 		t.Fatalf("feed summary = %q", got)
 	}
-	for range 2 {
+	for i := range 2 {
 		if err := (new(imp)).Run(rc); err != nil {
 			t.Fatal(err)
+		}
+		// The run's progress bar, which the account's page shows. The
+		// runs share rc's bars, so the second counts its item, unchanged,
+		// as skipped, on the first's.
+		bars := rc.Progress().Snapshot()
+		if len(bars) != 1 || bars[0].Name != "items" || !bars[0].Finished || bars[0].Total != 1 || bars[0].Skipped != int64(i) {
+			t.Errorf("run %d's progress bars: %+v", i, bars)
 		}
 	}
 	if requests != 2 {

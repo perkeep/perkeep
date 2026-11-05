@@ -140,25 +140,41 @@ func (r *run) importFeed() error {
 			return err
 		}
 	}
+	bar := r.Progress().Bar("items", "Importing items")
+	bar.SetTotal(int64(len(feed.Items)))
 	for _, item := range feed.Items {
-		if err := r.importItem(itemsNode, item); err != nil {
+		changed, err := r.importItem(itemsNode, item)
+		switch {
+		case err != nil:
 			r.Logf("error importing item %s %v", item.ID, err)
-			continue
+			bar.Add(1)
+		case changed:
+			bar.Add(1)
+		default:
+			// Imported already, as by an earlier run, in next to no
+			// time: not work for the bar's estimate of the time left.
+			bar.Skip(1)
 		}
+	}
+	if r.Context().Err() == nil {
+		bar.Finish()
 	}
 	return nil
 }
 
-func (r *run) importItem(parent *importer.Object, item *item) error {
+// importItem imports item as a child of parent, and reports whether it
+// changed the item's node, which it doesn't if an earlier run imported the
+// item already.
+func (r *run) importItem(parent *importer.Object, item *item) (changed bool, err error) {
 	itemNode, err := parent.ChildPathObject(item.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), "", bytes.NewBufferString(item.Content))
 	if err != nil {
-		return err
+		return false, err
 	}
-	if err := itemNode.SetAttrs(
+	changed, err = itemNode.SetAttrs2(
 		nodeattr.Type, "feed:item",
 		nodeattr.Title, item.Title,
 		nodeattr.CamliContent, fileRef.String(),
@@ -166,28 +182,29 @@ func (r *run) importItem(parent *importer.Object, item *item) error {
 		"feedItemId", item.ID,
 		"author", item.Author,
 		"feedMediaContentURL", item.MediaContent,
-	); err != nil {
-		return err
+	)
+	if err != nil {
+		return false, err
 	}
 
 	if !item.Updated.IsZero() {
 		if err := itemNode.SetAttr(nodeattr.DateModified, schema.RFC3339FromTime(item.Updated)); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	if !item.Published.IsZero() {
 		if err := itemNode.SetAttr(nodeattr.DatePublished, schema.RFC3339FromTime(item.Published)); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	if !item.Created.IsZero() {
 		if err := itemNode.SetAttr(nodeattr.DateCreated, schema.RFC3339FromTime(item.Created)); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return changed, nil
 }
 
 // autodiscover takes an HTML document and returns the autodiscovered feed
