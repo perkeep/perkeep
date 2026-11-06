@@ -201,6 +201,11 @@ func openArchive(ctx context.Context, fetcher blob.Fetcher, ref blob.Ref) (*Arch
 	var declared uint64
 	for _, f := range zr.File {
 		name := strings.TrimSuffix(f.Name, "/")
+		if f.Mode().IsDir() {
+			// Some writers end directories' names with two slashes
+			// (such as X's, of its archives).
+			name = strings.TrimRight(f.Name, "/")
+		}
 		if !fs.ValidPath(name) || strings.ContainsAny(name, "\\\x00:") || strings.ContainsFunc(name, unicode.IsControl) {
 			return fail(fmt.Errorf("unsafe archive path %q", f.Name))
 		}
@@ -261,7 +266,8 @@ func checkZIPDirectory(r io.ReaderAt, size int64) error {
 		dirSize := uint64(binary.LittleEndian.Uint32(e[12:]))
 		offset := uint64(binary.LittleEndian.Uint32(e[16:]))
 		end := uint64(size - n + int64(i))
-		if entries == 65535 || dirSize == 0xffffffff || offset == 0xffffffff {
+		zip64 := entries == 65535 || dirSize == 0xffffffff || offset == 0xffffffff
+		if zip64 {
 			if end < 20 {
 				return errors.New("invalid ZIP64 locator")
 			}
@@ -293,13 +299,51 @@ func checkZIPDirectory(r io.ReaderAt, size int64) error {
 			return errors.New("ZIP directory exceeds limits or is invalid")
 		}
 		// Require exact positioning so zip.NewReader cannot apply an unchecked
-		// self-extracting prefix correction to the bounded directory location.
-		if offset+dirSize != end {
+		// self-extracting prefix correction to the bounded directory location,
+		// but for ZIP64 end records that repeat the end record's values.
+		if offset+dirSize != end && (zip64 || !unneededZIP64End(r, offset, dirSize, end, entries)) {
 			return errors.New("unsupported ZIP directory layout")
 		}
 		return checkZIPRecords(r, int64(offset), int64(dirSize), entries)
 	}
 	return errors.New("ZIP end-of-directory record not found")
+}
+
+// unneededZIP64End reports whether the bytes between a ZIP's directory, of
+// dirSize bytes at offset, and its end record, at end, of no ZIP64 values,
+// are a ZIP64 end record and its locator, which repeat the end record's
+// values, as some writers add (such as X's, of its archives). zip.NewReader
+// then reads the directory at offset, as it starts with a directory header,
+// rather than correcting it by the records' size.
+func unneededZIP64End(r io.ReaderAt, offset, dirSize, end, entries uint64) bool {
+	const recLen, locLen = 56, 20
+	pos := offset + dirSize
+	if end-pos != recLen+locLen {
+		return false
+	}
+	b := make([]byte, recLen+locLen)
+	if _, err := r.ReadAt(b, int64(pos)); err != nil {
+		return false
+	}
+	rec, loc := b[:recLen], b[recLen:]
+	le := binary.LittleEndian
+	if !bytes.Equal(rec[:4], []byte{'P', 'K', 6, 6}) || le.Uint64(rec[4:]) != recLen-12 ||
+		le.Uint32(rec[16:]) != 0 || le.Uint32(rec[20:]) != 0 ||
+		le.Uint64(rec[24:]) != entries || le.Uint64(rec[32:]) != entries ||
+		le.Uint64(rec[40:]) != dirSize || le.Uint64(rec[48:]) != offset {
+		return false
+	}
+	if !bytes.Equal(loc[:4], []byte{'P', 'K', 6, 7}) || le.Uint32(loc[4:]) != 0 || le.Uint64(loc[8:]) != pos || le.Uint32(loc[16:]) != 1 {
+		return false
+	}
+	if entries == 0 {
+		return true
+	}
+	sig := make([]byte, 4)
+	if _, err := r.ReadAt(sig, int64(offset)); err != nil {
+		return false
+	}
+	return bytes.Equal(sig, []byte{'P', 'K', 1, 2})
 }
 
 func checkZIPRecords(r io.ReaderAt, offset, size int64, entries uint64) error {
