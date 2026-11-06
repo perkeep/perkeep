@@ -251,6 +251,37 @@ func TestOpenCorruptIncomplete(t *testing.T) {
 	}
 }
 
+// TestOpenCorruptedNoMarker checks that a database whose MANIFEST is
+// corrupted and has no incomplete marker returns a CorruptedDBError, not a
+// NeedWipeError.
+func TestOpenCorruptedNoMarker(t *testing.T) {
+	kv := reindexStore(t)
+	reindexOK(t, kv.Set("data", "value"))
+	reindexOK(t, kv.Close())
+	kv.db = nil
+
+	ents, err := os.ReadDir(kv.path)
+	reindexOK(t, err)
+	for _, ent := range ents {
+		if strings.HasPrefix(ent.Name(), "MANIFEST-") {
+			reindexOK(t, os.Remove(filepath.Join(kv.path, ent.Name())))
+		}
+	}
+
+	got, err := NewStorage(kv.path)
+	if got != nil {
+		got.Close()
+		t.Fatal("open succeeded; want CorruptedDBError")
+	}
+	var ce *sorted.CorruptedDBError
+	if !errors.As(err, &ce) {
+		t.Fatalf("open error = %v (%T); want *sorted.CorruptedDBError", err, err)
+	}
+	if ce.Path != kv.path {
+		t.Fatalf("CorruptedDBError.Path = %q; want %q", ce.Path, kv.path)
+	}
+}
+
 func TestReindexCrashRecovery(t *testing.T) {
 	const childEnv = "PERKEEP_LEVELDB_REINDEX_CRASH_FILE"
 	if file := os.Getenv(childEnv); file != "" {
