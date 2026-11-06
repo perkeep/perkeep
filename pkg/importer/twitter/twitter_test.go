@@ -17,11 +17,12 @@ limitations under the License.
 package twitter
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -32,12 +33,10 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
-	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/types/camtypes"
 )
-
-var ctxbg = context.Background()
 
 func TestGetUserID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, &http.Client{
@@ -139,23 +138,17 @@ func TestIntegrationRun(t *testing.T) {
 
 		checkTweets(t, rc, jsonTweets)
 
-		zipFile, err := os.Open("testdata/camlistore_test.zip")
+		// Now import an archive, of the older kind.
+		zr, err := zip.OpenReader("testdata/camlistore_test.zip")
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer zipFile.Close()
-
-		zipRef, err := schema.WriteFileFromReader(ctxbg, rc.Host.Target(), "camlistore_test.zip", zipFile)
-		if err != nil {
+		defer zr.Close()
+		src, names := zipSource{&zr.Reader}, zipNames(&zr.Reader)
+		if _, err := inspectArchive(src, names); err != nil {
 			t.Fatal(err)
 		}
-		err = rc.AccountNode().SetAttrs(acctAttrTweetZip, zipRef.String())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Now run with the zip.
-		if err := testee.Run(rc); err != nil {
+		if err := testee.importArchive(rc, src, names, func(camtypes.ArchiveImportProgress) error { return nil }); err != nil {
 			t.Fatal(err)
 		}
 
@@ -242,6 +235,25 @@ func TestAPIPagesAndSinceID(t *testing.T) {
 	if len(sinceID) != 1 || sinceID[0] != newest {
 		t.Errorf("incremental run's requests' since_id = %q; want one, of %q", sinceID, newest)
 	}
+}
+
+// zipSource is a memberSource of a ZIP, without importer.Archive's limits.
+type zipSource struct{ zr *zip.Reader }
+
+func (s zipSource) Open(name string) (io.ReadCloser, error) { return s.zr.Open(name) }
+
+func (s zipSource) OpenLimit(name string, limit int64) (io.ReadCloser, error) {
+	return s.zr.Open(name)
+}
+
+func zipNames(zr *zip.Reader) members {
+	names := make(members)
+	for _, f := range zr.File {
+		if !f.FileInfo().IsDir() {
+			names[f.Name] = int64(f.UncompressedSize64)
+		}
+	}
+	return names
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
