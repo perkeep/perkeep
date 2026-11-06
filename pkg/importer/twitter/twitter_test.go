@@ -118,7 +118,7 @@ func TestIntegrationRun(t *testing.T) {
 
 	imptest.ImporterTest(t, "twitter", transport, func(rc *importer.RunContext) {
 
-		err = rc.AccountNode().SetAttrs(importer.AcctAttrAccessToken, accessToken, importer.AcctAttrAccessTokenSecret, accessSecret, importer.AcctAttrUserID, userID)
+		err = rc.AccountNode().SetAttrs(importer.KV(importer.AcctAttrAccessToken, accessToken), importer.KV(importer.AcctAttrAccessTokenSecret, accessSecret), importer.KV(importer.AcctAttrUserID, userID))
 		if err != nil {
 			t.Fatal(err)
 		}

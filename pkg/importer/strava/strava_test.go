@@ -416,11 +416,11 @@ func TestCoreStorageMultiClaim(t *testing.T) {
 func (f *coreFixture) configure(t *testing.T) {
 	t.Helper()
 	if err := f.rc.AccountNode().SetAttrs(
-		importer.AcctAttrUserID, "7",
-		importer.AcctAttrAccessToken, "test-access",
-		attrRefreshToken, "test-refresh",
-		attrTokenExpiry, strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
-		attrTokenClientID, f.clientID,
+		importer.KV(importer.AcctAttrUserID, "7"),
+		importer.KV(importer.AcctAttrAccessToken, "test-access"),
+		importer.KV(attrRefreshToken, "test-refresh"),
+		importer.KV(attrTokenExpiry, strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10)),
+		importer.KV(attrTokenClientID, f.clientID),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -549,8 +549,8 @@ func (f *coreFixture) assertActivityState(t *testing.T, obj *importer.Object, wa
 		t.Errorf("stored activity attrs = %v; want %v", got, want)
 	}
 	sets, keys := activityAttrs(a)
-	for i := 0; i < len(sets); i += 2 {
-		keys = append(keys, sets[i])
+	for _, kv := range sets {
+		keys = append(keys, kv.Key)
 	}
 	keys = append(keys, attrActivityJSON, attrStreamsJSON, nodeattr.FitnessTrack,
 		"camliPath:activity.json", "camliPath:streams.json", "camliPath:track.gpx", attrSummaryHash, attrImportVersion)
@@ -1102,7 +1102,7 @@ func TestImporterRefreshRemovesLegacyAttachmentPaths(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if err := child.SetAttrs(nodeattr.Title, file.filename, nodeattr.CamliContent, ref); err != nil {
+					if err := child.SetAttrs(importer.KV(nodeattr.Title, file.filename), importer.KV(nodeattr.CamliContent, ref)); err != nil {
 						t.Fatal(err)
 					}
 					oldAttachments = append(oldAttachments, oldAttachment{child, file.filename, ref})
@@ -1228,10 +1228,10 @@ func TestImporterAtomicActivityFailures(t *testing.T) {
 						t.Fatal(err)
 					}
 					obj = coreChild(t, parent, "101")
-					if err := obj.SetAttrs("personalNote", "preserve me",
-						"camliPath:activity.json", obj.Attr(attrActivityJSON),
-						"camliPath:streams.json", obj.Attr(attrStreamsJSON),
-						"camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack)); err != nil {
+					if err := obj.SetAttrs(importer.KV("personalNote", "preserve me"),
+						importer.KV("camliPath:activity.json", obj.Attr(attrActivityJSON)),
+						importer.KV("camliPath:streams.json", obj.Attr(attrStreamsJSON)),
+						importer.KV("camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack))); err != nil {
 						t.Fatal(err)
 					}
 					want = f.activityState(obj.PermanodeRef())
@@ -1342,10 +1342,10 @@ func TestImporterUnknownOptionalAndLegacyDeletesShareActivityClaim(t *testing.T)
 		t.Fatal(err)
 	}
 	obj := coreChild(t, parent, "101")
-	if err := obj.SetAttrs("personalNote", "keep me",
-		"camliPath:activity.json", obj.Attr(attrActivityJSON),
-		"camliPath:streams.json", obj.Attr(attrStreamsJSON),
-		"camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack)); err != nil {
+	if err := obj.SetAttrs(importer.KV("personalNote", "keep me"),
+		importer.KV("camliPath:activity.json", obj.Attr(attrActivityJSON)),
+		importer.KV("camliPath:streams.json", obj.Attr(attrStreamsJSON)),
+		importer.KV("camliPath:track.gpx", obj.Attr(nodeattr.FitnessTrack))); err != nil {
 		t.Fatal(err)
 	}
 	if err := obj.SetAttrValues(nodeattr.FitnessAverageHeartRate, []string{"142.5", "143"}); err != nil {
@@ -1710,7 +1710,7 @@ func TestImporterCallbackRejectsInvalidStateAndPermission(t *testing.T) {
 			f := newCoreFixture(t, nil) // any attempted token exchange fails the test
 			acct := f.rc.AccountNode()
 			state := "acct:" + acct.PermanodeRef().String() + ":" + strings.Repeat("a", 64)
-			if err := acct.SetAttrs(attrOAuthState, state, attrOAuthStateExpiry, strconv.FormatInt(time.Now().Add(time.Minute).Unix(), 10)); err != nil {
+			if err := acct.SetAttrs(importer.KV(attrOAuthState, state), importer.KV(attrOAuthStateExpiry, strconv.FormatInt(time.Now().Add(time.Minute).Unix(), 10))); err != nil {
 				t.Fatal(err)
 			}
 			params := url.Values{"state": {state}, "code": {"test-code"}, "scope": {"read,activity:read_all"}}
@@ -2118,7 +2118,7 @@ func TestImporterRefreshOnlyAndPartialTokenWritesRecover(t *testing.T) {
 					t.Fatal(err)
 				}
 				if scenario == "invalid-expiry" {
-					if err := acct.SetAttrs(importer.AcctAttrAccessToken, "initial-access", attrTokenExpiry, "invalid"); err != nil {
+					if err := acct.SetAttrs(importer.KV(importer.AcctAttrAccessToken, "initial-access"), importer.KV(attrTokenExpiry, "invalid")); err != nil {
 						t.Fatal(err)
 					}
 				}

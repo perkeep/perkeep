@@ -53,12 +53,12 @@ func TestIntegration(t *testing.T) {
 
 	imptest.ImporterTest(t, "mastodon", transport, func(rc *importer.RunContext) {
 		if err := rc.AccountNode().SetAttrs(
-			importer.AcctAttrAccessToken, "aaabbb",
-			acctAttrClientID, "clientid",
-			acctAttrClientSecret, "supersecret",
-			acctAttrInstanceURL, "https://example.com",
-			importer.AcctAttrUserName, "testuser",
-			importer.AcctAttrUserID, "1",
+			importer.KV(importer.AcctAttrAccessToken, "aaabbb"),
+			importer.KV(acctAttrClientID, "clientid"),
+			importer.KV(acctAttrClientSecret, "supersecret"),
+			importer.KV(acctAttrInstanceURL, "https://example.com"),
+			importer.KV(importer.AcctAttrUserName, "testuser"),
+			importer.KV(importer.AcctAttrUserID, "1"),
 		); err != nil {
 			t.Fatal(err)
 		}

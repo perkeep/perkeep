@@ -188,7 +188,10 @@ func importArchive(rc *importer.RunContext, src memberSource, names map[string]b
 		return err
 	}
 	prep.Finish()
-	if err := rc.RootNode().SetAttrs(nodeattr.Title, "Runkeeper workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
+	if err := rc.RootNode().SetAttrs(
+		importer.KV(nodeattr.Title, "Runkeeper workouts"),
+		importer.KV(nodeattr.DefaultVisibility, "hide"),
+	); err != nil {
 		return err
 	}
 	collection, err := rc.RootNode().ChildPathObject("activities")
@@ -253,7 +256,8 @@ func (r *archiveRun) writeJSON(name string, v any) (blob.Ref, error) {
 	return schema.WriteFileFromReader(r.rc.Context(), r.rc.Host.Target(), name, bytes.NewReader(data))
 }
 func (r *archiveRun) attachAccountSources() error {
-	var sets, deletes []string
+	var sets []importer.KeyValue
+	var deletes []string
 	for _, s := range []struct {
 		name, attr string
 		limit      int64
@@ -273,7 +277,7 @@ func (r *archiveRun) attachAccountSources() error {
 		if err != nil {
 			return err
 		}
-		sets = append(sets, s.attr, ref.String())
+		sets = append(sets, importer.KV(s.attr, ref.String()))
 	}
 	return r.rc.AccountNode().SetAttrsWithDeletes(deletes, sets...)
 }
@@ -426,14 +430,15 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 		}
 		attrs[s.attr] = ref.String()
 	}
-	var sets, deletes []string
+	var sets []importer.KeyValue
+	var deletes []string
 	keys := make([]string, 0, len(attrs))
 	for k := range attrs {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		sets = append(sets, k, attrs[k])
+		sets = append(sets, importer.KV(k, attrs[k]))
 	}
 	for _, k := range activityKeys {
 		if _, ok := attrs[k]; !ok {
@@ -441,7 +446,7 @@ func (r *archiveRun) importActivity(parent *importer.Object, a *activity, rows [
 		}
 	}
 	// All files succeed before the sole atomic publication, including completion.
-	sets = append(sets, attrHash, fingerprint, attrVersion, importVersion)
+	sets = append(sets, importer.KV(attrHash, fingerprint), importer.KV(attrVersion, importVersion))
 	if err := r.rc.Context().Err(); err != nil {
 		return false, err
 	}

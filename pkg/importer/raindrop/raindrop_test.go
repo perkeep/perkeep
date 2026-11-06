@@ -60,7 +60,7 @@ func TestRunProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := rc.AccountNode().SetAttrs(attrAuthToken, "token", importer.AcctAttrUserName, "gina"); err != nil {
+	if err := rc.AccountNode().SetAttrs(importer.KV(attrAuthToken, "token"), importer.KV(importer.AcctAttrUserName, "gina")); err != nil {
 		t.Fatal(err)
 	}
 

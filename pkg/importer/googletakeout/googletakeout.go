@@ -259,7 +259,10 @@ func (r *run) scan(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := r.acct.SetAttrs(attrOverview, string(oj), attrState, stateReview); err != nil {
+	if err := r.acct.SetAttrs(
+		importer.KV(attrOverview, string(oj)),
+		importer.KV(attrState, stateReview),
+	); err != nil {
 		return err
 	}
 	r.rc.Logf("Scanned. Confirm the import on this page.")
@@ -283,7 +286,11 @@ func (r *run) importExport(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := r.acct.SetAttrs(attrResult, string(rj), attrExportPermanode, pn.String(), attrState, stateDone); err != nil {
+	if err := r.acct.SetAttrs(
+		importer.KV(attrResult, string(rj)),
+		importer.KV(attrExportPermanode, pn.String()),
+		importer.KV(attrState, stateDone),
+	); err != nil {
 		return err
 	}
 	r.rc.Logf("Imported the export, archived as permanode %v.", pn)
@@ -621,12 +628,12 @@ func (imp) servePick(w http.ResponseWriter, r *http.Request, sc *importer.SetupC
 		return err
 	}
 	if err := acct.SetAttrsWithDeletes([]string{attrOverview, attrPaused, attrFolder},
-		attrFileSource, b.info.Ref.String(),
-		attrFolder, b.folderID(),
-		attrExport, exp.Name,
-		attrEdited, edited,
-		nodeattr.Title, "Google Takeout export "+exp.Name,
-		attrState, stateScanning,
+		importer.KV(attrFileSource, b.info.Ref.String()),
+		importer.KV(attrFolder, b.folderID()),
+		importer.KV(attrExport, exp.Name),
+		importer.KV(attrEdited, edited),
+		importer.KV(nodeattr.Title, "Google Takeout export "+exp.Name),
+		importer.KV(attrState, stateScanning),
 	); err != nil {
 		return err
 	}

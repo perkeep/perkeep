@@ -125,10 +125,10 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := rc.AccountNode().SetAttrs(
-		importer.AcctAttrUserName, ljtest.User,
-		acctAttrPasswordFile, writeFile(t, "pw", ljtest.Password),
-		acctAttrTimeZone, "UTC",
-		acctAttrServer, ljtest.BaseURL,
+		importer.KV(importer.AcctAttrUserName, ljtest.User),
+		importer.KV(acctAttrPasswordFile, writeFile(t, "pw", ljtest.Password)),
+		importer.KV(acctAttrTimeZone, "UTC"),
+		importer.KV(acctAttrServer, ljtest.BaseURL),
 	); err != nil {
 		t.Fatal(err)
 	}

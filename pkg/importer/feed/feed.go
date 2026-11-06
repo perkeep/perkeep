@@ -175,13 +175,13 @@ func (r *run) importItem(parent *importer.Object, item *item) (changed bool, err
 		return false, err
 	}
 	changed, err = itemNode.SetAttrs2(
-		nodeattr.Type, "feed:item",
-		nodeattr.Title, item.Title,
-		nodeattr.CamliContent, fileRef.String(),
-		"link", item.Link,
-		"feedItemId", item.ID,
-		"author", item.Author,
-		"feedMediaContentURL", item.MediaContent,
+		importer.KV(nodeattr.Type, "feed:item"),
+		importer.KV(nodeattr.Title, item.Title),
+		importer.KV(nodeattr.CamliContent, fileRef.String()),
+		importer.KV("link", item.Link),
+		importer.KV("feedItemId", item.ID),
+		importer.KV("author", item.Author),
+		importer.KV("feedMediaContentURL", item.MediaContent),
 	)
 	if err != nil {
 		return false, err
@@ -283,7 +283,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		feed.Scheme = "http"
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrFeedURL, feed.String(),
+		importer.KV(acctAttrFeedURL, feed.String()),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return

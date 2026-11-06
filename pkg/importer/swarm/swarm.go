@@ -204,8 +204,8 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		}
 
 		if err := r.AccountNode().SetAttrs(
-			importer.AcctAttrCompletedVersion, runCompleteVersion,
-			attrLastFullImportMaxCreatedAtSec, fmt.Sprint(maxCreatedAtSec),
+			importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion),
+			importer.KV(attrLastFullImportMaxCreatedAtSec, fmt.Sprint(maxCreatedAtSec)),
 		); err != nil {
 			return err
 		}
@@ -301,7 +301,10 @@ func (r *run) importCheckins() error {
 	seen := 0 // checkins the bar has counted
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(checkinsRequestLimit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath,
+			importer.KV("limit", strconv.Itoa(checkinsRequestLimit)),
+			importer.KV("offset", strconv.Itoa(offset)),
+		); err != nil {
 			return err
 		}
 		isFirstPage := offset == 0
@@ -412,8 +415,8 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	if err := photosNode.SetAttrs(
-		nodeattr.Title, "Photos of "+placeNode.Attr(nodeattr.Title),
-		nodeattr.DefaultVisibility, "hide"); err != nil {
+		importer.KV(nodeattr.Title, "Photos of "+placeNode.Attr(nodeattr.Title)),
+		importer.KV(nodeattr.DefaultVisibility, "hide")); err != nil {
 		return err
 	}
 
@@ -439,7 +442,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	resp := photosList{}
 	if err = r.im.doCredAPI(r.Context(), clientID, clientSecret, &resp,
 		"venues/"+placeNode.Attr(attrFoursquareId)+"/photos",
-		"limit", strconv.Itoa(nWant)); err != nil {
+		importer.KV("limit", strconv.Itoa(nWant))); err != nil {
 		return err
 	}
 
@@ -486,11 +489,11 @@ func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, place
 	title := fmt.Sprintf("Checkin at %s", checkin.Venue.Name)
 	dup = checkinNode.Attr(nodeattr.StartDate) != ""
 	if err := checkinNode.SetAttrs(
-		attrFoursquareId, checkin.Id,
-		attrFoursquareVenuePermanode, placeRef.String(),
-		nodeattr.Type, "foursquare.com:checkin",
-		nodeattr.StartDate, schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
-		nodeattr.Title, title); err != nil {
+		importer.KV(attrFoursquareId, checkin.Id),
+		importer.KV(attrFoursquareVenuePermanode, placeRef.String()),
+		importer.KV(nodeattr.Type, "foursquare.com:checkin"),
+		importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0))),
+		importer.KV(nodeattr.Title, title)); err != nil {
 		return nil, false, err
 	}
 
@@ -507,15 +510,15 @@ func (r *run) importCompanions(parent *importer.Object, companions []*user) (com
 		if err != nil {
 			return nil, err
 		}
-		attrs := []string{
-			attrFoursquareId, user.Id,
-			nodeattr.Type, "foursquare.com:person",
-			nodeattr.Title, user.FirstName + " " + user.LastName,
-			nodeattr.GivenName, user.FirstName,
-			nodeattr.FamilyName, user.LastName,
+		attrs := []importer.KeyValue{
+			importer.KV(attrFoursquareId, user.Id),
+			importer.KV(nodeattr.Type, "foursquare.com:person"),
+			importer.KV(nodeattr.Title, user.FirstName+" "+user.LastName),
+			importer.KV(nodeattr.GivenName, user.FirstName),
+			importer.KV(nodeattr.FamilyName, user.LastName),
 		}
 		if icon := user.icon(); icon != "" {
-			attrs = append(attrs, nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)))
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon))))
 		}
 		if err := personNode.SetAttrs(attrs...); err != nil {
 			return nil, err
@@ -536,25 +539,25 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.
 		catName = cat.Name
 	}
 
-	attrs := []string{
-		attrFoursquareId, place.Id,
-		nodeattr.Type, "foursquare.com:venue",
-		attrFoursquareCategoryName, catName,
-		nodeattr.Title, place.Name,
+	attrs := []importer.KeyValue{
+		importer.KV(attrFoursquareId, place.Id),
+		importer.KV(nodeattr.Type, "foursquare.com:venue"),
+		importer.KV(attrFoursquareCategoryName, catName),
+		importer.KV(nodeattr.Title, place.Name),
 	}
 	if icon := place.icon(); icon != "" {
 		attrs = append(attrs,
-			nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)))
+			importer.KV(nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon))))
 	}
 	if place.Location != nil {
 		attrs = append(attrs,
-			nodeattr.StreetAddress, place.Location.Address,
-			nodeattr.AddressLocality, place.Location.City,
-			nodeattr.PostalCode, place.Location.PostalCode,
-			nodeattr.AddressRegion, place.Location.State,
-			nodeattr.AddressCountry, place.Location.Country,
-			nodeattr.Latitude, fmt.Sprint(place.Location.Lat),
-			nodeattr.Longitude, fmt.Sprint(place.Location.Lng))
+			importer.KV(nodeattr.StreetAddress, place.Location.Address),
+			importer.KV(nodeattr.AddressLocality, place.Location.City),
+			importer.KV(nodeattr.PostalCode, place.Location.PostalCode),
+			importer.KV(nodeattr.AddressRegion, place.Location.State),
+			importer.KV(nodeattr.AddressCountry, place.Location.Country),
+			importer.KV(nodeattr.Latitude, fmt.Sprint(place.Location.Lat)),
+			importer.KV(nodeattr.Longitude, fmt.Sprint(place.Location.Lng)))
 	}
 	if err := placeNode.SetAttrs(attrs...); err != nil {
 		return nil, err
@@ -588,31 +591,27 @@ func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error
 
 // doUserAPI makes requests to the Foursquare API with a user token.
 // https://developer.foursquare.com/overview/auth#requests
-func (im *imp) doUserAPI(ctx context.Context, accessToken string, result any, apiPath string, keyval ...string) error {
+func (im *imp) doUserAPI(ctx context.Context, accessToken string, result any, apiPath string, params ...importer.KeyValue) error {
 	form := url.Values{}
 	form.Set("oauth_token", accessToken)
-	return im.doAPI(ctx, form, result, apiPath, keyval...)
+	return im.doAPI(ctx, form, result, apiPath, params...)
 }
 
 // doCredAPI makes userless requests to the Foursquare API, which have a larger
 // quota than user requests for some endpoints.
 // https://developer.foursquare.com/overview/auth#userless
 // https://developer.foursquare.com/overview/ratelimits
-func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result any, apiPath string, keyval ...string) error {
+func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result any, apiPath string, params ...importer.KeyValue) error {
 	form := url.Values{}
 	form.Set("client_id", clientID)
 	form.Set("client_secret", clientSecret)
-	return im.doAPI(ctx, form, result, apiPath, keyval...)
+	return im.doAPI(ctx, form, result, apiPath, params...)
 }
 
-func (im *imp) doAPI(ctx context.Context, form url.Values, result any, apiPath string, keyval ...string) error {
-	if len(keyval)%2 == 1 {
-		panic("Incorrect number of keyval arguments")
-	}
-
+func (im *imp) doAPI(ctx context.Context, form url.Values, result any, apiPath string, params ...importer.KeyValue) error {
 	form.Set("v", apiVersion) // 4sq requires this to version their API
-	for i := 0; i < len(keyval); i += 2 {
-		form.Set(keyval[i], keyval[i+1])
+	for _, p := range params {
+		form.Set(p.Key, p.Value)
 	}
 
 	fullURL := apiURL + apiPath
@@ -724,10 +723,10 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrUserId, u.Id,
-		acctAttrUserFirst, u.FirstName,
-		acctAttrUserLast, u.LastName,
-		acctAttrAccessToken, token.AccessToken,
+		importer.KV(acctAttrUserId, u.Id),
+		importer.KV(acctAttrUserFirst, u.FirstName),
+		importer.KV(acctAttrUserLast, u.LastName),
+		importer.KV(acctAttrAccessToken, token.AccessToken),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return

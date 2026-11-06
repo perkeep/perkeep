@@ -61,7 +61,7 @@ func TestCredentialSnapshotCompareAndSwap(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			err = f.o.SetSecretAttrsIfRevision(ctx, snapshot, access, "new-access", refresh, "new-refresh")
+			err = f.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(access, "new-access"), KV(refresh, "new-refresh"))
 			if operation == "rotate" {
 				if err != nil {
 					t.Fatal(err)
@@ -109,7 +109,7 @@ func TestCredentialSnapshotAbsentAndValidation(t *testing.T) {
 	if err != nil || snapshot.Value(key) != "" {
 		t.Fatal("absent secret fell back to historical signed value")
 	}
-	for _, args := range [][]string{nil, {key}, {"title", "must-not-sign"}, {key, "a", key, "b"}} {
+	for _, args := range [][]KeyValue{nil, {KV("title", "must-not-sign")}, {KV(key, "a"), KV(key, "b")}} {
 		if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, args...); err == nil {
 			t.Fatal("invalid snapshot update accepted")
 		}
@@ -118,16 +118,16 @@ func TestCredentialSnapshotAbsentAndValidation(t *testing.T) {
 		t.Fatal("non-secret snapshot accepted")
 	}
 	other := newObjectClaimFixture(t, nil)
-	if err := other.o.SetSecretAttrsIfRevision(ctx, snapshot, key, "wrong-object"); err == nil {
+	if err := other.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "wrong-object")); err == nil {
 		t.Fatal("snapshot used for a different object")
 	}
-	if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, key, "new-private-value"); err != nil {
+	if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "new-private-value")); err != nil {
 		t.Fatal(err)
 	}
 	if _, retained := f.o.attr[key]; retained {
 		t.Fatal("credential retained in claim attribute map")
 	}
-	if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, key, "stale"); !errors.Is(err, secretstore.ErrConflict) {
+	if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "stale")); !errors.Is(err, secretstore.ErrConflict) {
 		t.Fatalf("reused absent snapshot = %v; want conflict", err)
 	}
 	if len(f.target.uploads()) != 0 || len(other.target.uploads()) != 0 {
@@ -155,7 +155,7 @@ func TestCredentialSnapshotUnavailableStoreFailsClosed(t *testing.T) {
 			if _, err := f.o.CredentialSnapshot(ctx, key); err == nil {
 				t.Fatal("unavailable store snapshot did not fail closed")
 			}
-			if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, key, "must-not-sign"); err == nil {
+			if err := f.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "must-not-sign")); err == nil {
 				t.Fatal("unavailable store update did not fail closed")
 			}
 			if len(f.target.uploads()) != 0 {
@@ -188,7 +188,7 @@ func TestCredentialSnapshotAbsentDeletionConflict(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				err = f.o.SetSecretAttrsIfRevision(ctx, snapshot, key, "new-access")
+				err = f.o.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "new-access"))
 				if intervene {
 					if !errors.Is(err, secretstore.ErrConflict) {
 						t.Fatalf("absent credential deleted during operation: %v; want conflict", err)
@@ -217,7 +217,7 @@ func TestCredentialSnapshotPendingObjectPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.target.err = errors.New("injected pending permanode failure")
-	if err := pending.SetSecretAttrsIfRevision(ctx, snapshot, key, "new-private-value"); err == nil {
+	if err := pending.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "new-private-value")); err == nil {
 		t.Fatal("pending permanode failure ignored")
 	}
 	if !pending.isPending() {
@@ -227,7 +227,7 @@ func TestCredentialSnapshotPendingObjectPersistence(t *testing.T) {
 		t.Fatal("credential saved before pending permanode persisted")
 	}
 	f.target.err = nil
-	if err := pending.SetSecretAttrsIfRevision(ctx, snapshot, key, "new-private-value"); err != nil {
+	if err := pending.SetSecretAttrsIfRevision(ctx, snapshot, KV(key, "new-private-value")); err != nil {
 		t.Fatal(err)
 	}
 	if pending.isPending() || pending.Attr(key) != "new-private-value" {

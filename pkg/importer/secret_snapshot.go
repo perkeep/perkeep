@@ -78,18 +78,18 @@ func (o *Object) CredentialSnapshot(ctx context.Context, keys ...string) (*Crede
 // causes an error wrapping secretstore.ErrConflict; discard the remote response
 // rather than retrying it against freshly read revisions.
 //
-// Every captured key must occur exactly once in keyval, and no other keys are
+// Every captured key must occur exactly once in kvs, and no other keys are
 // allowed. An empty value deletes the credential. Migration warnings remain
 // sticky. No credential claims are signed, and no public metadata is changed.
-func (o *Object) SetSecretAttrsIfRevision(ctx context.Context, snapshot *CredentialSnapshot, keyval ...string) error {
+func (o *Object) SetSecretAttrsIfRevision(ctx context.Context, snapshot *CredentialSnapshot, kvs ...KeyValue) error {
 	if snapshot == nil || snapshot.object != o || len(snapshot.entries) == 0 ||
-		len(keyval) != 2*len(snapshot.entries) {
+		len(kvs) != len(snapshot.entries) {
 		return errors.New("importer: invalid credential snapshot update")
 	}
 	seen := make(map[string]bool)
 	mutations := make([]secretstore.Mutation, 0, len(snapshot.entries))
-	for i := 0; i < len(keyval); i += 2 {
-		key, value := keyval[i], keyval[i+1]
+	for _, kv := range kvs {
+		key, value := kv.Key, kv.Value
 		entry, ok := snapshot.entries[key]
 		if !ok || seen[key] || !isSecretAttribute(key) {
 			return errors.New("importer: invalid credential snapshot update")

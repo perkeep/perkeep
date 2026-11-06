@@ -538,7 +538,10 @@ func localRoot(dir string) (string, error) {
 // serveNewFileSource adds a file source, from the form on the sources'
 // page.
 func (h *Host) serveNewFileSource(w http.ResponseWriter, r *http.Request) {
-	attrs := []string{attrNodeType, nodeTypeFileSource, nodeattr.Title, strings.TrimSpace(r.FormValue("title"))}
+	attrs := []KeyValue{
+		KV(attrNodeType, nodeTypeFileSource),
+		KV(nodeattr.Title, strings.TrimSpace(r.FormValue("title"))),
+	}
 	switch typ := r.FormValue("type"); typ {
 	case fileSourceLocal:
 		dir, err := localRoot(strings.TrimSpace(r.FormValue("dir")))
@@ -546,7 +549,7 @@ func (h *Host) serveNewFileSource(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		attrs = append(attrs, attrFileSourceType, typ, attrFileSourceRoot, dir)
+		attrs = append(attrs, KV(attrFileSourceType, typ), KV(attrFileSourceRoot, dir))
 	case fileSourceGoogleDrive, fileSourceDropbox:
 		client := strings.TrimSpace(r.FormValue("client"))
 		_, kind, err := parseOAuthClient(typ, client)
@@ -554,7 +557,11 @@ func (h *Host) serveNewFileSource(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		attrs = append(attrs, attrFileSourceType, typ, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, client)
+		attrs = append(attrs,
+			KV(attrFileSourceType, typ),
+			KV(attrFileSourceOAuthKind, kind),
+			KV(attrFileSourceOAuthClient, client),
+		)
 	default:
 		http.Error(w, "unknown file source type", http.StatusBadRequest)
 		return
@@ -599,14 +606,14 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 	if r.Method == http.MethodPost {
 		switch r.FormValue("mode") {
 		case "save":
-			attrs := []string{nodeattr.Title, strings.TrimSpace(r.FormValue("title"))}
+			attrs := []KeyValue{KV(nodeattr.Title, strings.TrimSpace(r.FormValue("title")))}
 			if s.Type() == fileSourceLocal {
 				dir, err := localRoot(strings.TrimSpace(r.FormValue("dir")))
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
-				attrs = append(attrs, attrFileSourceRoot, dir)
+				attrs = append(attrs, KV(attrFileSourceRoot, dir))
 			}
 			var deletes []string
 			if client := strings.TrimSpace(r.FormValue("client")); client != "" && s.UsesOAuth() {
@@ -617,7 +624,10 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 				}
 				// The authorization was the old client's.
 				deletes = []string{attrFileSourceRefreshToken, attrFileSourceOAuthPending}
-				attrs = append(attrs, attrFileSourceOAuthKind, kind, attrFileSourceOAuthClient, client)
+				attrs = append(attrs,
+					KV(attrFileSourceOAuthKind, kind),
+					KV(attrFileSourceOAuthClient, client),
+				)
 			}
 			if err := s.o.SetAttrsWithDeletes(deletes, attrs...); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -629,7 +639,7 @@ func (h *Host) serveFileSource(w http.ResponseWriter, r *http.Request, s fileSou
 			// What was imported from it stays; only its setup goes, with
 			// its credentials.
 			deletes := []string{attrFileSourceOAuthClient, attrFileSourceRefreshToken, attrFileSourceOAuthPending}
-			if err := s.o.SetAttrsWithDeletes(deletes, attrNodeType, nodeTypeFileSource+"-deleted"); err != nil {
+			if err := s.o.SetAttrsWithDeletes(deletes, KV(attrNodeType, nodeTypeFileSource+"-deleted")); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}

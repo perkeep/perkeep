@@ -1053,12 +1053,12 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 			http.Error(w, "Error getting node: "+err.Error(), 500)
 			return
 		}
-		var values []string
+		var values []KeyValue
 		if id := r.FormValue("clientID"); id != "" {
-			values = append(values, attrClientID, id)
+			values = append(values, KV(attrClientID, id))
 		}
 		if secret := r.FormValue("clientSecret"); secret != "" {
-			values = append(values, attrClientSecret, secret)
+			values = append(values, KV(attrClientSecret, secret))
 		}
 		var deletes []string
 		if r.FormValue("clearCredentials") == "true" {
@@ -1429,12 +1429,12 @@ func (im *importer) newAccount() (*importerAcct, error) {
 
 // accountAttrs returns the attributes of a new account permanode with
 // import root root, followed by attrs.
-func (im *importer) accountAttrs(root blob.Ref, attrs ...string) []string {
-	return append([]string{
-		"title", fmt.Sprintf("%s account", im.name),
-		attrNodeType, nodeTypeImporterAccount,
-		attrImporterType, im.ImporterType(),
-		attrImportRoot, root.String(),
+func (im *importer) accountAttrs(root blob.Ref, attrs ...KeyValue) []KeyValue {
+	return append([]KeyValue{
+		KV("title", fmt.Sprintf("%s account", im.name)),
+		KV(attrNodeType, nodeTypeImporterAccount),
+		KV(attrImporterType, im.ImporterType()),
+		KV(attrImportRoot, root.String()),
 	}, attrs...)
 }
 
@@ -1460,8 +1460,8 @@ func (im *importer) newPendingAccount() (*importerAcct, error) {
 	}
 	base := im.accountAttrs(root.PermanodeRef())
 	acct.attr = make(map[string][]string)
-	for i := 0; i < len(base); i += 2 {
-		acct.attr[base[i]] = []string{base[i+1]}
+	for _, kv := range base {
+		acct.attr[kv.Key] = []string{kv.Value}
 	}
 	ia := &importerAcct{im: im, acct: acct, root: root, pendingSince: time.Now()}
 	storeAcct := acct.store
@@ -1473,8 +1473,8 @@ func (im *importer) newPendingAccount() (*importerAcct, error) {
 			return err
 		}
 		var claims []*schema.Builder
-		for i := 0; i < len(base); i += 2 {
-			claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, base[i], base[i+1]))
+		for _, kv := range base {
+			claims = append(claims, schema.NewSetAttributeClaim(blob.Ref{}, kv.Key, kv.Value))
 		}
 		if err := acct.uploadAttributeClaims(ctx, claims); err != nil {
 			return err
@@ -1521,7 +1521,7 @@ func (im *importer) forgetPending(ia *importerAcct) bool {
 	return true
 }
 
-func (im *importer) newAccountWithAttrs(attrs ...string) (*importerAcct, error) {
+func (im *importer) newAccountWithAttrs(attrs ...KeyValue) (*importerAcct, error) {
 	acct, err := im.host.NewObject()
 	if err != nil {
 		return nil, err
@@ -1638,9 +1638,9 @@ func (im *importer) node(create bool) (*Object, error) {
 		return nil, err
 	}
 	if err := o.SetAttrs(
-		"title", fmt.Sprintf("%s importer", im.name),
-		attrNodeType, nodeTypeImporter,
-		attrImporterType, im.ImporterType(),
+		KV("title", fmt.Sprintf("%s importer", im.name)),
+		KV(attrNodeType, nodeTypeImporter),
+		KV(attrImporterType, im.ImporterType()),
 	); err != nil {
 		return nil, err
 	}
@@ -1738,7 +1738,7 @@ func (ia *importerAcct) delete() error {
 		ia.stopped = true
 	}
 	if err := ia.acct.SetAttrs(
-		attrNodeType, nodeTypeImporterAccount+"-deleted",
+		KV(attrNodeType, nodeTypeImporterAccount+"-deleted"),
 	); err != nil {
 		return err
 	}
@@ -1755,7 +1755,7 @@ func (ia *importerAcct) toggleAuto() error {
 	if old == "" {
 		new = "30m" // TODO: configurable?
 	}
-	return ia.acct.SetAttrs(attrImportAuto, new)
+	return ia.acct.SetAttrs(KV(attrImportAuto, new))
 }
 
 func (ia *importerAcct) IsAccountReady() (bool, error) {
@@ -1803,7 +1803,7 @@ func (ia *importerAcct) UsePaidAPI() bool {
 // setUsePaidAPI sets whether the account's runs use the paid API(s).
 func (ia *importerAcct) setUsePaidAPI(use bool) error {
 	if use {
-		return ia.acct.SetAttrs(attrUsePaidAPI, "true")
+		return ia.acct.SetAttrs(KV(attrUsePaidAPI, "true"))
 	}
 	return ia.acct.SetAttrsWithDeletes([]string{attrUsePaidAPI})
 }
@@ -1927,7 +1927,7 @@ func (ia *importerAcct) start() {
 
 // startLocked starts the normal managed lifecycle, optionally selecting an
 // archive input. ia.mu protects input selection and the active run together.
-func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...string) error {
+func (ia *importerAcct) startLocked(archiveRef blob.Ref, attrs ...KeyValue) error {
 	if err := ia.acct.checkCredentials(); err != nil {
 		return err
 	}
@@ -2272,43 +2272,51 @@ func (o *Object) DelAttr(key, value string) error {
 	return nil
 }
 
-// SetAttr sets the attribute key to value.
-func (o *Object) SetAttr(key, value string) error {
-	return o.SetAttrs(key, value)
+// KeyValue is a key and its value, such as an attribute to set, or a
+// parameter of an API request.
+type KeyValue struct {
+	Key   string
+	Value string
 }
 
-// SetAttrs sets multiple attributes. The provided keyval should be an
-// even number of alternating key/value pairs to set.
-func (o *Object) SetAttrs(keyval ...string) error {
-	_, err := o.SetAttrs2(keyval...)
+// KV returns a KeyValue of key and value.
+func KV(key, value string) KeyValue {
+	return KeyValue{Key: key, Value: value}
+}
+
+// SetAttr sets the attribute key to value.
+func (o *Object) SetAttr(key, value string) error {
+	return o.SetAttrs(KV(key, value))
+}
+
+// SetAttrs sets multiple attributes.
+func (o *Object) SetAttrs(kvs ...KeyValue) error {
+	_, err := o.SetAttrs2(kvs...)
 	return err
 }
 
 // SetAttrs2 sets multiple attributes in one signed claim and returns whether
 // any changes were attempted. Multiple changes use an atomic multi claim.
-// The provided keyval should be an even number of alternating key/value pairs
-// to set; repeated keys are processed in argument order.
-func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
-	return o.setAttrsWithDeletes(nil, keyval...)
+// Repeated keys are processed in argument order.
+func (o *Object) SetAttrs2(kvs ...KeyValue) (changes bool, err error) {
+	return o.setAttrsWithDeletes(nil, kvs...)
 }
 
 // SetAttrsWithDeletes atomically removes whole attributes and sets attributes
 // in one claim. Credential changes instead use a separate local transaction,
 // committed before non-credential claims; they cannot be atomic across stores.
-// Deletions are applied first, in deleteKeys order, then sets in keyval order. Repeated deletions are ignored; repeated sets retain their
-// order. A key in both lists is therefore removed before it is set again.
+// Deletions are applied first, in deleteKeys order, then sets in kvs order.
+// Repeated deletions are ignored; repeated sets retain their order. A key in
+// both lists is therefore removed before it is set again.
 //
 // Unchanged operations are skipped. Cached attributes change only after the
-// upload succeeds. The keyval list must contain alternating key/value pairs.
-func (o *Object) SetAttrsWithDeletes(deleteKeys []string, keyval ...string) error {
-	_, err := o.setAttrsWithDeletes(deleteKeys, keyval...)
+// upload succeeds.
+func (o *Object) SetAttrsWithDeletes(deleteKeys []string, kvs ...KeyValue) error {
+	_, err := o.setAttrsWithDeletes(deleteKeys, kvs...)
 	return err
 }
 
-func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (changes bool, err error) {
-	if len(keyval)%2 == 1 {
-		panic("importer.SetAttrs: odd argument count")
-	}
+func (o *Object) setAttrsWithDeletes(deleteKeys []string, kvs ...KeyValue) (changes bool, err error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	updates := make(map[string][]string)
@@ -2349,8 +2357,8 @@ func (o *Object) setAttrsWithDeletes(deleteKeys []string, keyval ...string) (cha
 			claims = append(claims, schema.NewDelAttributeClaim(blob.Ref{}, key, ""))
 		}
 	}
-	for i := 0; i < len(keyval); i += 2 {
-		key, val := keyval[i], keyval[i+1]
+	for _, kv := range kvs {
+		key, val := kv.Key, kv.Value
 		values, err := current(key)
 		if err != nil {
 			return false, err

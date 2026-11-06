@@ -139,7 +139,10 @@ func (im imp) ServeSetup(w http.ResponseWriter, req *http.Request, sc *importer.
 		return err
 	}
 	state := "acct:" + sc.AccountNode.PermanodeRef().String() + ":" + hex.EncodeToString(nonce[:])
-	if err := sc.AccountNode.SetAttrs(attrOAuthState, state, attrOAuthStateExpiry, strconv.FormatInt(time.Now().Add(10*time.Minute).Unix(), 10)); err != nil {
+	if err := sc.AccountNode.SetAttrs(
+		importer.KV(attrOAuthState, state),
+		importer.KV(attrOAuthStateExpiry, strconv.FormatInt(time.Now().Add(10*time.Minute).Unix(), 10)),
+	); err != nil {
 		return err
 	}
 	params := url.Values{
@@ -207,9 +210,11 @@ func (im imp) ServeCallback(w http.ResponseWriter, req *http.Request, sc *import
 		return
 	}
 	if err := sc.AccountNode.SetAttrs(
-		importer.AcctAttrUserID, uid, importer.AcctAttrUserName, tok.Athlete.Username,
-		importer.AcctAttrGivenName, tok.Athlete.Firstname, importer.AcctAttrFamilyName, tok.Athlete.Lastname,
-		importer.AcctAttrName, strings.TrimSpace(tok.Athlete.Firstname+" "+tok.Athlete.Lastname),
+		importer.KV(importer.AcctAttrUserID, uid),
+		importer.KV(importer.AcctAttrUserName, tok.Athlete.Username),
+		importer.KV(importer.AcctAttrGivenName, tok.Athlete.Firstname),
+		importer.KV(importer.AcctAttrFamilyName, tok.Athlete.Lastname),
+		importer.KV(importer.AcctAttrName, strings.TrimSpace(tok.Athlete.Firstname+" "+tok.Athlete.Lastname)),
 	); err != nil {
 		fail(http.StatusInternalServerError, err)
 		return
@@ -344,9 +349,9 @@ func (r *run) client() (*apiClient, error) {
 		// replacement or resurrect a deleted credential. Commit the rotating
 		// pair and its application binding together, before publishing expiry.
 		if err := acct.SetSecretAttrsIfRevision(r.Context(), credentials,
-			attrRefreshToken, tok.RefreshToken,
-			importer.AcctAttrAccessToken, tok.AccessToken,
-			attrTokenClientID, id,
+			importer.KV(attrRefreshToken, tok.RefreshToken),
+			importer.KV(importer.AcctAttrAccessToken, tok.AccessToken),
+			importer.KV(attrTokenClientID, id),
 		); err != nil {
 			return nil, err
 		}
@@ -426,7 +431,7 @@ func (im imp) runAt(rc *importer.RunContext, now func() time.Time) (err error) {
 		}()
 	}
 	r := &run{rc}
-	if err := rc.RootNode().SetAttrs(nodeattr.Title, "Strava workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
+	if err := rc.RootNode().SetAttrs(importer.KV(nodeattr.Title, "Strava workouts"), importer.KV(nodeattr.DefaultVisibility, "hide")); err != nil {
 		return err
 	}
 	activities, err := rc.RootNode().ChildPathObject("activities")
@@ -561,7 +566,7 @@ func (r *run) importActivityWithForce(parent *importer.Object, summary *activity
 			return false, err
 		}
 		if ref.Valid() {
-			sets = append(sets, file.key, ref.String())
+			sets = append(sets, importer.KV(file.key, ref.String()))
 		} else {
 			deletes = append(deletes, file.key)
 		}
@@ -570,7 +575,7 @@ func (r *run) importActivityWithForce(parent *importer.Object, summary *activity
 		deletes = append(deletes, "camliPath:"+file.filename)
 	}
 	// Completion is the last child in the same atomic claim as the data.
-	sets = append(sets, attrSummaryHash, hash, attrImportVersion, runCompleteVersion)
+	sets = append(sets, importer.KV(attrSummaryHash, hash), importer.KV(attrImportVersion, runCompleteVersion))
 	if err := r.Context().Err(); err != nil {
 		return false, err
 	}
@@ -611,36 +616,43 @@ func validateActivity(a *activity) error {
 }
 
 // activityAttrs builds the modeled values and deletions without publishing them.
-func activityAttrs(a *activity) (sets, deletes []string) {
+func activityAttrs(a *activity) (sets []importer.KeyValue, deletes []string) {
 	typ := a.SportType
 	if typ == "" {
 		typ = a.Type
 	}
-	sets = []string{
-		nodeattr.Type, nodeattr.FitnessActivity,
-		nodeattr.Title, a.Name, nodeattr.Description, a.Description,
-		nodeattr.StartDate, a.StartDate.UTC().Format(time.RFC3339),
-		nodeattr.URL, "https://www.strava.com/activities/" + strconv.FormatInt(a.ID, 10),
-		nodeattr.FitnessSource, "strava", nodeattr.FitnessSourceID, strconv.FormatInt(a.ID, 10),
-		nodeattr.FitnessDistance, decimal(a.Distance),
-		nodeattr.FitnessMovingDuration, strconv.FormatInt(a.MovingTime, 10),
-		nodeattr.FitnessElapsedDuration, strconv.FormatInt(a.ElapsedTime, 10),
-		nodeattr.FitnessElevationGain, decimal(a.TotalElevationGain),
-		"stravaSportType", a.SportType, "stravaActivityType", a.Type,
-		"stravaTimezone", a.Timezone, "stravaExternalID", a.ExternalID, "stravaGearID", a.GearID,
-		"stravaTrainer", strconv.FormatBool(a.Trainer), "stravaCommute", strconv.FormatBool(a.Commute),
-		"stravaManual", strconv.FormatBool(a.Manual), "stravaPrivate", strconv.FormatBool(a.Private),
+	sets = []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeattr.FitnessActivity),
+		importer.KV(nodeattr.Title, a.Name),
+		importer.KV(nodeattr.Description, a.Description),
+		importer.KV(nodeattr.StartDate, a.StartDate.UTC().Format(time.RFC3339)),
+		importer.KV(nodeattr.URL, "https://www.strava.com/activities/"+strconv.FormatInt(a.ID, 10)),
+		importer.KV(nodeattr.FitnessSource, "strava"),
+		importer.KV(nodeattr.FitnessSourceID, strconv.FormatInt(a.ID, 10)),
+		importer.KV(nodeattr.FitnessDistance, decimal(a.Distance)),
+		importer.KV(nodeattr.FitnessMovingDuration, strconv.FormatInt(a.MovingTime, 10)),
+		importer.KV(nodeattr.FitnessElapsedDuration, strconv.FormatInt(a.ElapsedTime, 10)),
+		importer.KV(nodeattr.FitnessElevationGain, decimal(a.TotalElevationGain)),
+		importer.KV("stravaSportType", a.SportType),
+		importer.KV("stravaActivityType", a.Type),
+		importer.KV("stravaTimezone", a.Timezone),
+		importer.KV("stravaExternalID", a.ExternalID),
+		importer.KV("stravaGearID", a.GearID),
+		importer.KV("stravaTrainer", strconv.FormatBool(a.Trainer)),
+		importer.KV("stravaCommute", strconv.FormatBool(a.Commute)),
+		importer.KV("stravaManual", strconv.FormatBool(a.Manual)),
+		importer.KV("stravaPrivate", strconv.FormatBool(a.Private)),
 	}
 	if typ == "" {
 		deletes = append(deletes, nodeattr.FitnessActivityType)
 	} else {
-		sets = append(sets, nodeattr.FitnessActivityType, activityType(typ))
+		sets = append(sets, importer.KV(nodeattr.FitnessActivityType, activityType(typ)))
 	}
 	optional := func(key string, val *float64) {
 		if val == nil {
 			deletes = append(deletes, key)
 		} else {
-			sets = append(sets, key, decimal(*val))
+			sets = append(sets, importer.KV(key, decimal(*val)))
 		}
 	}
 	optional(nodeattr.FitnessAverageHeartRate, a.AverageHeartrate)

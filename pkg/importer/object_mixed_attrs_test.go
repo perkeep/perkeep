@@ -29,7 +29,7 @@ func TestObjectSetAttrsWithDeletes(t *testing.T) {
 		name    string
 		old     map[string][]string
 		deletes []string
-		sets    []string
+		sets    []KeyValue
 		want    []objectClaimMutation
 		cached  map[string][]string
 	}{
@@ -37,7 +37,7 @@ func TestObjectSetAttrsWithDeletes(t *testing.T) {
 			name:    "mixed",
 			old:     map[string][]string{"remove": {"old", "other"}, "keep": {"same"}},
 			deletes: []string{"remove", "missing", "remove"},
-			sets:    []string{"keep", "same", "new", "value", "completed", "2"},
+			sets:    []KeyValue{KV("keep", "same"), KV("new", "value"), KV("completed", "2")},
 			want: []objectClaimMutation{
 				{schema.DelAttributeClaim, "remove", ""},
 				{schema.SetAttributeClaim, "new", "value"},
@@ -49,7 +49,7 @@ func TestObjectSetAttrsWithDeletes(t *testing.T) {
 			name:    "delete before ordered repeated sets",
 			old:     map[string][]string{"key": {"old", "other"}},
 			deletes: []string{"key"},
-			sets:    []string{"key", "first", "key", "last"},
+			sets:    []KeyValue{KV("key", "first"), KV("key", "last")},
 			want: []objectClaimMutation{
 				{schema.DelAttributeClaim, "key", ""},
 				{schema.SetAttributeClaim, "key", "first"},
@@ -68,13 +68,13 @@ func TestObjectSetAttrsWithDeletes(t *testing.T) {
 			name:    "no ops",
 			old:     map[string][]string{"key": {"same"}},
 			deletes: []string{"missing", "missing"},
-			sets:    []string{"key", "same", "unset", ""},
+			sets:    []KeyValue{KV("key", "same"), KV("unset", "")},
 			cached:  map[string][]string{"key": {"same"}},
 		},
 		{
 			name:   "single set",
 			old:    map[string][]string{},
-			sets:   []string{"key", "value"},
+			sets:   []KeyValue{KV("key", "value")},
 			want:   []objectClaimMutation{{schema.SetAttributeClaim, "key", "value"}},
 			cached: map[string][]string{"key": {"value"}},
 		},
@@ -103,7 +103,7 @@ func TestObjectSetAttrsWithDeletesFailure(t *testing.T) {
 	f := newObjectClaimFixture(t, old)
 	failure := errors.New("injected mixed-claim upload failure")
 	f.target.err = failure
-	err := f.o.SetAttrsWithDeletes([]string{"remove"}, "keep", "new", "completed", "2")
+	err := f.o.SetAttrsWithDeletes([]string{"remove"}, KV("keep", "new"), KV("completed", "2"))
 	if !errors.Is(err, failure) {
 		t.Fatalf("mixed update failure = %v", err)
 	}
@@ -113,17 +113,4 @@ func TestObjectSetAttrsWithDeletesFailure(t *testing.T) {
 	if len(f.target.uploads()) != 1 {
 		t.Fatal("failed mixed update did not attempt exactly one envelope")
 	}
-}
-
-func TestObjectSetAttrsWithDeletesOddArguments(t *testing.T) {
-	f := newObjectClaimFixture(t, map[string][]string{"key": {"old"}})
-	defer func() {
-		if recover() == nil {
-			t.Fatal("odd set arguments did not panic")
-		}
-		if len(f.target.uploads()) != 0 || f.o.Attr("key") != "old" {
-			t.Fatal("invalid arguments changed the object")
-		}
-	}()
-	_ = f.o.SetAttrsWithDeletes([]string{"key"}, "unpaired")
 }

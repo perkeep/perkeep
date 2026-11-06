@@ -78,9 +78,9 @@ func TestIntegrationRun(t *testing.T) {
 
 	imptest.ImporterTest(t, "instapaper", transport, func(rc *importer.RunContext) {
 		err := rc.AccountNode().SetAttrs(
-			importer.AcctAttrAccessToken, authToken,
-			importer.AcctAttrAccessTokenSecret, authSecret,
-			importer.AcctAttrUserID, userID,
+			importer.KV(importer.AcctAttrAccessToken, authToken),
+			importer.KV(importer.AcctAttrAccessTokenSecret, authSecret),
+			importer.KV(importer.AcctAttrUserID, userID),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -94,7 +94,7 @@ func TestIntegrationRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = existing.SetAttrs(attrBookmarkId, "1", nodeattr.Title, "Existing Title"); err != nil {
+		if err = existing.SetAttrs(importer.KV(attrBookmarkId, "1"), importer.KV(nodeattr.Title, "Existing Title")); err != nil {
 			t.Fatal(err)
 		}
 

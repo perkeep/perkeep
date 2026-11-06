@@ -41,7 +41,7 @@ func progressRun(f *coreFixture) error {
 	if err != nil {
 		return err
 	}
-	if err := f.rc.RootNode().SetAttrs(nodeattr.Title, "Strava workouts", nodeattr.DefaultVisibility, "hide"); err != nil {
+	if err := f.rc.RootNode().SetAttrs(importer.KV(nodeattr.Title, "Strava workouts"), importer.KV(nodeattr.DefaultVisibility, "hide")); err != nil {
 		return err
 	}
 	parent, err := f.rc.RootNode().ChildPathObject("activities")
@@ -373,8 +373,8 @@ func TestProgressDiscoveryFailureCannotPublishActivitiesOrProgress(t *testing.T)
 			f.configure(t)
 			// Discovery failures must preserve an already valid steady-state
 			// checkpoint too, not merely leave a fresh account blank.
-			if err := f.rc.AccountNode().SetAttrs(attrImportThrough, high.Format(time.RFC3339Nano), attrImportThroughVersion, runCompleteVersion,
-				attrBackfillCompletedVersion, runCompleteVersion, importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+			if err := f.rc.AccountNode().SetAttrs(importer.KV(attrImportThrough, high.Format(time.RFC3339Nano)), importer.KV(attrImportThroughVersion, runCompleteVersion),
+				importer.KV(attrBackfillCompletedVersion, runCompleteVersion), importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion)); err != nil {
 				t.Fatal(err)
 			}
 			before := f.activityState(f.rc.AccountNode().PermanodeRef())
@@ -441,9 +441,9 @@ func TestProgressExactResumeAndDailyWindowBoundaries(t *testing.T) {
 				return api.RoundTrip(req)
 			}))
 			f.configure(t)
-			sets := []string{attrImportThrough, high.Format(time.RFC3339Nano), attrImportThroughVersion, runCompleteVersion}
+			sets := []importer.KeyValue{importer.KV(attrImportThrough, high.Format(time.RFC3339Nano)), importer.KV(attrImportThroughVersion, runCompleteVersion)}
 			if done {
-				sets = append(sets, attrBackfillCompletedVersion, runCompleteVersion, importer.AcctAttrCompletedVersion, runCompleteVersion)
+				sets = append(sets, importer.KV(attrBackfillCompletedVersion, runCompleteVersion), importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion))
 			}
 			if err := f.rc.AccountNode().SetAttrs(sets...); err != nil {
 				t.Fatal(err)
@@ -600,12 +600,12 @@ func TestProgressUnknownVersionsRequireFullReconciliation(t *testing.T) {
 				return api.RoundTrip(req)
 			}))
 			f.configure(t)
-			sets := []string{importer.AcctAttrCompletedVersion, runCompleteVersion}
+			sets := []importer.KeyValue{importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion)}
 			if tc.version != "" {
-				sets = append(sets, attrImportThroughVersion, tc.version)
+				sets = append(sets, importer.KV(attrImportThroughVersion, tc.version))
 			}
 			if tc.done != "" {
-				sets = append(sets, attrBackfillCompletedVersion, tc.done)
+				sets = append(sets, importer.KV(attrBackfillCompletedVersion, tc.done))
 			}
 			if tc.version != "" || tc.done != "" {
 				// A newer obsolete checkpoint must not hide either activity.
@@ -662,7 +662,7 @@ func TestProgressCappedCompletionDoesNotFinishPartialBackfill(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := f.rc.AccountNode().SetAttrs(attrImportThrough, old.StartDate.Format(time.RFC3339Nano), attrImportThroughVersion, runCompleteVersion); err != nil {
+	if err := f.rc.AccountNode().SetAttrs(importer.KV(attrImportThrough, old.StartDate.Format(time.RFC3339Nano)), importer.KV(attrImportThroughVersion, runCompleteVersion)); err != nil {
 		t.Fatal(err)
 	}
 	before := len(progressAccountClaims(t, f))
@@ -708,7 +708,7 @@ func TestProgressCappedModeBypassesChronologicalMetadata(t *testing.T) {
 		return api.RoundTrip(req)
 	}))
 	f.configure(t)
-	if err := f.rc.AccountNode().SetAttrs(attrImportThrough, "not-a-time", attrBackfillCompletedVersion, "future"); err != nil {
+	if err := f.rc.AccountNode().SetAttrs(importer.KV(attrImportThrough, "not-a-time"), importer.KV(attrBackfillCompletedVersion, "future")); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.rc.AccountNode().SetAttrValues(attrImportThroughVersion, []string{"1", "future"}); err != nil {
@@ -1058,7 +1058,7 @@ func TestProgressQueuedRunCancelsBeforeActiveAccountGateIsReleased(t *testing.T)
 	f := newCoreFixture(t, nil) // Any HTTP request is a test failure.
 	f.configure(t)
 	high := coreActivity(1).StartDate
-	if err := f.rc.AccountNode().SetAttrs(attrImportThrough, high.Format(time.RFC3339Nano), attrImportThroughVersion, runCompleteVersion); err != nil {
+	if err := f.rc.AccountNode().SetAttrs(importer.KV(attrImportThrough, high.Format(time.RFC3339Nano)), importer.KV(attrImportThroughVersion, runCompleteVersion)); err != nil {
 		t.Fatal(err)
 	}
 	gate := importRunGate(f.rc.AccountNode())

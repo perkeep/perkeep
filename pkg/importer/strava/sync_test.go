@@ -990,7 +990,7 @@ func TestSyncUnknownProgressVersionDiscardsOpaquePayload(t *testing.T) {
 	activities := syncActivities(t, api, 2, now.Add(-30*24*time.Hour))
 	f := newCoreFixture(t, api)
 	f.configure(t)
-	if err := f.rc.AccountNode().SetAttrs(attrImportThroughVersion, "future", attrImportThrough, "opaque future schema", attrBackfillCompletedVersion, "future"); err != nil {
+	if err := f.rc.AccountNode().SetAttrs(importer.KV(attrImportThroughVersion, "future"), importer.KV(attrImportThrough, "opaque future schema"), importer.KV(attrBackfillCompletedVersion, "future")); err != nil {
 		t.Fatal(err)
 	}
 	syncRun(t, f, now)

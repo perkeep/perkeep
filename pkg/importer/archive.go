@@ -500,13 +500,13 @@ func (h *Host) ImportArchive(ctx context.Context, name string, req camtypes.Arch
 		return nil, err
 	}
 	result := &camtypes.ArchiveImportResult{Identity: id}
-	var identityAttrs []string
-	for _, p := range [][2]string{{AcctAttrUserID, id.UserID}, {AcctAttrUserName, id.UserName}, {AcctAttrEmail, id.Email}, {AcctAttrName, id.Name}} {
+	var identityAttrs []KeyValue
+	for _, kv := range []KeyValue{KV(AcctAttrUserID, id.UserID), KV(AcctAttrUserName, id.UserName), KV(AcctAttrEmail, id.Email), KV(AcctAttrName, id.Name)} {
 		// An API importer's account has the identity its API gave it,
 		// which an archive only fills in.
-		keep := ia != nil && (!im.props.ArchiveOnly || p[0] == AcctAttrUserID) && ia.acct.Attr(p[0]) != ""
-		if p[1] != "" && !keep {
-			identityAttrs = append(identityAttrs, p[0], p[1])
+		keep := ia != nil && (!im.props.ArchiveOnly || kv.Key == AcctAttrUserID) && ia.acct.Attr(kv.Key) != ""
+		if kv.Value != "" && !keep {
+			identityAttrs = append(identityAttrs, kv)
 		}
 	}
 	if ia == nil {
@@ -517,7 +517,10 @@ func (h *Host) ImportArchive(ctx context.Context, name string, req camtypes.Arch
 			return nil, err
 		}
 		if id.FilenameUserID != "" {
-			identityAttrs = append(identityAttrs, AcctAttrArchiveFilenameUserID, id.FilenameUserID, AcctAttrArchiveFilenameUserIDSource, req.FileRef.String())
+			identityAttrs = append(identityAttrs,
+				KV(AcctAttrArchiveFilenameUserID, id.FilenameUserID),
+				KV(AcctAttrArchiveFilenameUserIDSource, req.FileRef.String()),
+			)
 		}
 		ia, err = im.newAccountWithAttrs(identityAttrs...)
 		if err != nil {
@@ -545,7 +548,10 @@ func (h *Host) ImportArchive(ctx context.Context, name string, req camtypes.Arch
 			// authoritative user ID with a later, possibly renamed filename.
 			if id.FilenameUserID != "" && ia.acct.Attr(AcctAttrArchiveFilenameUserID) == "" &&
 				(ia.acct.Attr(AcctAttrUserID) == "" || ia.acct.Attr(AcctAttrUserID) == id.FilenameUserID) {
-				identityAttrs = append(identityAttrs, AcctAttrArchiveFilenameUserID, id.FilenameUserID, AcctAttrArchiveFilenameUserIDSource, req.FileRef.String())
+				identityAttrs = append(identityAttrs,
+					KV(AcctAttrArchiveFilenameUserID, id.FilenameUserID),
+					KV(AcctAttrArchiveFilenameUserIDSource, req.FileRef.String()),
+				)
 			}
 			if err := ia.startLocked(req.FileRef, identityAttrs...); err != nil {
 				return nil, err
@@ -644,7 +650,7 @@ func (ia *importerAcct) archiveStatusLocked(ref blob.Ref) (*camtypes.ArchiveImpo
 // Without ref, it prepares the stored input again, or for an importer that
 // isn't ArchiveOnly, only one whose import was interrupted or paused, and
 // otherwise returns no job, for a run of the importer's API.
-func (ia *importerAcct) prepareArchiveLocked(ref blob.Ref, attrs ...string) (*camtypes.ArchiveImportStatus, error) {
+func (ia *importerAcct) prepareArchiveLocked(ref blob.Ref, attrs ...KeyValue) (*camtypes.ArchiveImportStatus, error) {
 	if _, ok := ia.im.impl.(ArchiveImporter); !ok {
 		return nil, nil
 	}
@@ -676,7 +682,10 @@ func (ia *importerAcct) prepareArchiveLocked(ref blob.Ref, attrs ...string) (*ca
 	if err != nil {
 		return nil, err
 	}
-	attrs = append(attrs, AcctAttrArchiveInput, ref.String(), archiveHistoryPrefix+ref.String(), string(raw))
+	attrs = append(attrs,
+		KV(AcctAttrArchiveInput, ref.String()),
+		KV(archiveHistoryPrefix+ref.String(), string(raw)),
+	)
 	if err := ia.acct.SetAttrs(attrs...); err != nil {
 		return nil, err
 	}

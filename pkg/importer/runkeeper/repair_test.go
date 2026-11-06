@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
@@ -504,7 +505,7 @@ func TestVersionTwoRepairMigration(t *testing.T) {
 	f.run(t, src)
 	a := f.activity(t, idA)
 	ref, original, activityJSON := a.PermanodeRef(), a.Attr(attrSourceGPX), a.Attr(attrActivityJSON)
-	if err := a.SetAttrsWithDeletes([]string{nodeattr.FitnessTrack, "latitude", "longitude", attrGPXRepairVersion, attrGPXRepairCount}, attrVersion, "2"); err != nil {
+	if err := a.SetAttrsWithDeletes([]string{nodeattr.FitnessTrack, "latitude", "longitude", attrGPXRepairVersion, attrGPXRepairCount}, importer.KV(attrVersion, "2")); err != nil {
 		t.Fatal(err)
 	}
 	p := f.run(t, src)

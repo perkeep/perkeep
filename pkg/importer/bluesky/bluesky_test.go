@@ -326,7 +326,7 @@ func TestIntegration(t *testing.T) {
 	fn := &fakeNet{t: t, repoCARs: map[string][]byte{"": fullCAR, rev1: diffCAR}}
 	imptest.ImporterTest(t, "bluesky", fn, func(rc *importer.RunContext) {
 		ctx := rc.Context()
-		if err := rc.AccountNode().SetAttrs(acctAttrDID, testDID); err != nil {
+		if err := rc.AccountNode().SetAttrs(importer.KV(acctAttrDID, testDID)); err != nil {
 			t.Fatal(err)
 		}
 		im := &imp{dir: dir}
@@ -570,7 +570,7 @@ func TestFetchOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	acct := rc.AccountNode()
-	if err := acct.SetAttrs(acctAttrDID, testDID); err != nil {
+	if err := acct.SetAttrs(importer.KV(acctAttrDID, testDID)); err != nil {
 		t.Fatal(err)
 	}
 	im := &imp{dir: testDirectory()}

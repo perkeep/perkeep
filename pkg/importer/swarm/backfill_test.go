@@ -109,7 +109,7 @@ func TestPaidAPIBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	acct := rc.AccountNode()
-	if err := acct.SetAttrs(acctAttrUserId, "1", acctAttrAccessToken, "token"); err != nil {
+	if err := acct.SetAttrs(importer.KV(acctAttrUserId, "1"), importer.KV(acctAttrAccessToken, "token")); err != nil {
 		t.Fatal(err)
 	}
 	im := importer.All()["swarm"]

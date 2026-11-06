@@ -55,8 +55,8 @@ type ClaimBatch struct {
 }
 
 type batchItem struct {
-	o      *Object
-	keyval []string
+	o   *Object
+	kvs []KeyValue
 }
 
 // NewClaimBatch returns an empty claim batch.
@@ -64,16 +64,13 @@ func (h *Host) NewClaimBatch() *ClaimBatch {
 	return &ClaimBatch{h: h, byObj: make(map[*Object]*batchItem)}
 }
 
-// SetAttrs adds setting o's attributes of keyval, alternating keys and
-// values, as Object.SetAttrs sets them, to the batch. Credentials can't be
-// set in a batch: use Object.SetAttrs for them.
-func (b *ClaimBatch) SetAttrs(o *Object, keyval ...string) {
-	if len(keyval)%2 == 1 {
-		panic("importer: ClaimBatch.SetAttrs: odd argument count")
-	}
-	for i := 0; i < len(keyval); i += 2 {
-		if isSecretAttribute(keyval[i]) {
-			panic("importer: ClaimBatch.SetAttrs of a credential, " + keyval[i])
+// SetAttrs adds setting o's attributes of kvs, as Object.SetAttrs sets
+// them, to the batch. Credentials can't be set in a batch: use
+// Object.SetAttrs for them.
+func (b *ClaimBatch) SetAttrs(o *Object, kvs ...KeyValue) {
+	for _, kv := range kvs {
+		if isSecretAttribute(kv.Key) {
+			panic("importer: ClaimBatch.SetAttrs of a credential, " + kv.Key)
 		}
 	}
 	b.mu.Lock()
@@ -84,7 +81,7 @@ func (b *ClaimBatch) SetAttrs(o *Object, keyval ...string) {
 		b.byObj[o] = it
 		b.items = append(b.items, it)
 	}
-	it.keyval = append(it.keyval, keyval...)
+	it.kvs = append(it.kvs, kvs...)
 }
 
 // Changed reports whether Commit changed any of o's attributes.
@@ -122,8 +119,8 @@ func (b *ClaimBatch) Commit(ctx context.Context) error {
 			return err
 		}
 		c := change{it: it, updates: make(map[string]string)}
-		for i := 0; i < len(it.keyval); i += 2 {
-			key, val := it.keyval[i], it.keyval[i+1]
+		for _, kv := range it.kvs {
+			key, val := kv.Key, kv.Value
 			old, ok := c.updates[key]
 			if !ok {
 				if vs := it.o.attr[key]; len(vs) > 0 {
@@ -247,13 +244,13 @@ func (o *Object) ChildPathObjects(ctx context.Context, paths []string) ([]*Objec
 	if err != nil {
 		return nil, err
 	}
-	attrs := make([]string, 0, 2*len(missing))
+	attrs := make([]KeyValue, 0, len(missing))
 	for j, i := range missing {
 		children[i] = made[j]
 		for _, d := range dups[paths[i]] {
 			children[d] = made[j]
 		}
-		attrs = append(attrs, "camliPath:"+paths[i], made[j].pn.String())
+		attrs = append(attrs, KV("camliPath:"+paths[i], made[j].pn.String()))
 	}
 	if err := o.SetAttrs(attrs...); err != nil {
 		return nil, err
