@@ -22,7 +22,20 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strconv"
+	"sync"
 )
+
+// UnsafeNoSync reports whether the PERKEEP_UNSAFE_NO_FSYNC environment
+// variable is true, so that storage doesn't sync what it writes to disk:
+// files of blobs, their directories, and the index's database. That's
+// much faster where syncs are slow, as on network storage, but a crash or
+// power loss can lose, or corrupt, what was written before it. It's for
+// development servers only.
+var UnsafeNoSync = sync.OnceValue(func() bool {
+	v, _ := strconv.ParseBool(os.Getenv("PERKEEP_UNSAFE_NO_FSYNC"))
+	return v
+})
 
 // ErrNotSupported is returned by functions (like Mkfifo and Mksocket)
 // when the underlying operating system or environment doesn't support
@@ -41,7 +54,7 @@ func DirExists(dir string) bool {
 // do that (see Linux fsync(2)). Like goleveldb, it does nothing on
 // Windows, where directories can't be synced this way.
 func SyncDir(dir string) error {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || UnsafeNoSync() {
 		return nil
 	}
 	d, err := os.Open(dir)

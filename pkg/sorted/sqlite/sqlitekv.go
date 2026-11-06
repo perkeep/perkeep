@@ -30,6 +30,7 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/sqlkv"
@@ -57,7 +58,11 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %w", file, err)
 		}
 	}
-	db, err := sql.Open("sqlite", file)
+	dsn := file
+	if osutil.UnsafeNoSync() {
+		dsn += "?_pragma=synchronous(OFF)"
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}

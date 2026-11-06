@@ -764,7 +764,10 @@ func (s *storage) appendGroupLocked(blobs []pendingBlob, be *blobserver.BlobsErr
 	}
 	if len(written) > 0 {
 		// The blobs aren't visible until they're indexed, after the sync.
-		err := s.writer.Sync()
+		var err error
+		if !osutil.UnsafeNoSync() {
+			err = s.writer.Sync()
+		}
 		if err == nil {
 			err = s.index.CommitBatch(batch)
 		}
