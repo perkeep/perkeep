@@ -471,6 +471,9 @@ func main() {
 
 	log.Printf("Starting perkeepd version %s; Go %s (%s/%s)", buildinfo.Summary(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
+	if osutil.UnsafeNoSync() {
+		log.Printf("WARNING: PERKEEP_UNSAFE_NO_FSYNC is set: storage won't sync writes to disk, so a crash can lose or corrupt them. For development only.")
+	}
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)

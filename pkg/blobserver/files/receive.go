@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 )
@@ -192,8 +193,10 @@ func (ds *Storage) writeBlobLocked(blobRef blob.Ref, source io.Reader) (blob.Siz
 		success = true // the temp file is already removed
 		return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
 	}
-	if err = tempFile.Sync(); err != nil {
-		return blob.SizedRef{}, err
+	if !osutil.UnsafeNoSync() {
+		if err = tempFile.Sync(); err != nil {
+			return blob.SizedRef{}, err
+		}
 	}
 	if err = tempFile.Close(); err != nil {
 		return blob.SizedRef{}, err

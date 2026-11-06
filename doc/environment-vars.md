@@ -67,6 +67,14 @@ or
 : If true, importers are disabled (at least automatic background
   importing, e.g. at start-up). Mostly for debugging.
 
+`PERKEEP_UNSAFE_NO_FSYNC` (bool)
+: If true, storage doesn't sync what it writes to disk: blobs' files (of
+  `localdisk` and `diskpacked`), their directories, and the index's SQLite
+  or LevelDB database. That's much faster where syncs are slow, as on
+  network storage, but a crash or power loss can lose, or corrupt, what was
+  written before it. For development servers only; perkeepd logs a warning
+  when it's set.
+
 `PERKEEP_STRAVA_MAX_ACTIVITIES` (positive integer)
 : Limit each Strava importer run to the most recent N activity summaries,
   including activities already imported. Reaching the cap counts as a

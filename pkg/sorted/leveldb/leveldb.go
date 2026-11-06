@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/sorted"
 
@@ -88,7 +89,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		path:      file,
 		opts:      opts,
 		readOpts:  &opt.ReadOptions{Strict: strictness},
-		writeOpts: &opt.WriteOptions{Sync: true},
+		writeOpts: &opt.WriteOptions{Sync: !osutil.UnsafeNoSync()},
 	}
 	if incomplete {
 		return is, sorted.NeedWipeError{Msg: "LevelDB database contains an incomplete reindex or wipe; a fresh rebuild is required"}
