@@ -641,6 +641,7 @@ type Host struct {
 	importerPath         string
 	discoveryRoot        string // root handler prefix, used for browser discovery
 	target               blobserver.StatReceiver
+	uploads              uploadQueue  // of schema blobs to target
 	blobSource           blob.Fetcher // e.g. twitter reading zip file
 	search               search.QueryDescriber
 	signer               *schema.Signer
@@ -2097,11 +2098,12 @@ func (h *Host) uploadAt(ctx context.Context, bb *schema.Builder, date time.Time)
 	if len(signed) > schema.MaxSchemaBlobSize {
 		return blob.Ref{}, fmt.Errorf("importer: signed schema blob too large (%d bytes)", len(signed))
 	}
-	sb, err := blobserver.ReceiveString(ctx, h.target, signed)
-	if err != nil {
-		return
+	br = blob.RefFromString(signed)
+	b := blob.NewBlob(br, uint32(len(signed)), func(context.Context) ([]byte, error) { return []byte(signed), nil })
+	if err := h.uploads.upload(ctx, h.target, b); err != nil {
+		return blob.Ref{}, err
 	}
-	return sb.Ref, nil
+	return br, nil
 }
 
 // NewObject creates a new permanode and returns its Object wrapper.
