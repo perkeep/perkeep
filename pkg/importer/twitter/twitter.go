@@ -18,13 +18,9 @@ limitations under the License.
 package twitter // import "perkeep.org/pkg/importer/twitter"
 
 import (
-	"archive/zip"
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -62,26 +58,12 @@ const (
 	// permanode and subsequent importers can stop early.
 	runCompleteVersion = "5"
 
-	// acctAttrTweetZip specifies an optional attribute for the account permanode.
-	// If set, it should be of a "file" schema blob referencing the tweets.zip
-	// file that Twitter makes available for the full archive download.
-	// The Twitter API doesn't go back forever in time, so if you started using
-	// the Perkeep importer too late, you need to "pk-put file tweets.zip"
-	// once downloading it from Twitter, and then:
-	//   $ pk-put attr <acct-permanode> twitterArchiveZipFileRef <zip-fileref>
-	// ... and re-do an import.
-	acctAttrTweetZip = "twitterArchiveZipFileRef"
-
 	// acctAttrImportLikes specifies an optional attribute for the account permanode.
 	// If set to true likes are imported via the twitter API.
 	// You can enable importing likes like this:
 	//   $ pk-put attr <acct-permanode> twitterImportLikes true
 	// ... and re-do an import.
 	acctAttrImportLikes = "twitterImportLikes"
-
-	// acctAttrZipDoneVersion is updated at the end of a successful zip import and
-	// is used to determine whether the zip file needs to be re-imported in a future run.
-	acctAttrZipDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
 
 	// Per-tweet note of how we imported it: either "zip" or "api"
 	attrImportMethod = "twitterImportMethod"
@@ -146,9 +128,6 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 		acct.Attr(importer.AcctAttrName),
 		acct.Attr(importer.AcctAttrUserID),
 	)
-	if acct.Attr(acctAttrTweetZip) != "" {
-		s += " + zip file"
-	}
 	return s
 }
 
@@ -173,19 +152,16 @@ Go to the "Keys and Access Tokens" tab. Copy the "Consumer Key (API Key)" and</b
 above.
 </p>
 <p>
-Note that the twitter API prevents us from getting more than 3200 tweets<br>
-(including retweets) through your user timeline. So if you have more than that<br>
-limit (and want to get them all), after you have configured this account, you<br>
-need to download all your data as a zip first. Which you can do on your twitter<br>
-page, at: "Settings and Privacy", "Your Twitter data", "Download your Twitter<br>
-data". Then upload it to your instance with "pk-put file tweets.zip" (this will<br>
-return the zip-fileref), and signal the twitter importer that you have it, with<br>
-"pk-put attr &lt;acct-permanode&gt; twitterArchiveZipFileRef &lt;zip-fileref&gt;".<br>
-Then you can start running the importer.
+The X API serves only an account's most recent 3200 tweets (including
+retweets), and charges for each it reads. To import all of them, and your
+likes, profile and follows, download your archive from X ("Settings and
+privacy", "Your account", "Download an archive of your data"), and import
+its ZIP below, as an upload or from a file source. Then the account's runs
+import only its new tweets through the API.
 </p>
 <p>
-If you want to import likes as well, please run <br>
-"pk-put attr &lt;acct-permanode&gt; twitterImportLikes true" to enable it.
+To import likes through the API as well, which it charges for, run
+"pk-put attr &lt;acct-permanode&gt; twitterImportLikes true".
 </p>
 `, base, base+"/callback")
 }
@@ -264,30 +240,6 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	importLikes, err := strconv.ParseBool(acctNode.Attr(acctAttrImportLikes))
 	if err == nil && importLikes {
 		if err := r.importTweets(userID, true); err != nil {
-			return err
-		}
-	}
-
-	zipRef := acctNode.Attr(acctAttrTweetZip)
-	zipDoneVal := zipRef + ":" + runCompleteVersion
-	if zipRef != "" && !(r.incremental && acctNode.Attr(acctAttrZipDoneVersion) == zipDoneVal) {
-		zipbr, ok := blob.Parse(zipRef)
-		if !ok {
-			return fmt.Errorf("invalid zip file blobref %q", zipRef)
-		}
-		fr, err := schema.NewFileReader(r.Context(), r.Host.BlobSource(), zipbr)
-		if err != nil {
-			return fmt.Errorf("error opening zip %v: %w", zipbr, err)
-		}
-		defer fr.Close()
-		zr, err := zip.NewReader(fr, fr.Size())
-		if err != nil {
-			return fmt.Errorf("Error opening twitter zip file %v: %w", zipRef, err)
-		}
-		if err := r.importTweetsFromZip(userID, zr); err != nil {
-			return err
-		}
-		if err := ctx.AccountNode().SetAttrs(acctAttrZipDoneVersion, zipDoneVal); err != nil {
 			return err
 		}
 	}
@@ -440,67 +392,8 @@ func (r *run) importTweets(userID string, likes bool) error {
 			return err
 		}
 	}
-	r.Logf("successfully did full run of importing %d %s", numTweets, importType)
+	r.Logf("imported %d %s through the API", numTweets, importType)
 	return nil
-}
-
-func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
-	rc, err := zf.Open()
-	if err != nil {
-		return nil, err
-	}
-	slurp, err := io.ReadAll(rc)
-	rc.Close()
-	if err != nil {
-		return nil, err
-	}
-	i := bytes.IndexByte(slurp, '[')
-	if i < 0 {
-		return nil, errors.New("No '[' found in zip file")
-	}
-	slurp = slurp[i:]
-	if err := json.Unmarshal(slurp, &tweets); err != nil {
-		return nil, fmt.Errorf("JSON error: %w", err)
-	}
-	return
-}
-
-func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
-	r.Logf("processing zip file with %d files", len(zr.File))
-
-	tweetsNode, err := r.getTopLevelNode("tweets")
-	if err != nil {
-		return err
-	}
-
-	var (
-		gate = syncutil.NewGate(tweetsAtOnce)
-		grp  syncutil.Group
-	)
-	total := 0
-	for _, zf := range zr.File {
-		if !(strings.HasPrefix(zf.Name, "data/js/tweets/2") && strings.HasSuffix(zf.Name, ".js")) {
-			continue
-		}
-		tweets, err := tweetsFromZipFile(zf)
-		if err != nil {
-			return fmt.Errorf("error reading tweets from %s: %w", zf.Name, err)
-		}
-
-		for i := range tweets {
-			total++
-			tweet := tweets[i]
-			gate.Start()
-			grp.Go(func() error {
-				defer gate.Done()
-				_, err := r.importTweet(tweetsNode, tweet, false)
-				return err
-			})
-		}
-	}
-	err = grp.Err()
-	r.Logf("zip import of tweets: %d total, err = %v", total, err)
-	return err
 }
 
 func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err error) {
@@ -516,7 +409,9 @@ func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err er
 	return
 }
 
-// viaAPI is true if it came via the REST API, or false if it came via a zip file.
+// importTweet imports tweet, as a child of parent, and reports whether it
+// was unchanged. viaAPI is true if it came via the API, or false if it came
+// via an archive.
 func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool) (dup bool, err error) {
 	select {
 	case <-r.Context().Done():
@@ -524,31 +419,56 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		return false, r.Context().Err()
 	default:
 	}
-	id := tweet.ID()
-	tweetNode, err := parent.ChildPathObject(id)
+	tweetNode, err := parent.ChildPathObject(tweet.ID())
 	if err != nil {
 		return false, err
 	}
+	return r.importTweetNode(tweetNode, tweet, viaAPI)
+}
 
-	// Because the zip format and the API format differ a bit, and
-	// might diverge more in the future, never use the zip content
-	// to overwrite data fetched via the API. If we add new
+// importTweetNode imports tweet as tweetNode, as importTweet does.
+func (r *run) importTweetNode(tweetNode *importer.Object, tweet tweetItem, viaAPI bool) (dup bool, err error) {
+	attrs, err := r.tweetAttrs(tweetNode, tweet, viaAPI)
+	if err != nil || len(attrs) == 0 {
+		return true, err
+	}
+	changes, err := tweetNode.SetAttrs2(attrs...)
+	if err == nil && changes {
+		r.Logf("imported tweet %s", tweetNode.Attr(nodeattr.URL))
+	}
+	return !changes, err
+}
+
+// tweetAttrs returns the attributes of tweet, of tweetNode, to set: its
+// media's that the node lacks, which it stores, and its others, unless the
+// node was imported through the API and tweet wasn't.
+func (r *run) tweetAttrs(tweetNode *importer.Object, tweet tweetItem, viaAPI bool) ([]string, error) {
+	id := tweet.ID()
+	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
+		r.AccountNode().Attr(importer.AcctAttrUserName),
+		id)
+
+	mediaAttrs, err := r.tweetMediaAttrs(tweetNode, tweet, url, viaAPI)
+	if err != nil {
+		return nil, err
+	}
+
+	// Because the archive format and the API format differ a bit, and
+	// might diverge more in the future, never use the archive content
+	// to overwrite data fetched via the API, but add the media the
+	// API's import lacks, such as the videos of archives. If we add new
 	// support for different fields in the future, we might want
 	// to revisit this decision.  Be wary of flip/flopping data if
 	// modifying this, though.
 	if tweetNode.Attr(attrImportMethod) == "api" && !viaAPI {
-		return true, nil
+		return mediaAttrs, nil
 	}
 
 	// e.g. "2014-06-12 19:11:51 +0000"
 	createdTime, err := timeParseFirstFormat(tweet.CreatedAt(), time.RFC3339, time.RubyDate, "2006-01-02 15:04:05 -0700")
 	if err != nil {
-		return false, fmt.Errorf("could not parse time %q: %w", tweet.CreatedAt(), err)
+		return nil, fmt.Errorf("could not parse time %q: %w", tweet.CreatedAt(), err)
 	}
-
-	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
-		r.AccountNode().Attr(importer.AcctAttrUserName),
-		id)
 
 	nodeType := nodeTypeTweet
 	if tweet.Liked() {
@@ -573,52 +493,87 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	} else {
 		attrs = append(attrs, attrImportMethod, "zip")
 	}
+	return append(attrs, mediaAttrs...), nil
+}
 
+// tweetMediaAttrs returns the attributes of the media of tweet, of URL
+// url, that tweetNode lacks: those an archive's run stored, and those it
+// fetches.
+func (r *run) tweetMediaAttrs(tweetNode *importer.Object, tweet tweetItem, url string, viaAPI bool) (attrs []string, err error) {
+	hasImage := tweetNode.Attr(nodeattr.CamliContentImage) != ""
 	for i, m := range tweet.Media() {
+		if sm, ok := m.(*storedMedia); ok {
+			if sm.ref.Valid() {
+				attrs = append(attrs, "camliPath:"+sm.name, sm.ref.String())
+				if sm.photo && !hasImage {
+					attrs = append(attrs, nodeattr.CamliContentImage, sm.ref.String())
+					hasImage = true
+				}
+			}
+			continue
+		}
 		filename := m.BaseFilename()
-		if tweetNode.Attr("camliPath:"+filename) != "" && (i > 0 || tweetNode.Attr("camliContentImage") != "") {
+		if tweetNode.Attr("camliPath:"+filename) != "" && (i > 0 || hasImage) {
 			// Don't re-import media we've already fetched.
 			continue
 		}
-		tried, gotMedia := 0, false
-		for _, mediaURL := range m.URLs() {
-			tried++
-			res, err := ctxutil.Client(r.Context()).Get(mediaURL)
-			if err != nil {
-				return false, fmt.Errorf("Error fetching %s for tweet %s: %w", mediaURL, url, err)
-			}
-			if res.StatusCode == http.StatusNotFound {
+		fileRef, err := r.fetchMedia(m, filename, url, viaAPI)
+		if err != nil {
+			switch m.(type) {
+			case twitpicImage, imgurImage:
+				// Images of the tweet's links, on sites that are
+				// gone, or limit how many are fetched, aren't the
+				// tweet's own.
+				r.Logf("skipping an image of a link of tweet %s: %v", url, err)
 				continue
 			}
-			if res.StatusCode != 200 {
-				return false, fmt.Errorf("HTTP status %d fetching %s for tweet %s", res.StatusCode, mediaURL, url)
-			}
-			if !viaAPI {
-				r.Logf("for zip tweet %s, reading %v", url, mediaURL)
-			}
-			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
-			res.Body.Close()
-			if err != nil {
-				return false, fmt.Errorf("Error fetching media %s for tweet %s: %w", mediaURL, url, err)
-			}
-			attrs = append(attrs, "camliPath:"+filename, fileRef.String())
-			if i == 0 {
-				attrs = append(attrs, "camliContentImage", fileRef.String())
-			}
-			r.Logf("slurped %s as %s for tweet %s (%v)", mediaURL, fileRef.String(), url, tweetNode.PermanodeRef())
-			gotMedia = true
-			break
+			return nil, err
 		}
-		if !gotMedia && tried > 0 {
-			return false, fmt.Errorf("All media URLs 404s for tweet %s", url)
+		if !fileRef.Valid() {
+			continue
 		}
+		attrs = append(attrs, "camliPath:"+filename, fileRef.String())
+		if i == 0 {
+			attrs = append(attrs, nodeattr.CamliContentImage, fileRef.String())
+			hasImage = true
+		}
+		r.Logf("slurped %s as %s for tweet %s (%v)", filename, fileRef.String(), url, tweetNode.PermanodeRef())
 	}
+	return attrs, nil
+}
 
-	changes, err := tweetNode.SetAttrs2(attrs...)
-	if err == nil && changes {
-		r.Logf("imported tweet %s", url)
+// fetchMedia fetches m, of tweet of URL url, and stores it as a file named
+// filename, from the first of its URLs that's found, or returns a zero
+// ref if it has none.
+func (r *run) fetchMedia(m tweetMedia, filename, url string, viaAPI bool) (blob.Ref, error) {
+	urls := m.URLs()
+	for _, mediaURL := range urls {
+		res, err := ctxutil.Client(r.Context()).Get(mediaURL)
+		if err != nil {
+			return blob.Ref{}, fmt.Errorf("Error fetching %s for tweet %s: %w", mediaURL, url, err)
+		}
+		if res.StatusCode == http.StatusNotFound {
+			res.Body.Close()
+			continue
+		}
+		if res.StatusCode != 200 {
+			res.Body.Close()
+			return blob.Ref{}, fmt.Errorf("HTTP status %d fetching %s for tweet %s", res.StatusCode, mediaURL, url)
+		}
+		if !viaAPI {
+			r.Logf("for zip tweet %s, reading %v", url, mediaURL)
+		}
+		fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
+		res.Body.Close()
+		if err != nil {
+			return blob.Ref{}, fmt.Errorf("Error fetching media %s for tweet %s: %w", mediaURL, url, err)
+		}
+		return fileRef, nil
 	}
-	return !changes, err
+	if len(urls) > 0 {
+		return blob.Ref{}, fmt.Errorf("All media URLs 404s for tweet %s", url)
+	}
+	return blob.Ref{}, nil
 }
 
 // path may be of: "tweets". (TODO: "lists", "direct_messages", etc.)
