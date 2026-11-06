@@ -143,6 +143,20 @@ func (e NeedWipeError) Error() string {
 	return e.Msg
 }
 
+// CorruptedDBError indicates that a database could not be opened because
+// its on-disk data is corrupted. Path is the filesystem path of the
+// database directory.
+type CorruptedDBError struct {
+	Path string
+	Err  error
+}
+
+func (e *CorruptedDBError) Error() string {
+	return fmt.Sprintf("database at %s is corrupted: %v", e.Path, e.Err)
+}
+
+func (e *CorruptedDBError) Unwrap() error { return e.Err }
+
 // Iterator iterates over an index KeyValue's key/value pairs in key order.
 //
 // An iterator must be closed after use, but it is not necessary to read an
