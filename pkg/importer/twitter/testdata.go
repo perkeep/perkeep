@@ -17,9 +17,11 @@ limitations under the License.
 package twitter
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -27,7 +29,6 @@ import (
 	"strconv"
 	"time"
 
-	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/importer"
 )
@@ -49,208 +50,146 @@ func (im *imp) MakeTestData() http.RoundTripper {
 		fakeMaxId = int64(486450108201201664) // Most recent tweet.
 		nTweets   = 300                       // Arbitrary number of tweets generated.
 	)
-	fakeMinId := fakeMaxId - nTweets // Oldest tweet in our timeline.
-
-	timeLineURL := apiURL + userTimeLineAPIPath
-	timeLineCached := make(map[int64]string)
-	okHeader := `HTTP/1.1 200 OK
-Content-Type: application/json; charset=UTF-8
-
-`
-	timeLineResponse := okHeader + fakeTimeLine(fakeMaxId, fakeMinId, timeLineCached)
-
-	fakePic := fakePicture()
-	responses := map[string]func() *http.Response{
-		timeLineURL: httputil.StaticResponder(timeLineResponse),
-		fmt.Sprintf("%s?count=%d&user_id=fakeUserID", timeLineURL, tweetRequestLimit): httputil.StaticResponder(timeLineResponse),
-		"https://twitpic.com/show/large/bar":                                          httputil.FileResponder(fakePic),
-		"https://i.imgur.com/foo.gif":                                                 httputil.FileResponder(fakePic),
+	return &fakeAPI{
+		maxID:   fakeMaxId,
+		minID:   fakeMaxId - nTweets, // Oldest tweet in our timeline.
+		picture: fakePicture(),
 	}
-
-	// register all the user_timeline calls (max_id varies) that should occur,
-	responses[fmt.Sprintf("%s?count=%d&max_id=%d&user_id=fakeUserID", timeLineURL, tweetRequestLimit, fakeMaxId-nTweets+1)] = httputil.StaticResponder(okHeader + fakeTimeLine(fakeMaxId-nTweets+1, fakeMinId, timeLineCached))
-	if nTweets > tweetRequestLimit {
-		// that is, once every tweetRequestLimit-1, going down from fakeMaxId.
-		for i := fakeMaxId; i > fakeMinId; i -= tweetRequestLimit - 1 {
-			responses[fmt.Sprintf("%s?count=%d&max_id=%d&user_id=fakeUserID", timeLineURL, tweetRequestLimit, i)] = httputil.StaticResponder(okHeader + fakeTimeLine(i, fakeMinId, timeLineCached))
-		}
-	}
-
-	// register all the possible combinations of media twimg
-	for _, scheme := range []string{"http://", "https://"} {
-		for _, picsize := range []string{"thumb", "small", "medium", "large"} {
-			responses[fmt.Sprintf("%spbs.twimg.com/media/foo.jpg:%s", scheme, picsize)] = httputil.FileResponder(fakePic)
-			responses[fmt.Sprintf("%spbs.twimg.com/media/bar.png:%s", scheme, picsize)] = httputil.FileResponder(fakePic)
-		}
-	}
-
-	return httputil.NewFakeTransport(responses)
 }
 
-// fakeTimeLine returns a JSON user timeline of tweetRequestLimit tweets, starting
-// with maxId as the most recent tweet id. It stops before tweetRequestLimit if
-// minId is reached. The returned timeline is saved in cached.
-func fakeTimeLine(maxId, minId int64, cached map[int64]string) string {
-	if tl, ok := cached[maxId]; ok {
-		return tl
+// fakeAPI serves a timeline of the tweets of IDs from maxID down to, but
+// not including, minID, as the API v2 does, in pages of apiPageSize, and
+// their media.
+type fakeAPI struct {
+	maxID, minID int64
+	picture      string // file of the media
+}
+
+func (f *fakeAPI) RoundTrip(req *http.Request) (*http.Response, error) {
+	u := req.URL
+	switch {
+	case u.Host == "api.x.com" && u.Path == "/2/"+apiTweetsPath("fakeUserID", false):
+		from, until := f.maxID, f.minID
+		if tok := u.Query().Get("pagination_token"); tok != "" {
+			var err error
+			if from, err = strconv.ParseInt(tok, 10, 64); err != nil {
+				return nil, err
+			}
+		}
+		if s := u.Query().Get("since_id"); s != "" {
+			since, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			until = max(until, since)
+		}
+		return jsonResponse(req, fakeTimeLine(from, until))
+	case u.Host == "pbs.twimg.com", u.Host == "twitpic.com", u.Host == "i.imgur.com":
+		pic, err := os.ReadFile(f.picture)
+		if err != nil {
+			return nil, err
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(pic)), Request: req}, nil
 	}
-	min := max(maxId-int64(tweetRequestLimit), minId)
-	var tweets []*apiTweetItem
-	entitiesCounter := 0
-	geoCounter := 0
-	for i := maxId; i > min; i-- {
-		tweet := &apiTweetItem{
+	return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: http.NoBody, Request: req}, nil
+}
+
+func jsonResponse(req *http.Request, v any) (*http.Response, error) {
+	j, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": {"application/json; charset=UTF-8"}},
+		Body:       io.NopCloser(bytes.NewReader(j)),
+		Request:    req,
+	}, nil
+}
+
+// fakeTimeLine returns a page of a user timeline of apiPageSize tweets, starting
+// with maxId as the most recent tweet id. It stops before apiPageSize if
+// minId is reached.
+func fakeTimeLine(maxId, minId int64) *apiTweetsPage {
+	page := new(apiTweetsPage)
+	page.Includes.Media = fakeMedia()
+	end := max(maxId-int64(apiPageSize), minId)
+	for i := maxId; i > end; i-- {
+		tweet := &apiTweet{
 			Id:           strconv.FormatInt(i, 10),
 			TextStr:      fmt.Sprintf("fakeText %d", i),
-			CreatedAtStr: time.Now().Format(time.RubyDate),
-			Entities:     fakeEntities(entitiesCounter),
+			CreatedAtStr: time.Now().Format(time.RFC3339),
 		}
-		geo, coords := fakeGeo(geoCounter)
-		tweet.Geo = geo
-		tweet.Coordinates = coords
-		tweets = append(tweets, tweet)
-		entitiesCounter++
-		geoCounter++
-		if entitiesCounter == 10 {
-			entitiesCounter = 0
+		tweet.Attachments.MediaKeys, tweet.Entities.URLs = fakeEntities(int(i % 7))
+		if c := fakeCoords(int(i % 5)); c != nil {
+			tweet.Geo = &struct {
+				Coordinates *coords `json:"coordinates"`
+			}{c}
 		}
-		if geoCounter == 5 {
-			geoCounter = 0
-		}
+		page.Data = append(page.Data, tweet)
 	}
-	userTimeLine, err := json.MarshalIndent(tweets, "", "	")
-	if err != nil {
-		log.Fatalf("%v", err)
+	page.Meta.ResultCount = len(page.Data)
+	page.Meta.NewestID = strconv.FormatInt(maxId, 10)
+	if end > minId {
+		page.Meta.NextToken = strconv.FormatInt(end, 10)
 	}
-	cached[maxId] = string(userTimeLine)
-	return cached[maxId]
+	return page
 }
 
-func fakeGeo(counter int) (*geo, *coords) {
-	sf := []float64{37.7447124, -122.4341914}
-	gre := []float64{45.1822842, 5.7141854}
+// fakeCoords returns the coordinates of the counter'th kind of location:
+// none, San Francisco, or Grenoble.
+func fakeCoords(counter int) *coords {
 	switch counter {
-	case 0:
-		return nil, nil
 	case 1:
-		return &geo{sf}, nil
+		return &coords{[]float64{-122.4341914, 37.7447124}}
 	case 2:
-		return nil, &coords{[]float64{gre[1], gre[0]}}
-	case 3:
-		return &geo{gre}, &coords{[]float64{sf[1], sf[0]}}
-	default:
-		return nil, nil
+		return &coords{[]float64{5.7141854, 45.1822842}}
+	}
+	return nil
+}
+
+// fakeMedia returns the media that fakeEntities' tweets have.
+func fakeMedia() []*apiMedia {
+	return []*apiMedia{
+		{MediaKey: "3_1", Type: "photo", URL: "https://pbs.twimg.com/media/foo.jpg"},
+		{MediaKey: "3_2", Type: "photo", URL: "https://pbs.twimg.com/media/bar.png"},
 	}
 }
 
-func fakeEntities(counter int) entities {
-	sizes := func() map[string]mediaSize {
-		return map[string]mediaSize{
-			"medium": {W: 591, H: 332, Resize: "fit"},
-			"large":  {W: 591, H: 332, Resize: "fit"},
-			"small":  {W: 338, H: 190, Resize: "fit"},
-			"thumb":  {W: 150, H: 150, Resize: "crop"},
-		}
+// fakeEntities returns the media keys and links of the counter'th kind of
+// tweet: of no media or links, of fakeMedia, of links, of links to images
+// on imgur and twitpic, or of both.
+func fakeEntities(counter int) (mediaKeys []string, urls []*urlEntity) {
+	notPicURL := &urlEntity{
+		URL:         `http://t.co/whatever`,
+		ExpandedURL: `http://perkeep.org`,
+		DisplayURL:  `perkeep.org`,
 	}
-	mediaTwimg1 := func() *media {
-		return &media{
-			Id:            "1",
-			IdNum:         1,
-			MediaURL:      `http://pbs.twimg.com/media/foo.jpg`,
-			MediaURLHTTPS: `https://pbs.twimg.com/media/foo.jpg`,
-			Sizes:         sizes(),
-		}
+	imgurURL := &urlEntity{
+		URL:         `http://t.co/whatever2`,
+		ExpandedURL: `http://imgur.com/foo`,
+		DisplayURL:  `imgur.com/foo`,
 	}
-	mediaTwimg2 := func() *media {
-		return &media{
-			Id:            "2",
-			IdNum:         2,
-			MediaURL:      `http://pbs.twimg.com/media/bar.png`,
-			MediaURLHTTPS: `https://pbs.twimg.com/media/bar.png`,
-			Sizes:         sizes(),
-		}
+	twitpicURL := &urlEntity{
+		URL:         `http://t.co/whatever3`,
+		ExpandedURL: `http://twitpic.com/bar`,
+		DisplayURL:  `twitpic.com/bar`,
 	}
-	notPicURL := func() *urlEntity {
-		return &urlEntity{
-			URL:         `http://t.co/whatever`,
-			ExpandedURL: `http://perkeep.org`,
-			DisplayURL:  `perkeep.org`,
-		}
-	}
-	imgurURL := func() *urlEntity {
-		return &urlEntity{
-			URL:         `http://t.co/whatever2`,
-			ExpandedURL: `http://imgur.com/foo`,
-			DisplayURL:  `imgur.com/foo`,
-		}
-	}
-	twitpicURL := func() *urlEntity {
-		return &urlEntity{
-			URL:         `http://t.co/whatever3`,
-			ExpandedURL: `http://twitpic.com/bar`,
-			DisplayURL:  `twitpic.com/bar`,
-		}
-	}
-
-	// if you add another case, make sure the entities counter reset
-	// in fakeTimeLine allows for that case to happen.
-	// We could use global vars instead, but don't want to pollute the
-	// twitter pkg namespace.
 	switch counter {
-	case 0:
-		return entities{}
 	case 1:
-		return entities{
-			Media: []*media{
-				mediaTwimg1(),
-				mediaTwimg2(),
-			},
-		}
+		return []string{"3_1", "3_2"}, nil
 	case 2:
-		return entities{
-			URLs: []*urlEntity{
-				notPicURL(),
-			},
-		}
+		return nil, []*urlEntity{notPicURL}
 	case 3:
-		return entities{
-			URLs: []*urlEntity{
-				notPicURL(),
-				imgurURL(),
-			},
-		}
+		return nil, []*urlEntity{notPicURL, imgurURL}
 	case 4:
-		return entities{
-			URLs: []*urlEntity{
-				twitpicURL(),
-				imgurURL(),
-			},
-		}
+		return nil, []*urlEntity{twitpicURL, imgurURL}
 	case 5:
-		return entities{
-			Media: []*media{
-				mediaTwimg2(),
-				mediaTwimg1(),
-			},
-			URLs: []*urlEntity{
-				notPicURL(),
-				twitpicURL(),
-			},
-		}
+		return []string{"3_2", "3_1"}, []*urlEntity{notPicURL, twitpicURL}
 	case 6:
-		return entities{
-			Media: []*media{
-				mediaTwimg1(),
-				mediaTwimg2(),
-			},
-			URLs: []*urlEntity{
-				imgurURL(),
-				twitpicURL(),
-			},
-		}
-	default:
-		return entities{}
+		return []string{"3_1", "3_2"}, []*urlEntity{imgurURL, twitpicURL}
 	}
+	return nil, nil
 }
 
 func fakePicture() string {

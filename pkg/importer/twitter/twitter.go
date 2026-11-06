@@ -19,7 +19,6 @@ package twitter // import "perkeep.org/pkg/importer/twitter"
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -28,7 +27,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -55,8 +53,6 @@ const (
 	resourceOwnerAuthorizationURL = "https://api.twitter.com/oauth/authorize"
 	tokenRequestURL               = "https://api.twitter.com/oauth/access_token"
 	userInfoAPIPath               = "account/verify_credentials.json"
-	userTimeLineAPIPath           = "statuses/user_timeline.json"
-	userLikesAPIPath              = "favorites/list.json"
 
 	// runCompleteVersion is a cache-busting version number of the
 	// importer code. It should be incremented whenever the
@@ -90,8 +86,12 @@ const (
 	// Per-tweet note of how we imported it: either "zip" or "api"
 	attrImportMethod = "twitterImportMethod"
 
-	tweetRequestLimit = 200 // max number of tweets we can get in a user_timeline request
-	tweetsAtOnce      = 20  // how many tweets to import at once
+	// acctAttrNewestTweetID is the ID of the newest of the account's
+	// tweets imported through the API, after which an incremental run
+	// asks for its tweets.
+	acctAttrNewestTweetID = "twitterNewestTweetID"
+
+	tweetsAtOnce = 20 // how many tweets to import at once
 
 	// A tweet is stored as a permanode with the "twitter.com:tweet" camliNodeType value.
 	nodeTypeTweet = "twitter.com:tweet"
@@ -199,8 +199,9 @@ type run struct {
 	oauthClient *oauth.Client      // No need to guard, used read-only.
 	accessCreds *oauth.Credentials // No need to guard, used read-only.
 
-	mu     sync.Mutex // guards anyErr
-	anyErr bool
+	mu        sync.Mutex // guards anyErr and postsRead
+	anyErr    bool
+	postsRead int // tweets the API returned, by which it charges
 }
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_TWITTER_FULL_IMPORT"))
@@ -241,20 +242,28 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return errors.New("userID hasn't been set by account setup")
 	}
 
+	defer func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.Logf("the API returned %d tweets this run", r.postsRead)
+	}()
 	skipAPITweets, _ := strconv.ParseBool(os.Getenv("CAMLI_TWITTER_SKIP_API_IMPORT"))
 	if !skipAPITweets {
-		if err := r.importTweets(userID, userTimeLineAPIPath); err != nil {
+		if err := r.importTweets(userID, false); err != nil {
 			return err
 		}
 	}
 
+	// Reload the account node to read the attributes set on it from
+	// outside the importer, such as with pk-put, but write to it through
+	// ctx.AccountNode, which later runs read.
 	acctNode, err = ctx.Host.ObjectFromRef(acctNode.PermanodeRef())
 	if err != nil {
 		return fmt.Errorf("error reloading account node: %w", err)
 	}
 	importLikes, err := strconv.ParseBool(acctNode.Attr(acctAttrImportLikes))
 	if err == nil && importLikes {
-		if err := r.importTweets(userID, userLikesAPIPath); err != nil {
+		if err := r.importTweets(userID, true); err != nil {
 			return err
 		}
 	}
@@ -278,7 +287,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		if err := r.importTweetsFromZip(userID, zr); err != nil {
 			return err
 		}
-		if err := acctNode.SetAttrs(acctAttrZipDoneVersion, zipDoneVal); err != nil {
+		if err := ctx.AccountNode().SetAttrs(acctAttrZipDoneVersion, zipDoneVal); err != nil {
 			return err
 		}
 	}
@@ -288,69 +297,12 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		if err := ctx.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-var _ importer.LongPoller = (*imp)(nil)
-
-func (im *imp) LongPoll(rctx *importer.RunContext) error {
-	clientId, secret, err := rctx.Credentials()
-	if err != nil {
-		return err
-	}
-
-	acctNode := rctx.AccountNode()
-	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
-	accessSecret := acctNode.Attr(importer.AcctAttrAccessTokenSecret)
-	if accessToken == "" || accessSecret == "" {
-		return errors.New("access credentials not found")
-	}
-	oauthClient := &oauth.Client{
-		TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
-		ResourceOwnerAuthorizationURI: resourceOwnerAuthorizationURL,
-		TokenRequestURI:               tokenRequestURL,
-		Credentials: oauth.Credentials{
-			Token:  clientId,
-			Secret: secret,
-		},
-	}
-	accessCreds := &oauth.Credentials{
-		Token:  accessToken,
-		Secret: accessSecret,
-	}
-
-	form := url.Values{"with": {"user"}}
-	req, _ := http.NewRequestWithContext(rctx.Context(), "GET", "https://userstream.twitter.com/1.1/user.json", nil)
-	req.Header.Set("Authorization", oauthClient.AuthorizationHeader(accessCreds, "GET", req.URL, form))
-	req.URL.RawQuery = form.Encode()
-
-	rctx.Logf("beginning long poll, awaiting new tweets...")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		return errors.New(res.Status)
-	}
-	bs := bufio.NewScanner(res.Body)
-	for bs.Scan() {
-		line := strings.TrimSpace(bs.Text())
-		if line == "" || strings.HasPrefix(line, `{"friends`) {
-			continue
-		}
-		rctx.Logf("long poll saw activity")
-		return nil
-	}
-	if err := bs.Err(); err != nil {
-		return err
-	}
-	return errors.New("twitter: got EOF without a tweet")
 }
 
 func (r *run) errorf(format string, args ...any) {
@@ -360,63 +312,78 @@ func (r *run) errorf(format string, args ...any) {
 	r.anyErr = true
 }
 
-func (r *run) doAPI(result any, apiPath string, keyval ...string) error {
+// doAPIv2 gets the API v2 path apiPath, with the query parameters keyval,
+// into result.
+func (r *run) doAPIv2(result any, apiPath string, keyval ...string) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,
 		Creds:  r.accessCreds,
-	}.PopulateJSONFromURL(result, http.MethodGet, apiURL+apiPath, keyval...)
+	}.PopulateJSONFromURL(result, http.MethodGet, apiV2URL+apiPath, keyval...)
 }
 
-// importTweets imports the tweets related to userID, through apiPath.
-// If apiPath is userTimeLineAPIPath, the tweets and retweets posted by userID are imported.
-// If apiPath is userLikesAPIPath, the tweets liked by userID are imported.
-func (r *run) importTweets(userID string, apiPath string) error {
-	maxId := ""
-	continueRequests := true
+func (r *run) addPostsRead(n int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.postsRead += n
+}
 
-	var tweetsNode *importer.Object
-	var err error
-	var importType string
-	if apiPath == userLikesAPIPath {
+// importTweets imports the tweets posted by userID, including retweets,
+// or, if likes, the tweets userID liked, through the API v2.
+//
+// The API serves only an account's most recent 3200 tweets, newest first.
+// An incremental run of tweets asks for only those since the newest an
+// earlier run imported, as the API charges by the tweet read; one of likes,
+// which the API can't ask for so, stops at a page of likes all imported.
+func (r *run) importTweets(userID string, likes bool) error {
+	importType := "tweets"
+	if likes {
 		importType = "likes"
-	} else {
-		importType = "tweets"
 	}
-	tweetsNode, err = r.getTopLevelNode(importType)
+	tweetsNode, err := r.getTopLevelNode(importType)
 	if err != nil {
 		return err
 	}
+	// The API gives no count of the tweets to come, so the bar is a
+	// running count.
+	bar := r.Progress().Bar(importType, "Importing "+importType)
 
-	numTweets := 0
-	sawTweet := map[string]bool{}
-
-	// If attrs is changed, so should the expected responses accordingly for the
-	// RoundTripper of MakeTestData (testdata.go).
 	attrs := []string{
-		"user_id", userID,
-		"count", strconv.Itoa(tweetRequestLimit),
+		"max_results", strconv.Itoa(apiPageSize),
+		"tweet.fields", apiTweetFields,
+		"expansions", apiExpansions,
+		"media.fields", apiMediaFields,
 	}
-	for continueRequests {
-		select {
-		case <-r.Context().Done():
-			r.errorf("interrupted")
-			return r.Context().Err()
-		default:
+	acctNode := r.AccountNode()
+	if !likes && r.incremental {
+		if id := acctNode.Attr(acctAttrNewestTweetID); id != "" {
+			attrs = append(attrs, "since_id", id)
 		}
+	}
 
-		var resp []*apiTweetItem
-		var err error
-		if maxId == "" {
-			r.Logf("fetching %s for userid %s", importType, userID)
-			err = r.doAPI(&resp, apiPath, attrs...)
-		} else {
-			r.Logf("fetching %s for userid %s with max ID %s", importType, userID, maxId)
-			err = r.doAPI(&resp, apiPath,
-				append(attrs, "max_id", maxId)...)
-		}
-		if err != nil {
+	var (
+		numTweets int
+		newestID  string // of the tweets, the first page's newest
+		nextToken string
+		sawTweet  = map[string]bool{}
+	)
+	for page := 0; ; page++ {
+		if err := r.Context().Err(); err != nil {
+			r.errorf("interrupted")
 			return err
+		}
+		pageAttrs := attrs
+		if nextToken != "" {
+			pageAttrs = append(attrs[:len(attrs):len(attrs)], "pagination_token", nextToken)
+		}
+		r.Logf("fetching page %d of %s for userid %s", page+1, importType, userID)
+		var resp apiTweetsPage
+		if err := r.doAPIv2(&resp, apiTweetsPath(userID, likes), pageAttrs...); err != nil {
+			return err
+		}
+		r.addPostsRead(len(resp.Data))
+		if page == 0 {
+			newestID = resp.Meta.NewestID
 		}
 
 		var (
@@ -426,30 +393,31 @@ func (r *run) importTweets(userID string, apiPath string) error {
 			gate         = syncutil.NewGate(tweetsAtOnce)
 			grp          syncutil.Group
 		)
-		for i := range resp {
-			tweet := resp[i]
-
+		for _, tweet := range resp.tweets(likes) {
 			// Dup-suppression.
 			if sawTweet[tweet.Id] {
 				continue
 			}
 			sawTweet[tweet.Id] = true
 			newThisBatch++
-			maxId = tweet.Id
 
 			gate.Start()
 			grp.Go(func() error {
 				defer gate.Done()
 				dup, err := r.importTweet(tweetsNode, tweet, true)
-				if !dup {
+				if err != nil {
+					r.errorf("error importing tweet %s %v", tweet.Id, err)
+					return err
+				}
+				if dup {
+					bar.Skip(1)
+				} else {
 					allDupMu.Lock()
 					allDups = false
 					allDupMu.Unlock()
+					bar.Add(1)
 				}
-				if err != nil {
-					r.errorf("error importing tweet %s %v", tweet.Id, err)
-				}
-				return err
+				return nil
 			})
 		}
 		if err := grp.Err(); err != nil {
@@ -457,11 +425,20 @@ func (r *run) importTweets(userID string, apiPath string) error {
 		}
 		numTweets += newThisBatch
 		r.Logf("imported %d %s this batch; %d total.", newThisBatch, importType, numTweets)
-		if r.incremental && allDups {
+		if likes && r.incremental && allDups {
 			r.Logf("incremental import found end batch")
 			break
 		}
-		continueRequests = newThisBatch > 0
+		nextToken = resp.Meta.NextToken
+		if nextToken == "" || newThisBatch == 0 {
+			break
+		}
+	}
+	bar.Finish()
+	if !likes && newestID != "" {
+		if err := acctNode.SetAttrs(acctAttrNewestTweetID, newestID); err != nil {
+			return err
+		}
 	}
 	r.Logf("successfully did full run of importing %d %s", numTweets, importType)
 	return nil
@@ -564,7 +541,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	}
 
 	// e.g. "2014-06-12 19:11:51 +0000"
-	createdTime, err := timeParseFirstFormat(tweet.CreatedAt(), time.RubyDate, "2006-01-02 15:04:05 -0700")
+	createdTime, err := timeParseFirstFormat(tweet.CreatedAt(), time.RFC3339, time.RubyDate, "2006-01-02 15:04:05 -0700")
 	if err != nil {
 		return false, fmt.Errorf("could not parse time %q: %w", tweet.CreatedAt(), err)
 	}
@@ -787,19 +764,7 @@ type tweetMedia interface {
 	BaseFilename() string
 }
 
-type apiTweetItem struct {
-	Id           string   `json:"id_str"`
-	TextStr      string   `json:"text"`
-	CreatedAtStr string   `json:"created_at"`
-	Entities     entities `json:"entities"`
-	Favorited    bool     `json:"favorited"`
-
-	// One or both might be present:
-	Geo         *geo    `json:"geo"`         // lat, long
-	Coordinates *coords `json:"coordinates"` // geojson: long, lat
-}
-
-// zipTweetItem is like apiTweetItem, but twitter is annoying and the schema for the JSON inside zip files is slightly different.
+// zipTweetItem is a tweet of an archive's zip file.
 type zipTweetItem struct {
 	Id           string `json:"id_str"`
 	TextStr      string `json:"text"`
@@ -811,13 +776,6 @@ type zipTweetItem struct {
 	Entities    zipEntities `json:"entities"`
 }
 
-func (t *apiTweetItem) ID() string {
-	if t.Id == "" {
-		panic("empty id")
-	}
-	return t.Id
-}
-
 func (t *zipTweetItem) ID() string {
 	if t.Id == "" {
 		panic("empty id")
@@ -825,15 +783,9 @@ func (t *zipTweetItem) ID() string {
 	return t.Id
 }
 
-func (t *apiTweetItem) CreatedAt() string { return t.CreatedAtStr }
 func (t *zipTweetItem) CreatedAt() string { return t.CreatedAtStr }
 
-func (t *apiTweetItem) Text() string { return html.UnescapeString(t.TextStr) }
 func (t *zipTweetItem) Text() string { return html.UnescapeString(t.TextStr) }
-
-func (t *apiTweetItem) LatLong() (lat, long float64, ok bool) {
-	return latLong(t.Geo, t.Coordinates)
-}
 
 func (t *zipTweetItem) LatLong() (lat, long float64, ok bool) {
 	return latLong(t.Geo, t.Coordinates)
@@ -863,15 +815,6 @@ func (t *zipTweetItem) Media() (ret []tweetMedia) {
 	return
 }
 
-func (t *apiTweetItem) Media() (ret []tweetMedia) {
-	for _, m := range t.Entities.Media {
-		ret = append(ret, m)
-	}
-	ret = append(ret, getImagesFromURLs(t.Entities.URLs)...)
-	return
-}
-
-func (t *apiTweetItem) Liked() bool { return t.Favorited }
 func (t *zipTweetItem) Liked() bool { return false }
 
 type geo struct {
@@ -880,11 +823,6 @@ type geo struct {
 
 type coords struct {
 	Coordinates []float64 `json:"coordinates"` // long,lat
-}
-
-type entities struct {
-	Media []*media     `json:"media"`
-	URLs  []*urlEntity `json:"urls"`
 }
 
 type zipEntities struct {
@@ -922,32 +860,13 @@ func getImagesFromURLs(urls []*urlEntity) (ret []tweetMedia) {
 	return
 }
 
-// The Media entity from the Rest API. See also: zipMedia.
-type media struct {
-	Id            string               `json:"id_str"`
-	IdNum         int64                `json:"id"`
-	MediaURL      string               `json:"media_url"`
-	MediaURLHTTPS string               `json:"media_url_https"`
-	Sizes         map[string]mediaSize `json:"sizes"`
-	Type_         string               `json:"type"`
-}
-
-// The Media entity from the zip file JSON. Similar but different to
-// media. Thanks, Twitter.
+// zipMedia is a photo of a tweet of an archive's zip file.
 type zipMedia struct {
 	Id            string      `json:"id_str"`
 	IdNum         int64       `json:"id"`
 	MediaURL      string      `json:"media_url"`
 	MediaURLHTTPS string      `json:"media_url_https"`
 	Sizes         []mediaSize `json:"sizes"` // without a key! useless.
-}
-
-func (m *media) URLs() []string {
-	u := m.baseURL()
-	if u == "" {
-		return nil
-	}
-	return []string{u + m.largestMediaSuffix(), u}
 }
 
 func (m *zipMedia) URLs() []string {
@@ -963,13 +882,6 @@ func (m *zipMedia) URLs() []string {
 	}
 }
 
-func (m *media) baseURL() string {
-	if v := m.MediaURLHTTPS; v != "" {
-		return v
-	}
-	return m.MediaURL
-}
-
 func (m *zipMedia) baseURL() string {
 	if v := m.MediaURLHTTPS; v != "" {
 		return v
@@ -977,24 +889,8 @@ func (m *zipMedia) baseURL() string {
 	return m.MediaURL
 }
 
-func (m *media) BaseFilename() string {
-	return path.Base(m.baseURL())
-}
-
 func (m *zipMedia) BaseFilename() string {
 	return path.Base(m.baseURL())
-}
-
-func (m *media) largestMediaSuffix() string {
-	bestPixels := 0
-	bestSuffix := ""
-	for k, sz := range m.Sizes {
-		if px := sz.W * sz.H; px > bestPixels {
-			bestPixels = px
-			bestSuffix = ":" + k
-		}
-	}
-	return bestSuffix
 }
 
 type mediaSize struct {

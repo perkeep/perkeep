@@ -1,0 +1,33 @@
+{
+  "data": [
+    {
+      "id": "727366997390946304",
+      "text": "I am a test account. Boop beep.",
+      "created_at": "2016-05-03T21:39:59.000Z",
+      "edit_history_tweet_ids": [
+        "727366997390946304"
+      ]
+    },
+    {
+      "id": "727613700438265858",
+      "text": "foo and bar",
+      "created_at": "2016-05-03T21:39:59.000Z",
+      "edit_history_tweet_ids": [
+        "727613700438265858"
+      ]
+    },
+    {
+      "id": "727613616149565440",
+      "text": "More beeping and booping &amp; &lt;&gt; . $ % ^ * &amp;&amp; /\\/\\()!",
+      "created_at": "2016-05-03T21:39:39.000Z",
+      "edit_history_tweet_ids": [
+        "727613616149565440"
+      ]
+    }
+  ],
+  "meta": {
+    "result_count": 3,
+    "newest_id": "727366997390946304",
+    "oldest_id": "727613616149565440"
+  }
+}
