@@ -619,6 +619,7 @@ func TestArchiveValidationAndReadLimits(t *testing.T) {
 		{"absolute", []archiveMember{{name: "/owner.json"}}},
 		{"backslash", []archiveMember{{name: `dir\owner.json`}}},
 		{"dot", []archiveMember{{name: "dir/./owner.json"}}},
+		{"doubled slash", []archiveMember{{name: "dir//owner.json"}}},
 		{"control", []archiveMember{{name: "dir/evil\nname"}}},
 		{"symlink", []archiveMember{{name: "owner.json", mode: os.ModeSymlink | 0777}}},
 	}
@@ -633,6 +634,16 @@ func TestArchiveValidationAndReadLimits(t *testing.T) {
 				t.Fatal("invalid archive accepted")
 			}
 		})
+	}
+	// A directory of two trailing slashes, as X's archives have, is fine.
+	dirRef, err := schema.WriteFileFromReader(context.Background(), store, "dirs.zip", bytes.NewReader(archiveZIP(t, archiveMember{name: "assets//"}, archiveMember{name: "owner.json", data: "{}"})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, err := openArchive(context.Background(), store, dirRef); err != nil {
+		t.Errorf("directory of two trailing slashes rejected: %v", err)
+	} else {
+		a.file.Close()
 	}
 	ref := archiveTestUpload(t, store, "good.zip", camtypes.ArchiveIdentity{UserName: "alice"})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1047,6 +1058,29 @@ func TestArchiveZIP64AndEOCDSelection(t *testing.T) {
 	id, err := (&archiveTestImporter{Importer: TODOImporter}).InspectArchive(context.Background(), a)
 	if err != nil || id.UserName != "alice" {
 		t.Fatalf("ZIP64 inspection = %+v, %v", id, err)
+	}
+	// ZIP64 end records that repeat an end record of no ZIP64 values, as X
+	// writes, are allowed, but only if they do, exactly.
+	unneeded := bytes.Clone(ordinary[:endPos])
+	unneeded = append(unneeded, z...)
+	unneeded = append(unneeded, locator...)
+	unneeded = append(unneeded, ordinary[endPos:]...)
+	if err := checkZIPDirectory(bytes.NewReader(unneeded), int64(len(unneeded))); err != nil {
+		t.Errorf("unneeded ZIP64 end records rejected: %v", err)
+	}
+	if _, err := zip.NewReader(bytes.NewReader(unneeded), int64(len(unneeded))); err != nil {
+		t.Errorf("archive/zip rejected unneeded ZIP64 end records: %v", err)
+	}
+	mismatched := bytes.Clone(unneeded)
+	binary.LittleEndian.PutUint64(mismatched[endPos+40:], 1) // the ZIP64 directory size
+	if err := checkZIPDirectory(bytes.NewReader(mismatched), int64(len(mismatched))); err == nil {
+		t.Error("ZIP64 end records of other values accepted")
+	}
+	gap := bytes.Clone(ordinary[:endPos])
+	gap = append(gap, make([]byte, len(z)+len(locator))...)
+	gap = append(gap, ordinary[endPos:]...)
+	if err := checkZIPDirectory(bytes.NewReader(gap), int64(len(gap))); err == nil {
+		t.Error("bytes between the directory and its end record accepted")
 	}
 	// A fake EOCD in a real EOCD's comment must not make our preflight validate
 	// one directory while archive/zip later selects the other.
