@@ -165,9 +165,9 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 
 	// These aren't enough to log in. We fill in the rest with ServeCallback()
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrInstanceURL, instanceURL,
-		acctAttrClientID, app.ClientID,
-		acctAttrClientSecret, app.ClientSecret,
+		importer.KV(acctAttrInstanceURL, instanceURL),
+		importer.KV(acctAttrClientID, app.ClientID),
+		importer.KV(acctAttrClientSecret, app.ClientSecret),
 	); err != nil {
 		httputil.ServeError(w, r, err)
 		return err
@@ -233,10 +233,10 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	acctTitle := fmt.Sprintf("%s's Mastodon account", userAddress)
 
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrUserID, string(mastoAccount.ID),
-		importer.AcctAttrUserName, mastoAccount.Acct,
-		importer.AcctAttrName, mastoAccount.DisplayName,
-		nodeattr.Title, acctTitle,
+		importer.KV(importer.AcctAttrUserID, string(mastoAccount.ID)),
+		importer.KV(importer.AcctAttrUserName, mastoAccount.Acct),
+		importer.KV(importer.AcctAttrName, mastoAccount.DisplayName),
+		importer.KV(nodeattr.Title, acctTitle),
 	); err != nil {
 		httputil.ServeError(w, r, err)
 		return
@@ -431,16 +431,16 @@ func (r *run) importStatus(listNode *importer.Object, st *mastodon.Status) (bool
 		return true, nil
 	}
 
-	attrs := []string{
-		nodeattr.Type, "mastodon:status",
-		attrURI, st.URI,
-		nodeattr.URL, st.URL,
-		nodeattr.Content, st.Content,
-		nodeattr.StartDate, schema.RFC3339FromTime(st.CreatedAt),
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, "mastodon:status"),
+		importer.KV(attrURI, st.URI),
+		importer.KV(nodeattr.URL, st.URL),
+		importer.KV(nodeattr.Content, st.Content),
+		importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(st.CreatedAt)),
 	}
 
 	if st.SpoilerText != "" {
-		attrs = append(attrs, attrSpoilerText, st.SpoilerText)
+		attrs = append(attrs, importer.KV(attrSpoilerText, st.SpoilerText))
 	}
 
 	filenames := make(map[string]int)
@@ -473,11 +473,11 @@ func (r *run) importStatus(listNode *importer.Object, st *mastodon.Status) (bool
 			filename = fmt.Sprintf("%s%d%s", strings.TrimSuffix(filename, ext), filenames[filename], ext)
 		}
 
-		attrs = append(attrs, fmt.Sprintf("camliPath:%v", filename), fileRef.String())
+		attrs = append(attrs, importer.KV(fmt.Sprintf("camliPath:%v", filename), fileRef.String()))
 
 		// The first image gets to be the preview image for the node
 		if i == 0 {
-			attrs = append(attrs, "camliContentImage", fileRef.String())
+			attrs = append(attrs, importer.KV("camliContentImage", fileRef.String()))
 		}
 
 		r.Logf("adding attachment %s to permanode %s for status %s", fileRef.String(), statusNode.PermanodeRef(), st.URI)

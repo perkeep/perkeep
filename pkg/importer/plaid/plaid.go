@@ -136,10 +136,10 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 
 	if err := ctx.AccountNode.SetAttrs(
-		"title", fmt.Sprintf("%s account: %s", institution, username),
-		acctAttrUsername, username,
-		acctAttrToken, res.AccessToken,
-		acctInstitution, institution,
+		importer.KV("title", fmt.Sprintf("%s account: %s", institution, username)),
+		importer.KV(acctAttrUsername, username),
+		importer.KV(acctAttrToken, res.AccessToken),
+		importer.KV(acctInstitution, institution),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return
@@ -212,15 +212,15 @@ func (im *imp) importTransaction(ctx *importer.RunContext, t *plaid.Transaction)
 	}
 
 	if err := itemNode.SetAttrs(
-		nodeattr.Type, plaidTransactionNodeType,
-		nodeattr.DateCreated, schema.RFC3339FromTime(transactionTime),
-		"transactionId", t.ID,
-		"vendor", t.Name,
-		"amount", fmt.Sprintf("%f", t.Amount),
-		"currency", "USD",
-		"categoryId", t.CategoryID,
-		nodeattr.Title, t.Name,
-		nodeattr.CamliContent, fileRef.String(),
+		importer.KV(nodeattr.Type, plaidTransactionNodeType),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(transactionTime)),
+		importer.KV("transactionId", t.ID),
+		importer.KV("vendor", t.Name),
+		importer.KV("amount", fmt.Sprintf("%f", t.Amount)),
+		importer.KV("currency", "USD"),
+		importer.KV("categoryId", t.CategoryID),
+		importer.KV(nodeattr.Title, t.Name),
+		importer.KV(nodeattr.CamliContent, fileRef.String()),
 	); err != nil {
 		return "", err
 	}
@@ -230,8 +230,8 @@ func (im *imp) importTransaction(ctx *importer.RunContext, t *plaid.Transaction)
 	// is also sometimes returned; no attempt is made to geocode that info currently.
 	if t.Meta.Location.Coordinates.Lat != 0 && t.Meta.Location.Coordinates.Lon != 0 {
 		if err := itemNode.SetAttrs(
-			"latitude", fmt.Sprintf("%f", t.Meta.Location.Coordinates.Lat),
-			"longitude", fmt.Sprintf("%f", t.Meta.Location.Coordinates.Lon),
+			importer.KV("latitude", fmt.Sprintf("%f", t.Meta.Location.Coordinates.Lat)),
+			importer.KV("longitude", fmt.Sprintf("%f", t.Meta.Location.Coordinates.Lon)),
 		); err != nil {
 			return "", err
 		}

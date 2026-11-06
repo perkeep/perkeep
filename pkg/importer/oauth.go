@@ -204,18 +204,15 @@ func (octx OAuthContext) POST(url string, form url.Values) (*http.Response, erro
 	return octx.do("POST", url, form)
 }
 
-// PopulateJSONFromURL makes a POST or GET call at apiURL, using keyval as parameters of
-// the associated form. The JSON response is decoded into result.
-func (octx OAuthContext) PopulateJSONFromURL(result any, method string, apiURL string, keyval ...string) error {
+// PopulateJSONFromURL makes a POST or GET call at apiURL, using params as
+// parameters of the associated form. The JSON response is decoded into result.
+func (octx OAuthContext) PopulateJSONFromURL(result any, method string, apiURL string, params ...KeyValue) error {
 	if method != http.MethodGet && method != http.MethodPost {
 		return fmt.Errorf("only HTTP Get or Post supported: found %v", method)
 	}
-	if len(keyval)%2 == 1 {
-		return errors.New("incorrect number of keyval arguments. must be even")
-	}
 	form := url.Values{}
-	for i := 0; i < len(keyval); i += 2 {
-		form.Set(keyval[i], keyval[i+1])
+	for _, p := range params {
+		form.Set(p.Key, p.Value)
 	}
 	hres, err := octx.do(method, apiURL, form)
 	if err != nil {

@@ -55,7 +55,7 @@ func TestIntegrationRun(t *testing.T) {
 	}
 
 	imptest.ImporterTest(t, "pinboard", transport, func(rc *importer.RunContext) {
-		err = rc.AccountNode().SetAttrs(attrAuthToken, authToken)
+		err = rc.AccountNode().SetAttrs(importer.KV(attrAuthToken, authToken))
 		if err != nil {
 			t.Fatal(err)
 		}

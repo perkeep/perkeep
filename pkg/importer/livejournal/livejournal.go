@@ -195,16 +195,16 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	if server == lj.DefaultBaseURL {
 		server = ""
 	}
-	keyval := []string{
-		importer.AcctAttrUserName, c.user,
-		acctAttrPasswordFile, c.passwordFile,
-		acctAttrTimeZone, tz,
+	keyval := []importer.KeyValue{
+		importer.KV(importer.AcctAttrUserName, c.user),
+		importer.KV(acctAttrPasswordFile, c.passwordFile),
+		importer.KV(acctAttrTimeZone, tz),
 	}
 	var deletes []string
 	if server == "" {
 		deletes = append(deletes, acctAttrServer)
 	} else {
-		keyval = append(keyval, acctAttrServer, server)
+		keyval = append(keyval, importer.KV(acctAttrServer, server))
 	}
 	if err := ctx.AccountNode.SetAttrsWithDeletes(deletes, keyval...); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
@@ -239,8 +239,8 @@ func (im imp) Run(rc *importer.RunContext) error {
 	rc.Logf("%d entries, %d comments: changed %d of %d permanodes (%d new), with %d attribute changes",
 		len(j.Entries), len(j.Comments), res.Changed, res.Permanodes, res.Created, res.AttrChanges)
 	return rc.RootNode().SetAttrs(
-		nodeattr.Title, lj.RootTitle(c.user),
-		"camliPath:"+lj.RootPathJournal, res.Journal.String(),
+		importer.KV(nodeattr.Title, lj.RootTitle(c.user)),
+		importer.KV("camliPath:"+lj.RootPathJournal, res.Journal.String()),
 	)
 }
 

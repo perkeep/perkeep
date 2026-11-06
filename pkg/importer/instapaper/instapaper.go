@@ -195,11 +195,11 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 
 	if err := ctx.AccountNode.SetAttrs(
-		nodeattr.Title, fmt.Sprintf("Instapaper account: %s", user.Username),
-		importer.AcctAttrAccessToken, creds.Token,
-		importer.AcctAttrAccessTokenSecret, creds.Secret,
-		importer.AcctAttrUserName, user.Username,
-		importer.AcctAttrUserID, fmt.Sprint(user.UserId),
+		importer.KV(nodeattr.Title, fmt.Sprintf("Instapaper account: %s", user.Username)),
+		importer.KV(importer.AcctAttrAccessToken, creds.Token),
+		importer.KV(importer.AcctAttrAccessTokenSecret, creds.Secret),
+		importer.KV(importer.AcctAttrUserName, user.Username),
+		importer.KV(importer.AcctAttrUserID, fmt.Sprint(user.UserId)),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return
@@ -245,7 +245,7 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 		return err
 	}
 
-	return acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion)
+	return acctNode.SetAttrs(importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion))
 }
 
 type run struct {
@@ -344,7 +344,10 @@ func (r *run) importBookmarks(userID string, folders []folder) error {
 		f := folders[fi]
 		var bList []*bookmark
 
-		err := r.doAPI(&bList, bookmarkListRequestURL, "limit", requestLimit, "folder_id", f.FolderId.String())
+		err := r.doAPI(&bList, bookmarkListRequestURL,
+			importer.KV("limit", requestLimit),
+			importer.KV("folder_id", f.FolderId.String()),
+		)
 		if err != nil {
 			return err
 		}
@@ -457,18 +460,18 @@ func (r *run) importBookmark(parent *importer.Object, b *bookmark, folder string
 	}
 
 	instapaperUrl := fmt.Sprintf("https://www.instapaper.com/read/%v", b.BookmarkId)
-	attrs := []string{
-		attrBookmarkId, fmt.Sprint(b.BookmarkId),
-		nodeattr.Type, nodeTypeBookmark,
-		nodeattr.DateCreated, schema.RFC3339FromTime(time.Unix(int64(b.Time), 0)),
-		nodeattr.Title, b.Title,
-		nodeattr.Description, b.Description,
-		nodeattr.URL, b.Url,
-		attrUrl, instapaperUrl,
-		attrProgress, fmt.Sprint(b.Progress),
-		attrProgressTimestamp, schema.RFC3339FromTime(time.Unix(int64(b.ProgressTimestamp), 0)),
-		nodeattr.Starred, b.Starred,
-		nodeattr.Folder, folder,
+	attrs := []importer.KeyValue{
+		importer.KV(attrBookmarkId, fmt.Sprint(b.BookmarkId)),
+		importer.KV(nodeattr.Type, nodeTypeBookmark),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(time.Unix(int64(b.Time), 0))),
+		importer.KV(nodeattr.Title, b.Title),
+		importer.KV(nodeattr.Description, b.Description),
+		importer.KV(nodeattr.URL, b.Url),
+		importer.KV(attrUrl, instapaperUrl),
+		importer.KV(attrProgress, fmt.Sprint(b.Progress)),
+		importer.KV(attrProgressTimestamp, schema.RFC3339FromTime(time.Unix(int64(b.ProgressTimestamp), 0))),
+		importer.KV(nodeattr.Starred, b.Starred),
+		importer.KV(nodeattr.Folder, folder),
 	}
 
 	changes, err := bmNode.SetAttrs2(attrs...)
@@ -540,13 +543,13 @@ func (r *run) importHighlight(parent *importer.Object, bNode *importer.Object, h
 		return false, err
 	}
 
-	attrs := []string{
-		nodeattr.Type, nodeTypeHighlight,
-		nodeattr.DateCreated, schema.RFC3339FromTime(time.Unix(int64(h.Time), 0)),
-		nodeattr.Title, bNode.Attr(nodeattr.Title),
-		nodeattr.Content, h.Text,
-		nodeattr.Description, h.Note,
-		attrBookmarkId, fmt.Sprint(h.BookmarkId),
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeTypeHighlight),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(time.Unix(int64(h.Time), 0))),
+		importer.KV(nodeattr.Title, bNode.Attr(nodeattr.Title)),
+		importer.KV(nodeattr.Content, h.Text),
+		importer.KV(nodeattr.Description, h.Note),
+		importer.KV(attrBookmarkId, fmt.Sprint(h.BookmarkId)),
 	}
 
 	changes, err := hNode.SetAttrs2(attrs...)
@@ -558,7 +561,10 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	root := r.RootNode()
 	username := acctNode.Attr(importer.AcctAttrUserName)
 	rootTitle := fmt.Sprintf("Instapaper Data for %s", username)
-	if err := root.SetAttrs(nodeattr.Title, rootTitle, "camliImportRoot", "instapaper-"+username); err != nil {
+	if err := root.SetAttrs(
+		importer.KV(nodeattr.Title, rootTitle),
+		importer.KV("camliImportRoot", "instapaper-"+username),
+	); err != nil {
 		return nil, err
 	}
 
@@ -577,9 +583,9 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	return obj, obj.SetAttr(nodeattr.Title, title)
 }
 
-func (r *run) doAPI(result any, apiUrl string, keyval ...string) error {
+func (r *run) doAPI(result any, apiUrl string, params ...importer.KeyValue) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,
-		Creds:  r.accessCreds}.PopulateJSONFromURL(result, http.MethodPost, apiUrl, keyval...)
+		Creds:  r.accessCreds}.PopulateJSONFromURL(result, http.MethodPost, apiUrl, params...)
 }

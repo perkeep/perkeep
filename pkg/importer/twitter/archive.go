@@ -392,7 +392,7 @@ const (
 // batch: attrs returns the attributes to set of each item, given its node,
 // tweetsAtOnce at a time; they're set with as few claims as hold them;
 // and then done is called with each item, and whether it changed.
-func (r *archiveRun) importBatch(parent *importer.Object, paths []string, attrs func(i int, n *importer.Object) ([]string, error), done func(i int, changed bool) error) error {
+func (r *archiveRun) importBatch(parent *importer.Object, paths []string, attrs func(i int, n *importer.Object) ([]importer.KeyValue, error), done func(i int, changed bool) error) error {
 	if len(paths) == 0 {
 		return nil
 	}
@@ -446,7 +446,7 @@ func (r *archiveRun) importArchiveTweets(files []string, count int64) error {
 		for i, t := range batch {
 			ids[i] = t.Id
 		}
-		err := r.importBatch(tweetsNode, ids, func(i int, node *importer.Object) ([]string, error) {
+		err := r.importBatch(tweetsNode, ids, func(i int, node *importer.Object) ([]importer.KeyValue, error) {
 			t := batch[i]
 			if err := r.storeTweetMedia(node, t, batchMedia[i]); err != nil {
 				return nil, err
@@ -631,20 +631,20 @@ func (r *archiveRun) importLikes(files []string, count int64) error {
 		for i, l := range batch {
 			ids[i] = l.TweetID
 		}
-		err := r.importBatch(likesNode, ids, func(i int, n *importer.Object) ([]string, error) {
+		err := r.importBatch(likesNode, ids, func(i int, n *importer.Object) ([]importer.KeyValue, error) {
 			l := batch[i]
 			if n.Attr(attrImportMethod) == "api" {
 				return nil, nil
 			}
-			attrs := []string{
-				"twitterId", l.TweetID,
-				nodeattr.Type, nodeTypeLike,
-				nodeattr.Content, html.UnescapeString(l.FullText),
-				nodeattr.URL, l.ExpandedURL,
-				attrImportMethod, "zip",
+			attrs := []importer.KeyValue{
+				importer.KV("twitterId", l.TweetID),
+				importer.KV(nodeattr.Type, nodeTypeLike),
+				importer.KV(nodeattr.Content, html.UnescapeString(l.FullText)),
+				importer.KV(nodeattr.URL, l.ExpandedURL),
+				importer.KV(attrImportMethod, "zip"),
 			}
 			if t, ok := tweetTime(l.TweetID); ok {
-				attrs = append(attrs, nodeattr.StartDate, schema.RFC3339FromTime(t))
+				attrs = append(attrs, importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(t)))
 			}
 			return attrs, nil
 		}, func(i int, changed bool) error {
@@ -722,12 +722,12 @@ func (r *archiveRun) importProfile() error {
 	if name := acct.Attr(importer.AcctAttrName); name != "" {
 		title = name + " (" + title + ")"
 	}
-	attrs := []string{
-		nodeattr.Type, nodeTypeProfile,
-		nodeattr.Title, title,
-		nodeattr.Description, p.Description.Bio,
-		nodeattr.URL, p.Description.Website,
-		"twitterLocation", p.Description.Location,
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeTypeProfile),
+		importer.KV(nodeattr.Title, title),
+		importer.KV(nodeattr.Description, p.Description.Bio),
+		importer.KV(nodeattr.URL, p.Description.Website),
+		importer.KV("twitterLocation", p.Description.Location),
 	}
 	userID := acct.Attr(importer.AcctAttrUserID)
 	for _, img := range []struct{ url, path string }{{p.AvatarMediaURL, "avatar"}, {p.HeaderMediaURL, "header"}} {
@@ -744,9 +744,9 @@ func (r *archiveRun) importProfile() error {
 		if err != nil {
 			return err
 		}
-		attrs = append(attrs, "camliPath:"+img.path, ref.String())
+		attrs = append(attrs, importer.KV("camliPath:"+img.path, ref.String()))
 		if img.path == "avatar" {
-			attrs = append(attrs, nodeattr.CamliContentImage, ref.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, ref.String()))
 		}
 	}
 	return n.SetAttrs(attrs...)
@@ -783,13 +783,13 @@ func (r *archiveRun) importFollows(files []string, count int64) error {
 		for i, f := range batch {
 			ids[i] = f.AccountID
 		}
-		err := r.importBatch(followingNode, ids, func(i int, n *importer.Object) ([]string, error) {
+		err := r.importBatch(followingNode, ids, func(i int, n *importer.Object) ([]importer.KeyValue, error) {
 			f := batch[i]
-			return []string{
-				nodeattr.Type, nodeTypeFollow,
-				nodeattr.Title, "Follow of account " + f.AccountID,
-				attrUserID, f.AccountID,
-				nodeattr.URL, f.UserLink,
+			return []importer.KeyValue{
+				importer.KV(nodeattr.Type, nodeTypeFollow),
+				importer.KV(nodeattr.Title, "Follow of account "+f.AccountID),
+				importer.KV(attrUserID, f.AccountID),
+				importer.KV(nodeattr.URL, f.UserLink),
 			}, nil
 		}, func(i int, changed bool) error {
 			if changed {
@@ -837,7 +837,7 @@ func (r *archiveRun) importFollows(files []string, count int64) error {
 // and followers to its node, and the followers' count, as they're of the
 // accounts' IDs only, too many to each have a node.
 func (r *archiveRun) attachFollowFiles() error {
-	var attrs []string
+	var attrs []importer.KeyValue
 	for _, f := range []struct{ member, attr string }{
 		{"data/following.js", acctAttrFollowingJS},
 		{"data/follower.js", acctAttrFollowerJS},
@@ -849,7 +849,7 @@ func (r *archiveRun) attachFollowFiles() error {
 		if err != nil {
 			return err
 		}
-		attrs = append(attrs, f.attr, ref.String())
+		attrs = append(attrs, importer.KV(f.attr, ref.String()))
 	}
 	if r.names.has("data/follower.js") {
 		n := 0
@@ -859,7 +859,7 @@ func (r *archiveRun) attachFollowFiles() error {
 		}); err != nil {
 			return err
 		}
-		attrs = append(attrs, acctAttrFollowersCount, strconv.Itoa(n))
+		attrs = append(attrs, importer.KV(acctAttrFollowersCount, strconv.Itoa(n)))
 	}
 	if len(attrs) == 0 {
 		return nil

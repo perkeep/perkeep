@@ -193,7 +193,7 @@ func TestImporterActivityLimitRetainsOlderStoredNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := older.SetAttrs(attrImportVersion, runCompleteVersion, attrSummaryHash, summaryHash(&summaries[1])); err != nil {
+	if err := older.SetAttrs(importer.KV(attrImportVersion, runCompleteVersion), importer.KV(attrSummaryHash, summaryHash(&summaries[1]))); err != nil {
 		t.Fatal(err)
 	}
 	ref := older.PermanodeRef()
@@ -251,7 +251,7 @@ func TestImporterActivityLimitOverOneHundred(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := obj.SetAttrs(attrImportVersion, runCompleteVersion, attrSummaryHash, summaryHash(&a)); err != nil {
+		if err := obj.SetAttrs(importer.KV(attrImportVersion, runCompleteVersion), importer.KV(attrSummaryHash, summaryHash(&a))); err != nil {
 			t.Fatal(err)
 		}
 	}

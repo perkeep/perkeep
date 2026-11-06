@@ -339,7 +339,7 @@ func TestArchiveAccountMatching(t *testing.T) {
 // are of the API, not the archive again.
 func TestArchiveOfAPIImporter(t *testing.T) {
 	h, im, target := archiveTestHost(t)
-	ia, err := h.imp[archiveTestName].newAccountWithAttrs(AcctAttrUserID, "42", AcctAttrUserName, "oauthname", AcctAttrName, "OAuth Name")
+	ia, err := h.imp[archiveTestName].newAccountWithAttrs(KV(AcctAttrUserID, "42"), KV(AcctAttrUserName, "oauthname"), KV(AcctAttrName, "OAuth Name"))
 	if err != nil {
 		t.Fatal(err)
 	}

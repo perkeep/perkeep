@@ -105,8 +105,8 @@ func TestRefreshDiscardsResponseAfterAdministratorCredentialChange(t *testing.T)
 				if operation == "delete-absent" {
 					// Access has never been present: deleting it while a
 					// refresh runs must still invalidate the old snapshot.
-					if err := f.rc.AccountNode().SetAttrs(importer.AcctAttrUserID, "7",
-						attrRefreshToken, "test-refresh", attrTokenClientID, f.clientID); err != nil {
+					if err := f.rc.AccountNode().SetAttrs(importer.KV(importer.AcctAttrUserID, "7"),
+						importer.KV(attrRefreshToken, "test-refresh"), importer.KV(attrTokenClientID, f.clientID)); err != nil {
 						t.Fatal(err)
 					}
 				} else {

@@ -37,11 +37,11 @@ var _ importer.TestDataMaker = imp{}
 
 func (im imp) SetTestAccount(acctNode *importer.Object) error {
 	return acctNode.SetAttrs(
-		importer.AcctAttrAccessToken, "fakeAccessToken",
-		importer.AcctAttrAccessTokenSecret, "fakeAccessSecret",
-		importer.AcctAttrUserID, "fakeUserId",
-		importer.AcctAttrName, "fakeName",
-		importer.AcctAttrUserName, "fakeScreenName",
+		importer.KV(importer.AcctAttrAccessToken, "fakeAccessToken"),
+		importer.KV(importer.AcctAttrAccessTokenSecret, "fakeAccessSecret"),
+		importer.KV(importer.AcctAttrUserID, "fakeUserId"),
+		importer.KV(importer.AcctAttrName, "fakeName"),
+		importer.KV(importer.AcctAttrUserName, "fakeScreenName"),
 	)
 }
 

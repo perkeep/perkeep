@@ -238,9 +238,9 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		nodeattr.Title, fmt.Sprintf("Bluesky account @%s", ident.Handle),
-		importer.AcctAttrUserName, ident.Handle.String(),
-		acctAttrDID, ident.DID.String(),
+		importer.KV(nodeattr.Title, fmt.Sprintf("Bluesky account @%s", ident.Handle)),
+		importer.KV(importer.AcctAttrUserName, ident.Handle.String()),
+		importer.KV(acctAttrDID, ident.DID.String()),
 	); err != nil {
 		httputil.ServeError(w, r, err)
 		return
@@ -259,8 +259,8 @@ func setOptions(acct *importer.Object, fetchLiked, fetchReposted bool) error {
 		deletes = []string{acctAttrRev}
 	}
 	return acct.SetAttrsWithDeletes(deletes,
-		acctAttrFetchLiked, strconv.FormatBool(fetchLiked),
-		acctAttrFetchReposted, strconv.FormatBool(fetchReposted),
+		importer.KV(acctAttrFetchLiked, strconv.FormatBool(fetchLiked)),
+		importer.KV(acctAttrFetchReposted, strconv.FormatBool(fetchReposted)),
 	)
 }
 
@@ -283,8 +283,8 @@ func (im *imp) Run(rctx *importer.RunContext) error {
 	handle := ident.Handle.String()
 	if acct.Attr(importer.AcctAttrUserName) != handle {
 		if err := acct.SetAttrs(
-			importer.AcctAttrUserName, handle,
-			nodeattr.Title, fmt.Sprintf("Bluesky account @%s", handle),
+			importer.KV(importer.AcctAttrUserName, handle),
+			importer.KV(nodeattr.Title, fmt.Sprintf("Bluesky account @%s", handle)),
 		); err != nil {
 			return err
 		}
@@ -573,8 +573,8 @@ func (r *run) importRepo(since string) error {
 	}
 
 	return r.AccountNode().SetAttrs(
-		acctAttrRev, commit.Rev,
-		acctAttrCommit, commitCID.String(),
+		importer.KV(acctAttrRev, commit.Rev),
+		importer.KV(acctAttrCommit, commitCID.String()),
 	)
 }
 
@@ -759,10 +759,10 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 		return false, nil
 	}
 	recRef, _ := blobRefOfCID(rec.cid)
-	attrs := []string{
-		nodeattr.Type, nodeTypePrefix + rec.collection(),
-		attrURI, rec.uri(r.did),
-		attrRecord, recRef.String(),
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeTypePrefix+rec.collection()),
+		importer.KV(attrURI, rec.uri(r.did)),
+		importer.KV(attrRecord, recRef.String()),
 	}
 
 	var val any
@@ -772,7 +772,7 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 		r.Logf("decoding %s: %v; importing generically", rec.uri(r.did), err)
 	}
 
-	var more []string
+	var more []importer.KeyValue
 	pending := false // whether attrCID is set later, by hydration, if at all
 	pr := pendingRef{n, rec.cid.String()}
 	switch v := val.(type) {
@@ -783,7 +783,7 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 	case *bsky.FeedRepost:
 		more, pending = r.subjectAttrs(pr, v.CreatedAt, v.Subject, h, r.fetchReposted)
 	case *bsky.GraphFollow:
-		more = append(dateAttrs(v.CreatedAt), attrSubject, v.Subject)
+		more = append(dateAttrs(v.CreatedAt), importer.KV(attrSubject, v.Subject))
 		h.addProfile(v.Subject, pr)
 		pending = true
 	case *bsky.ActorProfile:
@@ -796,7 +796,7 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 	}
 	attrs = append(attrs, more...)
 
-	if !slices.Contains(attrs, nodeattr.CamliContent) {
+	if !hasAttr(attrs, nodeattr.CamliContent) {
 		obj, err := atdata.UnmarshalCBOR(rec.data)
 		if err != nil {
 			return false, fmt.Errorf("decoding record: %w", err)
@@ -805,13 +805,13 @@ func (r *run) importRecord(rec repoRecord, h *hydrator) (imported bool, err erro
 		if err != nil {
 			return false, err
 		}
-		attrs = append(attrs, nodeattr.CamliContent, ref.String())
+		attrs = append(attrs, importer.KV(nodeattr.CamliContent, ref.String()))
 	}
-	if !slices.Contains(attrs, nodeattr.Title) {
-		attrs = append(attrs, nodeattr.Title, collectionTitle(rec.collection()))
+	if !hasAttr(attrs, nodeattr.Title) {
+		attrs = append(attrs, importer.KV(nodeattr.Title, collectionTitle(rec.collection())))
 	}
 	if !pending {
-		attrs = append(attrs, attrCID, rec.cid.String())
+		attrs = append(attrs, importer.KV(attrCID, rec.cid.String()))
 	}
 	return true, n.SetAttrs(attrs...)
 }
@@ -833,12 +833,17 @@ func (r *run) writeJSON(v any) (blob.Ref, error) {
 	return schema.WriteFileFromReader(r.Context(), r.Host.Target(), "record.json", bytes.NewReader(j))
 }
 
-func dateAttrs(createdAt string) []string {
+// hasAttr reports whether attrs sets key.
+func hasAttr(attrs []importer.KeyValue, key string) bool {
+	return slices.ContainsFunc(attrs, func(kv importer.KeyValue) bool { return kv.Key == key })
+}
+
+func dateAttrs(createdAt string) []importer.KeyValue {
 	dt, err := syntax.ParseDatetimeLenient(createdAt)
 	if err != nil {
 		return nil
 	}
-	return []string{nodeattr.StartDate, schema.RFC3339FromTime(dt.Time())}
+	return []importer.KeyValue{importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(dt.Time()))}
 }
 
 // subjectAttrs returns the attributes for a like or repost of subject, and
@@ -846,12 +851,12 @@ func dateAttrs(createdAt string) []string {
 // if it's a post and fetch isn't set, the like or repost is left pending.
 // Likes of other things (feed generators, lists, ...) just record the
 // subject URI.
-func (r *run) subjectAttrs(p pendingRef, createdAt string, subject *atproto.RepoStrongRef, h *hydrator, fetch bool) (attrs []string, pending bool) {
+func (r *run) subjectAttrs(p pendingRef, createdAt string, subject *atproto.RepoStrongRef, h *hydrator, fetch bool) (attrs []importer.KeyValue, pending bool) {
 	attrs = dateAttrs(createdAt)
 	if subject == nil {
 		return attrs, false
 	}
-	attrs = append(attrs, attrSubject, subject.Uri)
+	attrs = append(attrs, importer.KV(attrSubject, subject.Uri))
 	if uri, err := syntax.ParseATURI(subject.Uri); err == nil && uri.Collection() == collPost {
 		if fetch {
 			h.addPost(subject.Uri, p)
@@ -863,16 +868,16 @@ func (r *run) subjectAttrs(p pendingRef, createdAt string, subject *atproto.Repo
 
 // postAttrs returns the attributes for post node n of a post by did,
 // downloading its media as children of n.
-func (r *run) postAttrs(n *importer.Object, did syntax.DID, post *bsky.FeedPost) ([]string, error) {
+func (r *run) postAttrs(n *importer.Object, did syntax.DID, post *bsky.FeedPost) ([]importer.KeyValue, error) {
 	attrs := dateAttrs(post.CreatedAt)
 	if post.Text != "" {
 		attrs = append(attrs,
-			nodeattr.Title, post.Text,
-			nodeattr.Content, post.Text,
+			importer.KV(nodeattr.Title, post.Text),
+			importer.KV(nodeattr.Content, post.Text),
 		)
 	}
 	if post.Reply != nil && post.Reply.Parent != nil {
-		attrs = append(attrs, attrReplyTo, post.Reply.Parent.Uri)
+		attrs = append(attrs, importer.KV(attrReplyTo, post.Reply.Parent.Uri))
 	}
 	if e := post.Embed; e != nil {
 		var quoted *bsky.EmbedRecord
@@ -882,12 +887,12 @@ func (r *run) postAttrs(n *importer.Object, did syntax.DID, post *bsky.FeedPost)
 			quoted = e.EmbedRecordWithMedia.Record
 		}
 		if quoted != nil && quoted.Record != nil {
-			attrs = append(attrs, attrQuote, quoted.Record.Uri)
+			attrs = append(attrs, importer.KV(attrQuote, quoted.Record.Uri))
 		}
 		if ext := externalOf(e); ext != nil {
-			attrs = append(attrs, attrLinkURL, ext.Uri)
+			attrs = append(attrs, importer.KV(attrLinkURL, ext.Uri))
 			if ext.Title != "" {
-				attrs = append(attrs, attrLinkTitle, ext.Title)
+				attrs = append(attrs, importer.KV(attrLinkTitle, ext.Title))
 			}
 		}
 	}
@@ -902,7 +907,7 @@ func (r *run) postAttrs(n *importer.Object, did syntax.DID, post *bsky.FeedPost)
 			continue
 		}
 		if i == 0 && m.kind != "video" {
-			attrs = append(attrs, nodeattr.CamliContentImage, ref.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, ref.String()))
 		}
 	}
 	return attrs, nil
@@ -1008,29 +1013,29 @@ func (r *run) importMedia(parent *importer.Object, name string, did syntax.DID, 
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	attrs := []string{
-		nodeattr.Type, nodeTypePrefix + m.kind,
-		nodeattr.CamliContent, ref.String(),
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeTypePrefix+m.kind),
+		importer.KV(nodeattr.CamliContent, ref.String()),
 	}
 	if m.alt != "" {
-		attrs = append(attrs, nodeattr.Description, m.alt)
+		attrs = append(attrs, importer.KV(nodeattr.Description, m.alt))
 	}
-	attrs = append(attrs, attrCID, blobCID)
+	attrs = append(attrs, importer.KV(attrCID, blobCID))
 	return ref, n.SetAttrs(attrs...)
 }
 
 // profileRecordAttrs returns the attributes for the account's own profile
 // record node n.
-func (r *run) profileRecordAttrs(n *importer.Object, p *bsky.ActorProfile) ([]string, error) {
-	var attrs []string
+func (r *run) profileRecordAttrs(n *importer.Object, p *bsky.ActorProfile) ([]importer.KeyValue, error) {
+	var attrs []importer.KeyValue
 	if p.DisplayName != nil && *p.DisplayName != "" {
-		attrs = append(attrs, nodeattr.Title, *p.DisplayName)
+		attrs = append(attrs, importer.KV(nodeattr.Title, *p.DisplayName))
 	}
 	if p.Description != nil {
-		attrs = append(attrs, nodeattr.Description, *p.Description)
+		attrs = append(attrs, importer.KV(nodeattr.Description, *p.Description))
 	}
 	if p.Website != nil {
-		attrs = append(attrs, nodeattr.URL, *p.Website)
+		attrs = append(attrs, importer.KV(nodeattr.URL, *p.Website))
 	}
 	for _, m := range []media{{kind: "avatar", blob: p.Avatar}, {kind: "banner", blob: p.Banner}} {
 		if m.blob == nil {
@@ -1042,7 +1047,7 @@ func (r *run) profileRecordAttrs(n *importer.Object, p *bsky.ActorProfile) ([]st
 			continue
 		}
 		if m.kind == "avatar" {
-			attrs = append(attrs, nodeattr.CamliContentImage, ref.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, ref.String()))
 		}
 	}
 	return attrs, nil
@@ -1148,13 +1153,13 @@ func (r *run) importPostView(pv *bsky.FeedDefs_PostView, refs []pendingRef) erro
 		if did == r.did {
 			typ = nodeTypePrefix + collPost
 		}
-		attrs := []string{
-			nodeattr.Type, typ,
-			attrURI, pv.Uri,
-			nodeattr.URL, fmt.Sprintf("https://bsky.app/profile/%s/post/%s", did, uri.RecordKey()),
+		attrs := []importer.KeyValue{
+			importer.KV(nodeattr.Type, typ),
+			importer.KV(attrURI, pv.Uri),
+			importer.KV(nodeattr.URL, fmt.Sprintf("https://bsky.app/profile/%s/post/%s", did, uri.RecordKey())),
 		}
 		if a := pv.Author; a != nil {
-			attrs = append(attrs, attrDID, a.Did, attrHandle, a.Handle)
+			attrs = append(attrs, importer.KV(attrDID, a.Did), importer.KV(attrHandle, a.Handle))
 		}
 		more, err := r.postAttrs(n, did, post)
 		if err != nil {
@@ -1166,8 +1171,8 @@ func (r *run) importPostView(pv *bsky.FeedDefs_PostView, refs []pendingRef) erro
 			return err
 		}
 		attrs = append(attrs,
-			nodeattr.CamliContent, ref.String(),
-			attrCID, pv.Cid,
+			importer.KV(nodeattr.CamliContent, ref.String()),
+			importer.KV(attrCID, pv.Cid),
 		)
 		if err := n.SetAttrs(attrs...); err != nil {
 			return err
@@ -1190,9 +1195,9 @@ func setContentAndTitle(refs []pendingRef, target *importer.Object) error {
 			prefix = "Follow: "
 		}
 		if err := p.n.SetAttrs(
-			nodeattr.CamliContent, target.PermanodeRef().String(),
-			nodeattr.Title, prefix+target.Attr(nodeattr.Title),
-			attrCID, p.cid,
+			importer.KV(nodeattr.CamliContent, target.PermanodeRef().String()),
+			importer.KV(nodeattr.Title, prefix+target.Attr(nodeattr.Title)),
+			importer.KV(attrCID, p.cid),
 		); err != nil {
 			return err
 		}
@@ -1285,18 +1290,18 @@ func (r *run) importProfileView(p *bsky.ActorDefs_ProfileViewDetailed, follows [
 	if p.DisplayName != nil && *p.DisplayName != "" {
 		title = *p.DisplayName + " (@" + p.Handle + ")"
 	}
-	attrs := []string{
-		nodeattr.Type, nodeTypePrefix + "profile",
-		nodeattr.Title, title,
-		nodeattr.URL, "https://bsky.app/profile/" + p.Did,
-		attrDID, p.Did,
-		attrHandle, p.Handle,
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, nodeTypePrefix+"profile"),
+		importer.KV(nodeattr.Title, title),
+		importer.KV(nodeattr.URL, "https://bsky.app/profile/"+p.Did),
+		importer.KV(attrDID, p.Did),
+		importer.KV(attrHandle, p.Handle),
 	}
 	if p.DisplayName != nil {
-		attrs = append(attrs, importer.AcctAttrName, *p.DisplayName)
+		attrs = append(attrs, importer.KV(importer.AcctAttrName, *p.DisplayName))
 	}
 	if p.Description != nil {
-		attrs = append(attrs, nodeattr.Description, *p.Description)
+		attrs = append(attrs, importer.KV(nodeattr.Description, *p.Description))
 	}
 	// The AppView only gives CDN URLs for the avatar and banner. They
 	// rarely change, so only fetch them the first time.
@@ -1305,7 +1310,7 @@ func (r *run) importProfileView(p *bsky.ActorDefs_ProfileViewDetailed, follows [
 		if err != nil {
 			r.Logf("fetching avatar of %s: %v", p.Did, err)
 		} else {
-			attrs = append(attrs, nodeattr.CamliContentImage, ref.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, ref.String()))
 		}
 	}
 	if p.Banner != nil && n.Attr(attrBanner) == "" {
@@ -1313,14 +1318,14 @@ func (r *run) importProfileView(p *bsky.ActorDefs_ProfileViewDetailed, follows [
 		if err != nil {
 			r.Logf("fetching banner of %s: %v", p.Did, err)
 		} else {
-			attrs = append(attrs, attrBanner, ref.String())
+			attrs = append(attrs, importer.KV(attrBanner, ref.String()))
 		}
 	}
 	ref, err := r.writeJSON(p)
 	if err != nil {
 		return err
 	}
-	attrs = append(attrs, nodeattr.CamliContent, ref.String())
+	attrs = append(attrs, importer.KV(nodeattr.CamliContent, ref.String()))
 	if err := n.SetAttrs(attrs...); err != nil {
 		return err
 	}

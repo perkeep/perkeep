@@ -214,13 +214,13 @@ func TestObjectSetAttrsClaims(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			for _, tc := range []struct {
 				name   string
-				args   []string
+				args   []KeyValue
 				want   []objectClaimMutation
 				cached map[string][]string
 			}{
 				{
 					name: "multiple changes skip unchanged",
-					args: []string{"title", "old", "description", "new description", "title", "new title", "missing", ""},
+					args: []KeyValue{KV("title", "old"), KV("description", "new description"), KV("title", "new title"), KV("missing", "")},
 					want: []objectClaimMutation{
 						{schema.SetAttributeClaim, "description", "new description"},
 						{schema.SetAttributeClaim, "title", "new title"},
@@ -229,7 +229,7 @@ func TestObjectSetAttrsClaims(t *testing.T) {
 				},
 				{
 					name: "one change",
-					args: []string{"title", "old", "description", "new description"},
+					args: []KeyValue{KV("title", "old"), KV("description", "new description")},
 					want: []objectClaimMutation{{schema.SetAttributeClaim, "description", "new description"}},
 					cached: map[string][]string{
 						"title": {"old"}, "description": {"new description"},
@@ -237,7 +237,7 @@ func TestObjectSetAttrsClaims(t *testing.T) {
 				},
 				{
 					name: "repeated key follows preceding operations",
-					args: []string{"title", "first", "title", "first", "title", "second", "title", "old"},
+					args: []KeyValue{KV("title", "first"), KV("title", "first"), KV("title", "second"), KV("title", "old")},
 					want: []objectClaimMutation{
 						{schema.SetAttributeClaim, "title", "first"},
 						{schema.SetAttributeClaim, "title", "second"},
@@ -247,7 +247,7 @@ func TestObjectSetAttrsClaims(t *testing.T) {
 				},
 				{
 					name:   "unchanged",
-					args:   []string{"title", "old", "missing", ""},
+					args:   []KeyValue{KV("title", "old"), KV("missing", "")},
 					cached: map[string][]string{"title": {"old"}},
 				},
 				{
@@ -282,19 +282,6 @@ func TestObjectSetAttrsClaims(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestObjectSetAttrsOddArguments(t *testing.T) {
-	f := newObjectClaimFixture(t, nil)
-	defer func() {
-		if recover() == nil {
-			t.Error("SetAttrs2 with odd argument count did not panic")
-		}
-		if got := len(f.target.uploads()); got != 0 {
-			t.Errorf("invalid argument count uploaded %d blobs", got)
-		}
-	}()
-	f.o.SetAttrs2("title", "value", "unpaired")
 }
 
 func TestObjectSetAttrValuesClaims(t *testing.T) {
@@ -414,16 +401,16 @@ func TestObjectAttributeClaimFailure(t *testing.T) {
 		name string
 		call func(*Object) error
 	}{
-		{"SetAttrs", func(o *Object) error { return o.SetAttrs("title", "new", "description", "new") }},
+		{"SetAttrs", func(o *Object) error { return o.SetAttrs(KV("title", "new"), KV("description", "new")) }},
 		{"SetAttrs2", func(o *Object) error {
-			changed, err := o.SetAttrs2("title", "new", "description", "new")
+			changed, err := o.SetAttrs2(KV("title", "new"), KV("description", "new"))
 			if !changed {
 				t.Error("SetAttrs2 returned changes=false after attempting a changed upload")
 			}
 			return err
 		}},
 		{"SetAttrs2 single", func(o *Object) error {
-			changed, err := o.SetAttrs2("title", "new")
+			changed, err := o.SetAttrs2(KV("title", "new"))
 			if !changed {
 				t.Error("SetAttrs2 returned changes=false after attempting a changed upload")
 			}
@@ -485,7 +472,7 @@ func TestObjectAttributeClaimFailure(t *testing.T) {
 func TestObjectSetAttrsConstructorFailure(t *testing.T) {
 	original := map[string][]string{"title": {"old"}}
 	f := newObjectClaimFixture(t, original)
-	changed, err := f.o.SetAttrs2("title", "new", "", "invalid empty attribute")
+	changed, err := f.o.SetAttrs2(KV("title", "new"), KV("", "invalid empty attribute"))
 	if !changed || err == nil {
 		t.Errorf("SetAttrs2 = %v, %v; want changes and constructor error", changed, err)
 	}
@@ -504,7 +491,7 @@ func TestObjectAttributeClaimsTooLarge(t *testing.T) {
 		call func(*Object) error
 	}{
 		{"SetAttrs2", func(o *Object) error {
-			changed, err := o.SetAttrs2("title", large, "description", "new")
+			changed, err := o.SetAttrs2(KV("title", large), KV("description", "new"))
 			if !changed {
 				t.Error("oversized SetAttrs2 returned changes=false")
 			}
@@ -570,7 +557,7 @@ func TestObjectBatchSerializesSetAttr(t *testing.T) {
 		})
 	}
 	batchDone := make(chan error, 1)
-	go func() { batchDone <- f.o.SetAttrs("title", "new", "description", "new") }()
+	go func() { batchDone <- f.o.SetAttrs(KV("title", "new"), KV("description", "new")) }()
 	<-entered
 	singleDone := make(chan struct{})
 	var singleErr error
@@ -652,7 +639,7 @@ func TestObjectClaimsIndexRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := o.SetAttrs("title", "first", "description", "description", "title", "final"); err != nil {
+	if err := o.SetAttrs(KV("title", "first"), KV("description", "description"), KV("title", "final")); err != nil {
 		t.Fatal(err)
 	}
 	if err := o.SetAttrValues("tag", []string{"", "kept", "removed"}); err != nil {

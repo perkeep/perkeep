@@ -83,7 +83,7 @@ func (d *legacySecretDescriber) Describe(_ context.Context, req *search.Describe
 
 func TestObjectCredentialWritesNeverSigned(t *testing.T) {
 	f := newObjectClaimFixture(t, map[string][]string{"title": {"old"}})
-	if err := f.o.SetAttrs("oauthAccessToken", "private-access", "stravaRefreshToken", "private-refresh", "title", "new"); err != nil {
+	if err := f.o.SetAttrs(KV("oauthAccessToken", "private-access"), KV("stravaRefreshToken", "private-refresh"), KV("title", "new")); err != nil {
 		t.Fatal(err)
 	}
 	for _, body := range f.target.uploads() {
@@ -152,7 +152,7 @@ func TestObjectCredentialReadsObserveStoreUpdates(t *testing.T) {
 	if f.o.Attr("oauthAccessToken") != "" || !errors.Is(f.o.CredentialError(), secretstore.ErrClosed) {
 		t.Fatal("credential reads did not fail closed/report error")
 	}
-	if err = f.o.SetAttrs("oauthAccessToken", "never-sign", "title", "must-not-change"); !errors.Is(err, secretstore.ErrClosed) {
+	if err = f.o.SetAttrs(KV("oauthAccessToken", "never-sign"), KV("title", "must-not-change")); !errors.Is(err, secretstore.ErrClosed) {
 		t.Fatalf("closed store write = %v", err)
 	}
 	if len(f.target.uploads()) != 0 {
@@ -418,7 +418,7 @@ func TestCredentialWarningsAndBlankForms(t *testing.T) {
 	im.props = &props
 	im.nodeCache = f.o
 	f.o.h.search = &legacySecretDescriber{nodes: map[blob.Ref]url.Values{f.o.pn: {}}}
-	if err := f.o.SetAttrs(attrClientID, "private-client-id", attrClientSecret, "private-client-secret"); err != nil {
+	if err := f.o.SetAttrs(KV(attrClientID, "private-client-id"), KV(attrClientSecret, "private-client-secret")); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.o.h.secrets.Migrate(context.Background(), []secretstore.LegacyEntry{{Name: f.o.secretName(attrClientSecret), Value: "private-client-secret"}}); err != nil {
@@ -527,7 +527,7 @@ func TestImporterCredentialSetupRequiresOwner(t *testing.T) {
 	im := h.imp["dummy1"]
 	im.nodeCache = f.o
 	ia := &importerAcct{im: im, acct: f.o}
-	if err := f.o.SetAttrs(attrClientID, "existing-id", attrClientSecret, "existing-secret"); err != nil {
+	if err := f.o.SetAttrs(KV(attrClientID, "existing-id"), KV(attrClientSecret, "existing-secret")); err != nil {
 		t.Fatal(err)
 	}
 	for _, owner := range []bool{false, true} {
@@ -568,9 +568,9 @@ func TestImporterCredentialSetupRequiresOwner(t *testing.T) {
 
 func TestAllKnownCredentialAttributesStayLocal(t *testing.T) {
 	f := newObjectClaimFixture(t, nil)
-	var attrs []string
+	var attrs []KeyValue
 	for _, key := range secretAttributes {
-		attrs = append(attrs, key, "private-value-for-"+key)
+		attrs = append(attrs, KV(key, "private-value-for-"+key))
 	}
 	if err := f.o.SetAttrs(attrs...); err != nil {
 		t.Fatal(err)

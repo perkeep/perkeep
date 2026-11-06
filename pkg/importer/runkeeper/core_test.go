@@ -586,7 +586,7 @@ func TestVersionOneStartDateMigration(t *testing.T) {
 			originalGPX := a.Attr(attrSourceGPX)
 			// Model a completed version-1 node: its original sources exist, but
 			// the old no-GPX/malformed-GPX policy omitted the modeled date.
-			if err := a.SetAttrsWithDeletes([]string{"startDate", attrStartDateSource}, attrVersion, "1"); err != nil {
+			if err := a.SetAttrsWithDeletes([]string{"startDate", attrStartDateSource}, importer.KV(attrVersion, "1")); err != nil {
 				t.Fatal(err)
 			}
 			p := f.run(t, src)

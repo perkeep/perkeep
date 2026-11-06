@@ -273,7 +273,7 @@ func TestResumeRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := o.SetAttrs(attrState, tt.state, attrPaused, tt.paused); err != nil {
+		if err := o.SetAttrs(importer.KV(attrState, tt.state), importer.KV(attrPaused, tt.paused)); err != nil {
 			t.Fatal(err)
 		}
 		if got := (imp{}).ResumeRun(o); got != tt.want {

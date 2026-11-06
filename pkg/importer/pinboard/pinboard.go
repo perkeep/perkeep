@@ -171,7 +171,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		attrAuthToken, t,
+		importer.KV(attrAuthToken, t),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return
@@ -195,7 +195,7 @@ func (im imp) Run(ctx *importer.RunContext) (err error) {
 	if err != nil {
 		return err
 	}
-	return r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion)
+	return r.AccountNode().SetAttrs(importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion))
 }
 
 func (im imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -405,15 +405,15 @@ func (r *run) importPost(post *apiPost, parent *importer.Object) (dup bool, err 
 		return false, err
 	}
 
-	attrs := []string{
-		"pinboard.in:hash", post.Hash,
-		nodeattr.Type, "pinboard.in:post",
-		nodeattr.DateCreated, schema.RFC3339FromTime(t),
-		nodeattr.Title, post.Description,
-		nodeattr.URL, post.Href,
-		"pinboard.in:extended", post.Extended,
-		"pinboard.in:shared", post.Shared,
-		"pinboard.in:toread", post.ToRead,
+	attrs := []importer.KeyValue{
+		importer.KV("pinboard.in:hash", post.Hash),
+		importer.KV(nodeattr.Type, "pinboard.in:post"),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(t)),
+		importer.KV(nodeattr.Title, post.Description),
+		importer.KV(nodeattr.URL, post.Href),
+		importer.KV("pinboard.in:extended", post.Extended),
+		importer.KV("pinboard.in:shared", post.Shared),
+		importer.KV("pinboard.in:toread", post.ToRead),
 	}
 	if err = postNode.SetAttrs(attrs...); err != nil {
 		return false, err

@@ -109,7 +109,7 @@ func readImportProgress(acct *importer.Object) (importProgress, error) {
 // schema reconciliation); a final checkpoint marks completion atomically.
 // SetAttrsWithDeletes skips unchanged operations, including steady-state polls.
 func writeImportProgress(acct *importer.Object, p importProgress, complete bool) error {
-	sets := []string{attrImportThroughVersion, runCompleteVersion}
+	sets := []importer.KeyValue{importer.KV(attrImportThroughVersion, runCompleteVersion)}
 	var deletes []string
 	if p.through.IsZero() {
 		deletes = append(deletes, attrImportThrough)
@@ -120,15 +120,15 @@ func writeImportProgress(acct *importer.Object, p importProgress, complete bool)
 		if len(acct.Attrs(attrImportThrough)) > 1 {
 			deletes = append(deletes, attrImportThrough)
 		}
-		sets = append(sets, attrImportThrough, p.through.UTC().Format(time.RFC3339Nano))
+		sets = append(sets, importer.KV(attrImportThrough, p.through.UTC().Format(time.RFC3339Nano)))
 	}
 	if p.backfillDone || complete {
-		sets = append(sets, attrBackfillCompletedVersion, runCompleteVersion)
+		sets = append(sets, importer.KV(attrBackfillCompletedVersion, runCompleteVersion))
 	} else {
 		deletes = append(deletes, attrBackfillCompletedVersion)
 	}
 	if complete {
-		sets = append(sets, importer.AcctAttrCompletedVersion, runCompleteVersion)
+		sets = append(sets, importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion))
 	}
 	if err := acct.SetAttrsWithDeletes(deletes, sets...); err != nil {
 		return fmt.Errorf("strava: saving chronological progress: %w", err)

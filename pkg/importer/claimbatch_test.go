@@ -66,16 +66,16 @@ func TestClaimBatch(t *testing.T) {
 	}
 	a, b, c := objs[0], objs[1], objs[2]
 	names := map[blob.Ref]string{a.pn: "a", b.pn: "b", c.pn: "c"}
-	if err := c.SetAttrs("title", "C"); err != nil {
+	if err := c.SetAttrs(KV("title", "C")); err != nil {
 		t.Fatal(err)
 	}
 	before := len(f.target.uploads())
 
 	batch := h.NewClaimBatch()
-	batch.SetAttrs(a, "title", "A", "x", "1")
-	batch.SetAttrs(b, "title", "B")
-	batch.SetAttrs(c, "title", "C") // unchanged
-	batch.SetAttrs(a, "y", "2")
+	batch.SetAttrs(a, KV("title", "A"), KV("x", "1"))
+	batch.SetAttrs(b, KV("title", "B"))
+	batch.SetAttrs(c, KV("title", "C")) // unchanged
+	batch.SetAttrs(a, KV("y", "2"))
 	if err := batch.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestClaimBatch(t *testing.T) {
 	// Again, the same: nothing to claim.
 	before = len(f.target.uploads())
 	again := h.NewClaimBatch()
-	again.SetAttrs(a, "title", "A")
+	again.SetAttrs(a, KV("title", "A"))
 	if err := again.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestClaimBatchSplits(t *testing.T) {
 	big := strings.Repeat("x", 50<<10)
 	for i, o := range objs {
 		names[o.pn] = fmt.Sprint(i)
-		batch.SetAttrs(o, "a", big, "b", "small")
+		batch.SetAttrs(o, KV("a", big), KV("b", "small"))
 	}
 	before := len(f.target.uploads())
 	if err := batch.Commit(ctx); err != nil {

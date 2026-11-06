@@ -249,7 +249,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := ctx.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		if err := ctx.AccountNode().SetAttrs(importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion)); err != nil {
 			return err
 		}
 	}
@@ -264,14 +264,14 @@ func (r *run) errorf(format string, args ...any) {
 	r.anyErr = true
 }
 
-// doAPIv2 gets the API v2 path apiPath, with the query parameters keyval,
+// doAPIv2 gets the API v2 path apiPath, with the query parameters params,
 // into result.
-func (r *run) doAPIv2(result any, apiPath string, keyval ...string) error {
+func (r *run) doAPIv2(result any, apiPath string, params ...importer.KeyValue) error {
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,
 		Creds:  r.accessCreds,
-	}.PopulateJSONFromURL(result, http.MethodGet, apiV2URL+apiPath, keyval...)
+	}.PopulateJSONFromURL(result, http.MethodGet, apiV2URL+apiPath, params...)
 }
 
 func (r *run) addPostsRead(n int) {
@@ -300,16 +300,16 @@ func (r *run) importTweets(userID string, likes bool) error {
 	// running count.
 	bar := r.Progress().Bar(importType, "Importing "+importType)
 
-	attrs := []string{
-		"max_results", strconv.Itoa(apiPageSize),
-		"tweet.fields", apiTweetFields,
-		"expansions", apiExpansions,
-		"media.fields", apiMediaFields,
+	attrs := []importer.KeyValue{
+		importer.KV("max_results", strconv.Itoa(apiPageSize)),
+		importer.KV("tweet.fields", apiTweetFields),
+		importer.KV("expansions", apiExpansions),
+		importer.KV("media.fields", apiMediaFields),
 	}
 	acctNode := r.AccountNode()
 	if !likes && r.incremental {
 		if id := acctNode.Attr(acctAttrNewestTweetID); id != "" {
-			attrs = append(attrs, "since_id", id)
+			attrs = append(attrs, importer.KV("since_id", id))
 		}
 	}
 
@@ -326,7 +326,7 @@ func (r *run) importTweets(userID string, likes bool) error {
 		}
 		pageAttrs := attrs
 		if nextToken != "" {
-			pageAttrs = append(attrs[:len(attrs):len(attrs)], "pagination_token", nextToken)
+			pageAttrs = append(attrs[:len(attrs):len(attrs)], importer.KV("pagination_token", nextToken))
 		}
 		r.Logf("fetching page %d of %s for userid %s", page+1, importType, userID)
 		var resp apiTweetsPage
@@ -388,7 +388,7 @@ func (r *run) importTweets(userID string, likes bool) error {
 	}
 	bar.Finish()
 	if !likes && newestID != "" {
-		if err := acctNode.SetAttrs(acctAttrNewestTweetID, newestID); err != nil {
+		if err := acctNode.SetAttrs(importer.KV(acctAttrNewestTweetID, newestID)); err != nil {
 			return err
 		}
 	}
@@ -442,7 +442,7 @@ func (r *run) importTweetNode(tweetNode *importer.Object, tweet tweetItem, viaAP
 // tweetAttrs returns the attributes of tweet, of tweetNode, to set: its
 // media's that the node lacks, which it stores, and its others, unless the
 // node was imported through the API and tweet wasn't.
-func (r *run) tweetAttrs(tweetNode *importer.Object, tweet tweetItem, viaAPI bool) ([]string, error) {
+func (r *run) tweetAttrs(tweetNode *importer.Object, tweet tweetItem, viaAPI bool) ([]importer.KeyValue, error) {
 	id := tweet.ID()
 	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
 		r.AccountNode().Attr(importer.AcctAttrUserName),
@@ -475,23 +475,23 @@ func (r *run) tweetAttrs(tweetNode *importer.Object, tweet tweetItem, viaAPI boo
 		nodeType = nodeTypeLike
 	}
 
-	attrs := []string{
-		"twitterId", id,
-		nodeattr.Type, nodeType,
-		nodeattr.StartDate, schema.RFC3339FromTime(createdTime),
-		nodeattr.Content, tweet.Text(),
-		nodeattr.URL, url,
+	attrs := []importer.KeyValue{
+		importer.KV("twitterId", id),
+		importer.KV(nodeattr.Type, nodeType),
+		importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(createdTime)),
+		importer.KV(nodeattr.Content, tweet.Text()),
+		importer.KV(nodeattr.URL, url),
 	}
 	if lat, long, ok := tweet.LatLong(); ok {
 		attrs = append(attrs,
-			nodeattr.Latitude, fmt.Sprint(lat),
-			nodeattr.Longitude, fmt.Sprint(long),
+			importer.KV(nodeattr.Latitude, fmt.Sprint(lat)),
+			importer.KV(nodeattr.Longitude, fmt.Sprint(long)),
 		)
 	}
 	if viaAPI {
-		attrs = append(attrs, attrImportMethod, "api")
+		attrs = append(attrs, importer.KV(attrImportMethod, "api"))
 	} else {
-		attrs = append(attrs, attrImportMethod, "zip")
+		attrs = append(attrs, importer.KV(attrImportMethod, "zip"))
 	}
 	return append(attrs, mediaAttrs...), nil
 }
@@ -499,14 +499,14 @@ func (r *run) tweetAttrs(tweetNode *importer.Object, tweet tweetItem, viaAPI boo
 // tweetMediaAttrs returns the attributes of the media of tweet, of URL
 // url, that tweetNode lacks: those an archive's run stored, and those it
 // fetches.
-func (r *run) tweetMediaAttrs(tweetNode *importer.Object, tweet tweetItem, url string, viaAPI bool) (attrs []string, err error) {
+func (r *run) tweetMediaAttrs(tweetNode *importer.Object, tweet tweetItem, url string, viaAPI bool) (attrs []importer.KeyValue, err error) {
 	hasImage := tweetNode.Attr(nodeattr.CamliContentImage) != ""
 	for i, m := range tweet.Media() {
 		if sm, ok := m.(*storedMedia); ok {
 			if sm.ref.Valid() {
-				attrs = append(attrs, "camliPath:"+sm.name, sm.ref.String())
+				attrs = append(attrs, importer.KV("camliPath:"+sm.name, sm.ref.String()))
 				if sm.photo && !hasImage {
-					attrs = append(attrs, nodeattr.CamliContentImage, sm.ref.String())
+					attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, sm.ref.String()))
 					hasImage = true
 				}
 			}
@@ -532,9 +532,9 @@ func (r *run) tweetMediaAttrs(tweetNode *importer.Object, tweet tweetItem, url s
 		if !fileRef.Valid() {
 			continue
 		}
-		attrs = append(attrs, "camliPath:"+filename, fileRef.String())
+		attrs = append(attrs, importer.KV("camliPath:"+filename, fileRef.String()))
 		if i == 0 {
-			attrs = append(attrs, nodeattr.CamliContentImage, fileRef.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, fileRef.String()))
 			hasImage = true
 		}
 		r.Logf("slurped %s as %s for tweet %s (%v)", filename, fileRef.String(), url, tweetNode.PermanodeRef())
@@ -631,8 +631,8 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		return err
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrTempToken, tempCred.Token,
-		importer.AcctAttrTempSecret, tempCred.Secret,
+		importer.KV(importer.AcctAttrTempToken, tempCred.Token),
+		importer.KV(importer.AcctAttrTempSecret, tempCred.Secret),
 	); err != nil {
 		err = fmt.Errorf("Error saving temp creds: %w", err)
 		httputil.ServeError(w, r, err)
@@ -681,8 +681,8 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrAccessToken, tokenCred.Token,
-		importer.AcctAttrAccessTokenSecret, tokenCred.Secret,
+		importer.KV(importer.AcctAttrAccessToken, tokenCred.Token),
+		importer.KV(importer.AcctAttrAccessTokenSecret, tokenCred.Secret),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting token attributes: %w", err))
 		return
@@ -694,10 +694,10 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrUserID, u.ID,
-		importer.AcctAttrName, u.Name,
-		importer.AcctAttrUserName, u.ScreenName,
-		nodeattr.Title, fmt.Sprintf("%s's Twitter Account", u.ScreenName),
+		importer.KV(importer.AcctAttrUserID, u.ID),
+		importer.KV(importer.AcctAttrName, u.Name),
+		importer.KV(importer.AcctAttrUserName, u.ScreenName),
+		importer.KV(nodeattr.Title, fmt.Sprintf("%s's Twitter Account", u.ScreenName)),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %w", err))
 		return

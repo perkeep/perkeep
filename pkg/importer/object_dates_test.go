@@ -35,7 +35,7 @@ func TestObjectClaimDates(t *testing.T) {
 		for _, write := range []func() error{
 			func() error { return f.o.SetAttr("state", "a") },
 			func() error { return f.o.DelAttr("state", "") },
-			func() error { return f.o.SetAttrs("state", "b", "other", "c") },
+			func() error { return f.o.SetAttrs(KV("state", "b"), KV("other", "c")) },
 			func() error { return f.o.SetAttr("state", "d") },
 		} {
 			if err := write(); err != nil {

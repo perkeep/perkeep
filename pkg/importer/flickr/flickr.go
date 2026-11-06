@@ -189,7 +189,7 @@ func (r *run) importPhotosets() error {
 		Photosets photosetList
 	}{}
 	if err := r.flickrAPIRequest(&resp,
-		photosetsAPIPath, "user_id", r.userID); err != nil {
+		photosetsAPIPath, importer.KV("user_id", r.userID)); err != nil {
 		return err
 	}
 
@@ -231,9 +231,9 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 	}
 
 	if err := photosetNode.SetAttrs(
-		attrFlickrId, photoset.Id,
-		nodeattr.Title, photoset.Title.Content,
-		nodeattr.Description, photoset.Description.Content); err != nil {
+		importer.KV(attrFlickrId, photoset.Id),
+		importer.KV(nodeattr.Title, photoset.Title.Content),
+		importer.KV(nodeattr.Description, photoset.Description.Content)); err != nil {
 		return 0, err
 	}
 	// keep track of primary photo so we can set the fileRef of the photo as CamliContentImage
@@ -243,8 +243,12 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 	resp := struct {
 		Photoset photosetItems
 	}{}
-	if err := r.flickrAPIRequest(&resp, photosetAPIPath, "user_id", r.userID,
-		"page", fmt.Sprintf("%d", page), "photoset_id", photoset.Id, "extras", "original_format"); err != nil {
+	if err := r.flickrAPIRequest(&resp, photosetAPIPath,
+		importer.KV("user_id", r.userID),
+		importer.KV("page", fmt.Sprintf("%d", page)),
+		importer.KV("photoset_id", photoset.Id),
+		importer.KV("extras", "original_format"),
+	); err != nil {
 		return 0, err
 	}
 
@@ -357,8 +361,11 @@ func (r *run) importPhotos() error {
 // them on bar, and returns the next page, or 0 after the last.
 func (r *run) importPhotosPage(page int, bar *progress.Bar) (int, error) {
 	resp := photosSearch{}
-	if err := r.flickrAPIRequest(&resp, photosAPIPath, "user_id", r.userID, "page", fmt.Sprintf("%d", page),
-		"extras", "description,date_upload,date_taken,original_format,last_update,geo,tags,machine_tags,views,media,url_o"); err != nil {
+	if err := r.flickrAPIRequest(&resp, photosAPIPath,
+		importer.KV("user_id", r.userID),
+		importer.KV("page", fmt.Sprintf("%d", page)),
+		importer.KV("extras", "description,date_upload,date_taken,original_format,last_update,geo,tags,machine_tags,views,media,url_o"),
+	); err != nil {
 		return 0, err
 	}
 
@@ -421,13 +428,13 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) (fet
 		dateTaken = time.Unix(seconds, 0)
 	}
 
-	attrs := []string{
-		attrFlickrId, photo.Id,
-		nodeattr.DateCreated, schema.RFC3339FromTime(dateTaken),
-		nodeattr.Description, photo.Description.Content,
+	attrs := []importer.KeyValue{
+		importer.KV(attrFlickrId, photo.Id),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(dateTaken)),
+		importer.KV(nodeattr.Description, photo.Description.Content),
 	}
 	if schema.IsInterestingTitle(photo.Title) {
-		attrs = append(attrs, nodeattr.Title, photo.Title)
+		attrs = append(attrs, importer.KV(nodeattr.Title, photo.Title))
 	}
 	// Import all the metadata. SetAttrs() is a no-op if the value hasn't changed, so there's no cost to doing these on every run.
 	// And this way if we add more things to import, they will get picked up.
@@ -525,13 +532,17 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return photos, nil
 }
 
-func (r *run) flickrAPIRequest(result any, method string, keyval ...string) error {
-	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
+func (r *run) flickrAPIRequest(result any, method string, params ...importer.KeyValue) error {
+	params = append([]importer.KeyValue{
+		importer.KV("method", method),
+		importer.KV("format", "json"),
+		importer.KV("nojsoncallback", "1"),
+	}, params...)
 	return importer.OAuthContext{
 		Ctx:    r.Context(),
 		Client: r.oauthClient,
 		Creds:  r.accessCreds,
-	}.PopulateJSONFromURL(result, http.MethodGet, apiURL, keyval...)
+	}.PopulateJSONFromURL(result, http.MethodGet, apiURL, params...)
 }
 
 func (r *run) fetch(url string, form url.Values) (*http.Response, error) {
@@ -557,8 +568,8 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 		return err
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrTempToken, tempCred.Token,
-		importer.AcctAttrTempSecret, tempCred.Secret,
+		importer.KV(importer.AcctAttrTempToken, tempCred.Token),
+		importer.KV(importer.AcctAttrTempSecret, tempCred.Secret),
 	); err != nil {
 		err = fmt.Errorf("Error saving temp creds: %w", err)
 		httputil.ServeError(w, r, err)
@@ -614,10 +625,10 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 
 	// TODO(mpl): get a few more bits of info (first name, last name etc) like I did for twitter, if possible.
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrAccessToken, tokenCred.Token,
-		importer.AcctAttrAccessTokenSecret, tokenCred.Secret,
-		importer.AcctAttrUserID, userID,
-		importer.AcctAttrUserName, username,
+		importer.KV(importer.AcctAttrAccessToken, tokenCred.Token),
+		importer.KV(importer.AcctAttrAccessTokenSecret, tokenCred.Secret),
+		importer.KV(importer.AcctAttrUserID, userID),
+		importer.KV(importer.AcctAttrUserName, username),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting basic account attributes: %w", err))
 		return

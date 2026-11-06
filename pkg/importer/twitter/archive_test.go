@@ -111,7 +111,7 @@ func TestArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 	acct := rc.AccountNode()
-	if err := acct.SetAttrs(importer.AcctAttrUserID, "650013", importer.AcctAttrUserName, "bradfitz", importer.AcctAttrName, "Brad Fitzpatrick"); err != nil {
+	if err := acct.SetAttrs(importer.KV(importer.AcctAttrUserID, "650013"), importer.KV(importer.AcctAttrUserName, "bradfitz"), importer.KV(importer.AcctAttrName, "Brad Fitzpatrick")); err != nil {
 		t.Fatal(err)
 	}
 	child := func(path ...string) *importer.Object {
@@ -127,7 +127,7 @@ func TestArchive(t *testing.T) {
 	}
 	// The video tweet, imported through the API, with its preview image.
 	apiTweet := child("tweets", testVideoTweet)
-	if err := apiTweet.SetAttrs(attrImportMethod, "api", nodeattr.Content, "a video, from the API", "camliPath:Thumb.jpg", "sha224-0", nodeattr.CamliContentImage, "sha224-0"); err != nil {
+	if err := apiTweet.SetAttrs(importer.KV(attrImportMethod, "api"), importer.KV(nodeattr.Content, "a video, from the API"), importer.KV("camliPath:Thumb.jpg", "sha224-0"), importer.KV(nodeattr.CamliContentImage, "sha224-0")); err != nil {
 		t.Fatal(err)
 	}
 

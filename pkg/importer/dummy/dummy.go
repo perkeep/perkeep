@@ -142,9 +142,9 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		name = names[rand.Intn(len(names))]
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		"title", fmt.Sprintf("dummy account: %s", name),
-		acctAttrUsername, name,
-		acctAttrToken, code,
+		importer.KV("title", fmt.Sprintf("dummy account: %s", name)),
+		importer.KV(acctAttrUsername, name),
+		importer.KV(acctAttrToken, code),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %w", err))
 		return

@@ -114,8 +114,8 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	}
 
 	if err := ctx.AccountNode.SetAttrs(
-		attrAuthToken, t,
-		importer.AcctAttrUserName, res.User.Name,
+		importer.KV(attrAuthToken, t),
+		importer.KV(importer.AcctAttrUserName, res.User.Name),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
@@ -142,8 +142,8 @@ func (im imp) Run(ctx *importer.RunContext) (err error) {
 	}
 
 	return r.AccountNode().SetAttrs(
-		importer.AcctAttrCompletedVersion, runCompleteVersion,
-		attrLastUpdateCursor, time.Now().Add(-24*time.Hour).UTC().Format(cursorFormat),
+		importer.KV(importer.AcctAttrCompletedVersion, runCompleteVersion),
+		importer.KV(attrLastUpdateCursor, time.Now().Add(-24*time.Hour).UTC().Format(cursorFormat)),
 	)
 }
 
@@ -328,12 +328,12 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) (impor
 		return false, nil
 	}
 
-	attrs := []string{
-		nodeattr.Type, "raindrop.io:bookmark",
-		nodeattr.DateCreated, schema.RFC3339FromTime(bookmark.Created),
-		nodeattr.DateModified, schema.RFC3339FromTime(bookmark.LastUpdate),
-		nodeattr.Title, bookmark.Title,
-		nodeattr.URL, bookmark.Link,
+	attrs := []importer.KeyValue{
+		importer.KV(nodeattr.Type, "raindrop.io:bookmark"),
+		importer.KV(nodeattr.DateCreated, schema.RFC3339FromTime(bookmark.Created)),
+		importer.KV(nodeattr.DateModified, schema.RFC3339FromTime(bookmark.LastUpdate)),
+		importer.KV(nodeattr.Title, bookmark.Title),
+		importer.KV(nodeattr.URL, bookmark.Link),
 	}
 
 	if bookmark.Cover != "" {
@@ -342,7 +342,7 @@ func (r *run) importBookmark(bookmark *Bookmark, parent *importer.Object) (impor
 			return false, err
 		}
 		if coverRef.Valid() {
-			attrs = append(attrs, nodeattr.CamliContentImage, coverRef.String())
+			attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, coverRef.String()))
 		}
 	}
 
