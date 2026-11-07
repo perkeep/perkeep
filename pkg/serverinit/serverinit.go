@@ -56,6 +56,7 @@ import (
 	"perkeep.org/pkg/server/app"
 	_ "perkeep.org/pkg/server/immich"  // Register the optional mobile upload handler.
 	_ "perkeep.org/pkg/server/secrets" // Register the server-local credential store.
+	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
 	"perkeep.org/pkg/webserver"
 
@@ -86,6 +87,9 @@ type handlerLoader struct {
 	curPrefix   string
 	closers     []io.Closer
 	prefixStack []string
+
+	reindex bool
+	force   bool
 }
 
 var _ blobserver.Loader = (*handlerLoader)(nil)
@@ -362,8 +366,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		stype := after
 		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
 		if err != nil {
-			exitFailure("error instantiating storage for prefix %q, type %q: %v",
-				h.prefix, stype, err)
+			if hl.recoverCorrupted(err, h.prefix) {
+				pstorage, err = blobserver.CreateStorage(stype, hl, h.conf)
+			}
+			if err != nil {
+				exitFailure("error instantiating storage for prefix %q, type %q: %v", h.prefix, stype, err)
+			}
 		}
 		if ix, ok := pstorage.(*index.Index); ok && ix.WantsReindex() {
 			log.Printf("Reindexing %s ...", h.prefix)
@@ -418,8 +426,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		var err error
 		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
 		if err != nil {
-			exitFailure("error instantiating handler for prefix %q, type %q: %v",
-				h.prefix, h.htype, err)
+			if hl.recoverCorrupted(err, h.prefix) {
+				hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
+			}
+			if err != nil {
+				exitFailure("error instantiating handler for prefix %q, type %q: %v", h.prefix, h.htype, err)
+			}
 		}
 	}
 
@@ -439,6 +451,29 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 	}
 	hl.installer.Handle(prefix, wrappedHandler)
+}
+
+// recoverCorrupted checks whether err wraps a sorted.CorruptedDBError. If
+// the server was started with --reindex --force, it deletes the corrupted
+// database directory and returns true so the caller can retry. Otherwise it
+// exits with a message advising the user which flags to set.
+func (hl *handlerLoader) recoverCorrupted(err error, prefix string) bool {
+	var ce *sorted.CorruptedDBError
+	if !errors.As(err, &ce) {
+		return false
+	}
+	if hl.reindex && hl.force {
+		log.Printf("Deleting corrupted index database %s (prefix %s) for rebuild", ce.Path, prefix)
+		if rmErr := os.RemoveAll(ce.Path); rmErr != nil {
+			exitFailure("error removing corrupted database %s: %v (original error: %v)", ce.Path, rmErr, err)
+		}
+		return true
+	}
+	if hl.reindex {
+		exitFailure("corrupt index database %s (prefix %q): add --force to --reindex to delete and rebuild it", ce.Path, prefix)
+	}
+	exitFailure("corrupt index database %s (prefix %q): to delete and rebuild corrupted indexes, re-run with --reindex --force", ce.Path, prefix)
+	panic("unreachable")
 }
 
 // newAccessHandler returns the handler of the Client access page, whose
@@ -526,6 +561,9 @@ type Config struct {
 	signHandler *signhandler.Handler
 
 	health *health.Monitor // or nil; see SetHealth
+
+	reindex bool
+	force   bool
 
 	accessStateFile string // or empty; see SetAccessStateFile
 }
@@ -722,6 +760,7 @@ func (c *Config) checkValidAuth() error {
 }
 
 func (c *Config) SetReindex(v bool) {
+	c.reindex = v
 	prefixes, _ := c.jconf["prefixes"].(map[string]any)
 	for prefix, vei := range prefixes {
 		if prefix == "_knownkeys" {
@@ -741,6 +780,13 @@ func (c *Config) SetReindex(v bool) {
 			opts["reindex"] = v
 		}
 	}
+}
+
+// SetForce records whether the --force flag was set at startup. When
+// combined with --reindex, this allows the server to delete corrupted
+// index databases instead of failing.
+func (c *Config) SetForce(v bool) {
+	c.force = v
 }
 
 // HealthState returns the configuration of the sorted.KeyValue in which
@@ -941,6 +987,8 @@ func (c *Config) InstallHandlersLazy(hi HandlerInstaller, baseURL func() string)
 		installer: hi,
 		baseURL:   baseURL,
 		health:    config.health,
+		reindex:   config.reindex,
+		force:     config.force,
 		config:    make(map[string]*handlerConfig),
 		handler:   make(map[string]any),
 	}

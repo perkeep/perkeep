@@ -82,6 +82,9 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		}
 	}
 	if err != nil {
+		if lverrors.IsCorrupted(err) {
+			return nil, &sorted.CorruptedDBError{Path: file, Err: err}
+		}
 		return nil, err
 	}
 	is := &kvis{

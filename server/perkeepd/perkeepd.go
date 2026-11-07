@@ -110,6 +110,7 @@ var (
 	flagRecovery    = flag.Int("recovery", 0, "Recovery mode: it corresponds for now to the recovery modes of the blobpacked package. Which means: 0 does nothing, 1 rebuilds the blobpacked index without erasing it, and 2 wipes the blobpacked index before rebuilding it.")
 	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog. It is an error to use this flag on windows.")
 	flagKeepGoing   = flag.Bool("keep-going", false, "Continue after reindex or blobpacked recovery errors")
+	flagForce       = flag.Bool("force", false, "Allow destructive startup operations, such as deleting corrupted indexes when combined with --reindex")
 	flagPollParent  bool
 )
 
@@ -516,6 +517,7 @@ func main() {
 	getBaseURL := sync.OnceValue(func() string { return <-listened })
 
 	config.SetReindex(*flagReindex)
+	config.SetForce(*flagForce)
 	config.SetKeepGoing(*flagKeepGoing)
 	config.SetHealth(mon)
 	if dir, err := osutil.CamliVarDir(); err != nil {
