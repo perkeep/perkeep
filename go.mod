@@ -28,7 +28,6 @@ require (
 	github.com/ipfs/go-ipfs-blockstore v1.3.1
 	github.com/ipld/go-car v0.6.1-0.20230509095817-92d28eb23ba4
 	github.com/jackc/pgx/v5 v5.11.0
-	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/pdfcpu/pdfcpu v0.16.2
@@ -179,7 +178,6 @@ require (
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20260911194433-e3222a3340cd // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
-	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/u-root/u-root v0.14.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
