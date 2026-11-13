@@ -3,3 +3,27 @@ Mastodon API importer
 
 This is an importer for microblogging servers exposing the Mastodon API. This
 includes Mastodon as well as Pleroma.
+
+It imports the account's own statuses, not its reblogs, as children of the
+root's "statuses" node, keyed by their URIs. A status's node, of camliNodeType
+"mastodon:status", has its text as written, from the server's
+/api/v1/statuses/:id/source (Mastodon 3.5 and later), as its content and
+title; its HTML as the server rendered it, as contentHTML, unless that's just
+the text's paragraphs and lines; and its visibility, content warning, language,
+link preview, and the IDs of the status and account it replies to. Its media are
+its children, such as camliPath:image1, of camliNodeType "mastodon:image" (or
+"mastodon:video", "mastodon:gifv", "mastodon:audio"), with the file as
+camliContent, alt text as description, and a video's preview image as
+camliContentImage.
+
+Each page of statuses is stored with a few claims: one of the camliPaths of its
+new statuses, and one multi claim of the changes of all its statuses and their
+media. An incremental run stops at the first page that's unchanged, and doesn't
+fetch the text or media it already has of a status, unless the status has been
+edited since. Set PERKEEP_MASTODON_FULL_IMPORT=1 to look at all statuses.
+
+The API's rate limit, by default 300 calls every 5 minutes, is shared with the
+account's other apps. A run leaves a fifth of it for them, waiting for the rest
+of the window when it's used the rest, so a first run of an account of many
+statuses, which fetches each one's text, takes a while: about 240 statuses
+every 5 minutes.
