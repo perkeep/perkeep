@@ -35,8 +35,8 @@ import (
 // claim's children, well within schema.MaxSchemaBlobSize.
 const maxBatchClaimSize = 256 << 10
 
-// A ClaimBatch sets the attributes of many objects with as few claims as
-// hold them: multi claims of the changes of many objects each, rather than
+// A ClaimBatch sets and deletes the attributes of many objects with as
+// few claims as hold them: multi claims of the changes of many objects each, rather than
 // a claim of each object's, as Object.SetAttrs makes. That's fewer blobs
 // to sign, store, verify and index, as when an importer imports many items
 // at once.
@@ -55,8 +55,9 @@ type ClaimBatch struct {
 }
 
 type batchItem struct {
-	o   *Object
-	kvs []KeyValue
+	o    *Object
+	dels []string // keys to delete, before kvs are set
+	kvs  []KeyValue
 }
 
 // NewClaimBatch returns an empty claim batch.
@@ -75,13 +76,36 @@ func (b *ClaimBatch) SetAttrs(o *Object, kvs ...KeyValue) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	it := b.itemLocked(o)
+	it.kvs = append(it.kvs, kvs...)
+}
+
+// DelAttrs adds deleting all of o's values of the attributes of keys, as
+// Object.SetAttrsWithDeletes deletes them, to the batch: those o has, before
+// the batch's SetAttrs of o are set. Credentials can't be deleted in a
+// batch.
+func (b *ClaimBatch) DelAttrs(o *Object, keys ...string) {
+	for _, key := range keys {
+		if isSecretAttribute(key) {
+			panic("importer: ClaimBatch.DelAttrs of a credential, " + key)
+		}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	it := b.itemLocked(o)
+	it.dels = append(it.dels, keys...)
+}
+
+// itemLocked returns the batch's item of o, adding it if it has none.
+// b.mu must be held.
+func (b *ClaimBatch) itemLocked(o *Object) *batchItem {
 	it, ok := b.byObj[o]
 	if !ok {
 		it = &batchItem{o: o}
 		b.byObj[o] = it
 		b.items = append(b.items, it)
 	}
-	it.kvs = append(it.kvs, kvs...)
+	return it
 }
 
 // Changed reports whether Commit changed any of o's attributes.
@@ -110,7 +134,8 @@ func (b *ClaimBatch) Commit(ctx context.Context) error {
 	type change struct {
 		it      *batchItem
 		claims  []*schema.Builder
-		updates map[string]string
+		dels    map[string]bool   // of keys deleted
+		updates map[string]string // of keys set, after dels
 		size    int
 	}
 	var changes []change
@@ -118,11 +143,19 @@ func (b *ClaimBatch) Commit(ctx context.Context) error {
 		if err := it.o.prepareWriteLocked(ctx); err != nil {
 			return err
 		}
-		c := change{it: it, updates: make(map[string]string)}
+		c := change{it: it, dels: make(map[string]bool), updates: make(map[string]string)}
+		for _, key := range it.dels {
+			if c.dels[key] || len(it.o.attr[key]) == 0 {
+				continue
+			}
+			c.dels[key] = true
+			c.claims = append(c.claims, schema.NewDelAttributeClaim(it.o.pn, key, ""))
+			c.size += len(key) + 128
+		}
 		for _, kv := range it.kvs {
 			key, val := kv.Key, kv.Value
 			old, ok := c.updates[key]
-			if !ok {
+			if !ok && !c.dels[key] {
 				if vs := it.o.attr[key]; len(vs) > 0 {
 					old = vs[0]
 				}
@@ -174,6 +207,9 @@ func (b *ClaimBatch) Commit(ctx context.Context) error {
 			o.lastClaim = date
 			if o.attr == nil {
 				o.attr = make(map[string][]string)
+			}
+			for key := range c.dels {
+				delete(o.attr, key)
 			}
 			for key, val := range c.updates {
 				o.attr[key] = []string{val}
