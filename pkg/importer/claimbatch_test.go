@@ -111,6 +111,56 @@ func TestClaimBatch(t *testing.T) {
 	}
 }
 
+// TestClaimBatchDeletes tests that a batch deletes the attributes its
+// objects have, in the same claim as its sets, before them.
+func TestClaimBatchDeletes(t *testing.T) {
+	ctx := context.Background()
+	f := newObjectClaimFixture(t, nil)
+	h := f.o.h
+	objs, err := h.NewObjects(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := objs[0], objs[1]
+	names := map[blob.Ref]string{a.pn: "a", b.pn: "b"}
+	if err := a.SetAttrs(KV("x", "1"), KV("y", "2")); err != nil {
+		t.Fatal(err)
+	}
+
+	before := len(f.target.uploads())
+	batch := h.NewClaimBatch()
+	batch.DelAttrs(a, "x", "missing")
+	batch.SetAttrs(a, KV("y", "3"))
+	batch.DelAttrs(a, "y")         // then set again
+	batch.DelAttrs(b, "missing")   // nothing to delete
+	batch.SetAttrs(b, KV("z", "")) // nor to set
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := claimsOf(t, f.target.uploads()[before:], names)
+	want := [][]string{{"a x=", "a y=", "a y=3"}}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("claims = %q; want %q", got, want)
+	}
+	if !batch.Changed(a) || batch.Changed(b) {
+		t.Errorf("changed a, b = %v, %v; want true, false", batch.Changed(a), batch.Changed(b))
+	}
+	if a.Attr("x") != "" || a.Attr("y") != "3" {
+		t.Errorf("cached x, y = %q, %q; want none and 3", a.Attr("x"), a.Attr("y"))
+	}
+
+	// Deleting what's deleted claims nothing.
+	before = len(f.target.uploads())
+	again := h.NewClaimBatch()
+	again.DelAttrs(a, "x")
+	if err := again.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.target.uploads()) - before; n != 0 || again.Changed(a) {
+		t.Errorf("deleting no attributes uploaded %d blobs, changed %v", n, again.Changed(a))
+	}
+}
+
 // TestClaimBatchSplits tests that a batch too big for one claim is split
 // between objects, never within one.
 func TestClaimBatchSplits(t *testing.T) {
