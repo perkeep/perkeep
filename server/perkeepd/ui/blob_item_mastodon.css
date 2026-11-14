@@ -16,35 +16,158 @@ limitations under the License.
 
 @import (less) "prefix-free.css";
 
-
-.cam-blobitem-mastodon-status {
+.cam-blobitem-masto {
 	display: flex;
 	flex-direction: column;
-	font-size: 90%;
 	position: relative;
 	overflow: hidden;
 	border-radius: 7%;
-	background-color: #e1e8ed;
-	color: black;
+	border: 1px solid #d9e1e8;
+	background-color: #ffffff;
+	color: #191b22;
+	font-size: 90%;
 	width: 100%;
 	height: 100%;
-	padding: 0.8em;
+	padding: 0.8em 0.8em 2.2em 0.8em;
 	white-space: normal;
 }
 
-.cam-blobitem-mastodon-status-image {
-	background-position: top;
+.cam-blobitem-masto-head {
+	color: #606984;
+	font-size: 85%;
+	flex: none;
+}
+
+.cam-blobitem-masto-action {
+	color: #6364ff;
+	font-weight: bold;
+	margin-right: 0.5em;
+}
+
+.cam-blobitem-masto-favourite .cam-blobitem-masto-action {
+	color: #ca8f04;
+}
+
+.cam-blobitem-masto-reblog .cam-blobitem-masto-action {
+	color: #13a35a;
+}
+
+.cam-blobitem-masto-visibility {
+	margin-left: 0.5em;
+	padding: 0 0.3em;
+	border-radius: 0.3em;
+	background-color: #eef0f8;
+}
+
+.cam-blobitem-masto-author {
+	color: #444b5d;
+	font-weight: bold;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: none;
+	margin-top: 0.2em;
+}
+
+.cam-blobitem-masto-reply {
+	color: #606984;
+	font-size: 85%;
+	flex: none;
+}
+
+.cam-blobitem-masto-spoiler {
+	font-weight: bold;
+	margin-top: 0.2em;
+	flex: none;
+}
+
+.cam-blobitem-masto-text {
+	white-space: pre-line;
+	line-height: 1.25em;
+	margin-top: 0.2em;
+	overflow: hidden;
+	flex: 0 1 auto;
+	min-height: 1.25em;
+	-webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+	mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+.cam-blobitem-masto-link {
+	color: #6364ff;
+	font-size: 85%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: none;
+	margin-top: 0.3em;
+}
+
+.cam-blobitem-masto-image {
+	position: relative;
+	flex: 1 1 40%;
+	min-height: 3em;
+	margin-top: 0.4em;
+	border-radius: 0.5em;
+	background-position: center;
 	background-size: cover;
 }
 
-.cam-blobitem-mastodon-status-image .cam-blobitem-mastodon-date {
-	color: black;
+.cam-blobitem-masto-media {
+	display: inline-block;
+	margin-top: 0.4em;
+	padding: 0.1em 0.5em;
+	border-radius: 0.3em;
+	background-color: rgba(0, 0, 0, 0.6);
+	color: white;
+	flex: none;
+	align-self: flex-start;
 }
 
-.cam-blobitem-mastodon-date {
-	color: #aaa;
+.cam-blobitem-masto-image .cam-blobitem-masto-media {
+	position: absolute;
+	left: 0.4em;
+	bottom: 0.4em;
 }
 
-.cam-blobitem-mastodon-spoiler {
+.cam-blobitem-masto-missing {
+	color: #606984;
+	font-style: italic;
+	margin-top: 0.4em;
+}
+
+.cam-blobitem-masto-profile {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 auto;
+	text-align: center;
+	min-height: 0;
+}
+
+.cam-blobitem-masto-avatar {
+	width: 45%;
+	padding-bottom: 45%;
+	border-radius: 15%;
+	background-position: center;
+	background-size: cover;
+	flex: none;
+}
+
+.cam-blobitem-masto-name {
+	font-weight: bold;
+	margin-top: 0.5em;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cam-blobitem-masto-mark {
+	position: absolute;
+	left: 0.8em;
+	bottom: 0.6em;
+	color: #6364ff;
+	font-size: 80%;
 	font-weight: bold;
 }
