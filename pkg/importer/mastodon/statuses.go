@@ -55,7 +55,8 @@ var statusOptionalAttrs = []string{
 	attrLinkTitle,
 	attrAuthor,
 	attrAuthorName,
-	attrAuthorURI,
+	attrAuthorActivityPubID,
+	attrLegacyURI,
 }
 
 // mediumOptionalAttrs are the attributes of a medium's node that it may
@@ -513,7 +514,7 @@ func (r *run) addStatus(batch *importer.ClaimBatch, si *statusImport) {
 	attrs := []importer.KeyValue{
 		importer.KV(nodeattr.Type, nodeType),
 		importer.KV(attrID, st.ID),
-		importer.KV(attrURI, st.URI),
+		importer.KV(attrActivityPubID, st.URI),
 		importer.KV(nodeattr.URL, st.URL),
 		importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(st.CreatedAt)),
 		importer.KV(nodeattr.DateModified, editedAt(st)),
@@ -530,7 +531,7 @@ func (r *run) addStatus(batch *importer.ClaimBatch, si *statusImport) {
 		attrs = append(attrs,
 			importer.KV(attrAuthor, r.qualified(st.Account.Acct)),
 			importer.KV(attrAuthorName, st.Account.DisplayName),
-			importer.KV(attrAuthorURI, st.Account.actor()),
+			importer.KV(attrAuthorActivityPubID, st.Account.actor()),
 		)
 	}
 	if st.Content != plainHTML(si.text) {
@@ -588,12 +589,12 @@ func addRef(batch *importer.ClaimBatch, ri *refImport, si *statusImport) {
 	if b := ri.boost; b != nil {
 		attrs = append(attrs,
 			importer.KV(attrID, b.ID),
-			importer.KV(attrURI, b.URI),
+			importer.KV(attrActivityPubID, b.URI),
 			importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(b.CreatedAt)),
 			importer.KV(attrVisibility, b.Visibility),
 		)
 	}
-	setAttrs(batch, ri.node, attrs, nil)
+	setAttrs(batch, ri.node, attrs, []string{attrLegacyURI})
 }
 
 // childNodes returns the children of parent of paths, as

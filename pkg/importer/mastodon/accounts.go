@@ -39,6 +39,7 @@ var profileOptionalAttrs = []string{
 	attrAvatarURL,
 	attrHeader,
 	attrHeaderURL,
+	attrLegacyURI,
 }
 
 // A profileImport is an account's profile to import.
@@ -215,10 +216,14 @@ func (r *run) addProfile(batch *importer.ClaimBatch, pi *profileImport) {
 	if pi.own && a.Source != nil {
 		note = a.Source.Note
 	}
+	nodeType := nodeTypeLinkedProfile
+	if pi.own {
+		nodeType = nodeTypeProfile
+	}
 	attrs := []importer.KeyValue{
-		importer.KV(nodeattr.Type, nodeTypeProfile),
+		importer.KV(nodeattr.Type, nodeType),
 		importer.KV(attrID, a.ID),
-		importer.KV(attrURI, a.actor()),
+		importer.KV(attrActivityPubID, a.actor()),
 		importer.KV(nodeattr.URL, a.URL),
 		importer.KV(nodeattr.Title, r.profileTitle(a)),
 		importer.KV(attrAccount, r.qualified(a.Acct)),
