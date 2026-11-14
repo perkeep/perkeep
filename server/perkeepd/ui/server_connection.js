@@ -81,6 +81,36 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 			rules: [
 				{ attrs: ['camliContentImage'] }
 			]
+		},
+		// The statuses of Mastodon boosts, favourites and bookmarks,
+		// and the profiles of follows, with their images.
+		{
+			ifCamliNodeType: 'mastodon:reblog',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
+		},
+		{
+			ifCamliNodeType: 'mastodon:favourite',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
+		},
+		{
+			ifCamliNodeType: 'mastodon:bookmark',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
+		},
+		{
+			ifCamliNodeType: 'mastodon:follow',
+			attrs: ['camliContent'],
+			rules: [
+				{ attrs: ['camliContentImage'] }
+			]
 		}
 	]
 };
