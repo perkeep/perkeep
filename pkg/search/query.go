@@ -674,6 +674,13 @@ var hiddenNodeTypes = []string{
 	"bluesky:avatar",
 	"bluesky:banner",
 	"bluesky:profile",
+	"mastodon:linkedStatus",
+	"mastodon:linkedProfile",
+	"mastodon:image",
+	"mastodon:video",
+	"mastodon:gifv",
+	"mastodon:audio",
+	"mastodon:unknown",
 }
 
 // shownNodeTypes returns the hiddenNodeTypes that the search constraint c

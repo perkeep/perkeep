@@ -953,7 +953,8 @@ func (k isPost) Description() string {
 
 // postNodeTypes are the camliNodeType values of post permanodes: the posts
 // of imported accounts, but not others' posts that they liked or reposted,
-// such as Bluesky's "bluesky:linkedPost".
+// such as Bluesky's "bluesky:linkedPost" and Mastodon's
+// "mastodon:linkedStatus".
 var postNodeTypes = []string{
 	"twitter.com:tweet",
 	"mastodon:status",
@@ -996,6 +997,7 @@ func (k isLike) Description() string {
 var likeNodeTypes = []string{
 	"twitter.com:like",
 	"bluesky:app.bsky.feed.like",
+	"mastodon:favourite",
 }
 
 func (k isLike) Predicate(ctx context.Context, args []string) (*Constraint, error) {
@@ -1017,6 +1019,7 @@ func (k isRepost) Description() string {
 // repostNodeTypes are the camliNodeType values of repost permanodes.
 var repostNodeTypes = []string{
 	"bluesky:app.bsky.feed.repost",
+	"mastodon:reblog",
 }
 
 func (k isRepost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
@@ -1038,6 +1041,7 @@ func (k isProfile) Description() string {
 // profileNodeTypes are the camliNodeType values of profile permanodes.
 var profileNodeTypes = []string{
 	"bluesky:profile",
+	"mastodon:linkedProfile",
 }
 
 func (k isProfile) Predicate(ctx context.Context, args []string) (*Constraint, error) {
@@ -1069,6 +1073,7 @@ func (k isCheckin) Predicate(ctx context.Context, args []string) (*Constraint, e
 var bookmarkNodeTypes = []string{
 	"raindrop.io:bookmark",
 	"pinboard.in:post",
+	"mastodon:bookmark", // of a status
 }
 
 type isBookmark struct {
