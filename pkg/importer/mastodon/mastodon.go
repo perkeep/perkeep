@@ -48,7 +48,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "2"
+	runCompleteVersion = "3"
 
 	authorizationPath = "/oauth/authorize"
 	tokenPath         = "/oauth/token"
@@ -57,9 +57,13 @@ const (
 	acctAttrClientID     = "oauthClientID"
 	acctAttrClientSecret = "oauthClientSecret"
 
-	// status URI. This is an ActivityPub globally unique identifier. May or may
-	// not be the same as the URL for the human-readable version of the status.
-	attrURI = "uri"
+	// attrActivityPubID is the ActivityPub ID of a status, boost or
+	// account: its globally unique URI, unlike the URL of its web page.
+	attrActivityPubID = "activityPubId"
+
+	// attrLegacyURI is the attribute of the ActivityPub IDs of statuses
+	// imported by the importer's version 0, deleted from them.
+	attrLegacyURI = "uri"
 
 	// content warnings in Mastodon UI, represented as 'summary' in ActivityPub
 	attrSpoilerText = "spoilerText"
@@ -83,9 +87,9 @@ const (
 	attrInReplyTo          = "inReplyTo" // URI of the status it replies to
 
 	// Of others' statuses: their authors'.
-	attrAuthor     = "mastodonAuthor" // user@domain
-	attrAuthorName = "mastodonAuthorName"
-	attrAuthorURI  = "mastodonAuthorUri" // ActivityPub ID
+	attrAuthor              = "mastodonAuthor" // user@domain
+	attrAuthorName          = "mastodonAuthorName"
+	attrAuthorActivityPubID = "mastodonAuthorActivityPubId"
 
 	// attrSubject is the URI of the status of a boost, favourite or
 	// bookmark, or the ActivityPub ID of the account of a follow.
@@ -98,13 +102,14 @@ const (
 	attrHeader      = "header"         // the file of the account's own profile's header image
 	attrFieldPrefix = "mastodonField:" // plus a field's name, of the account's own profile
 
-	nodeTypeStatus       = "mastodon:status"       // the account's own
-	nodeTypeLinkedStatus = "mastodon:linkedStatus" // others', boosted, favourited, bookmarked or replied to
-	nodeTypeReblog       = "mastodon:reblog"
-	nodeTypeFavourite    = "mastodon:favourite"
-	nodeTypeBookmark     = "mastodon:bookmark"
-	nodeTypeFollow       = "mastodon:follow"
-	nodeTypeProfile      = "mastodon:profile"
+	nodeTypeStatus        = "mastodon:status"       // the account's own
+	nodeTypeLinkedStatus  = "mastodon:linkedStatus" // others', boosted, favourited, bookmarked or replied to
+	nodeTypeReblog        = "mastodon:reblog"
+	nodeTypeFavourite     = "mastodon:favourite"
+	nodeTypeBookmark      = "mastodon:bookmark"
+	nodeTypeFollow        = "mastodon:follow"
+	nodeTypeProfile       = "mastodon:profile"       // the account's own
+	nodeTypeLinkedProfile = "mastodon:linkedProfile" // of an account it follows
 
 	// nodeTypePrefix, plus an attachment's type, such as "image", is the
 	// camliNodeType of the node of a status's medium.

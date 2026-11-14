@@ -5,8 +5,9 @@ This is an importer for microblogging servers exposing the Mastodon API. This
 includes Mastodon as well as Pleroma.
 
 It imports the account's own statuses as children of the root's "statuses"
-node, keyed by their URIs. A status's node, of camliNodeType "mastodon:status",
-has its text as written, from the server's /api/v1/statuses/:id/source
+node, keyed by their ActivityPub IDs (URIs). A status's node, of camliNodeType
+"mastodon:status", has its ActivityPub ID as activityPubId (and its web page's
+URL as url); its text as written, from the server's /api/v1/statuses/:id/source
 (Mastodon 3.5 and later), as its content and title; its HTML as the server
 rendered it, as contentHTML, unless that's just the text's paragraphs and
 lines; and its visibility, content warning, language, link preview, and the
@@ -25,7 +26,8 @@ is the status's node, its own or another's. Its profile is the root's
 "profile", of camliNodeType "mastodon:profile", with its avatar as
 camliContentImage, its header image as header, and its fields; the accounts it
 follows are children of "following", of camliNodeType "mastodon:follow", whose
-camliContent is the account's profile, a child of "accounts". Finding the
+camliContent is the account's profile, of camliNodeType
+"mastodon:linkedProfile", a child of "accounts". Finding the
 statuses replied to needs Mastodon 4.3 or later.
 
 Each page of a list is stored with one claim: a multi claim of all its items'

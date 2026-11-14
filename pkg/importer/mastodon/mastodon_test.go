@@ -326,7 +326,7 @@ func TestImport(t *testing.T) {
 	}
 	if err := old.SetAttrs(
 		importer.KV(nodeattr.Type, nodeTypeStatus),
-		importer.KV(attrURI, s1.URI),
+		importer.KV(attrLegacyURI, s1.URI),
 		importer.KV(nodeattr.Content, "<p>old</p>"),
 		importer.KV("camliPath:abc.png", oldPNG.String()),
 		importer.KV(nodeattr.CamliContentImage, oldPNG.String()),
@@ -412,7 +412,7 @@ func TestImport(t *testing.T) {
 	want := map[string]string{
 		nodeattr.Type:      nodeTypeStatus,
 		attrID:             "5",
-		attrURI:            s5.URI,
+		attrActivityPubID:  s5.URI,
 		nodeattr.URL:       s5.URL,
 		nodeattr.StartDate: "2025-01-05T12:00:00Z",
 		nodeattr.Title:     "hello\n\nworld's\n\"end\"",
@@ -435,7 +435,7 @@ func TestImport(t *testing.T) {
 		t.Errorf("linking status's card: %q, %q", got[attrLinkURL], got[attrLinkTitle])
 	}
 	if got := attrsOf(node(nodeLinked, o2.URI)); got[nodeattr.Type] != nodeTypeLinkedStatus || got[nodeattr.Content] != "a question" ||
-		got[attrAuthor] != "other@remote.example" || got[attrAuthorName] != "Other" || got[attrAuthorURI] != otherUser.URI || got[attrContentHTML] != "" {
+		got[attrAuthor] != "other@remote.example" || got[attrAuthorName] != "Other" || got[attrAuthorActivityPubID] != otherUser.URI || got[attrContentHTML] != "" {
 		t.Errorf("status replied to: %v", got)
 	}
 
@@ -474,6 +474,9 @@ func TestImport(t *testing.T) {
 	}
 	if got := old.Attr("camliPath:abc.png"); got != "" {
 		t.Errorf("version 0's status still has its image's file at camliPath:abc.png")
+	}
+	if got, want := old.Attr(attrActivityPubID), s1.URI; got != want || old.Attr(attrLegacyURI) != "" {
+		t.Errorf("version 0's status's ActivityPub ID = %q, and uri %q; want %q, and none", got, old.Attr(attrLegacyURI), want)
 	}
 	if got := node(nodeStatuses, s1.URI, "image1").Attr(nodeattr.CamliContent); got != oldPNG.String() {
 		t.Errorf("version 0's status's image = %v; want %v, its file", got, oldPNG)
@@ -515,7 +518,7 @@ func TestImport(t *testing.T) {
 	if got, want := attrsOf(node(nodeProfile)), (map[string]string{
 		nodeattr.Type:               nodeTypeProfile,
 		attrID:                      testUserID,
-		attrURI:                     testUser.URI,
+		attrActivityPubID:           testUser.URI,
 		nodeattr.URL:                testUser.URL,
 		nodeattr.Title:              "U (@u@mastodon.example)",
 		attrAccount:                 "u@mastodon.example",
@@ -529,7 +532,7 @@ func TestImport(t *testing.T) {
 		t.Errorf("profile's attributes:\n got %v\nwant %v", got, want)
 	}
 	otherProfile := node(nodeAccounts, otherUser.URI)
-	if got := attrsOf(otherProfile); got[nodeattr.Type] != nodeTypeProfile || got[nodeattr.Title] != "Other (@other@remote.example)" ||
+	if got := attrsOf(otherProfile); got[nodeattr.Type] != nodeTypeLinkedProfile || got[nodeattr.Title] != "Other (@other@remote.example)" ||
 		got[nodeattr.Description] != "other's bio" || got[attrContentHTML] != "" || got[nodeattr.CamliContentImage] != fileOf("other-avatar.png", "other avatar") {
 		t.Errorf("followed profile's attributes: %v", got)
 	}
