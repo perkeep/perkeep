@@ -32,10 +32,11 @@ escaping.  For example:
 
 Searches, including the default view without one, leave out permanodes that
 are only parts of others, which show them: the media of imported Bluesky
-posts, others' posts that a Bluesky account liked or reposted, and the
-profiles of the accounts it follows. A search that asks for them by type,
-such as `is:profile` or `attr:camliNodeType:"bluesky:linkedPost"`, or for a
-permanode's children, with **childrenof**, finds them.
+and Mastodon posts, others' posts that an account liked, reposted, bookmarked
+or replied to, and the profiles of the accounts it follows. A search that asks
+for them by type, such as `is:profile` or
+`attr:camliNodeType:"bluesky:linkedPost"`, or for a permanode's children, with
+**childrenof**, finds them.
 
 ## Dates
 
@@ -95,7 +96,8 @@ in that year, month, or day. For example, `1998` is shorthand for
   only an upperbound.  Exact matches should use `height:480`
 
 **<a name="bookmark"></a>is:bookmark**
-: matches imported bookmarks, currently from raindrop.io and Pinboard.
+: matches imported bookmarks, currently from raindrop.io and Pinboard, and
+  Mastodon's bookmarks of statuses.
 
 **<a name="image"></a>is:image**
 : object is an image
@@ -154,8 +156,9 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 : the image has a landscape aspect
 
 **<a name="like"></a>is:like**
-: the object is a like: of a tweet, or of a Bluesky post. A Bluesky like's
-  content is the post it likes, if the importer fetched it.
+: the object is a like: of a tweet, of a Bluesky post, or a Mastodon
+  favourite. A Bluesky like's content is the post it likes, if the importer
+  fetched it, and a Mastodon favourite's is the status.
 
 **<a name="livephoto"></a>is:livephoto**
 : the image is the still image of an Apple Live Photo whose video is also
@@ -181,17 +184,17 @@ For example, `is:run miles:>=5` selects runs of at least five miles, and
 
 **<a name="post"></a>is:post**
 : the object is a post of an imported account: a tweet, a Mastodon status, a
-  LiveJournal entry, or a Bluesky post. Others' Bluesky posts, which the
-  importer fetches for the account's likes and reposts, are left out; use
-  `is:like` or `is:repost` to find those.
+  LiveJournal entry, or a Bluesky post. Others' Bluesky and Mastodon posts,
+  which the importers fetch for the account's likes, reposts, bookmarks and
+  replies, are left out; use `is:like` or `is:repost` to find those.
 
 **<a name="profile"></a>is:profile**
 : the object is the profile of another's account: of an account a Bluesky
-  account follows.
+  or Mastodon account follows.
 
 **<a name="repost"></a>is:repost**
-: the object is a repost of a Bluesky post. Its content is the post it
-  reposts, if the importer fetched it.
+: the object is a repost of a Bluesky post, or a Mastodon boost. Its
+  content is the post it reposts, if the importer fetched it.
 
 **<a name="video"></a>is:video**
 : the object is a video. Apple Live Photo videos whose still images are

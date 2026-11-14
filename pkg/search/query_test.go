@@ -2245,6 +2245,8 @@ func TestIsPostQuery(t *testing.T) {
 		id.SetAttribute(skeet, "camliNodeType", "bluesky:app.bsky.feed.post")
 		othersSkeet := id.NewDeterministicPermanodeForTest("othersSkeet")
 		id.SetAttribute(othersSkeet, "camliNodeType", "bluesky:linkedPost")
+		othersToot := id.NewDeterministicPermanodeForTest("othersToot")
+		id.SetAttribute(othersToot, "camliNodeType", "mastodon:linkedStatus")
 
 		qt.wantRes(&SearchQuery{Expression: "is:post", Limit: -1}, tweet, toot, entry, skeet)
 	})
@@ -2261,10 +2263,14 @@ func TestIsLikeAndRepostQuery(t *testing.T) {
 		id.SetAttribute(repost, "camliNodeType", "bluesky:app.bsky.feed.repost")
 		post := id.NewDeterministicPermanodeForTest("post")
 		id.SetAttribute(post, "camliNodeType", "bluesky:app.bsky.feed.post")
+		favourite := id.NewDeterministicPermanodeForTest("favourite")
+		id.SetAttribute(favourite, "camliNodeType", "mastodon:favourite")
+		boost := id.NewDeterministicPermanodeForTest("boost")
+		id.SetAttribute(boost, "camliNodeType", "mastodon:reblog")
 
-		qt.wantRes(&SearchQuery{Expression: "is:like", Limit: -1}, likedTweet, like)
-		qt.wantRes(&SearchQuery{Expression: "is:repost", Limit: -1}, repost)
-		qt.wantRes(&SearchQuery{Expression: "is:like or is:repost", Limit: -1}, likedTweet, like, repost)
+		qt.wantRes(&SearchQuery{Expression: "is:like", Limit: -1}, likedTweet, like, favourite)
+		qt.wantRes(&SearchQuery{Expression: "is:repost", Limit: -1}, repost, boost)
+		qt.wantRes(&SearchQuery{Expression: "is:like or is:repost", Limit: -1}, likedTweet, like, repost, favourite, boost)
 	})
 }
 
@@ -2296,6 +2302,31 @@ func TestHiddenNodeTypes(t *testing.T) {
 	})
 }
 
+// TestHiddenMastodonNodeTypes tests that searches leave out Mastodon's
+// hidden permanodes, as TestHiddenNodeTypes tests Bluesky's.
+func TestHiddenMastodonNodeTypes(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		status := id.NewDeterministicPermanodeForTest("status")
+		id.SetAttribute(status, "camliNodeType", "mastodon:status")
+		gifv := id.NewDeterministicPermanodeForTest("gifv")
+		id.SetAttribute(gifv, "camliNodeType", "mastodon:gifv")
+		id.SetAttribute(status, "camliPath:gifv1", gifv.String())
+		profile := id.NewDeterministicPermanodeForTest("profile")
+		id.SetAttribute(profile, "camliNodeType", "mastodon:profile")
+		followed := id.NewDeterministicPermanodeForTest("followed")
+		id.SetAttribute(followed, "camliNodeType", "mastodon:linkedProfile")
+		linked := id.NewDeterministicPermanodeForTest("linked")
+		id.SetAttribute(linked, "camliNodeType", "mastodon:linkedStatus")
+
+		qt.wantRes(&SearchQuery{Expression: "", Limit: -1}, status, profile)
+		qt.wantRes(&SearchQuery{Expression: `attr:camliNodeType:"mastodon:linkedStatus"`, Limit: -1}, linked)
+		qt.wantRes(&SearchQuery{Expression: "childrenof:" + status.String(), Limit: -1}, gifv)
+		qt.wantRes(&SearchQuery{Expression: "is:profile", Limit: -1}, followed)
+		qt.wantRes(&SearchQuery{Expression: "is:post", Limit: -1}, status)
+	})
+}
+
 func TestIsBookmarkQuerySource(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
@@ -2303,10 +2334,12 @@ func TestIsBookmarkQuerySource(t *testing.T) {
 		id.SetAttribute(raindrop, "camliNodeType", "raindrop.io:bookmark")
 		pinboard := id.NewDeterministicPermanodeForTest("pinboard")
 		id.SetAttribute(pinboard, "camliNodeType", "pinboard.in:post")
+		toot := id.NewDeterministicPermanodeForTest("toot")
+		id.SetAttribute(toot, "camliNodeType", "mastodon:bookmark")
 		id.SetAttribute(id.NewDeterministicPermanodeForTest("other"), "camliNodeType", "foursquare.com:checkin")
 
 		qt.candidateSource = "corpus_permanode_types"
-		qt.wantRes(&SearchQuery{Expression: "is:bookmark", Sort: MapSort}, raindrop, pinboard)
+		qt.wantRes(&SearchQuery{Expression: "is:bookmark", Sort: MapSort}, raindrop, pinboard, toot)
 	})
 }
 
