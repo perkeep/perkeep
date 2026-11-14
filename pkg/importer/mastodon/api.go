@@ -300,11 +300,38 @@ func (c *apiClient) registerApp(ctx context.Context, scopes, redirectURI string)
 
 // account is an account, of the API's Account entity.
 type account struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	Acct        string `json:"acct"` // the username, and @domain if remote
-	DisplayName string `json:"display_name"`
-	URL         string `json:"url"`
+	ID          string         `json:"id"` // of the server
+	URI         string         `json:"uri"`
+	Username    string         `json:"username"`
+	Acct        string         `json:"acct"` // the username, and @domain if remote
+	DisplayName string         `json:"display_name"`
+	URL         string         `json:"url"`  // of its profile page
+	Note        string         `json:"note"` // its bio, as HTML
+	Avatar      string         `json:"avatar"`
+	Header      string         `json:"header"`
+	Source      *accountSource `json:"source"` // only of the client's own account
+}
+
+// accountSource is the account's profile as its owner wrote it, of the
+// API's Account entity's source.
+type accountSource struct {
+	Note   string  `json:"note"` // plain text
+	Fields []field `json:"fields"`
+}
+
+// field is a name and value of an account's profile.
+type field struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// actor returns the account's ActivityPub ID, or, from servers before
+// Mastodon 4.2, its profile's URL.
+func (a *account) actor() string {
+	if a.URI != "" {
+		return a.URI
+	}
+	return a.URL
 }
 
 // verifyCredentials returns the client's account.
@@ -334,6 +361,7 @@ type status struct {
 	Reblog             *status      `json:"reblog"`
 	MediaAttachments   []attachment `json:"media_attachments"`
 	Card               *card        `json:"card"`
+	Account            account      `json:"account"` // its author
 }
 
 // attachment is a status's medium, of the API's MediaAttachment entity.
@@ -353,19 +381,68 @@ type card struct {
 }
 
 // statusesURL returns the URL of the first page of the statuses of the
-// account of ID id, newest first, without reblogs.
+// account of ID id, newest first, its reblogs included.
 func (c *apiClient) statusesURL(id string) string {
 	return c.endpoint("/api/v1/accounts/"+url.PathEscape(id)+"/statuses", url.Values{
-		"limit":           {strconv.Itoa(statusesPageSize)},
-		"exclude_reblogs": {"true"},
+		"limit": {strconv.Itoa(statusesPageSize)},
 	})
 }
 
-// statuses returns the page of statuses at pageURL, of statusesURL or a
-// page before, and the URL of the next page, if any.
+// favouritesURL returns the URL of the first page of the statuses that
+// the client's account favourited, most recently favourited first.
+func (c *apiClient) favouritesURL() string {
+	return c.endpoint("/api/v1/favourites", url.Values{"limit": {strconv.Itoa(statusesPageSize)}})
+}
+
+// bookmarksURL returns the URL of the first page of the statuses that
+// the client's account bookmarked, most recently bookmarked first.
+func (c *apiClient) bookmarksURL() string {
+	return c.endpoint("/api/v1/bookmarks", url.Values{"limit": {strconv.Itoa(statusesPageSize)}})
+}
+
+// statuses returns the page of statuses at pageURL, of statusesURL,
+// favouritesURL or bookmarksURL or a page after, and the URL of the next
+// page, if any.
 func (c *apiClient) statuses(ctx context.Context, pageURL string) (sts []*status, next string, err error) {
 	next, err = c.get(ctx, pageURL, &sts)
 	return sts, next, err
+}
+
+// statusesByIDMax is the most statuses statusesByID gets at once.
+const statusesByIDMax = 20
+
+// statusesByID returns the statuses of ids that exist and the client's
+// account may see, by ID. It needs Mastodon 4.3 or later.
+func (c *apiClient) statusesByID(ctx context.Context, ids []string) (map[string]*status, error) {
+	m := make(map[string]*status)
+	for chunk := range slices.Chunk(ids, statusesByIDMax) {
+		var sts []*status
+		if _, err := c.get(ctx, c.endpoint("/api/v1/statuses", url.Values{"id[]": chunk}), &sts); err != nil {
+			return nil, err
+		}
+		for _, st := range sts {
+			m[st.ID] = st
+		}
+	}
+	return m, nil
+}
+
+// accountsPageSize is the most accounts the API returns at once.
+const accountsPageSize = 80
+
+// followingURL returns the URL of the first page of the accounts that
+// the account of ID id follows, most recently followed first.
+func (c *apiClient) followingURL(id string) string {
+	return c.endpoint("/api/v1/accounts/"+url.PathEscape(id)+"/following", url.Values{
+		"limit": {strconv.Itoa(accountsPageSize)},
+	})
+}
+
+// accounts returns the page of accounts at pageURL, of followingURL or a
+// page after, and the URL of the next page, if any.
+func (c *apiClient) accounts(ctx context.Context, pageURL string) (as []*account, next string, err error) {
+	next, err = c.get(ctx, pageURL, &as)
+	return as, next, err
 }
 
 // statusSource is the source of a status as its author wrote it, of the

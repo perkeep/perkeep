@@ -18,7 +18,6 @@ limitations under the License.
 package mastodon // import "perkeep.org/pkg/importer/mastodon"
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -27,20 +26,15 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/sync/errgroup"
 
 	"perkeep.org/internal/httputil"
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/progress"
-	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
@@ -54,7 +48,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "1"
+	runCompleteVersion = "2"
 
 	authorizationPath = "/oauth/authorize"
 	tokenPath         = "/oauth/token"
@@ -70,8 +64,9 @@ const (
 	// content warnings in Mastodon UI, represented as 'summary' in ActivityPub
 	attrSpoilerText = "spoilerText"
 
-	// attrID is the ID of a status or medium on its server. A status's is
-	// set with its text, from its source, so it marks that it has that.
+	// attrID is the ID of a status, medium or account on its server. An
+	// own status's is set with its text, from its source, so it marks that
+	// it has that.
 	attrID = "mastodonId"
 
 	// attrContentHTML is a status's HTML, as its server rendered its text,
@@ -85,43 +80,48 @@ const (
 	attrInReplyToAccountID = "mastodonInReplyToAccountId"
 	attrLinkURL            = "linkURL"   // of the status's link's preview card
 	attrLinkTitle          = "linkTitle" // of the status's link's preview card
+	attrInReplyTo          = "inReplyTo" // URI of the status it replies to
 
-	nodeTypeStatus = "mastodon:status"
+	// Of others' statuses: their authors'.
+	attrAuthor     = "mastodonAuthor" // user@domain
+	attrAuthorName = "mastodonAuthorName"
+	attrAuthorURI  = "mastodonAuthorUri" // ActivityPub ID
+
+	// attrSubject is the URI of the status of a boost, favourite or
+	// bookmark, or the ActivityPub ID of the account of a follow.
+	attrSubject = "subject"
+
+	// Of profiles.
+	attrAccount     = "mastodonAccount" // user@domain
+	attrAvatarURL   = "mastodonAvatarUrl"
+	attrHeaderURL   = "mastodonHeaderUrl"
+	attrHeader      = "header"         // the file of the account's own profile's header image
+	attrFieldPrefix = "mastodonField:" // plus a field's name, of the account's own profile
+
+	nodeTypeStatus       = "mastodon:status"       // the account's own
+	nodeTypeLinkedStatus = "mastodon:linkedStatus" // others', boosted, favourited, bookmarked or replied to
+	nodeTypeReblog       = "mastodon:reblog"
+	nodeTypeFavourite    = "mastodon:favourite"
+	nodeTypeBookmark     = "mastodon:bookmark"
+	nodeTypeFollow       = "mastodon:follow"
+	nodeTypeProfile      = "mastodon:profile"
 
 	// nodeTypePrefix, plus an attachment's type, such as "image", is the
 	// camliNodeType of the node of a status's medium.
 	nodeTypePrefix = "mastodon:"
 
-	// Name of the child node which contains references to all the statuses
-	nodeStatuses = "statuses"
+	// Children of the root node.
+	nodeStatuses   = "statuses"       // the account's own, keyed by URI
+	nodeLinked     = "linkedStatuses" // others', keyed by URI
+	nodeReblogs    = "reblogs"        // keyed by the boost's URI
+	nodeFavourites = "favourites"     // keyed by the status's URI
+	nodeBookmarks  = "bookmarks"      // keyed by the status's URI
+	nodeFollowing  = "following"      // keyed by the account's ActivityPub ID
+	nodeAccounts   = "accounts"       // profiles of followed accounts, keyed likewise
+	nodeProfile    = "profile"        // the account's own
 
 	statusesAtOnce = 10 // number of statuses of a page to prepare at once
 )
-
-// statusOptionalAttrs are the attributes of a status's node that it may
-// lack, deleted from the node if it no longer has them, as when the status
-// was edited. Its "camliPath:" attributes, of its media, are too.
-var statusOptionalAttrs = []string{
-	nodeattr.Title,
-	nodeattr.Content,
-	nodeattr.DateModified,
-	nodeattr.CamliContentImage,
-	attrContentHTML,
-	attrSpoilerText,
-	attrSensitive,
-	attrLanguage,
-	attrInReplyToID,
-	attrInReplyToAccountID,
-	attrLinkURL,
-	attrLinkTitle,
-}
-
-// mediumOptionalAttrs are the attributes of a medium's node that it may
-// lack, as statusOptionalAttrs are of a status's.
-var mediumOptionalAttrs = []string{
-	nodeattr.Description,
-	nodeattr.CamliContentImage,
-}
 
 type imp struct {
 	importer.OAuth2
@@ -301,14 +301,11 @@ type run struct {
 
 	incremental bool // true if importing only part
 	api         *apiClient
-
+	userID      string // the account's ID, of its server
 	userAddress string // address in the form of user@example.com, used in logs
 
-	// statusBar counts the statuses imported, or skipped, as unchanged.
-	// The account's statuses_count isn't its total, as it counts
-	// reblogs, which aren't imported, and an incremental run stops at
-	// the first page it has.
-	statusBar *progress.Bar
+	// Children of the root node.
+	statuses, linked, reblogs, favourites, bookmarks, following, accounts *importer.Object
 
 	mediaOnce sync.Once
 	mediaBar  *progress.Bar // of media attachments fetched; made with the first
@@ -340,27 +337,66 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		RunContext:  ctx,
 		incremental: !fullImportOverride && acct.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		api:         api,
+		userID:      acct.Attr(importer.AcctAttrUserID),
 		userAddress: userAddress,
 	}
-
-	rootTitle := fmt.Sprintf("%s's Mastodon data", userAddress)
-	if err := r.RootNode().SetAttr(nodeattr.Title, rootTitle); err != nil {
-		return err
-	}
-
-	userID := acct.Attr(importer.AcctAttrUserID)
-	if userID == "" {
+	if r.userID == "" {
 		return errors.New("missing user ID")
 	}
 
-	r.statusBar = r.Progress().Bar("statuses", "Importing statuses")
-	if err := r.importStatuses(userID); err != nil {
+	batch := r.Host.NewClaimBatch()
+	batch.SetAttrs(r.RootNode(), importer.KV(nodeattr.Title, fmt.Sprintf("%s's Mastodon data", userAddress)))
+	children := []struct {
+		node        **importer.Object
+		path, title string
+	}{
+		{&r.statuses, nodeStatuses, "Mastodon statuses for %s"},
+		{&r.linked, nodeLinked, "Mastodon statuses boosted, favourited, bookmarked or replied to by %s"},
+		{&r.reblogs, nodeReblogs, "Mastodon boosts by %s"},
+		{&r.favourites, nodeFavourites, "Mastodon favourites of %s"},
+		{&r.bookmarks, nodeBookmarks, "Mastodon bookmarks of %s"},
+		{&r.following, nodeFollowing, "Mastodon follows of %s"},
+		{&r.accounts, nodeAccounts, "Mastodon accounts followed by %s"},
+	}
+	paths := make([]string, len(children))
+	for i, c := range children {
+		paths[i] = c.path
+	}
+	nodes, err := r.childNodes(ctx.Context(), batch, r.RootNode(), paths)
+	if err != nil {
 		return err
+	}
+	for i, c := range children {
+		batch.SetAttrs(nodes[i], importer.KV(nodeattr.Title, fmt.Sprintf(c.title, userAddress)))
+		*c.node = nodes[i]
+	}
+	if err := batch.Commit(ctx.Context()); err != nil {
+		return err
+	}
+
+	if err := r.importProfile(); err != nil {
+		return fmt.Errorf("importing profile: %w", err)
+	}
+	for _, l := range []struct {
+		name, title string
+		first       string // URL of the list's first page
+		refType     string // camliNodeType of the list's items' nodes, if not statuses'
+		refs        *importer.Object
+	}{
+		{"statuses", "Importing statuses and boosts", api.statusesURL(r.userID), "", r.reblogs},
+		{"favourites", "Importing favourites", api.favouritesURL(), nodeTypeFavourite, r.favourites},
+		{"bookmarks", "Importing bookmarks", api.bookmarksURL(), nodeTypeBookmark, r.bookmarks},
+	} {
+		if err := r.importStatusList(l.name, l.title, l.first, l.refType, l.refs); err != nil {
+			return fmt.Errorf("importing %s: %w", l.name, err)
+		}
+	}
+	if err := r.importFollowing(); err != nil {
+		return fmt.Errorf("importing follows: %w", err)
 	}
 	if err := r.Context().Err(); err != nil {
 		return err
 	}
-	r.statusBar.Finish()
 	if r.mediaBar != nil {
 		r.mediaBar.Finish()
 	}
@@ -372,372 +408,13 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	return nil
 }
 
-// importStatuses imports the statuses of the account of ID userID, a
-// page at a time, newest first, stopping at a page that's unchanged if
-// the run's incremental.
-func (r *run) importStatuses(userID string) error {
-	statusesNode, err := r.RootNode().ChildPathObject(nodeStatuses)
-	if err != nil {
-		return err
+// qualified returns acct, an account's username, and @domain if it's
+// remote, with the domain of the run's server if it's local.
+func (r *run) qualified(acct string) string {
+	if acct == "" || strings.Contains(acct, "@") {
+		return acct
 	}
-
-	nodeTitle := fmt.Sprintf("Mastodon statuses for %s", r.userAddress)
-	if err := statusesNode.SetAttr(nodeattr.Title, nodeTitle); err != nil {
-		return err
-	}
-
-	r.Logf("Beginning statuses import for %s", r.userAddress)
-
-	for page := r.api.statusesURL(userID); page != ""; {
-		if err := r.Context().Err(); err != nil {
-			return err
-		}
-		sts, next, err := r.api.statuses(r.Context(), page)
-		if err != nil {
-			return err
-		}
-		if len(sts) == 0 {
-			break
-		}
-		changed, err := r.importPage(statusesNode, sts)
-		if err != nil {
-			return err
-		}
-		if r.incremental && !changed {
-			r.Logf("reached the end for incremental import for %s", r.userAddress)
-			return nil
-		}
-		page = next
-	}
-	r.Logf("reached the end of statuses for %s", r.userAddress)
-	return nil
-}
-
-// A statusImport is a status to import, with what's fetched of it.
-type statusImport struct {
-	st    *status
-	node  *importer.Object
-	text  string // of its source
-	media []*mediumImport
-}
-
-// A mediumImport is a status's medium to import.
-type mediumImport struct {
-	att  attachment
-	path string           // of the medium's node, a child of its status's
-	node *importer.Object // nil until made, if the status had none of it
-
-	file    blob.Ref // of the medium
-	preview blob.Ref // of the medium's preview image, if it's not one
-}
-
-// importPage imports sts, statuses of a page, as children of parent, and
-// reports whether it changed any. Their changes are set with as few
-// claims as hold them, after the permanodes of all they lack.
-func (r *run) importPage(parent *importer.Object, sts []*status) (changed bool, err error) {
-	ctx := r.Context()
-	sts = slices.DeleteFunc(sts, func(st *status) bool { return st.Reblog != nil || st.URI == "" })
-	uris := make([]string, len(sts))
-	for i, st := range sts {
-		uris[i] = st.URI
-	}
-	nodes, err := parent.ChildPathObjects(ctx, uris)
-	if err != nil {
-		return false, err
-	}
-
-	imps := make([]*statusImport, len(sts))
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(statusesAtOnce)
-	for i, st := range sts {
-		g.Go(func() error {
-			var err error
-			imps[i], err = r.prepareStatus(gctx, nodes[i], st)
-			if err != nil {
-				return fmt.Errorf("importing status %s: %w", st.URI, err)
-			}
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return false, err
-	}
-
-	var made []*mediumImport
-	for _, si := range imps {
-		if si == nil {
-			continue
-		}
-		for _, m := range si.media {
-			if m.node == nil {
-				made = append(made, m)
-			}
-		}
-	}
-	if len(made) > 0 {
-		objs, err := r.Host.NewObjects(ctx, len(made))
-		if err != nil {
-			return false, err
-		}
-		for i, m := range made {
-			m.node = objs[i]
-		}
-	}
-
-	batch := r.Host.NewClaimBatch()
-	for _, si := range imps {
-		if si != nil {
-			si.addTo(batch)
-		}
-	}
-	if err := batch.Commit(ctx); err != nil {
-		return false, err
-	}
-
-	for _, si := range imps {
-		if si == nil {
-			continue
-		}
-		ch := batch.Changed(si.node)
-		for _, m := range si.media {
-			ch = ch || batch.Changed(m.node)
-		}
-		if ch {
-			changed = true
-			r.statusBar.Add(1)
-			r.Logf("Imported status %s to %s", si.st.URI, si.node.PermanodeRef())
-		} else {
-			r.statusBar.Skip(1)
-		}
-	}
-	return changed, nil
-}
-
-// prepareStatus fetches what st, of node n, needs that n lacks: its
-// source's text, unless n has it of st as last edited, and its media.
-// It returns nil, without error, if the status isn't to be imported.
-func (r *run) prepareStatus(ctx context.Context, n *importer.Object, st *status) (*statusImport, error) {
-	si := &statusImport{st: st, node: n}
-	// The node's new, or of an import before statuses' sources and their
-	// media's nodes were.
-	legacy := n.Attr(attrID) == ""
-	if !legacy && n.Attr(attrID) == st.ID && n.Attr(nodeattr.DateModified) == editedAt(st) {
-		si.text = n.Attr(nodeattr.Content)
-	} else {
-		src, err := r.api.statusSource(ctx, st.ID)
-		if isNotFound(err) {
-			r.Logf("skipping status %s, of no source: %v", st.URI, err)
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		si.text = src.Text
-	}
-	for i, att := range st.MediaAttachments {
-		m, err := r.prepareMedium(ctx, n, legacy, i, att)
-		if err != nil {
-			return nil, err
-		}
-		if m != nil {
-			si.media = append(si.media, m)
-		}
-	}
-	return si, nil
-}
-
-// prepareMedium returns the import of att, the medium of index i of the
-// status of node n, which is legacy if it was imported before its media
-// had nodes, fetching what n's child of it lacks. It returns nil, without
-// error, if the medium's gone.
-func (r *run) prepareMedium(ctx context.Context, n *importer.Object, legacy bool, i int, att attachment) (*mediumImport, error) {
-	if att.URL == "" {
-		return nil, nil
-	}
-	kind := att.Type
-	if kind == "" {
-		kind = "unknown"
-	}
-	m := &mediumImport{att: att, path: fmt.Sprintf("%s%d", kind, i+1)}
-	if v := n.Attr("camliPath:" + m.path); v != "" {
-		br, ok := blob.Parse(v)
-		if !ok {
-			return nil, fmt.Errorf("invalid blobref %q at camliPath:%s", v, m.path)
-		}
-		var err error
-		if m.node, err = r.Host.ObjectFromRef(br); err != nil {
-			return nil, err
-		}
-		if m.node.Attr(attrID) == att.ID {
-			m.file, _ = blob.Parse(m.node.Attr(nodeattr.CamliContent))
-			m.preview, _ = blob.Parse(m.node.Attr(nodeattr.CamliContentImage))
-		}
-	}
-	if !m.file.Valid() && legacy {
-		// The status's node has the file, named for its URL.
-		m.file, _ = blob.Parse(n.Attr("camliPath:" + path.Base(att.URL)))
-	}
-	if !m.file.Valid() {
-		var err error
-		m.file, err = r.fetchFile(ctx, att.URL)
-		if isNotFound(err) {
-			r.Logf("skipping medium %s of status %s: %v", att.ID, n.PermanodeRef(), err)
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		r.media().Add(1)
-	}
-	if att.Type != "image" && att.PreviewURL != "" && !m.preview.Valid() {
-		var err error
-		m.preview, err = r.fetchFile(ctx, att.PreviewURL)
-		if isNotFound(err) {
-			r.Logf("skipping the preview of medium %s of status %s: %v", att.ID, n.PermanodeRef(), err)
-		} else if err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
-}
-
-// fetchFile fetches the file at rawURL and stores it, named for its URL.
-func (r *run) fetchFile(ctx context.Context, rawURL string) (blob.Ref, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-	if err != nil {
-		return blob.Ref{}, err
-	}
-	res, err := r.api.hc.Do(req)
-	if err != nil {
-		return blob.Ref{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return blob.Ref{}, &apiError{URL: req.URL.Redacted(), StatusCode: res.StatusCode}
-	}
-	return schema.WriteFileFromReader(ctx, r.Host.Target(), path.Base(req.URL.Path), res.Body)
-}
-
-// addTo adds setting the attributes of the status, and of its media, to
-// batch.
-func (si *statusImport) addTo(batch *importer.ClaimBatch) {
-	st := si.st
-	attrs := []importer.KeyValue{
-		importer.KV(nodeattr.Type, nodeTypeStatus),
-		importer.KV(attrID, st.ID),
-		importer.KV(attrURI, st.URI),
-		importer.KV(nodeattr.URL, st.URL),
-		importer.KV(nodeattr.StartDate, schema.RFC3339FromTime(st.CreatedAt)),
-		importer.KV(nodeattr.DateModified, editedAt(st)),
-		importer.KV(nodeattr.Title, si.text),
-		importer.KV(nodeattr.Content, si.text),
-		importer.KV(attrSpoilerText, st.SpoilerText),
-		importer.KV(attrVisibility, st.Visibility),
-		importer.KV(attrLanguage, st.Language),
-		importer.KV(attrInReplyToID, st.InReplyToID),
-		importer.KV(attrInReplyToAccountID, st.InReplyToAccountID),
-	}
-	if st.Content != plainHTML(si.text) {
-		attrs = append(attrs, importer.KV(attrContentHTML, st.Content))
-	}
-	if st.Sensitive {
-		attrs = append(attrs, importer.KV(attrSensitive, "true"))
-	}
-	if c := st.Card; c != nil {
-		attrs = append(attrs,
-			importer.KV(attrLinkURL, c.URL),
-			importer.KV(attrLinkTitle, c.Title),
-		)
-	}
-	var image blob.Ref
-	for _, m := range si.media {
-		attrs = append(attrs, importer.KV("camliPath:"+m.path, m.node.PermanodeRef().String()))
-		if !image.Valid() {
-			if m.att.Type == "image" {
-				image = m.file
-			} else {
-				image = m.preview
-			}
-		}
-		mattrs := []importer.KeyValue{
-			importer.KV(nodeattr.Type, nodeTypePrefix+m.att.Type),
-			importer.KV(attrID, m.att.ID),
-			importer.KV(nodeattr.CamliContent, m.file.String()),
-			importer.KV(nodeattr.Description, m.att.Description),
-		}
-		if m.preview.Valid() {
-			mattrs = append(mattrs, importer.KV(nodeattr.CamliContentImage, m.preview.String()))
-		}
-		setAttrs(batch, m.node, mattrs, mediumOptionalAttrs)
-	}
-	if image.Valid() {
-		attrs = append(attrs, importer.KV(nodeattr.CamliContentImage, image.String()))
-	}
-	setAttrs(batch, si.node, attrs, statusOptionalAttrs)
-}
-
-// setAttrs adds setting n's attributes of attrs that aren't empty to
-// batch, and deleting those of n's of optional, and its "camliPath:"
-// attributes, that attrs lacks.
-func setAttrs(batch *importer.ClaimBatch, n *importer.Object, attrs []importer.KeyValue, optional []string) {
-	set := make(map[string]bool)
-	attrs = slices.DeleteFunc(attrs, func(kv importer.KeyValue) bool { return kv.Value == "" })
-	for _, kv := range attrs {
-		set[kv.Key] = true
-	}
-	var dels []string
-	for _, key := range optional {
-		if !set[key] {
-			dels = append(dels, key)
-		}
-	}
-	n.ForeachAttr(func(key, _ string) {
-		if strings.HasPrefix(key, "camliPath:") && !set[key] && !slices.Contains(dels, key) {
-			dels = append(dels, key)
-		}
-	})
-	batch.DelAttrs(n, dels...)
-	batch.SetAttrs(n, attrs...)
-}
-
-// editedAt returns when st was last edited, as stored, or the empty
-// string if it wasn't.
-func editedAt(st *status) string {
-	if st.EditedAt == nil {
-		return ""
-	}
-	return schema.RFC3339FromTime(*st.EditedAt)
-}
-
-var (
-	paragraphBreaks = regexp.MustCompile(`\n\n+`)
-
-	// htmlEscaper escapes text as Mastodon (and Ruby's ERB) does.
-	htmlEscaper = strings.NewReplacer(
-		"&", "&amp;",
-		"<", "&lt;",
-		">", "&gt;",
-		`"`, "&quot;",
-		"'", "&#39;",
-	)
-)
-
-// plainHTML returns the HTML that a Mastodon server renders of a status's
-// text when it has no links, mentions, hashtags or markup: its paragraphs,
-// between blank lines, in p elements, and its other line breaks as br
-// elements. A status's HTML that's that of its text isn't stored, as
-// plainHTML gives it.
-func plainHTML(text string) string {
-	if strings.TrimSpace(text) == "" {
-		return ""
-	}
-	var b strings.Builder
-	for _, p := range paragraphBreaks.Split(text, -1) {
-		b.WriteString("<p>")
-		b.WriteString(strings.ReplaceAll(htmlEscaper.Replace(p), "\n", "<br />"))
-		b.WriteString("</p>")
-	}
-	return b.String()
+	return acct + "@" + r.api.base.Host
 }
 
 // auth returns the appropriate oauth2.Config for this account
