@@ -34,7 +34,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 ###########################################################################
 
-FROM debian:trixie-slim
+# The base stage is the image without Perkeep's binaries: its runtime
+# environment, which they're installed into at /home/keepy/bin. It's also
+# published as the image's "base" tag, for images of binaries built
+# elsewhere, as by mkctr, that run as the official image does. It's
+# Debian, as perkeepd needs glibc's dynamic loader even built without cgo
+# (for the HEIC and AVIF decoders' optional system libraries).
+FROM debian:trixie-slim AS base
 
 ENV HOME=/home/keepy
 ENV PATH=/home/keepy/bin:$PATH
@@ -45,20 +51,25 @@ ENV PK_IN_CONTAINER=1
 # H.264 ones, and WebM or WMV.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=pkbuild /out/ /home/keepy/bin/
-
-# Check that perkeepd decodes HEIC images, and that ffmpeg runs. The
-# binaries are built without cgo; JPEG thumbnailing and HEIC decoding are
-# pure Go.
-RUN perkeepd -build-config > /tmp/build-config.json && \
-    cat /tmp/build-config.json && \
-    grep -q '"heic": "h265"' /tmp/build-config.json && \
-    rm /tmp/build-config.json && \
-    ffmpeg -hide_banner -version > /dev/null
+    rm -rf /var/lib/apt/lists/* && \
+    ffmpeg -hide_banner -version > /dev/null && \
+    mkdir -p /home/keepy/bin
 
 EXPOSE 80 443 3179 8080
 
 WORKDIR /home/keepy
+
+###########################################################################
+
+FROM base
+
+COPY --from=pkbuild /out/ /home/keepy/bin/
+
+# Check that perkeepd decodes HEIC images. The binaries are built without
+# cgo; JPEG thumbnailing and HEIC decoding are pure Go.
+RUN perkeepd -build-config > /tmp/build-config.json && \
+    cat /tmp/build-config.json && \
+    grep -q '"heic": "h265"' /tmp/build-config.json && \
+    rm /tmp/build-config.json
+
 CMD ["perkeepd"]
