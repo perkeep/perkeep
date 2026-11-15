@@ -172,8 +172,13 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 		return "Misconfigured; error = " + err.Error()
 	}
 
-	// "display name (@username@example.com)"
-	return fmt.Sprintf("%s (%s)", acct.Attr(importer.AcctAttrName), expandedAddr)
+	// "display name (@username@example.com)", or just the address of an
+	// account of no display name.
+	name := acct.Attr(importer.AcctAttrName)
+	if name == "" {
+		return expandedAddr
+	}
+	return fmt.Sprintf("%s (%s)", name, expandedAddr)
 }
 
 var promptURLTmpl = template.Must(template.New("root").Parse(`

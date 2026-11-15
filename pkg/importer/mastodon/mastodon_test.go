@@ -623,6 +623,35 @@ func TestHTMLText(t *testing.T) {
 	}
 }
 
+func TestSummarizeAccount(t *testing.T) {
+	h := imptest.NewMemoryHost(t, importer.HostConfig{})
+	t.Cleanup(func() { h.Close() })
+	rc, err := importer.CreateAccount(h, "mastodon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acct := rc.AccountNode()
+	if err := acct.SetAttrs(
+		importer.KV(importer.AcctAttrAccessToken, testToken),
+		importer.KV(acctAttrClientID, "clientid"),
+		importer.KV(acctAttrClientSecret, "supersecret"),
+		importer.KV(acctAttrInstanceURL, testInstance),
+		importer.KV(importer.AcctAttrUserName, "u"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	im := &imp{}
+	if got, want := im.SummarizeAccount(acct), "@u@mastodon.example"; got != want {
+		t.Errorf("summary of an account of no display name = %q; want %q", got, want)
+	}
+	if err := acct.SetAttr(importer.AcctAttrName, "U"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := im.SummarizeAccount(acct), "U (@u@mastodon.example)"; got != want {
+		t.Errorf("summary = %q; want %q", got, want)
+	}
+}
+
 func TestNextLink(t *testing.T) {
 	tests := []struct{ link, want string }{
 		{"", ""},
