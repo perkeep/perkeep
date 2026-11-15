@@ -92,3 +92,40 @@ jobs:
       - name: Sign the published Docker image
         if: github.event_name == 'push'
         run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build-and-push.outputs.digest }}
+
+      # Also publish the Dockerfile's base stage, the image without
+      # Perkeep's binaries, for building images of binaries built
+      # elsewhere (as by mkctr) that run as the official image does: as
+      # "base", "base-sha-" and the short commit hash, and "base-" and the
+      # git tag. Its layers are the image's, cached by the build above.
+      - name: Extract Docker metadata of the base image
+        id: meta-base
+        if: github.event_name == 'push'
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag,prefix=base-
+            type=raw,value=base,enable=${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+            type=sha,prefix=base-sha-,enable=${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+
+      - name: Build and push the base image
+        id: build-and-push-base
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          target: base
+          push: true
+          tags: ${{ steps.meta-base.outputs.tags }}
+          labels: ${{ steps.meta-base.outputs.labels }}
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+            type=gha
+          provenance: true
+          sbom: true
+
+      - name: Sign the published base image
+        if: github.event_name == 'push'
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build-and-push-base.outputs.digest }}

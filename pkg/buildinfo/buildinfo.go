@@ -21,6 +21,7 @@ import (
 	"flag"
 	"runtime"
 	"runtime/debug"
+	"time"
 )
 
 // GitInfo is either the empty string (the default)
@@ -32,19 +33,59 @@ var GitInfo string
 // Version is a string like "0.10" or "1.0", if applicable.
 var Version string
 
-// Summary returns the version and/or git version of this binary.
-// If the linker flags were not provided, the return value is "unknown".
+// Summary returns the version and/or git version of this binary. The git
+// version is GitInfo, if the linker flags set it, as make.go does, or else
+// the commit that the go command recorded building the binary in a git
+// checkout, in the same form. Without either, it's "unknown".
 func Summary() string {
-	if Version != "" && GitInfo != "" {
-		return Version + ", " + GitInfo
+	gitInfo := GitInfo
+	if gitInfo == "" {
+		if bi, ok := debug.ReadBuildInfo(); ok {
+			gitInfo = vcsGitInfo(bi.Settings)
+		}
 	}
-	if GitInfo != "" {
-		return GitInfo
+	if Version != "" && gitInfo != "" {
+		return Version + ", " + gitInfo
+	}
+	if gitInfo != "" {
+		return gitInfo
 	}
 	if Version != "" {
 		return Version
 	}
 	return "unknown"
+}
+
+// vcsGitInfo returns the git version that the go command's VCS build
+// settings give, in make.go's form for GitInfo, "yyyy-mm-dd-" and the
+// first 10 hex digits of the commit, and "+" if the tree had uncommitted
+// changes, or the empty string if they don't give a git commit.
+func vcsGitInfo(settings []debug.BuildSetting) string {
+	var vcs, rev, commitTime string
+	var modified bool
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs":
+			vcs = s.Value
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.time":
+			commitTime = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+	if vcs != "git" || len(rev) < 10 {
+		return ""
+	}
+	v := rev[:10]
+	if t, err := time.Parse(time.RFC3339, commitTime); err == nil {
+		v = t.Format("2006-01-02") + "-" + v
+	}
+	if modified {
+		v += "+"
+	}
+	return v
 }
 
 // TestingLinked reports whether the "testing" package is linked into the binary.
