@@ -57,6 +57,9 @@ jobs:
             # mean the latest stable release in the future.
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/master' && github.event_name == 'push' }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+            # and to "sha-" and the short commit hash, which unlike "dev"
+            # always names the same image, to deploy a particular commit's.
+            type=sha,enable=${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event_name == 'push' }}
 
       - name: Build and push Docker image
         id: build-and-push

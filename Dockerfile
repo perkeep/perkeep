@@ -40,18 +40,23 @@ ENV HOME=/home/keepy
 ENV PATH=/home/keepy/bin:$PATH
 ENV PK_IN_CONTAINER=1
 
+# perkeepd decodes the stills that the web UI shows videos with itself
+# for HEVC videos (as iPhones record), but uses ffmpeg for others, such as
+# H.264 ones, and WebM or WMV.
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=pkbuild /out/ /home/keepy/bin/
 
-# Check that perkeepd decodes HEIC images. The binaries are built without
-# cgo; JPEG thumbnailing and HEIC decoding are pure Go.
+# Check that perkeepd decodes HEIC images, and that ffmpeg runs. The
+# binaries are built without cgo; JPEG thumbnailing and HEIC decoding are
+# pure Go.
 RUN perkeepd -build-config > /tmp/build-config.json && \
     cat /tmp/build-config.json && \
     grep -q '"heic": "h265"' /tmp/build-config.json && \
-    rm /tmp/build-config.json
+    rm /tmp/build-config.json && \
+    ffmpeg -hide_banner -version > /dev/null
 
 EXPOSE 80 443 3179 8080
 
