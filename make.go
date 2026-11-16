@@ -77,7 +77,7 @@ func main() {
 	verifyGoVersion()
 	verifyPerkeepRoot()
 	version := getVersion()
-	gitRev := getGitVersion()
+	gitRev, vcsOK := getGitVersion()
 
 	if *verbose {
 		log.Printf("Perkeep version = %q, git = %q", version, gitRev)
@@ -127,6 +127,9 @@ func main() {
 	}
 	if *race {
 		baseArgs = append(baseArgs, "-race")
+	}
+	if !vcsOK {
+		baseArgs = append(baseArgs, "-buildvcs=false")
 	}
 	if *verbose {
 		log.Printf("version to stamp is %q, %q", version, gitRev)
@@ -318,21 +321,29 @@ var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{10,10}\b`)
 // getGitVersion returns the git version of the git repo at pkRoot as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncommitted modifications to the tree.
-func getGitVersion() string {
-	if _, err := exec.LookPath("git"); err != nil {
-		return ""
-	}
+//
+// It returns the empty string if pkRoot isn't in a git repo, or if git
+// can't read it, as in a Docker build of a git worktree, whose .git file
+// names a directory outside the build context. In the latter case, vcsOK
+// is false: the go command can't stamp the binaries with the repo's
+// version either, and fails trying.
+func getGitVersion() (v string, vcsOK bool) {
 	if _, err := os.Stat(filepath.Join(pkRoot, ".git")); os.IsNotExist(err) {
-		return ""
+		return "", true
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		log.Printf("Not stamping the git version: git isn't installed")
+		return "", false
 	}
 	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'",
 		"--date=short", "--abbrev=10", "HEAD")
 	cmd.Dir = pkRoot
 	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Error running git rev-list in %s: %v", pkRoot, err)
+		log.Printf("Not stamping the git version: git rev-list in %s: %v", pkRoot, err)
+		return "", false
 	}
-	v := strings.TrimSpace(string(out))
+	v = strings.TrimSpace(string(out))
 	if m := gitVersionRx.FindStringSubmatch(v); m != nil {
 		v = m[0]
 	} else {
@@ -343,7 +354,7 @@ func getGitVersion() string {
 	if err := cmd.Run(); err != nil {
 		v += "+"
 	}
-	return v
+	return v, true
 }
 
 // verifyPerkeepRoot sets pkRoot and crashes if dir isn't the Perkeep root directory.
