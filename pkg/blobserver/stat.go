@@ -82,6 +82,7 @@ Blobs:
 		select {
 		case <-ctx.Done():
 			// If a previous failed, stop.
+			gate.Done()
 			break Blobs
 		default:
 		}
