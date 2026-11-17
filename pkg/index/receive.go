@@ -74,6 +74,8 @@ type mutationMap struct {
 	signerID      string
 	kv            map[string]string // the keys and values we populate
 
+	isSchema bool
+
 	// We record if we get a delete claim, so we can update
 	// the deletes cache right after committing the mutation.
 	//
@@ -487,12 +489,25 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 }
 
 // finishLocked does the bookkeeping once br's rows, mm, are committed:
+// signaling the SubscribeSchemaChanges channels if it's a schema blob,
 // adding it to the corpus, and then either recording the blobs it still
 // depends on, or recording that it's indexed, waking the blobs waiting
 // for it.
 //
 // ix.mu must be held.
 func (ix *Index) finishLocked(ctx context.Context, op *indexOp, br blob.Ref, mm *mutationMap) error {
+	if mm.isSchema {
+		// Signal first, because the steps below can fail, and the
+		// blob's rows are already committed: search results may have
+		// changed. A search that this starts needs ix.mu, which we
+		// hold, so it won't run until the corpus has the blob too.
+		for _, ch := range ix.schemaChangeSubs {
+			select {
+			case ch <- struct{}{}:
+			default: // a signal is already pending
+			}
+		}
+	}
 	if c := ix.corpus; c != nil {
 		if err := c.addBlob(ctx, br, mm); err != nil {
 			return err
@@ -735,6 +750,7 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 	}
 	var err error
 	if schemaBlob, ok := sniffer.SchemaBlob(); ok {
+		mm.isSchema = true
 		err = ix.populateMutationMapForSchema(ctx, fetcher, schemaBlob, mm)
 	}
 

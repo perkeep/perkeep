@@ -30,8 +30,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-
-	"perkeep.org/pkg/schema"
 )
 
 const (
@@ -63,7 +61,7 @@ type wsHub struct {
 	register       chan *wsConn
 	unregister     chan *wsConn
 	watchReq       chan watchReq
-	newBlobRecv    chan schema.CamliType // new blob received.
+	schemaChanged  <-chan struct{} // see Index.SubscribeSchemaChanges
 	updatedResults chan *watchedQuery
 	statusUpdate   chan json.RawMessage
 
@@ -75,14 +73,14 @@ type wsHub struct {
 	conns map[*wsConn]bool
 }
 
-func newWebsocketHub(sh *Handler) *wsHub {
+func newWebsocketHub(sh *Handler, schemaChanged <-chan struct{}) *wsHub {
 	return &wsHub{
 		sh:             sh,
 		register:       make(chan *wsConn), // unbuffered; issue 563
 		unregister:     make(chan *wsConn), // unbuffered; issue 563
 		conns:          make(map[*wsConn]bool),
 		watchReq:       make(chan watchReq, buffered),
-		newBlobRecv:    make(chan schema.CamliType, buffered),
+		schemaChanged:  schemaChanged,
 		updatedResults: make(chan *watchedQuery, buffered),
 		statusUpdate:   make(chan json.RawMessage, buffered),
 		writeTimeout:   writeWait,
@@ -113,17 +111,11 @@ func (h *wsHub) run() {
 		case c := <-h.unregister:
 			delete(h.conns, c)
 			c.close()
-		case camliType := <-h.newBlobRecv:
-			if camliType == "" {
-				// TODO: something smarter. some
-				// queries might care about all blobs.
-				// But for now only re-kick off
-				// queries if schema blobs arrive.  We
-				// should track per-WatchdQuery which
-				// blob types the search cares about.
-				continue
-			}
-			// New blob was received. Kick off standing search queries to see if any changed.
+		case <-h.schemaChanged:
+			// TODO: something smarter. Some queries might care about
+			// all blobs, but the index only tells us of schema blobs.
+			// We should track per watchedQuery which blob types the
+			// search cares about.
 			for conn := range h.conns {
 				for _, wq := range conn.queries {
 					h.refresh(wq)
