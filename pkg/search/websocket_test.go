@@ -211,6 +211,7 @@ func hasMarker(msgs []outboxMessage, marker string) bool {
 // full, so one stalled client could block the index for good.
 func TestStalledWebsocketDoesntLockIndex(t *testing.T) {
 	wt := newWSTest(t)
+	wt.h.wsHub.searchInterval = 0  // so the last blob's result comes at once
 	stalled := wt.subscribedConn() // never takes from it again
 	reading := wt.subscribedConn()
 
@@ -240,6 +241,7 @@ func TestStalledWebsocketDoesntLockIndex(t *testing.T) {
 // again.
 func TestWebsocketSlowClientGetsLatest(t *testing.T) {
 	wt := newWSTest(t)
+	wt.h.wsHub.searchInterval = 10 * time.Millisecond
 	reading := wt.subscribedConn()
 	slow := wt.subscribedConn()
 
@@ -262,6 +264,7 @@ func TestWebsocketSlowClientGetsLatest(t *testing.T) {
 // leaves the client's other searches alone.
 func TestWebsocketUnsubscribe(t *testing.T) {
 	wt := newWSTest(t)
+	wt.h.wsHub.searchInterval = 0 // so r's second result comes at once
 	c := wt.subscribedConn()
 	wt.h.wsHub.watchReq <- watchReq{conn: c, tag: "r", q: allPermanodes(50)}
 	wt.awaitResultOfTag(c, "r", "")
@@ -307,6 +310,35 @@ func TestWebsocketReplacedQueryResultDropped(t *testing.T) {
 		if hasMarker(outboxOf(c), when) {
 			t.Errorf("the hub has an unsent result of the replaced search, from %s", when)
 		}
+	}
+}
+
+// TestWebsocketOneRedoSearchPerQuery checks that refreshing a query
+// whose redoSearch is running doesn't start another: two would race,
+// and the older result could arrive last.
+func TestWebsocketOneRedoSearchPerQuery(t *testing.T) {
+	wt := newWSTest(t)
+	wt.h.wsHub.searchInterval = time.Hour
+	c := wt.subscribedConn() // its redoSearch has searched, and is pausing
+	wq := c.queries["q"]
+	before := redoSearches()
+	for range 20 {
+		wt.h.wsHub.refresh(wq)
+	}
+	if n := redoSearches() - before; n > 0 {
+		t.Errorf("%d more redoSearch goroutines for a query that has one; want 0", n)
+	}
+}
+
+// redoSearches returns how many goroutines are in wsHub.redoSearch.
+func redoSearches() int {
+	buf := make([]byte, 1<<20)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			return strings.Count(string(buf[:n]), "search.(*wsHub).redoSearch(")
+		}
+		buf = make([]byte, 2*len(buf))
 	}
 }
 
@@ -461,6 +493,7 @@ func TestWebsocketOutbox(t *testing.T) {
 func TestWebsocketStalledClientDisconnected(t *testing.T) {
 	wt := newWSTest(t)
 	wt.h.wsHub.writeTimeout = 100 * time.Millisecond
+	wt.h.wsHub.searchInterval = 0 // a result per blob, so writes block sooner
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -509,5 +542,61 @@ func TestWebsocketStalledClientDisconnected(t *testing.T) {
 			t.Fatal("the server hasn't closed the connection of a client that stopped reading")
 		}
 		wt.indexNewPermanode()
+	}
+}
+
+// TestWebsocketSearchInterval checks that a subscription's searches
+// are at least the hub's search interval apart, so that a burst of
+// blobs causes only a few searches, and that the last result still
+// includes the last blob.
+func TestWebsocketSearchInterval(t *testing.T) {
+	wt := newWSTest(t)
+	const interval = 100 * time.Millisecond
+	wt.h.wsHub.searchInterval = interval
+	c := wt.subscribedConn()
+
+	// Take results as they come, as writePump does, and count them
+	// until one has the last blob.
+	lastc := make(chan string, 1)
+	counted := make(chan int, 1) // or -1 after 10s without one
+	go func() {
+		n, want := 0, ""
+		var newest []byte
+		for {
+			select {
+			case want = <-lastc:
+			case <-c.wake:
+				out, _ := takeAll(c)
+				for _, m := range out {
+					if m.tag == "q" {
+						n++
+						newest = m.msg
+					}
+				}
+			case <-time.After(10 * time.Second):
+				counted <- -1
+				return
+			}
+			if want != "" && bytes.Contains(newest, []byte(want)) {
+				counted <- n
+				return
+			}
+		}
+	}()
+
+	start := time.Now()
+	var last blob.Ref
+	for range 30 {
+		last = wt.indexNewPermanode()
+	}
+	lastc <- last.String()
+	n := <-counted
+	elapsed := time.Since(start)
+	if n < 0 {
+		t.Fatalf("no search result with the last permanode %v", last)
+	}
+	// One search can start at once, then one per interval.
+	if max := 2 + int(elapsed/interval); n > max {
+		t.Errorf("got %d results in %v; want at most %d with searches %v apart", n, elapsed, max, interval)
 	}
 }

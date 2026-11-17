@@ -67,8 +67,9 @@ type wsHub struct {
 	updatedResults chan *watchedQuery
 	statusUpdate   chan json.RawMessage
 
-	// Tests may change this before the hub has clients.
-	writeTimeout time.Duration
+	// Tests may change these before the hub has clients.
+	writeTimeout   time.Duration
+	searchInterval time.Duration // how long a subscription waits after one search before the next
 
 	// Owned by func run:
 	conns map[*wsConn]bool
@@ -85,6 +86,7 @@ func newWebsocketHub(sh *Handler) *wsHub {
 		updatedResults: make(chan *watchedQuery, buffered),
 		statusUpdate:   make(chan json.RawMessage, buffered),
 		writeTimeout:   writeWait,
+		searchInterval: time.Second,
 	}
 }
 
@@ -124,7 +126,7 @@ func (h *wsHub) run() {
 			// New blob was received. Kick off standing search queries to see if any changed.
 			for conn := range h.conns {
 				for _, wq := range conn.queries {
-					go h.redoSearch(wq)
+					h.refresh(wq)
 				}
 			}
 		case wr := <-h.watchReq:
@@ -156,7 +158,7 @@ func (h *wsHub) run() {
 			if debug {
 				log.Printf("websocket: added/updated search subscription for tag %q", wr.tag)
 			}
-			go h.doSearch(wq)
+			h.refresh(wq)
 
 		case wq := <-h.updatedResults:
 			if !h.conns[wq.conn] || wq.conn.queries[wq.tag] != wq {
@@ -179,11 +181,10 @@ func (h *wsHub) run() {
 	}
 }
 
-// redoSearch is called (in its own goroutine) when a new schema blob
-// arrives to note that wq might now have new results and we should
-// re-run it.  But because a search can take awhile, don't run more
-// than one refresh at a time.
-func (h *wsHub) redoSearch(wq *watchedQuery) {
+// refresh marks wq as needing a new search, and starts the goroutine
+// that runs it if one isn't running already. It doesn't block: nothing
+// holds wq.mu for long.
+func (h *wsHub) refresh(wq *watchedQuery) {
 	wq.mu.Lock()
 	defer wq.mu.Unlock()
 	wq.dirty = true
@@ -192,11 +193,23 @@ func (h *wsHub) redoSearch(wq *watchedQuery) {
 		// One's enough.
 		return
 	}
+	wq.refreshing = true
+	go h.redoSearch(wq)
+}
+
+// redoSearch runs wq's search, waits h.searchInterval, and repeats for
+// as long as wq is dirty. Changes that arrive during the wait are all
+// covered by the next search. Only one redoSearch runs per query at a
+// time; see refresh. If the client unsubscribes or disconnects in the
+// meantime, one more search may run, and the hub discards its result.
+func (h *wsHub) redoSearch(wq *watchedQuery) {
+	wq.mu.Lock()
+	defer wq.mu.Unlock()
 	for wq.dirty {
-		wq.refreshing = true
 		wq.dirty = false
 		wq.mu.Unlock() // release lock while running query; might become dirty meanwhile
 		h.doSearch(wq)
+		time.Sleep(h.searchInterval)
 		wq.mu.Lock() // before checking wq.dirty
 	}
 	wq.refreshing = false
@@ -335,8 +348,8 @@ type watchedQuery struct {
 	q    *SearchQuery
 
 	mu         sync.Mutex // guards following
-	refreshing bool       // search is currently running
-	dirty      bool       // new schema blob arrived while refreshing; another refresh due
+	refreshing bool       // redoSearch is running
+	dirty      bool       // the index has changed since the last search started; another is due
 	lastres    *SearchResult
 	lastresj   []byte // as JSON
 }
