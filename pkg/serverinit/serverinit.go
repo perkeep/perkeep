@@ -56,6 +56,7 @@ import (
 	"perkeep.org/pkg/server/app"
 	_ "perkeep.org/pkg/server/immich"  // Register the optional mobile upload handler.
 	_ "perkeep.org/pkg/server/secrets" // Register the server-local credential store.
+	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
 	"perkeep.org/pkg/webserver"
 
@@ -362,8 +363,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		stype := after
 		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
 		if err != nil {
-			exitFailure("error instantiating storage for prefix %q, type %q: %v",
-				h.prefix, stype, err)
+			if hl.recoverCorrupted(err, h.prefix) {
+				pstorage, err = blobserver.CreateStorage(stype, hl, h.conf)
+			}
+			if err != nil {
+				exitFailure("error instantiating storage for prefix %q, type %q: %v", h.prefix, stype, err)
+			}
 		}
 		if ix, ok := pstorage.(*index.Index); ok && ix.WantsReindex() {
 			log.Printf("Reindexing %s ...", h.prefix)
@@ -418,8 +423,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		var err error
 		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
 		if err != nil {
-			exitFailure("error instantiating handler for prefix %q, type %q: %v",
-				h.prefix, h.htype, err)
+			if hl.recoverCorrupted(err, h.prefix) {
+				hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
+			}
+			if err != nil {
+				exitFailure("error instantiating handler for prefix %q, type %q: %v", h.prefix, h.htype, err)
+			}
 		}
 	}
 
@@ -439,6 +448,35 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 	}
 	hl.installer.Handle(prefix, wrappedHandler)
+}
+
+// recoverCorrupted checks whether err wraps a sorted.CorruptedDBError for
+// a prefix whose contents will be rebuilt by the reindex that follows. If
+// so, it deletes the corrupted database directory and returns true so the
+// caller can retry.
+//
+// SetReindex marks storage-index prefixes with reindex=true in their
+// handlerArgs. Non-index databases (namespace inventories, overlay
+// deleted sets, sync queues) hold primary data that --reindex does not
+// rebuild, so their corruption is not recoverable here.
+func (hl *handlerLoader) recoverCorrupted(err error, prefix string) bool {
+	var ce *sorted.CorruptedDBError
+	if !errors.As(err, &ce) {
+		return false
+	}
+	h := hl.config[prefix]
+	if h == nil {
+		return false
+	}
+	reindex, _ := h.conf["reindex"].(bool)
+	if !reindex {
+		return false
+	}
+	log.Printf("Deleting corrupted index database %s (prefix %s) for rebuild", ce.Path, prefix)
+	if rmErr := os.RemoveAll(ce.Path); rmErr != nil {
+		exitFailure("error removing corrupted database %s: %v (original error: %v)", ce.Path, rmErr, err)
+	}
+	return true
 }
 
 // newAccessHandler returns the handler of the Client access page, whose
