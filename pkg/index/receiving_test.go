@@ -18,10 +18,13 @@ package index
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -168,4 +171,147 @@ func TestIndexReceived(t *testing.T) {
 	if indexed(data.BlobRef()) {
 		t.Error("blob that isn't a schema blob was indexed; want it left to the sync to the index")
 	}
+}
+
+// TestSubscribeSchemaChanges checks that a SubscribeSchemaChanges
+// channel gets a signal whenever the index indexes a schema blob,
+// whichever way the blob reached the index, and none otherwise.
+func TestSubscribeSchemaChanges(t *testing.T) {
+	ix := NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
+	src := new(test.Fetcher)
+	ix.InitBlobSource(src)
+	ix.hookBlobSource(src)
+	changed := ix.SubscribeSchemaChanges()
+	unread := ix.SubscribeSchemaChanges() // nobody reads it
+	want := func(what string, has bool) {
+		t.Helper()
+		select {
+		case <-changed:
+			if !has {
+				t.Errorf("%s: the channel has a value; want none", what)
+			}
+		default:
+			if has {
+				t.Errorf("%s: the channel has no value; want one", what)
+			}
+		}
+	}
+	ctx := context.Background()
+	// do runs a step, and fails the test if it takes longer than 10
+	// seconds. The index must never block sending to a channel that
+	// nobody reads; if it did, the test would hang here.
+	do := func(what string, f func() error) {
+		t.Helper()
+		errc := make(chan error, 1)
+		go func() { errc <- f() }()
+		select {
+		case err := <-errc:
+			if err != nil {
+				t.Fatalf("%s: %v", what, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s: still running after 10s", what)
+		}
+	}
+	schemaBlob := func(n int) *test.Blob {
+		return &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1, "camliType": "static-set", "members": [], "n": %d}`, n)}
+	}
+
+	want("before any blob", false)
+
+	// From the receive hook on the blob source, as an upload.
+	b := schemaBlob(1)
+	do("receive b", func() error { _, err := blobserver.Receive(ctx, src, b.BlobRef(), b.Reader()); return err })
+	want("schema blob received into the blob source", true)
+
+	// The same blob again, sent to the index directly, as a
+	// storage-replica config or a sync does for blobs that the hook
+	// has indexed already.
+	do("receive b again", func() error { _, err := blobserver.ReceiveNoHash(ctx, ix, b.BlobRef(), b.Reader()); return err })
+	want("schema blob already indexed", false)
+
+	data := &test.Blob{Contents: "not a schema blob"}
+	do("receive data", func() error { _, err := blobserver.Receive(ctx, ix, data.BlobRef(), data.Reader()); return err })
+	want("blob that isn't a schema blob", false)
+
+	// From a sync to the index, which doesn't notify any blob hub.
+	// Two blobs give one signal.
+	b2, b3 := schemaBlob(2), schemaBlob(3)
+	do("sync", func() error { return blobserver.ReceiveBlobsUnchecked(ctx, ix, []*blob.Blob{b2.Blob(), b3.Blob()}) })
+	want("two schema blobs from a sync", true)
+	want("after receiving their value", false)
+
+	// Indexed late: a file whose chunk arrives after it.
+	chunk := &test.Blob{Contents: "foo"}
+	file := &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1, "camliType": "file", "fileName": "f.txt", "parts": [{"blobRef": %q, "size": 3}]}`, chunk.BlobRef())}
+	do("receive file", func() error { _, err := blobserver.Receive(ctx, src, file.BlobRef(), file.Reader()); return err })
+	want("file before its chunk", false)
+	do("receive chunk", func() error { _, err := blobserver.Receive(ctx, src, chunk.BlobRef(), chunk.Reader()); return err })
+	do("sync chunk", func() error { return blobserver.ReceiveBlobsUnchecked(ctx, ix, []*blob.Blob{chunk.Blob()}) })
+	do("indexing late", func() error { ix.awaitReadyIdle(); return nil })
+	want("file indexed once its chunk arrived", true)
+
+	// The channel that nobody reads holds one signal, and didn't
+	// block any of the indexing above.
+	if len(unread) != 1 {
+		t.Errorf("the channel nothing received from has %d values; want 1", len(unread))
+	}
+}
+
+// TestSchemaChangeSignaledAfterCommit checks that the index signals a
+// schema blob only once the blob's rows are committed, so that a search
+// the signal starts sees them. The index prepares a blob without its
+// lock and commits it with the lock held; the test holds the read lock
+// while the index finishes preparing a file, so no signal may come.
+func TestSchemaChangeSignaledAfterCommit(t *testing.T) {
+	ix := NewMemoryIndex()
+	ix.Logger = test.NewLogger(t, "")
+	src := &gateFetcher{Fetcher: new(test.Fetcher), fetching: make(chan struct{}), proceed: make(chan struct{})}
+	ix.InitBlobSource(src)
+	changed := ix.SubscribeSchemaChanges()
+	chunk := &test.Blob{Contents: "foo"}
+	src.Fetcher.AddBlob(chunk)
+	file := &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1, "camliType": "file", "fileName": "f.txt", "parts": [{"blobRef": %q, "size": 3}]}`, chunk.BlobRef())}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := blobserver.ReceiveNoHash(context.Background(), ix, file.BlobRef(), file.Reader())
+		errc <- err
+	}()
+
+	<-src.fetching // preparing the file, which fetches its part
+	unlock := ix.RLock()
+	close(src.proceed)
+	// Correct code can't signal while the read lock is held, however
+	// long this waits; it waits only so that an early signal arrives.
+	select {
+	case <-changed:
+		t.Error("signaled before the file's rows could be committed")
+	case <-time.After(100 * time.Millisecond):
+	}
+	unlock()
+	if err := <-errc; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-changed:
+	default:
+		t.Error("no signal once the file was indexed")
+	}
+}
+
+// gateFetcher is a test.Fetcher whose first fetch sends on fetching,
+// then waits for proceed to be closed.
+type gateFetcher struct {
+	*test.Fetcher
+	fetching, proceed chan struct{}
+	once              sync.Once
+}
+
+func (f *gateFetcher) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	f.once.Do(func() {
+		f.fetching <- struct{}{}
+		<-f.proceed
+	})
+	return f.Fetcher.Fetch(ctx, br)
 }
