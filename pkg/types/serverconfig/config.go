@@ -225,8 +225,9 @@ type Config struct {
 	CopyIndexToMemory invertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
 	MemoryIndex       bool         `json:"memoryIndex,omitempty"`       // use memory-only indexer.
 
-	// DBName is the optional name of the index database for MySQL or PostgreSQL.
-	// If empty, DBUnique is used as part of the database name.
+	// DBName is the optional name of the index database for MySQL or
+	// PostgreSQL, or of the index collection for Firestore. If empty,
+	// DBUnique is used as part of the name.
 	DBName string `json:"dbname,omitempty"`
 
 	// DBUnique optionally provides a unique value to differentiate databases on a
@@ -239,6 +240,13 @@ type Config struct {
 	MySQL      string `json:"mysql,omitempty"`    // MySQL credentials (username@host:password), for indexing with MySQL.
 	PostgreSQL string `json:"postgres,omitempty"` // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
 	SQLite     string `json:"sqlite,omitempty"`   // path to the SQLite file, for indexing with SQLite.
+
+	// Firestore is the Google Cloud project ID, for indexing with Cloud
+	// Firestore, or "auto" to take the project from the environment
+	// (GOOGLE_CLOUD_PROJECT, then the Application Default Credentials).
+	// Each index, queue and cache lives in its own collection, named like
+	// the MySQL and PostgreSQL databases: see DBName and DBUnique.
+	Firestore string `json:"firestore,omitempty"`
 
 	// KVFile is the path to the kv file, for indexing with modernc.org/kv.
 	//

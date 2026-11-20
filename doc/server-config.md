@@ -264,6 +264,9 @@ Unless `runIndex` is set to `false`, exactly one of these must be set:
 * `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
 * `mysql`: user@host:password
 * `postgres`: user@host:password
+* `firestore`: Google Cloud project ID, or `auto` to take it from the
+  environment (`GOOGLE_CLOUD_PROJECT`, then the Application Default
+  Credentials)
 * `memoryIndex`: if true, a memory-only indexer is used.
 
 SQLite is the default indexer and a good starting point for most installations.
@@ -278,13 +281,25 @@ separate database server; choose one if you want to manage the index with an
 existing DBMS. `memoryIndex` is for development and testing: its contents are
 lost when the server stops.
 
+Firestore keeps the index in a [Cloud Firestore](https://cloud.google.com/firestore)
+database in native mode, for servers without a persistent disk, such as on
+Cloud Run. It authenticates with the Application Default Credentials. Each
+key is a document in a collection, so every index row is a billed document
+read or write: loading the index into memory at start-up reads the whole
+collection, and a reindex rewrites it. The queues and caches that would
+otherwise be files, such as the blobpacked meta index, go in collections of
+their own, named like the MySQL and PostgreSQL databases (see
+`dbname` and `dbUnique` below). Never point two stores at the same
+collection: wiping one, as a reindex does, empties the whole collection.
+
 These options select the index backend, not where blobs are stored. The index
 can be rebuilt from the blobs with `perkeepd --reindex`.
 
 ## Database-related options {#database}
 
 * `dbname`: optional name of the index database if MySQL or PostgreSQL
-  is used. If empty, dbUnique is used as part of the database name.
+  is used, or of the index collection if Firestore is used. If empty,
+  dbUnique is used as part of the name.
 * `dbUnique`: optionally provides a unique value to differentiate databases on a
   DBMS shared by multiple Perkeep instances. It should not contain spaces or
   punctuation. If empty, identity is used instead. If the latter is absent, the

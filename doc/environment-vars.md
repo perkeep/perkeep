@@ -254,6 +254,14 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   The tests import into isolated temporary storage; do not add personal
   archives to the repository.
 
+`PERKEEP_TEST_FIRESTORE_PROJECT` (string)
+: Google Cloud project ID of a Firestore database (native mode) for the
+  Firestore sorted.KeyValue tests to use, through the Application Default
+  Credentials. The tests write to, and then delete, a collection of their
+  own with a random name. If not set, the tests are skipped. With
+  `FIRESTORE_EMULATOR_HOST` also set, they run against the emulator
+  instead, and the project ID can be any string.
+
 `PERKEEP_TEST_MYSQL_HOST` (string)
 : host[:port] of a MySQL server for the MySQL tests to use (user "root",
   password "root"). Each test creates and then drops its own database. If
