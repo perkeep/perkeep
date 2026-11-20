@@ -1,0 +1,137 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
+				"ownerName": "Alice",
+				"searchRoot": "/search/",
+				"secretRoot": "/secrets/",
+				"shareRoot": "/share/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs-loose/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "auto",
+					"client_secret": "",
+					"refresh_token": ""
+				},
+				"bucket": "bucketName/loose"
+			}
+		},
+		"/bs-packed/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "auto",
+					"client_secret": "",
+					"refresh_token": ""
+				},
+				"bucket": "bucketName/packed"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"collection": "pk_2931a67c26f5abda_blobpacked",
+					"project": "gcp-project",
+					"type": "firestore"
+				},
+				"smallBlobs": "/bs-loose/"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/camli-cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {
+				"secretRoot": "/secrets/"
+			}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"collection": "pk_2931a67c26f5abda_index",
+					"project": "gcp-project",
+					"type": "firestore"
+				}
+			}
+		},
+		"/search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/secrets/": {
+			"handler": "secrets",
+			"handlerArgs": {}
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"index": "/index/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "2931A67C26F5ABDA",
+				"publicKeyDest": "/bs/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"collection": "pk_2931a67c26f5abda_syncto_index",
+					"project": "gcp-project",
+					"type": "firestore"
+				},
+				"to": "/index/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"scaledImage": {
+					"collection": "pk_2931a67c26f5abda_uithumbmeta",
+					"project": "gcp-project",
+					"type": "firestore"
+				}
+			}
+		}
+	}
+}

@@ -71,6 +71,7 @@ import (
 
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
+	_ "perkeep.org/pkg/sorted/firestore"
 	_ "perkeep.org/pkg/sorted/jsonfile"
 	_ "perkeep.org/pkg/sorted/kvfile"
 	_ "perkeep.org/pkg/sorted/leveldb"

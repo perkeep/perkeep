@@ -341,6 +341,8 @@ func (b *lowBuilder) sortedName() string {
 		return "MySQL"
 	case b.high.PostgreSQL != "":
 		return "PostgreSQL"
+	case b.high.Firestore != "":
+		return "Firestore"
 	case b.high.MemoryIndex:
 		return "in memory LevelDB"
 	case b.high.SQLite != "":
@@ -454,6 +456,25 @@ func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (m
 	}, nil
 }
 
+// firestoreStorage returns the configuration of the Firestore collection
+// holding the sorted store named sortedType. Each store gets its own
+// collection, named like the MySQL and PostgreSQL databases would be,
+// since wiping a store empties its whole collection.
+func (b *lowBuilder) firestoreStorage(sortedType dbname) (map[string]any, error) {
+	collection := b.dbName(sortedType)
+	if collection == "" {
+		return nil, fmt.Errorf("no collection name configured for sorted store %q", sortedType)
+	}
+	conf := map[string]any{
+		"type":       "firestore",
+		"collection": collection,
+	}
+	if b.high.Firestore != "auto" {
+		conf["project"] = b.high.Firestore
+	}
+	return conf, nil
+}
+
 func (b *lowBuilder) sortedStorage(sortedType dbname) (map[string]any, error) {
 	return b.sortedStorageAt(sortedType, "")
 }
@@ -466,6 +487,9 @@ func (b *lowBuilder) sortedDBMS(named dbname) (map[string]any, error) {
 	}
 	if b.high.PostgreSQL != "" {
 		return b.dbIndexStorage("postgres", b.high.PostgreSQL, named)
+	}
+	if b.high.Firestore != "" {
+		return b.firestoreStorage(named)
 	}
 	return nil, nil
 }
@@ -1077,13 +1101,13 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	low["auth"] = conf.Auth
 
-	numIndexers := numSet(conf.LevelDB, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile, conf.MemoryIndex)
+	numIndexers := numSet(conf.LevelDB, conf.MySQL, conf.PostgreSQL, conf.Firestore, conf.SQLite, conf.KVFile, conf.MemoryIndex)
 
 	switch {
 	case b.runIndex() && numIndexers == 0:
-		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (sqlite, leveldb, mysql, postgres, memoryIndex).")
+		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (sqlite, leveldb, mysql, postgres, firestore, memoryIndex).")
 	case b.runIndex() && numIndexers != 1:
-		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex).")
+		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mysql, postgres, firestore, sqlite, kvIndexFile, leveldb, memoryIndex).")
 	case !b.runIndex() && numIndexers != 0:
 		log.Printf("Indexer disabled, but %v will be used for other indexes, queues, caches, etc.", b.sortedName())
 	}

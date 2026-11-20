@@ -40,6 +40,7 @@ import (
 	_ "perkeep.org/pkg/blobserver/google/drive"
 	_ "perkeep.org/pkg/blobserver/localdisk"
 	_ "perkeep.org/pkg/blobserver/s3"
+	_ "perkeep.org/pkg/sorted/firestore"
 	_ "perkeep.org/pkg/sorted/kvfile"
 	_ "perkeep.org/pkg/sorted/leveldb"
 	_ "perkeep.org/pkg/sorted/mysql"
